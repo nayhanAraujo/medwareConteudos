@@ -1,0 +1,24 @@
+# Exemplo — NÃO ativar em produção até homologação completa.
+# Anexar como template ou stage separado no pipeline principal.
+
+steps:
+  - task: UseDotNet@2
+    inputs:
+      packageType: sdk
+      version: 8.x
+
+  - script: |
+      dotnet publish mdw-migracao/backend/MdwConteudos.Api/MdwConteudos.Api.csproj -c Release -o $(Build.ArtifactStagingDirectory)/api
+    displayName: Publish API .NET
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '20.x'
+
+  - script: |
+      cd mdw-migracao/frontend/nuxt-app
+      npm ci
+      npm run build
+    displayName: Build Nuxt
+
+  # Deploy: copiar api/ e .output/ para servidor; configurar NSSM Kestrel + IIS para Nuxt

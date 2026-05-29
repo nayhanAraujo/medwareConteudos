@@ -1,0 +1,39 @@
+.system-card,
+.package-card {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  border: 1px solid var(--bs-border-color);
+}
+
+.system-card:hover,
+.package-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.script-display-card {
+  transition: box-shadow 0.2s ease;
+}
+
+.script-display-card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.script-display-card .card-img-top,
+.script-thumb-placeholder {
+  height: 180px;
+  object-fit: cover;
+}
+
+.script-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bs-light);
+}
+
+.breadcrumb.scripts-crumb {
+  background-color: var(--bs-light);
+  padding: 0.75rem 1rem;
+  border-radius: 0.25rem;
+}

@@ -1,0 +1,124 @@
+# =============================================================================
+# MDW Conteúdos — Migração (Nuxt 3 + ASP.NET Core 8)
+# Baseado no .gitignore do projeto legado Flask, adaptado para a nova stack.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Banco de dados Firebird (mesmo critério do legado: BD/ e .FDB)
+# -----------------------------------------------------------------------------
+BD/
+BANCO_REFERENCIA/
+*.FDB
+*.fdb
+
+# -----------------------------------------------------------------------------
+# Segredos e configuração local (legado: .env, .env.local, web.config)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+web.config
+appsettings.*.local.json
+secrets.json
+**/Properties/launchSettings.json.user
+
+# -----------------------------------------------------------------------------
+# Uploads e arquivos gerados pelo sistema (legado: uploads/)
+# Não versionar binários de usuários (PDFs, imagens, PBIX, etc.)
+# -----------------------------------------------------------------------------
+static/uploads/
+static/uploads_documentos_academicos/
+uploads/
+
+# -----------------------------------------------------------------------------
+# Logs (legado: *.log)
+# -----------------------------------------------------------------------------
+*.log
+logs/
+
+# -----------------------------------------------------------------------------
+# ASP.NET Core / .NET 8
+# -----------------------------------------------------------------------------
+bin/
+obj/
+out/
+publish/
+artifacts/
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+project.lock.json
+project.fragment.lock.json
+
+# Visual Studio / Rider
+.vs/
+.vscode/
+.idea/
+*.rsuser
+*.sln.iml
+
+# -----------------------------------------------------------------------------
+# Nuxt 3 / Node.js
+# -----------------------------------------------------------------------------
+node_modules/
+.nuxt/
+.output/
+.nitro/
+.data/
+.cache/
+dist/
+.vercel/
+.netlify/
+
+# npm / yarn / pnpm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# -----------------------------------------------------------------------------
+# Python (legado — caso scripts auxiliares ou venv local na pasta)
+# -----------------------------------------------------------------------------
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# -----------------------------------------------------------------------------
+# Pastas auxiliares do legado (não usadas na migração, mantidas por paridade)
+# -----------------------------------------------------------------------------
+sessions/
+scenario/
+ParseCSFile/
+
+# -----------------------------------------------------------------------------
+# IDE / editor / SO (legado: .vscode, .idea, Thumbs.db, .DS_Store)
+# -----------------------------------------------------------------------------
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# -----------------------------------------------------------------------------
+# Azure DevOps / deploy local
+# -----------------------------------------------------------------------------
+*.publishsettings
+*.azurePubxml
+.azure/
+
+# -----------------------------------------------------------------------------
+# Artefatos de teste e downloads temporários
+# -----------------------------------------------------------------------------
+backend/MdwConteudos.Api/tests/*.zip
+backend/MdwConteudos.Api/tests/*.pbix
+*.tmp
+*.temp
