@@ -1,26 +1,28 @@
 <template>
   <div>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h2>Usuários</h2>
-    </div>
-    <table class="table table-striped bg-white">
-      <thead>
-        <tr>
-          <th>Nome</th>
-          <th>Login</th>
-          <th>Perfil</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
+    <DsPageHeader title="Usuários" icon="people" />
+    <DsPageShell>
+      <DsTable>
+        <template #head>
+          <tr>
+            <th>Nome</th>
+            <th>Login</th>
+            <th>Perfil</th>
+            <th>Status</th>
+          </tr>
+        </template>
         <tr v-for="u in users" :key="u.codusuario">
           <td>{{ u.nome }}</td>
           <td>{{ u.identificacao }}</td>
           <td>{{ u.perfil }}</td>
-          <td>{{ u.status === -1 ? 'Ativo' : 'Inativo' }}</td>
+          <td>
+            <DsBadge :variant="u.status === -1 ? 'success' : 'default'">
+              {{ u.status === -1 ? 'Ativo' : 'Inativo' }}
+            </DsBadge>
+          </td>
         </tr>
-      </tbody>
-    </table>
+      </DsTable>
+    </DsPageShell>
   </div>
 </template>
 
@@ -34,4 +36,3 @@ onMounted(async () => {
   users.value = res.data || []
 })
 </script>
-

@@ -1,21 +1,20 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="Editar Script" icon="pencil-fill" />
-    <div v-if="loadingData" class="text-muted">Carregando...</div>
-    <div v-else class="card shadow-sm">
-      <div class="card-body">
-        <ScriptsScriptForm
-          v-model="form"
-          :pacotes="pacotes"
-          :existing-imagens="existingImagens"
-          edit-mode
-          :loading="loading"
-          @submit="salvar"
-          @cancel="voltar"
-          @files="(f) => (fileRefs = f)"
-        />
-      </div>
-    </div>
+    <DsPageHeader title="Editar Script" icon="pencil-fill" />
+    <DsPageShell panel-class="!p-6 md:!p-8">
+      <div v-if="loadingData" class="text-gray-500 py-8 text-center">Carregando...</div>
+      <ScriptsScriptForm
+        v-else
+        v-model="form"
+        :pacotes="pacotes"
+        :existing-imagens="existingImagens"
+        edit-mode
+        :loading="loading"
+        @submit="salvar"
+        @cancel="voltar"
+        @files="(f) => (fileRefs = f)"
+      />
+    </DsPageShell>
   </div>
 </template>
 

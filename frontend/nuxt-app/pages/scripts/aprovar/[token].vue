@@ -1,42 +1,34 @@
 <template>
-  <div class="login-page">
-    <div class="login-container" style="max-width: 620px; text-align: left">
-      <h4 class="text-info mb-3"><i class="bi bi-patch-check-fill me-2" />Aprovação de Script</h4>
-      <div v-if="loading" class="text-muted">Carregando...</div>
-      <div v-else-if="status === 'expirado'" class="alert alert-warning">
-        <i class="bi bi-exclamation-triangle-fill me-2" />Link expirado ou inválido.
-      </div>
-      <div v-else-if="status === 'ja_aprovado'" class="alert alert-success">
-        <i class="bi bi-check-circle-fill me-2" />O modelo <strong>{{ info?.nomeScript }}</strong> já foi aprovado.
-      </div>
-      <div v-else-if="status === 'ok'">
-        <p class="mb-1">Script: <strong>{{ info?.nomeScript }}</strong></p>
-        <p class="small text-muted">Sistema: {{ info?.sistema }} · Linguagem: {{ info?.linguagem || '—' }}</p>
-        <div class="alert alert-light border small">
-          Revise o script no link de teste antes de aprovar. Esta ação será registrada no sistema.
-        </div>
-        <p v-if="info?.linkTeste">
-          <a :href="info.linkTeste" target="_blank" class="btn btn-outline-info btn-sm">
-            <i class="bi bi-box-arrow-up-right me-1" />Abrir link de teste
-          </a>
-        </p>
-        <form @submit.prevent="enviar('aprovar')">
-          <button type="submit" class="btn btn-success w-100 mb-2" :disabled="submitting">
-            <i class="bi bi-hand-thumbs-up-fill me-1" />Aprovar
-          </button>
-        </form>
-        <button type="button" class="btn btn-outline-danger w-100" :disabled="submitting" @click="enviar('rejeitar')">
-          <i class="bi bi-hand-thumbs-down-fill me-1" />Rejeitar
-        </button>
-      </div>
-      <div v-else-if="status === 'sucesso'" class="alert alert-success">
-        <i class="bi bi-check-circle-fill me-2" />Aprovado com sucesso!
-      </div>
-      <div v-else-if="status === 'rejeitado'" class="alert alert-secondary">
-        <i class="bi bi-x-circle-fill me-2" />Rejeitado.
-      </div>
+  <DsAuthShell size="lg">
+    <h2 class="text-xl font-semibold font-manrope text-ds-text mb-4 flex items-center gap-2">
+      <i class="bi bi-patch-check-fill text-blue-600" />Aprovação de Script
+    </h2>
+    <div v-if="loading" class="text-gray-500">Carregando...</div>
+    <DsAlert v-else-if="status === 'expirado'" variant="warning" title="Link expirado ou inválido." />
+    <DsAlert v-else-if="status === 'ja_aprovado'" variant="success">
+      O modelo <strong>{{ info?.nomeScript }}</strong> já foi aprovado.
+    </DsAlert>
+    <div v-else-if="status === 'ok'" class="space-y-4">
+      <p class="text-sm">Script: <strong>{{ info?.nomeScript }}</strong></p>
+      <p class="text-xs text-gray-600">Sistema: {{ info?.sistema }} · Linguagem: {{ info?.linguagem || '—' }}</p>
+      <DsAlert variant="info">
+        Revise o script no link de teste antes de aprovar. Esta ação será registrada no sistema.
+      </DsAlert>
+      <DsButton v-if="info?.linkTeste" variant="secondary" size="sm" :href="info.linkTeste" icon="box-arrow-up-right">
+        Abrir link de teste
+      </DsButton>
+      <form @submit.prevent="enviar('aprovar')">
+        <DsButton type="submit" variant="success" block icon="hand-thumbs-up-fill" :loading="submitting" class="mb-2">
+          Aprovar
+        </DsButton>
+      </form>
+      <DsButton variant="danger" block icon="hand-thumbs-down-fill" :loading="submitting" @click="enviar('rejeitar')">
+        Rejeitar
+      </DsButton>
     </div>
-  </div>
+    <DsAlert v-else-if="status === 'sucesso'" variant="success" title="Aprovado com sucesso!" />
+    <DsAlert v-else-if="status === 'rejeitado'" variant="warning" title="Rejeitado." />
+  </DsAuthShell>
 </template>
 
 <script setup lang="ts">

@@ -1,22 +1,16 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="Nova Versão" icon="plus-circle" />
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <form @submit.prevent="salvar">
-          <div class="mb-3">
-            <label class="form-label">Número da versão</label>
-            <input v-model="numeroVersao" class="form-control" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Observações</label>
-            <textarea v-model="observacoes" class="form-control" rows="3" />
-          </div>
-          <button type="submit" class="btn btn-success" :disabled="loading">Salvar</button>
-          <NuxtLink class="btn btn-outline-secondary ms-2" :to="`/scripts/${id}/versoes`">Cancelar</NuxtLink>
-        </form>
-      </div>
-    </div>
+    <DsPageHeader title="Nova Versão" icon="plus-circle" />
+    <DsPageShell panel-class="!p-6 md:!p-8 max-w-xl">
+      <form class="space-y-4" @submit.prevent="salvar">
+        <DsInput v-model="numeroVersao" label="Número da versão" required />
+        <DsTextarea v-model="observacoes" label="Observações" :rows="3" />
+        <div class="flex gap-2">
+          <DsButton type="submit" variant="success" :loading="loading">Salvar</DsButton>
+          <DsButton variant="secondary" :to="`/scripts/${id}/versoes`">Cancelar</DsButton>
+        </div>
+      </form>
+    </DsPageShell>
   </div>
 </template>
 

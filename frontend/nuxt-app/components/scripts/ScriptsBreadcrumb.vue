@@ -1,20 +1,10 @@
 <template>
-  <nav aria-label="breadcrumb" class="mb-3 scripts-crumb">
-    <ol class="breadcrumb mb-0">
-      <li class="breadcrumb-item">
-        <a href="#" @click.prevent="goSistema()">Seleção de Sistema</a>
-      </li>
-      <li v-if="sistema" class="breadcrumb-item">
-        <a href="#" @click.prevent="goPacotes()">Seleção de Pacote</a>
-      </li>
-      <li v-if="sistema && pacoteNome" class="breadcrumb-item active">
-        Scripts: <span class="fw-bold text-primary">{{ pacoteNome }}</span>
-      </li>
-    </ol>
-  </nav>
+  <DsBreadcrumb :items="items" @navigate="onNavigate" />
 </template>
 
 <script setup lang="ts">
+import type { DsBreadcrumbItem } from '~/components/ds/DsBreadcrumb.vue'
+
 const props = defineProps<{
   sistema?: string
   pacote?: string | number
@@ -23,7 +13,17 @@ const props = defineProps<{
 
 const { goSistema, goPacotes: navPacotes } = useScriptsNav()
 
-function goPacotes() {
-  if (props.sistema) navPacotes(props.sistema)
+const items = computed<DsBreadcrumbItem[]>(() => {
+  const list: DsBreadcrumbItem[] = [{ label: 'Seleção de Sistema', href: true }]
+  if (props.sistema) list.push({ label: 'Seleção de Pacote', href: true })
+  if (props.sistema && props.pacoteNome) {
+    list.push({ label: `Scripts: ${props.pacoteNome}`, active: true })
+  }
+  return list
+})
+
+function onNavigate(item: DsBreadcrumbItem) {
+  if (item.label.startsWith('Seleção de Sistema')) goSistema()
+  else if (item.label.startsWith('Seleção de Pacote') && props.sistema) navPacotes(props.sistema)
 }
 </script>

@@ -1,24 +1,33 @@
 <template>
   <div>
-    <LayoutAppPageHeader :title="`Vincular Variáveis — ${nomeScript}`" icon="link" />
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <input v-model="busca" type="text" class="form-control mb-3" placeholder="Pesquisar por nome ou sigla..." />
-        <div class="border rounded p-2 mb-3" style="max-height: 400px; overflow-y: auto">
-          <div v-for="v in filtradas" :key="v.codVariavel" class="form-check border-bottom py-2">
-            <input :id="`v-${v.codVariavel}`" v-model="selecionadas" class="form-check-input" type="checkbox" :value="v.codVariavel" />
-            <label class="form-check-label w-100" :for="`v-${v.codVariavel}`">
-              <strong>{{ v.nome }}</strong> ({{ v.sigla }})
-              <div class="small text-muted">Fórmula: {{ v.formula || '—' }} · Normalidade: {{ v.normalidade || '—' }}</div>
-            </label>
-          </div>
-        </div>
-        <button class="btn btn-success" :disabled="loading" @click="salvar">
-          <i class="bi bi-save" /> Salvar
-        </button>
-        <NuxtLink class="btn btn-outline-secondary ms-2" :to="voltarPath">Voltar</NuxtLink>
+    <DsPageHeader :title="`Vincular Variáveis — ${nomeScript}`" icon="link" />
+    <DsPageShell>
+      <DsSearchInput v-model="busca" placeholder="Pesquisar por nome ou sigla..." wrapper-class="mb-4" />
+      <div class="border border-gray-200 rounded-2xl bg-white p-3 mb-4 max-h-[400px] overflow-y-auto">
+        <label
+          v-for="v in filtradas"
+          :key="v.codVariavel"
+          class="flex items-start gap-3 border-b border-gray-100 py-3 last:border-0 cursor-pointer"
+        >
+          <input
+            v-model="selecionadas"
+            type="checkbox"
+            class="mt-1 rounded border-gray-300"
+            :value="v.codVariavel"
+          />
+          <span class="flex-1">
+            <strong class="text-ds-text">{{ v.nome }}</strong> ({{ v.sigla }})
+            <span class="block text-xs text-gray-500 mt-0.5">
+              Fórmula: {{ v.formula || '—' }} · Normalidade: {{ v.normalidade || '—' }}
+            </span>
+          </span>
+        </label>
       </div>
-    </div>
+      <div class="flex gap-2">
+        <DsButton variant="success" icon="save" :loading="loading" @click="salvar">Salvar</DsButton>
+        <DsButton variant="secondary" :to="voltarPath">Voltar</DsButton>
+      </div>
+    </DsPageShell>
   </div>
 </template>
 

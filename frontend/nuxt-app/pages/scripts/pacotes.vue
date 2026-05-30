@@ -1,36 +1,32 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="Pacotes Disponíveis" icon="box-seam" />
+    <DsPageHeader title="Pacotes Disponíveis" icon="box-seam" />
     <ScriptsScriptsBreadcrumb :sistema="sistema" />
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="fw-bold mb-0">Escolha o Pacote</h5>
-          <button type="button" class="btn btn-outline-secondary btn-sm" @click="goSistema()">
-            <i class="bi bi-arrow-left" /> Voltar
-          </button>
-        </div>
-        <div class="input-group mb-3">
-          <span class="input-group-text"><i class="bi bi-search" /></span>
-          <input v-model="busca" type="text" class="form-control" placeholder="Buscar pacote..." />
-        </div>
-        <div v-if="loading" class="text-center py-4 text-muted">Carregando pacotes...</div>
-        <div v-else class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
-          <div v-for="p in pacotesFiltrados" :key="p.codPacote" class="col">
-            <div class="card package-card h-100" role="button" @click="select(p.codPacote)">
-              <div class="card-body text-center">
-                <i :class="`bi ${getPacoteVisual(p.nome).icon} ${getPacoteVisual(p.nome).iconColor} fs-1 mb-3`" />
-                <h6 class="card-title">{{ p.nome }}</h6>
-                <p v-if="p.descricao" class="text-muted small mb-0">{{ p.descricao }}</p>
-              </div>
-            </div>
-          </div>
-          <div v-if="!pacotesFiltrados.length" class="col-12 text-center text-muted py-4">
-            Nenhum pacote encontrado.
-          </div>
-        </div>
+    <DsPageShell>
+      <div class="flex justify-between items-center mb-6">
+        <DsSectionTitle title="Escolha o Pacote" />
+        <DsButton variant="secondary" size="sm" icon="arrow-left" @click="goSistema()">Voltar</DsButton>
       </div>
-    </div>
+      <DsSearchInput v-model="busca" placeholder="Buscar pacote..." wrapper-class="mb-6" />
+      <div v-if="loading" class="text-center py-8 text-gray-500">Carregando pacotes...</div>
+      <DsEmptyState
+        v-else-if="!pacotesFiltrados.length"
+        title="Nenhum pacote encontrado"
+        icon="box-seam"
+      />
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <DsHubCard
+          v-for="(p, index) in pacotesFiltrados"
+          :key="p.codPacote"
+          :title="p.nome"
+          :desc="p.descricao || 'Pacote de scripts'"
+          :icon="getPacoteIcon(p.nome)"
+          theme-name="gray"
+          :delay-index="index"
+          @click="select(p.codPacote)"
+        />
+      </div>
+    </DsPageShell>
   </div>
 </template>
 
@@ -71,15 +67,14 @@ function select(codPacote: number) {
   goLista(sistema.value, codPacote)
 }
 
-function getPacoteVisual(nomePacote: string) {
+function getPacoteIcon(nomePacote: string) {
   const n = (nomePacote || '').toLowerCase()
-  if (n.includes('angiologia') || n.includes('vascular')) return { icon: 'bi-activity', iconColor: 'text-danger' }
-  if (n.includes('cardiologia')) return { icon: 'bi-heart-fill', iconColor: 'text-danger' }
-  if (n.includes('consulta')) return { icon: 'bi-clipboard2-pulse-fill', iconColor: 'text-primary' }
-  if (n.includes('ultrassonografia')) return { icon: 'bi-soundwave', iconColor: 'text-info' }
-  if (n.includes('pediatria')) return { icon: 'bi-emoji-smile-fill', iconColor: 'text-warning' }
-  if (n.includes('oftalmologia')) return { icon: 'bi-eye-fill', iconColor: 'text-primary' }
-  if (n.includes('nutri')) return { icon: 'bi-egg-fill', iconColor: 'text-success' }
-  return { icon: 'bi-box-seam-fill', iconColor: 'text-secondary' }
+  if (n.includes('cardiologia')) return 'heart-fill'
+  if (n.includes('consulta')) return 'clipboard2-pulse-fill'
+  if (n.includes('ultrassonografia')) return 'soundwave'
+  if (n.includes('pediatria')) return 'emoji-smile-fill'
+  if (n.includes('oftalmologia')) return 'eye-fill'
+  if (n.includes('nutri')) return 'egg-fill'
+  return 'box-seam-fill'
 }
 </script>

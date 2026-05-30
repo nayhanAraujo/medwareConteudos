@@ -1,18 +1,25 @@
 <template>
   <div>
-    <h2 class="mb-3">Variáveis</h2>
-    <input v-model="search" class="form-control mb-3" placeholder="Buscar..." @input="load" />
-    <table class="table table-hover bg-white">
-      <thead><tr><th>Código</th><th>Nome</th><th>Variável</th><th>Sigla</th></tr></thead>
-      <tbody>
-        <tr v-for="v in items" :key="v.CODVARIAVEL">
+    <DsPageHeader title="Variáveis" icon="calculator" />
+    <DsPageShell>
+      <DsSearchInput v-model="search" placeholder="Buscar variável..." @enter="load" />
+      <DsTable>
+        <template #head>
+          <tr>
+            <th>Código</th>
+            <th>Nome</th>
+            <th>Variável</th>
+            <th>Sigla</th>
+          </tr>
+        </template>
+        <tr v-for="v in items" :key="String(v.CODVARIAVEL)">
           <td>{{ v.CODVARIAVEL }}</td>
           <td>{{ v.NOME }}</td>
           <td>{{ v.VARIAVEL }}</td>
           <td>{{ v.SIGLA }}</td>
         </tr>
-      </tbody>
-    </table>
+      </DsTable>
+    </DsPageShell>
   </div>
 </template>
 
@@ -28,5 +35,5 @@ async function load() {
   items.value = res.data || []
 }
 onMounted(load)
+watch(search, load)
 </script>
-

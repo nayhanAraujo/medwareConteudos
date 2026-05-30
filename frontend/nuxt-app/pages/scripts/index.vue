@@ -1,323 +1,211 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="Scripts Cadastrados" icon="card-checklist" />
-    <div v-if="!hasParams" class="alert alert-warning">
+    <DsPageHeader title="Scripts Cadastrados" icon="card-checklist" />
+    <DsAlert v-if="!hasParams" variant="warning" class="mb-4">
       Esta página requer pacote e sistema.
-      <NuxtLink to="/scripts/sistema" class="btn btn-primary btn-sm ms-2">Seleção de Sistema</NuxtLink>
-    </div>
+      <DsButton size="sm" to="/scripts/sistema" class="ml-2">Seleção de Sistema</DsButton>
+    </DsAlert>
     <template v-else>
       <ScriptsScriptsBreadcrumb :sistema="sistema" :pacote="pacote" :pacote-nome="pacoteNome" />
-      <div class="card shadow-sm mb-4">
-        <div class="card-body">
-          <div class="row mb-3 align-items-center g-2">
-            <div class="col-md-4">
-              <div class="input-group">
-                <input v-model="filtros.nome" type="text" class="form-control" placeholder="Buscar por nome..." @keyup.enter="load(1)" />
-                <button class="btn btn-outline-primary" type="button" @click="load(1)"><i class="bi bi-search" /></button>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <select v-model="filtros.aprovado" class="form-select" @change="load(1)">
-                <option value="">Aprovado: Todos</option>
-                <option value="1">Aprovado</option>
-                <option value="0">Não aprovado</option>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <select v-model="filtros.ativo" class="form-select" @change="load(1)">
-                <option value="1">Somente ativos</option>
-                <option value="0">Somente inativos</option>
-                <option value="">Ativo: Todos</option>
-              </select>
-            </div>
-            <div class="col-md-3 text-md-end">
-              <button type="button" class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#filterModal">
-                <i class="bi bi-funnel-fill" /> Filtros Avançados
-              </button>
-              <div class="btn-group me-2">
-                <button type="button" class="btn" :class="viewMode === 'cards' ? 'btn-primary' : 'btn-outline-primary'" @click="viewMode = 'cards'">
-                  <i class="bi bi-grid-3x3-gap-fill" />
-                </button>
-                <button type="button" class="btn" :class="viewMode === 'list' ? 'btn-primary' : 'btn-outline-secondary'" @click="viewMode = 'list'">
-                  <i class="bi bi-list-ul" />
-                </button>
-              </div>
-              <NuxtLink
-                v-if="auth.isAdmin"
-                class="btn btn-success"
-                :to="{ path: '/scripts/novo', query: { pacote, sistema } }"
-              >
-                <i class="bi bi-plus-circle-fill" /> Novo Script
-              </NuxtLink>
-            </div>
+      <DsPageShell>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-6 items-end">
+          <div class="lg:col-span-4">
+            <label class="block text-sm font-medium text-ds-text mb-1.5">Buscar</label>
+            <DsSearchInput
+              v-model="filtros.nome"
+              placeholder="Buscar por nome..."
+              wrapper-class="mb-0"
+              @enter="load(1)"
+            />
           </div>
-          <div v-if="viewMode === 'list'" class="row mb-3">
-            <div class="col-12">
-              <div class="card border-primary">
-                <div class="card-body py-2">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                      <div class="form-check me-3">
-                        <input
-                          id="selectAllScripts"
-                          v-model="selectAll"
-                          class="form-check-input"
-                          type="checkbox"
-                          @change="toggleSelectAll"
-                        />
-                        <label class="form-check-label fw-bold" for="selectAllScripts">Selecionar Todos</label>
-                      </div>
-                      <span class="text-muted">{{ selectedCountLabel }}</span>
-                    </div>
-                    <div class="btn-group">
-                      <button type="button" class="btn btn-outline-success btn-sm" :disabled="!hasJsonSelected" @click="exportSelected('json')">
-                        <i class="bi bi-file-earmark-arrow-down-fill me-1" />Exportar JSON
-                      </button>
-                      <button type="button" class="btn btn-outline-dark btn-sm" :disabled="!hasDllSelected" @click="exportSelected('dll')">
-                        <i class="bi bi-file-earmark-code-fill me-1" />Exportar DLL
-                      </button>
-                      <button type="button" class="btn btn-outline-primary btn-sm" :disabled="!hasMrdSelected" @click="exportSelected('mrd')">
-                        <i class="bi bi-file-earmark-binary-fill me-1" />Exportar MRD
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div class="lg:col-span-2">
+            <DsSelect v-model="filtros.aprovado" label="Aprovado">
+              <option value="">Todos</option>
+              <option value="1">Aprovado</option>
+              <option value="0">Não aprovado</option>
+            </DsSelect>
           </div>
-
-          <div v-if="loading" class="text-center py-5 text-muted">Carregando scripts...</div>
-          <div v-else-if="errorMsg" class="alert alert-danger">
-            <i class="bi bi-exclamation-triangle-fill me-2" />
-            {{ errorMsg }}
+          <div class="lg:col-span-2">
+            <DsSelect v-model="filtros.ativo" label="Ativo">
+              <option value="1">Somente ativos</option>
+              <option value="0">Somente inativos</option>
+              <option value="">Todos</option>
+            </DsSelect>
           </div>
-          <div v-else-if="!items.length" class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2" />
-            Nenhum script encontrado para os filtros selecionados.
+          <div class="lg:col-span-4 flex flex-wrap gap-2 justify-end">
+            <DsButton variant="secondary" size="sm" icon="funnel-fill" @click="filterModalOpen = true">Filtros</DsButton>
+            <DsButton :variant="viewMode === 'cards' ? 'primary' : 'secondary'" size="sm" icon="grid-3x3-gap-fill" @click="viewMode = 'cards'" />
+            <DsButton :variant="viewMode === 'list' ? 'primary' : 'secondary'" size="sm" icon="list-ul" @click="viewMode = 'list'" />
+            <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="plus-circle-fill" :to="{ path: '/scripts/novo', query: { pacote, sistema } }">
+              Novo Script
+            </DsButton>
           </div>
-          <div v-else-if="viewMode === 'cards'" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            <div v-for="item in items" :key="item.codScriptLaudo" class="col">
-              <div class="card h-100 shadow-sm script-display-card">
-                <img
-                  v-if="item.imagensDisplay?.[0]?.caminho"
-                  :src="mediaUrl(item.imagensDisplay[0].caminho)"
-                  class="card-img-top"
-                  :alt="item.nome"
-                />
-                <div v-else class="card-img-top script-thumb-placeholder">
-                  <i class="bi bi-image-fill fs-1 text-secondary" />
-                </div>
-                <div class="card-body d-flex flex-column">
-                  <h5 class="fw-bold">{{ item.nome }}</h5>
-                  <div class="mb-2">
-                    <span v-if="item.nomePacote" class="badge bg-primary me-1">
-                      <i :class="`${getEspecialidadeIcon(item.nomePacote)} me-1`" />
-                      {{ item.nomePacote }}
-                    </span>
-                    <span class="badge bg-info me-1">{{ item.sistema }}</span>
-                    <span v-if="item.ultimaVersao" class="badge bg-success">{{ item.ultimaVersao }}</span>
-                  </div>
-                  <p class="small text-muted">
-                    <strong>Aprovado:</strong>
-                    <span :class="item.aprovado ? 'text-success' : 'text-danger'">{{ item.aprovado ? 'Sim' : 'Não' }}</span>
-                    · <strong>Ativo:</strong> {{ item.ativo ? 'Sim' : 'Não' }}
-                  </p>
-                  <div class="mt-auto d-flex justify-content-between align-items-center">
-                    <button
-                      class="btn btn-outline-info btn-sm"
-                      type="button"
-                      data-bs-toggle="modal"
-                      :data-bs-target="`#detailsModal-${item.codScriptLaudo}`"
-                    >
-                      <i class="bi bi-info-circle-fill" /> Detalhes
-                    </button>
-                    <ScriptsScriptActionsDropdown :item="item" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              v-for="item in items"
-              :id="`detailsModal-${item.codScriptLaudo}`"
-              :key="`modal-${item.codScriptLaudo}`"
-              class="modal fade"
-              tabindex="-1"
-              aria-hidden="true"
-            >
-              <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title">
-                      <i class="bi bi-clipboard-data-fill me-2" />
-                      Detalhes do Script: {{ item.nome }}
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" />
-                  </div>
-                  <div class="modal-body">
-                    <div class="row">
-                      <div class="col-md-6">
-                        <p><strong>Nome:</strong> {{ item.nome }}</p>
-                        <p><strong>Pacote:</strong> {{ item.nomePacote || '-' }}</p>
-                        <p><strong>Sistema:</strong> {{ item.sistema || '-' }}</p>
-                        <p><strong>Linguagem:</strong> {{ item.linguagem || '-' }}</p>
-                        <p v-if="item.ultimaVersao"><strong>Última Versão:</strong> {{ item.ultimaVersao }}</p>
-                        <p><strong>Descrição:</strong> {{ item.descricao || '-' }}</p>
-                      </div>
-                      <div class="col-md-6">
-                        <p><strong>Aprovado:</strong> {{ item.aprovado ? 'Sim' : 'Não' }}</p>
-                        <p><strong>Status:</strong> {{ item.ativo ? 'Ativo' : 'Inativo' }}</p>
-                        <p><strong>Aprovado Por:</strong> {{ item.aprovadoPor || '-' }}</p>
-                        <p><strong>Criado por:</strong> {{ item.criadoPor || '-' }}</p>
-                      </div>
-                    </div>
-                    <hr />
-                    <h6 class="mt-3"><i class="bi bi-images me-1" /> Imagens da Interface</h6>
-                    <div v-if="item.imagensDisplay?.length" class="row g-2">
-                      <div v-for="img in item.imagensDisplay" :key="`${item.codScriptLaudo}-${img.caminho}`" class="col-md-4">
-                        <img :src="mediaUrl(img.caminho)" :alt="img.nomeArquivo" class="img-fluid rounded border" />
-                        <small class="text-muted d-block mt-1">{{ img.nomeArquivo }}</small>
-                      </div>
-                    </div>
-                    <p v-else class="text-muted">Nenhuma imagem disponível.</p>
-                    <hr />
-                    <h6 class="mt-3"><i class="bi bi-boxes me-1" /> Variáveis Vinculadas</h6>
-                    <ul v-if="item.variaveis?.length" class="list-group list-group-flush">
-                      <li v-for="v in item.variaveis" :key="`${item.codScriptLaudo}-${v.variavel}`" class="list-group-item">
-                        <code>{{ v.variavel }}</code> ({{ v.nome }})
-                      </li>
-                    </ul>
-                    <p v-else class="text-muted">Nenhuma variável vinculada.</p>
-                    <hr />
-                    <h6 class="mt-3"><i class="bi bi-file-earmark-pdf me-1" /> PDFs de Impressão</h6>
-                    <div v-if="item.pdfsDisplay?.length" class="list-group">
-                      <a
-                        v-for="pdf in item.pdfsDisplay"
-                        :key="`${item.codScriptLaudo}-${pdf.caminho}`"
-                        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                        :href="mediaUrl(pdf.caminho)"
-                        target="_blank"
-                      >
-                        <span><i class="bi bi-file-earmark-pdf text-danger me-2" />{{ pdf.nomeArquivo }}</span>
-                        <i class="bi bi-box-arrow-up-right" />
-                      </a>
-                    </div>
-                    <p v-else class="text-muted">Nenhum PDF de impressão disponível.</p>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="table-responsive">
-            <table class="table table-hover align-middle bg-white">
-              <thead>
-                <tr>
-                  <th class="text-center" style="width: 40px" />
-                  <th>Nome</th>
-                  <th>Sistema</th>
-                  <th>Pacote</th>
-                  <th>Aprovado</th>
-                  <th>Ativo</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in items" :key="item.codScriptLaudo">
-                  <td class="text-center">
-                    <input
-                      :id="`sel-${item.codScriptLaudo}`"
-                      v-model="selectedScriptIds"
-                      class="form-check-input"
-                      type="checkbox"
-                      :value="item.codScriptLaudo"
-                      @change="syncSelectAll"
-                    />
-                  </td>
-                  <td>{{ item.nome }}</td>
-                  <td>{{ item.sistema }}</td>
-                  <td>
-                    <span v-if="item.nomePacote">
-                      <i :class="`${getEspecialidadeIcon(item.nomePacote)} me-1`" />
-                      {{ item.nomePacote }}
-                    </span>
-                    <span v-else>-</span>
-                  </td>
-                  <td>{{ item.aprovado ? 'Sim' : 'Não' }}</td>
-                  <td>{{ item.ativo ? 'Sim' : 'Não' }}</td>
-                  <td>
-                    <div class="d-flex gap-2 justify-content-end">
-                      <button
-                        class="btn btn-outline-info btn-sm"
-                        type="button"
-                        data-bs-toggle="modal"
-                        :data-bs-target="`#detailsModal-${item.codScriptLaudo}`"
-                      >
-                        <i class="bi bi-info-circle-fill" />
-                      </button>
-                      <ScriptsScriptActionsDropdown :item="item" />
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <nav v-if="totalPages > 1" class="mt-4">
-            <ul class="pagination justify-content-center">
-              <li class="page-item" :class="{ disabled: page <= 1 }">
-                <a class="page-link" href="#" @click.prevent="load(page - 1)">Anterior</a>
-              </li>
-              <li v-for="p in totalPages" :key="p" class="page-item" :class="{ active: p === page }">
-                <a class="page-link" href="#" @click.prevent="load(p)">{{ p }}</a>
-              </li>
-              <li class="page-item" :class="{ disabled: page >= totalPages }">
-                <a class="page-link" href="#" @click.prevent="load(page + 1)">Próxima</a>
-              </li>
-            </ul>
-          </nav>
-          <p class="text-muted small text-center">{{ totalItems }} script(s) encontrado(s)</p>
         </div>
-      </div>
-      <div id="filterModal" class="modal fade" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Filtros Avançados</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" />
+
+        <div v-if="viewMode === 'list'" class="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 mb-4">
+          <div class="flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+              <label class="flex items-center gap-2 text-sm font-medium">
+                <input id="selectAllScripts" v-model="selectAll" type="checkbox" class="rounded" @change="toggleSelectAll" />
+                Selecionar Todos
+              </label>
+              <span class="text-sm text-gray-600">{{ selectedCountLabel }}</span>
             </div>
-            <div class="modal-body">
-              <div class="mb-3">
-                <label for="filterNome" class="form-label">Nome do Script</label>
-                <input id="filterNome" v-model="filtros.nome" type="text" class="form-control" placeholder="Digite o nome do script" />
-              </div>
-              <div class="mb-3">
-                <label for="filterAprovado" class="form-label">Aprovado</label>
-                <select id="filterAprovado" v-model="filtros.aprovado" class="form-select">
-                  <option value="">Todos</option>
-                  <option value="1">Aprovado</option>
-                  <option value="0">Não aprovado</option>
-                </select>
-              </div>
-              <div class="mb-3">
-                <label for="filterAtivo" class="form-label">Ativo</label>
-                <select id="filterAtivo" v-model="filtros.ativo" class="form-select">
-                  <option value="1">Somente ativos</option>
-                  <option value="0">Somente inativos</option>
-                  <option value="">Todos</option>
-                </select>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" @click="limparFiltros">Limpar Filtros</button>
-              <button type="button" class="btn btn-primary" data-bs-dismiss="modal" @click="load(1)">
-                <i class="bi bi-check-lg me-1" /> Aplicar Filtros
-              </button>
+            <div class="flex flex-wrap gap-2">
+              <DsButton variant="secondary" size="sm" :disabled="!hasJsonSelected" @click="exportSelected('json')">JSON</DsButton>
+              <DsButton variant="secondary" size="sm" :disabled="!hasDllSelected" @click="exportSelected('dll')">DLL</DsButton>
+              <DsButton variant="secondary" size="sm" :disabled="!hasMrdSelected" @click="exportSelected('mrd')">MRD</DsButton>
             </div>
           </div>
         </div>
-      </div>
+
+        <div v-if="loading" class="text-center py-10 text-gray-500">Carregando scripts...</div>
+        <DsAlert v-else-if="errorMsg" variant="error">{{ errorMsg }}</DsAlert>
+        <DsAlert v-else-if="!items.length" variant="info">Nenhum script encontrado para os filtros selecionados.</DsAlert>
+
+        <div v-else-if="viewMode === 'cards'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div
+            v-for="item in items"
+            :key="item.codScriptLaudo"
+            class="rounded-2xl border border-gray-200 bg-white overflow-hidden hover:shadow-lg transition-all flex flex-col"
+          >
+            <img
+              v-if="item.imagensDisplay?.[0]?.caminho"
+              :src="mediaUrl(item.imagensDisplay[0].caminho)"
+              :alt="item.nome"
+              class="w-full h-40 object-cover"
+            />
+            <div v-else class="h-40 bg-ds-surface flex items-center justify-center text-gray-400">
+              <i class="bi bi-image-fill text-4xl" />
+            </div>
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-semibold font-manrope text-ds-text mb-2">{{ item.nome }}</h3>
+              <div class="flex flex-wrap gap-1 mb-2">
+                <DsBadge v-if="item.nomePacote" variant="primary">{{ item.nomePacote }}</DsBadge>
+                <DsBadge variant="default">{{ item.sistema }}</DsBadge>
+                <DsBadge v-if="item.ultimaVersao" variant="success">{{ item.ultimaVersao }}</DsBadge>
+              </div>
+              <p class="text-xs text-gray-600 mb-3">
+                Aprovado: <span :class="item.aprovado ? 'text-green-600' : 'text-rose-600'">{{ item.aprovado ? 'Sim' : 'Não' }}</span>
+                · Ativo: {{ item.ativo ? 'Sim' : 'Não' }}
+              </p>
+              <div class="mt-auto flex justify-between items-center gap-2">
+                <DsButton variant="secondary" size="sm" icon="info-circle-fill" @click="detailModalId = item.codScriptLaudo">Detalhes</DsButton>
+                <ScriptsScriptActionsDropdown :item="item" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DsTable v-else>
+          <template #head>
+            <tr>
+              <th class="w-10" />
+              <th>Nome</th>
+              <th>Sistema</th>
+              <th>Pacote</th>
+              <th>Aprovado</th>
+              <th>Ativo</th>
+              <th />
+            </tr>
+          </template>
+          <tr v-for="item in items" :key="item.codScriptLaudo">
+            <td>
+              <input
+                v-model="selectedScriptIds"
+                type="checkbox"
+                class="rounded"
+                :value="item.codScriptLaudo"
+                @change="syncSelectAll"
+              />
+            </td>
+            <td>{{ item.nome }}</td>
+            <td>{{ item.sistema }}</td>
+            <td>{{ item.nomePacote || '—' }}</td>
+            <td>{{ item.aprovado ? 'Sim' : 'Não' }}</td>
+            <td>{{ item.ativo ? 'Sim' : 'Não' }}</td>
+            <td>
+              <div class="flex gap-2 justify-end">
+                <DsButton variant="ghost" size="sm" icon="info-circle-fill" @click="detailModalId = item.codScriptLaudo" />
+                <ScriptsScriptActionsDropdown :item="item" />
+              </div>
+            </td>
+          </tr>
+        </DsTable>
+
+        <div v-if="totalPages > 1" class="flex justify-center gap-2 mt-6">
+          <DsButton variant="secondary" size="sm" :disabled="page <= 1" @click="load(page - 1)">Anterior</DsButton>
+          <DsButton
+            v-for="p in totalPages"
+            :key="p"
+            :variant="p === page ? 'primary' : 'secondary'"
+            size="sm"
+            @click="load(p)"
+          >
+            {{ p }}
+          </DsButton>
+          <DsButton variant="secondary" size="sm" :disabled="page >= totalPages" @click="load(page + 1)">Próxima</DsButton>
+        </div>
+        <p class="text-sm text-gray-500 text-center mt-2">{{ totalItems }} script(s) encontrado(s)</p>
+      </DsPageShell>
+
+      <DsModal v-model="filterModalOpen" title="Filtros Avançados">
+        <div class="space-y-4">
+          <DsInput v-model="filtros.nome" label="Nome do Script" />
+          <DsSelect v-model="filtros.aprovado" label="Aprovado">
+            <option value="">Todos</option>
+            <option value="1">Aprovado</option>
+            <option value="0">Não aprovado</option>
+          </DsSelect>
+          <DsSelect v-model="filtros.ativo" label="Ativo">
+            <option value="1">Somente ativos</option>
+            <option value="0">Somente inativos</option>
+            <option value="">Todos</option>
+          </DsSelect>
+        </div>
+        <template #footer>
+          <DsButton variant="secondary" @click="limparFiltros">Limpar</DsButton>
+          <DsButton @click="filterModalOpen = false; load(1)">Aplicar</DsButton>
+        </template>
+      </DsModal>
+
+      <DsModal
+        :model-value="detailModalId !== null"
+        :title="detailItem ? `Detalhes: ${detailItem.nome}` : 'Detalhes'"
+        size="xl"
+        @update:model-value="(v) => !v && (detailModalId = null)"
+      >
+        <template v-if="detailItem">
+          <div class="grid md:grid-cols-2 gap-4 text-sm">
+            <div class="space-y-2">
+              <p><strong>Nome:</strong> {{ detailItem.nome }}</p>
+              <p><strong>Pacote:</strong> {{ detailItem.nomePacote || '—' }}</p>
+              <p><strong>Sistema:</strong> {{ detailItem.sistema || '—' }}</p>
+              <p><strong>Linguagem:</strong> {{ detailItem.linguagem || '—' }}</p>
+              <p v-if="detailItem.ultimaVersao"><strong>Última Versão:</strong> {{ detailItem.ultimaVersao }}</p>
+              <p><strong>Descrição:</strong> {{ detailItem.descricao || '—' }}</p>
+            </div>
+            <div class="space-y-2">
+              <p><strong>Aprovado:</strong> {{ detailItem.aprovado ? 'Sim' : 'Não' }}</p>
+              <p><strong>Status:</strong> {{ detailItem.ativo ? 'Ativo' : 'Inativo' }}</p>
+              <p><strong>Aprovado Por:</strong> {{ detailItem.aprovadoPor || '—' }}</p>
+              <p><strong>Criado por:</strong> {{ detailItem.criadoPor || '—' }}</p>
+            </div>
+          </div>
+          <hr class="my-4 border-gray-200" />
+          <h6 class="font-semibold mb-2"><i class="bi bi-images me-1" />Imagens</h6>
+          <DsCarousel v-if="detailSlides.length" :slides="detailSlides" class="mb-4" />
+          <p v-else class="text-gray-500 text-sm mb-4">Nenhuma imagem.</p>
+          <h6 class="font-semibold mb-2"><i class="bi bi-boxes me-1" />Variáveis</h6>
+          <ul v-if="detailItem.variaveis?.length" class="text-sm space-y-1 mb-4">
+            <li v-for="v in detailItem.variaveis" :key="v.variavel"><code>{{ v.variavel }}</code> ({{ v.nome }})</li>
+          </ul>
+          <p v-else class="text-gray-500 text-sm">Nenhuma variável vinculada.</p>
+        </template>
+        <template #footer>
+          <DsButton variant="secondary" @click="detailModalId = null">Fechar</DsButton>
+        </template>
+      </DsModal>
     </template>
   </div>
 </template>
@@ -346,6 +234,30 @@ const selectAll = ref(false)
 const selectedScriptIds = ref<number[]>([])
 const filtros = reactive({ nome: String(route.query.nome || ''), aprovado: '', ativo: '1' })
 const swal = useSwal()
+const filterModalOpen = ref(false)
+const detailModalId = ref<number | null>(null)
+
+const detailItem = computed(() =>
+  items.value.find((x) => x.codScriptLaudo === detailModalId.value) ?? null
+)
+
+function dedupeImagens(imgs: { caminho: string; nomeArquivo: string }[]) {
+  const seen = new Set<string>()
+  return imgs.filter((img) => {
+    const key = (img.caminho || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+const detailSlides = computed(() =>
+  dedupeImagens(detailItem.value?.imagensDisplay ?? []).map((img) => ({
+    src: mediaUrl(img.caminho),
+    alt: img.nomeArquivo,
+    caption: img.nomeArquivo
+  }))
+)
 
 const selectedItems = computed(() => items.value.filter((x) => selectedScriptIds.value.includes(x.codScriptLaudo)))
 const selectedCountLabel = computed(() => {
@@ -355,18 +267,6 @@ const selectedCountLabel = computed(() => {
 const hasJsonSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos UX' && x.temArquivoJson))
 const hasDllSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos Flex' && x.temArquivoDll))
 const hasMrdSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos Flex' && x.temArquivoMrd))
-
-function getEspecialidadeIcon(nomePacote?: string) {
-  const nome = (nomePacote || '').toLowerCase()
-  if (nome.includes('angiologia') || nome.includes('vascular')) return 'bi bi-activity'
-  if (nome.includes('cardiologia')) return 'bi bi-heart-fill'
-  if (nome.includes('consulta')) return 'bi bi-clipboard2-pulse-fill'
-  if (nome.includes('ultrassonografia')) return 'bi bi-soundwave'
-  if (nome.includes('pediatria')) return 'bi bi-emoji-smile-fill'
-  if (nome.includes('oftalmologia')) return 'bi bi-eye-fill'
-  if (nome.includes('nutri')) return 'bi bi-egg-fill'
-  return 'bi bi-box-seam-fill'
-}
 
 function mediaUrl(path?: string) {
   if (!path) return ''
@@ -388,20 +288,11 @@ async function load(p = 1) {
       page: p,
       pageSize: 10
     }
-
-    let res = await scriptsApi.listScripts({
-      ...baseQuery,
-      ativo: filtros.ativo
-    })
-
-    // Paridade com legado: filtro "somente ativos" é padrão.
-    // Quando não há ativos para o pacote/sistema, faz fallback para "todos"
-    // para evitar tela vazia e facilitar a continuidade da migração.
+    let res = await scriptsApi.listScripts({ ...baseQuery, ativo: filtros.ativo })
     if (!res.data.length && filtros.ativo === '1') {
       res = await scriptsApi.listScripts(baseQuery)
       if (res.data.length) filtros.ativo = ''
     }
-
     items.value = res.data
     selectedScriptIds.value = selectedScriptIds.value.filter((id) => items.value.some((x) => x.codScriptLaudo === id))
     syncSelectAll()
@@ -423,11 +314,7 @@ async function load(p = 1) {
 }
 
 function toggleSelectAll() {
-  if (selectAll.value) {
-    selectedScriptIds.value = items.value.map((x) => x.codScriptLaudo)
-  } else {
-    selectedScriptIds.value = []
-  }
+  selectedScriptIds.value = selectAll.value ? items.value.map((x) => x.codScriptLaudo) : []
 }
 
 function syncSelectAll() {
@@ -452,17 +339,14 @@ async function exportSelected(tipo: 'json' | 'dll' | 'mrd') {
     return
   }
   for (const item of targets) {
-    if (tipo === 'json') {
-      await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-json`, `${item.nome}.json`)
-    } else if (tipo === 'dll') {
-      await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-dll`, `${item.nome}.dll`)
-    } else {
-      await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-mrd`, `${item.nome}.mrd`)
-    }
+    if (tipo === 'json') await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-json`, `${item.nome}.json`)
+    else if (tipo === 'dll') await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-dll`, `${item.nome}.dll`)
+    else await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-mrd`, `${item.nome}.mrd`)
   }
   await swal.toast(`Exportação ${tipo.toUpperCase()} iniciada (${targets.length}).`, 'success')
 }
 
 onMounted(() => load(1))
 watch(() => route.query, () => load(1))
+watch(() => [filtros.aprovado, filtros.ativo], () => load(1))
 </script>

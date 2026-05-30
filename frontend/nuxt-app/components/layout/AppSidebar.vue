@@ -1,24 +1,32 @@
 <template>
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <h5 class="app-title">MDW - SGC</h5>
+  <aside class="w-64 flex-shrink-0 bg-gradient-to-b from-gray-900 to-gray-800 text-gray-200 flex flex-col">
+    <div class="px-6 py-5 text-center border-b border-white/10">
+      <h5 class="text-lg font-semibold font-manrope text-white tracking-wide m-0">MDW - SGC</h5>
     </div>
-    <nav class="sidebar-menu">
+    <nav class="flex-1 overflow-y-auto py-2">
       <NuxtLink
         v-for="item in menu"
         :key="item.path"
         :to="item.path"
-        class="sidebar-link"
-        :class="{ active: isMenuActive(route.path, item) }"
+        class="flex items-center px-6 py-3.5 text-sm font-medium transition-all border-l-4"
+        :class="
+          isMenuActive(route.path, item)
+            ? 'bg-white/10 text-white border-white'
+            : 'text-gray-400 border-transparent hover:bg-white/5 hover:text-white hover:border-blue-400'
+        "
       >
-        <i :class="`bi bi-${item.icon} link-icon`" />
-        <span class="link-text">{{ item.label }}</span>
+        <i :class="`bi bi-${item.icon} text-lg w-6 mr-3 text-center`" />
+        <span>{{ item.label }}</span>
       </NuxtLink>
     </nav>
-    <div class="sidebar-footer">
-      <a href="#" class="sidebar-link logout-link" @click.prevent="onLogout">
-        <i class="bi bi-box-arrow-left link-icon" />
-        <span class="link-text">Sair</span>
+    <div class="border-t border-white/10">
+      <a
+        href="#"
+        class="flex items-center px-6 py-3.5 text-sm font-medium text-gray-400 border-l-4 border-transparent hover:bg-white/5 hover:text-rose-300 hover:border-rose-400 transition-all"
+        @click.prevent="onLogout"
+      >
+        <i class="bi bi-box-arrow-left text-lg w-6 mr-3 text-center" />
+        <span>Sair</span>
       </a>
     </div>
   </aside>

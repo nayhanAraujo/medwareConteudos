@@ -1,125 +1,99 @@
 <template>
-  <div class="biblioteca-page">
-    <LayoutAppPageHeader
+  <div>
+    <DsPageHeader
       title="Biblioteca de Recursos"
       subtitle="Central de ferramentas e configurações do sistema."
       icon="bookshelf"
     />
+    <DsTabs v-model="activeTab" :tabs="tabs" />
 
-    <ul class="nav nav-tabs nav-fill mb-4" role="tablist">
-      <li v-for="tab in tabs" :key="tab.id" class="nav-item" role="presentation">
-        <button
-          class="nav-link"
-          :class="{ active: activeTab === tab.id }"
-          type="button"
-          role="tab"
-          @click="activeTab = tab.id"
+    <DsPageShell v-show="activeTab === 'referencias'">
+      <div class="rounded-2xl border border-gray-200 bg-white/80 p-4 mb-6">
+        <h5 class="font-semibold text-ds-text mb-3 flex items-center gap-2">
+          <i class="bi bi-lightning-charge-fill text-orange-500" />Acesso Rápido — Referências
+        </h5>
+        <div class="flex flex-wrap gap-2">
+          <DsButton
+            v-for="link in quickRef"
+            :key="link.label"
+            variant="secondary"
+            size="sm"
+            @click="onAction(link)"
+          >
+            <i v-if="link.icon" :class="`${link.icon} me-1`" />{{ link.label }}
+          </DsButton>
+        </div>
+      </div>
+      <DsSectionTitle title="Módulos do Sistema de Referências" />
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <DsModuleCard
+          v-for="mod in modulosRef"
+          :key="mod.title"
+          :title="mod.title"
+          :desc="mod.desc"
+          :icon="mod.icon"
+          :icon-color="mod.iconColor"
         >
-          <i :class="`bi bi-${tab.icon} me-2`" />{{ tab.label }}
-        </button>
-      </li>
-    </ul>
+          <DsButton
+            v-for="act in mod.actions"
+            :key="act.label"
+            variant="secondary"
+            size="sm"
+            @click="onAction(act)"
+          >
+            {{ act.label }}
+          </DsButton>
+        </DsModuleCard>
+      </div>
+    </DsPageShell>
 
-    <!-- Referências -->
-    <div v-show="activeTab === 'referencias'">
-      <div class="quick-access mb-4">
-        <h5 class="quick-access-title">
-          <i class="bi bi-lightning-charge-fill" />Acesso Rápido - Referências
+    <DsPageShell v-show="activeTab === 'conteudos'">
+      <div class="rounded-2xl border border-gray-200 bg-white/80 p-4 mb-6">
+        <h5 class="font-semibold text-ds-text mb-3 flex items-center gap-2">
+          <i class="bi bi-lightning-charge-fill text-orange-500" />Acesso Rápido — Conteúdos
         </h5>
-        <div class="row g-3">
-          <div v-for="link in quickRef" :key="link.label" class="col-xl-2 col-lg-3 col-md-4 col-6">
-            <a href="#" class="module-action d-block text-center py-2" @click.prevent="onAction(link)">
-              <i :class="`${link.icon} me-1`" />{{ link.label }}
-            </a>
-          </div>
-        </div>
+        <DsButton variant="secondary" size="sm" icon="collection" @click="navigateTo('/conteudos')">Ver Conteúdos</DsButton>
       </div>
-      <h4 class="section-title">
-        <i class="bi bi-journal-bookmark me-2" />Módulos do Sistema de Referências
-      </h4>
-      <div class="row g-4">
-        <div v-for="mod in modulosRef" :key="mod.title" class="col-md-6 col-lg-4">
-          <div class="module-card">
-            <div :class="`module-icon ${mod.iconBg}`">
-              <i :class="mod.icon" />
-            </div>
-            <h5 class="module-title">{{ mod.title }}</h5>
-            <p class="module-desc">{{ mod.desc }}</p>
-            <div class="d-flex flex-wrap gap-2 mt-auto">
-              <a
-                v-for="act in mod.actions"
-                :key="act.label"
-                href="#"
-                class="module-action"
-                @click.prevent="onAction(act)"
-              >
-                {{ act.label }}
-              </a>
-            </div>
-          </div>
-        </div>
+      <DsSectionTitle title="Módulos de Conteúdos" />
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <DsModuleCard
+          title="Gerenciar Conteúdos"
+          desc="Acesse todos os tipos de conteúdo organizados por categorias."
+          icon="bi bi-collection"
+          icon-color="#fd7e14"
+        >
+          <DsButton variant="secondary" size="sm" @click="navigateTo('/conteudos')">Ver Todos os Conteúdos</DsButton>
+        </DsModuleCard>
+        <DsModuleCard
+          title="Novo Módulo"
+          desc="Módulo em desenvolvimento. Em breve novos recursos estarão disponíveis."
+          icon="bi bi-plus-circle"
+          icon-color="#6c757d"
+        >
+          <span class="text-xs text-gray-400 px-3 py-1.5 rounded-full bg-ds-surface">Em breve</span>
+        </DsModuleCard>
       </div>
-    </div>
+    </DsPageShell>
 
-    <!-- Conteúdos -->
-    <div v-show="activeTab === 'conteudos'">
-      <div class="quick-access mb-4">
-        <h5 class="quick-access-title">
-          <i class="bi bi-lightning-charge-fill" />Acesso Rápido - Conteúdos
-        </h5>
-        <a href="#" class="module-action d-inline-block py-2 px-3" @click.prevent="navigateTo('/conteudos')">
-          <i class="bi bi-collection me-1" />Ver Conteúdos
-        </a>
+    <DsPageShell v-for="tab in placeholderTabs" :key="tab.id" v-show="activeTab === tab.id">
+      <DsSectionTitle :title="tab.sectionTitle" />
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <DsModuleCard
+          v-for="card in tab.cards"
+          :key="card.title"
+          :title="card.title"
+          :desc="card.desc"
+          :icon="card.icon"
+          :icon-color="card.color"
+        >
+          <DsButton variant="secondary" size="sm" @click="emMigracao()">Em migração</DsButton>
+        </DsModuleCard>
       </div>
-      <h4 class="section-title"><i class="bi bi-collection me-2" />Módulos de Conteúdos</h4>
-      <div class="row g-4">
-        <div class="col-md-6 col-lg-4">
-          <div class="module-card">
-            <div class="module-icon" style="background-color: #fd7e14">
-              <i class="bi bi-collection" />
-            </div>
-            <h5 class="module-title">Gerenciar Conteúdos</h5>
-            <p class="module-desc">Acesse todos os tipos de conteúdo organizados por categorias.</p>
-            <a href="#" class="module-action" @click.prevent="navigateTo('/conteudos')">Ver Todos os Conteúdos</a>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <div class="module-card">
-            <div class="module-icon bg-secondary">
-              <i class="bi bi-plus-circle" />
-            </div>
-            <h5 class="module-title">Novo Módulo</h5>
-            <p class="module-desc">Módulo em desenvolvimento. Em breve novos recursos estarão disponíveis.</p>
-            <span class="module-action opacity-50">Em breve</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Relatórios, Painéis, Configurações (placeholders) -->
-    <div v-for="tab in placeholderTabs" :key="tab.id" v-show="activeTab === tab.id">
-      <h4 class="section-title">
-        <i :class="`bi bi-${tab.icon} me-2`" />{{ tab.sectionTitle }}
-      </h4>
-      <div class="row g-4">
-        <div v-for="card in tab.cards" :key="card.title" class="col-md-6 col-lg-4">
-          <div class="module-card">
-            <div class="module-icon" :style="{ backgroundColor: card.color }">
-              <i :class="card.icon" />
-            </div>
-            <h5 class="module-title">{{ card.title }}</h5>
-            <p class="module-desc">{{ card.desc }}</p>
-            <a href="#" class="module-action" @click.prevent="emMigracao()">Em migração</a>
-          </div>
-        </div>
-      </div>
-    </div>
+    </DsPageShell>
   </div>
 </template>
 
 <script setup lang="ts">
-import '~/assets/css/biblioteca.css'
-
 definePageMeta({ layout: 'default', middleware: ['admin'] })
 
 interface BibAction {
@@ -160,7 +134,7 @@ const modulosRef = [
     title: 'Variáveis e Fórmulas',
     desc: 'Gerencie todas as variáveis e fórmulas utilizadas nos cálculos do sistema.',
     icon: 'bi bi-calculator-fill',
-    iconBg: 'bg-primary',
+    iconColor: '#0d6efd',
     actions: [
       { label: 'Listar Variáveis', nuxtPath: '/variaveis' },
       { label: 'Nova Variável', flaskPath: '/variaveis/nova' },
@@ -172,7 +146,7 @@ const modulosRef = [
     title: 'Autores e Referências',
     desc: 'Armazene e gerencie referências bibliográficas e documentos de apoio.',
     icon: 'bi bi-journal-bookmark-fill',
-    iconBg: 'bg-success',
+    iconColor: '#198754',
     actions: [
       { label: 'Nova Referência', flaskPath: '/referencias/nova' },
       { label: 'Listar Referências', flaskPath: '/referencias' }
@@ -182,7 +156,7 @@ const modulosRef = [
     title: 'Pacotes e Scripts',
     desc: 'Crie pacotes, gerencie scripts de laudo e suas configurações.',
     icon: 'bi bi-collection-play-fill',
-    iconBg: 'text-bg-secondary',
+    iconColor: '#6c757d',
     actions: [
       { label: 'Listar Scripts', nuxtPath: '/scripts/sistema' },
       { label: 'Novo Script', nuxtPath: '/scripts/sistema' },
@@ -193,7 +167,7 @@ const modulosRef = [
     title: 'Agentes',
     desc: 'Utilize IA para extrair faixas de normalidade de documentos acadêmicos.',
     icon: 'bi bi-robot',
-    iconBg: 'agentes-icon',
+    iconColor: '#22c2b4',
     actions: [{ label: 'Processar Documento', flaskPath: '/agente/processar_documento' }]
   }
 ]
@@ -201,7 +175,6 @@ const modulosRef = [
 const placeholderTabs = [
   {
     id: 'relatorios',
-    icon: 'file-earmark-text',
     sectionTitle: 'Módulos de Relatórios',
     cards: [
       { title: 'Relatórios', desc: 'Gerencie relatórios personalizados.', icon: 'bi bi-file-earmark-text', color: '#0d6efd' },
@@ -210,7 +183,6 @@ const placeholderTabs = [
   },
   {
     id: 'paineis',
-    icon: 'pie-chart',
     sectionTitle: 'Módulos de Painéis',
     cards: [
       { title: 'Painéis API', desc: 'Dashboards via API.', icon: 'bi bi-bar-chart', color: '#fd7e14' },
@@ -219,7 +191,6 @@ const placeholderTabs = [
   },
   {
     id: 'configuracoes',
-    icon: 'gear',
     sectionTitle: 'Configurações do Sistema',
     cards: [
       { title: 'Usuários', desc: 'Gerencie usuários do sistema.', icon: 'bi bi-people', color: '#0d6efd' },
@@ -233,9 +204,3 @@ function onAction(action: BibAction) {
   irOuMigracao(action.nuxtPath, action.flaskPath)
 }
 </script>
-
-<style scoped>
-.biblioteca-page .module-icon.agentes-icon {
-  background-color: #22c2b4;
-}
-</style>

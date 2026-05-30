@@ -1,188 +1,118 @@
 <template>
   <div>
-    <LayoutAppPageHeader :title="pageTitle" icon="tag" />
-
-    <div class="d-flex flex-wrap gap-2 mb-3">
-      <NuxtLink class="btn btn-outline-secondary btn-sm" :to="`/scripts/${id}/versoes`">
-        <i class="bi bi-arrow-left" /> Voltar
-      </NuxtLink>
-      <button type="button" class="btn btn-primary btn-sm" @click="editarNoFlask">
-        <i class="bi bi-pencil" /> Editar
-      </button>
-      <button
-        v-if="versao && !isActive"
-        type="button"
-        class="btn btn-success btn-sm"
-        :disabled="saving"
-        @click="ativar"
-      >
-        <i class="bi bi-play-circle" /> Ativar
-      </button>
-    </div>
-
-    <div v-if="loading" class="card shadow-sm">
-      <div class="card-body text-muted">Carregando...</div>
-    </div>
-
-    <div v-else-if="!versao" class="alert alert-warning">Versao nao encontrada.</div>
-
-    <div v-else class="row g-4">
-      <div class="col-lg-8">
-        <div class="card shadow-sm mb-4">
-          <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <div>
-              <h5 class="mb-0">{{ versao.nomeScript }}</h5>
-              <small class="text-muted">{{ versao.sistema }} - {{ versao.linguagem || 'Nao especificado' }}</small>
-            </div>
-            <div class="d-flex gap-2">
-              <span class="badge" :class="isActive ? 'bg-success' : 'bg-secondary'">
-                {{ isActive ? 'Ativa' : 'Inativa' }}
-              </span>
-              <span class="badge" :class="isApproved ? 'bg-primary' : 'bg-warning text-dark'">
-                {{ isApproved ? 'Aprovada' : 'Pendente' }}
-              </span>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div class="col-md-4">
-                <div class="text-muted small">Versao</div>
-                <div class="fw-semibold">{{ versao.numeroVersao }}</div>
-              </div>
-              <div class="col-md-4">
-                <div class="text-muted small">Criada em</div>
-                <div>{{ formatDate(versao.dataCriacao) }}</div>
-              </div>
-              <div class="col-md-4">
-                <div class="text-muted small">Responsavel</div>
-                <div>{{ versao.usuarioResponsavel || '-' }}</div>
-              </div>
-              <div v-if="versao.nomePacote" class="col-md-4">
-                <div class="text-muted small">Pacote</div>
-                <div>{{ versao.nomePacote }}</div>
-              </div>
-              <div v-if="versao.aprovadoPor" class="col-md-4">
-                <div class="text-muted small">Aprovada por</div>
-                <div>{{ versao.aprovadoPor }}</div>
-              </div>
-              <div v-if="versao.dataAprovacao" class="col-md-4">
-                <div class="text-muted small">Data de aprovacao</div>
-                <div>{{ formatDate(versao.dataAprovacao) }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card shadow-sm mb-4">
-          <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-list-ul me-2" />Alteracoes</h5>
-          </div>
-          <div class="card-body">
-            <div class="mb-3">
-              <div class="text-muted small">Descricao geral</div>
-              <p class="mb-0 preserve-lines">{{ versao.descricaoAlteracoes || '-' }}</p>
-            </div>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <div class="text-muted small">Interface</div>
-                <p class="mb-0 preserve-lines">{{ versao.alteracoesInterface || '-' }}</p>
-              </div>
-              <div class="col-md-6">
-                <div class="text-muted small">Codigo</div>
-                <p class="mb-0 preserve-lines">{{ versao.alteracoesCodigo || '-' }}</p>
-              </div>
-            </div>
-            <div v-if="versao.observacoes" class="mt-3">
-              <div class="text-muted small">Observacoes</div>
-              <p class="mb-0 preserve-lines">{{ versao.observacoes }}</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="card shadow-sm">
-          <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-clock-history me-2" />Historico</h5>
-          </div>
-          <div class="card-body">
-            <div v-if="versao.historico.length === 0" class="text-muted">Nenhum registro.</div>
-            <div v-else class="list-group list-group-flush">
-              <div v-for="item in versao.historico" :key="`${item.tipoAlteracao}-${item.dataAlteracao}`" class="list-group-item px-0">
-                <div class="d-flex justify-content-between gap-3">
-                  <strong>{{ item.tipoAlteracao }}</strong>
-                  <small class="text-muted">{{ formatDate(item.dataAlteracao) }}</small>
-                </div>
-                <div>{{ item.descricao || '-' }}</div>
-                <small class="text-muted">{{ item.usuario || 'Sistema' }}</small>
-              </div>
-            </div>
-          </div>
-        </div>
+    <DsPageHeader :title="pageTitle" icon="tag" />
+    <DsPageShell>
+      <div class="flex flex-wrap gap-2 mb-6">
+        <DsButton variant="secondary" size="sm" icon="arrow-left" :to="`/scripts/${id}/versoes`">Voltar</DsButton>
+        <DsButton size="sm" icon="pencil" @click="editarNoFlask">Editar</DsButton>
+        <DsButton
+          v-if="versao && !isActive"
+          variant="success"
+          size="sm"
+          icon="play-circle"
+          :loading="saving"
+          @click="ativar"
+        >
+          Ativar
+        </DsButton>
       </div>
 
-      <div class="col-lg-4">
-        <div class="card shadow-sm mb-4">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="bi bi-paperclip me-2" />Arquivos</h6>
-          </div>
-          <div class="card-body">
-            <div class="d-grid gap-2 mb-3">
-              <button type="button" class="btn btn-outline-primary btn-sm" :disabled="!versao.temArquivoJson" @click="abrirDownload('json')">
-                <i class="bi bi-file-earmark-code" /> JSON
-              </button>
-              <button type="button" class="btn btn-outline-primary btn-sm" :disabled="!hasMrd" @click="abrirDownload('mrd')">
-                <i class="bi bi-file-earmark-text" /> MRD
-              </button>
-              <button type="button" class="btn btn-outline-primary btn-sm" :disabled="!versao.temArquivoDll" @click="abrirDownload('dll')">
-                <i class="bi bi-file-earmark-binary" /> DLL
-              </button>
+      <div v-if="loading" class="text-gray-500 py-8 text-center">Carregando...</div>
+      <DsAlert v-else-if="!versao" variant="warning" title="Versão não encontrada." />
+
+      <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-6">
+          <div class="rounded-2xl border border-gray-200 bg-white p-6">
+            <div class="flex flex-wrap justify-between gap-3 mb-4">
+              <div>
+                <h3 class="font-semibold font-manrope text-ds-text">{{ versao.nomeScript }}</h3>
+                <p class="text-sm text-gray-600">{{ versao.sistema }} — {{ versao.linguagem || 'Não especificado' }}</p>
+              </div>
+              <div class="flex gap-2">
+                <DsBadge :variant="isActive ? 'success' : 'default'">{{ isActive ? 'Ativa' : 'Inativa' }}</DsBadge>
+                <DsBadge :variant="isApproved ? 'primary' : 'warning'">{{ isApproved ? 'Aprovada' : 'Pendente' }}</DsBadge>
+              </div>
             </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              <div><span class="text-gray-500 block">Versão</span><strong>{{ versao.numeroVersao }}</strong></div>
+              <div><span class="text-gray-500 block">Criada em</span>{{ formatDate(versao.dataCriacao) }}</div>
+              <div><span class="text-gray-500 block">Responsável</span>{{ versao.usuarioResponsavel || '—' }}</div>
+            </div>
+          </div>
 
-            <h6 class="small text-muted text-uppercase">MRDs da versao</h6>
-            <div v-if="versao.mrdList.length === 0" class="text-muted small mb-3">Nenhum MRD.</div>
-            <ul v-else class="list-group list-group-flush mb-3">
-              <li v-for="mrd in versao.mrdList" :key="mrd.codVersaoMrd" class="list-group-item px-0 d-flex justify-content-between">
-                <span class="text-truncate">{{ mrd.nomeArquivo }}</span>
-                <span v-if="mrd.padrao" class="badge bg-primary">Padrao</span>
-              </li>
-            </ul>
+          <div class="rounded-2xl border border-gray-200 bg-white p-6">
+            <h4 class="font-semibold mb-4 flex items-center gap-2"><i class="bi bi-list-ul" />Alterações</h4>
+            <div class="space-y-4 text-sm">
+              <div>
+                <span class="text-gray-500 block mb-1">Descrição geral</span>
+                <p class="preserve-lines m-0">{{ versao.descricaoAlteracoes || '—' }}</p>
+              </div>
+              <div class="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <span class="text-gray-500 block mb-1">Interface</span>
+                  <p class="preserve-lines m-0">{{ versao.alteracoesInterface || '—' }}</p>
+                </div>
+                <div>
+                  <span class="text-gray-500 block mb-1">Código</span>
+                  <p class="preserve-lines m-0">{{ versao.alteracoesCodigo || '—' }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-            <h6 class="small text-muted text-uppercase">Anexos</h6>
-            <div class="d-flex gap-2">
-              <span class="badge bg-light text-dark border">
-                <i class="bi bi-image" /> {{ versao.imagens.length }} imagem(ns)
-              </span>
-              <span class="badge bg-light text-dark border">
-                <i class="bi bi-file-pdf" /> {{ versao.pdfs.length }} PDF(s)
-              </span>
+          <div class="rounded-2xl border border-gray-200 bg-white p-6">
+            <h4 class="font-semibold mb-4 flex items-center gap-2"><i class="bi bi-clock-history" />Histórico</h4>
+            <p v-if="!versao.historico.length" class="text-gray-500 text-sm">Nenhum registro.</p>
+            <div v-else class="space-y-3">
+              <div v-for="item in versao.historico" :key="`${item.tipoAlteracao}-${item.dataAlteracao}`" class="border-b border-gray-100 pb-3 last:border-0">
+                <div class="flex justify-between gap-2 text-sm">
+                  <strong>{{ item.tipoAlteracao }}</strong>
+                  <span class="text-gray-500">{{ formatDate(item.dataAlteracao) }}</span>
+                </div>
+                <p class="text-sm mb-0">{{ item.descricao || '—' }}</p>
+                <span class="text-xs text-gray-500">{{ item.usuario || 'Sistema' }}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="card shadow-sm">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="bi bi-images me-2" />Imagens e PDFs</h6>
+        <div class="space-y-6">
+          <div class="rounded-2xl border border-gray-200 bg-white p-6">
+            <h4 class="font-semibold mb-4 flex items-center gap-2"><i class="bi bi-paperclip" />Arquivos</h4>
+            <div class="grid gap-2 mb-4">
+              <DsButton variant="secondary" size="sm" icon="file-earmark-code" :disabled="!versao.temArquivoJson" @click="abrirDownload('json')">JSON</DsButton>
+              <DsButton variant="secondary" size="sm" icon="file-earmark-text" :disabled="!hasMrd" @click="abrirDownload('mrd')">MRD</DsButton>
+              <DsButton variant="secondary" size="sm" icon="file-earmark-binary" :disabled="!versao.temArquivoDll" @click="abrirDownload('dll')">DLL</DsButton>
+            </div>
+            <p class="text-xs text-gray-500 uppercase mb-2">MRDs da versão</p>
+            <ul v-if="versao.mrdList.length" class="space-y-2 text-sm mb-4">
+              <li v-for="mrd in versao.mrdList" :key="mrd.codVersaoMrd" class="flex justify-between gap-2">
+                <span class="truncate">{{ mrd.nomeArquivo }}</span>
+                <DsBadge v-if="mrd.padrao" variant="primary">Padrão</DsBadge>
+              </li>
+            </ul>
+            <p v-else class="text-sm text-gray-500">Nenhum MRD.</p>
           </div>
-          <div class="card-body">
-            <div v-if="anexos.length === 0" class="text-muted">Nenhum anexo.</div>
-            <div v-else class="list-group list-group-flush">
+
+          <div class="rounded-2xl border border-gray-200 bg-white p-6">
+            <h4 class="font-semibold mb-4 flex items-center gap-2"><i class="bi bi-images" />Imagens e PDFs</h4>
+            <p v-if="!anexos.length" class="text-sm text-gray-500">Nenhum anexo.</p>
+            <div v-else class="space-y-2">
               <a
                 v-for="arquivo in anexos"
                 :key="arquivo.codArquivo"
-                class="list-group-item list-group-item-action px-0"
                 :href="arquivo.caminho"
                 target="_blank"
+                class="flex items-center gap-2 text-sm text-blue-600 hover:underline"
               >
-                <div class="d-flex align-items-center gap-2">
-                  <i :class="arquivo.tipo === 'PDF' ? 'bi bi-file-pdf text-danger' : 'bi bi-image text-info'" />
-                  <span class="text-truncate">{{ arquivo.nomeArquivo }}</span>
-                </div>
-                <small class="text-muted">{{ formatDate(arquivo.dataUpload) }} - {{ arquivo.usuarioUpload || '-' }}</small>
+                <i :class="arquivo.tipo === 'PDF' ? 'bi bi-file-pdf text-rose-600' : 'bi bi-image text-blue-600'" />
+                <span class="truncate">{{ arquivo.nomeArquivo }}</span>
               </a>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </DsPageShell>
   </div>
 </template>
 
@@ -202,14 +132,14 @@ const loading = ref(true)
 const saving = ref(false)
 const versao = ref<ScriptVersionDetailDto | null>(null)
 
-const pageTitle = computed(() => (versao.value ? `Versao ${versao.value.numeroVersao}` : `Versao ${codversao}`))
+const pageTitle = computed(() => (versao.value ? `Versão ${versao.value.numeroVersao}` : `Versão ${codversao}`))
 const isActive = computed(() => (versao.value?.ativo || '').toUpperCase() === 'T')
 const isApproved = computed(() => ['T', '1', 'TRUE'].includes((versao.value?.aprovado || '').toUpperCase()))
 const hasMrd = computed(() => (versao.value?.mrdList.length || 0) > 0)
 const anexos = computed<ScriptVersionFileDto[]>(() => [...(versao.value?.imagens || []), ...(versao.value?.pdfs || [])])
 
 function formatDate(value?: string) {
-  if (!value) return '-'
+  if (!value) return '—'
   return new Date(value).toLocaleString('pt-BR')
 }
 
@@ -220,7 +150,7 @@ async function carregar() {
     versao.value = res.data
   } catch (e: unknown) {
     versao.value = null
-    await swal.toast(e instanceof Error ? e.message : 'Erro ao carregar versao', 'error')
+    await swal.toast(e instanceof Error ? e.message : 'Erro ao carregar versão', 'error')
   } finally {
     loading.value = false
   }
@@ -230,10 +160,10 @@ async function ativar() {
   saving.value = true
   try {
     await scriptsApi.ativarVersao(codversao)
-    await swal.toast('Versao ativada!')
+    await swal.toast('Versão ativada!')
     await carregar()
   } catch (e: unknown) {
-    await swal.toast(e instanceof Error ? e.message : 'Erro ao ativar versao', 'error')
+    await swal.toast(e instanceof Error ? e.message : 'Erro ao ativar versão', 'error')
   } finally {
     saving.value = false
   }

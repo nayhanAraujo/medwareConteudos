@@ -1,42 +1,32 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="E-mails de Notificação" icon="envelope" />
-    <div class="row g-3">
-      <div class="col-lg-8">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <form @submit.prevent="salvar">
-              <label class="form-label fw-semibold">E-mails (separados por vírgula)</label>
-              <textarea
-                v-model="emails"
-                class="form-control mb-2"
-                rows="5"
-                placeholder="ex: equipe@empresa.com, gestor@empresa.com"
-              />
-              <div class="form-text mb-3">
-                Estes e-mails recebem notificações de aprovação e ações importantes dos scripts.
-              </div>
-              <button type="submit" class="btn btn-success" :disabled="loading">
-                <i class="bi bi-check-circle-fill me-1" />Salvar
-              </button>
-              <NuxtLink to="/biblioteca" class="btn btn-outline-secondary ms-2">Voltar</NuxtLink>
-            </form>
-          </div>
+    <DsPageHeader title="E-mails de Notificação" icon="envelope" />
+    <DsPageShell panel-class="!p-6 md:!p-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2">
+          <form @submit.prevent="salvar">
+            <DsTextarea
+              v-model="emails"
+              label="E-mails (separados por vírgula)"
+              :rows="5"
+              placeholder="ex: equipe@empresa.com, gestor@empresa.com"
+              hint="Estes e-mails recebem notificações de aprovação e ações importantes dos scripts."
+            />
+            <div class="flex gap-2 mt-4">
+              <DsButton type="submit" variant="success" icon="check-circle-fill" :loading="loading">Salvar</DsButton>
+              <DsButton variant="secondary" to="/biblioteca">Voltar</DsButton>
+            </div>
+          </form>
         </div>
+        <DsAlert variant="info" title="Regras">
+          <ul class="list-disc pl-4 space-y-1 text-sm">
+            <li>Separe múltiplos e-mails por vírgula.</li>
+            <li>Evite e-mails duplicados.</li>
+            <li>Use contas válidas para receber alertas.</li>
+          </ul>
+        </DsAlert>
       </div>
-      <div class="col-lg-4">
-        <div class="card border-info shadow-sm">
-          <div class="card-body">
-            <h6 class="text-info fw-bold"><i class="bi bi-info-circle-fill me-2" />Regras</h6>
-            <ul class="small mb-0 ps-3">
-              <li>Separe múltiplos e-mails por vírgula.</li>
-              <li>Evite e-mails duplicados.</li>
-              <li>Use contas válidas para receber alertas.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
+    </DsPageShell>
   </div>
 </template>
 

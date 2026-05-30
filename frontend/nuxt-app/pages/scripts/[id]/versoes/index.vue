@@ -1,39 +1,33 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="Gerenciar Versões" icon="layers" />
-    <div class="d-flex gap-2 mb-3">
-      <NuxtLink class="btn btn-success btn-sm" :to="`/scripts/${id}/versoes/nova`">
-        <i class="bi bi-plus-circle" /> Nova Versão
-      </NuxtLink>
-      <NuxtLink class="btn btn-outline-secondary btn-sm" :to="voltarPath">Voltar</NuxtLink>
-    </div>
-    <div class="card shadow-sm">
-      <div class="table-responsive">
-        <table class="table table-striped mb-0">
-          <thead>
-            <tr>
-              <th>Versão</th>
-              <th>Data</th>
-              <th>Ativa</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="v in versoes" :key="v.codVersao">
-              <td>{{ v.numeroVersao }}</td>
-              <td>{{ formatDate(v.dataCriacao) }}</td>
-              <td>
-                <span v-if="v.ativo === 'T'" class="badge bg-success">Ativa</span>
-                <button v-else type="button" class="btn btn-sm btn-outline-primary" @click="ativar(v.codVersao)">Ativar</button>
-              </td>
-              <td>
-                <NuxtLink class="btn btn-sm btn-outline-info" :to="`/scripts/${id}/versoes/${v.codVersao}`">Detalhes</NuxtLink>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <DsPageHeader title="Gerenciar Versões" icon="layers" />
+    <DsPageShell>
+      <div class="flex gap-2 mb-6">
+        <DsButton variant="success" size="sm" icon="plus-circle" :to="`/scripts/${id}/versoes/nova`">Nova Versão</DsButton>
+        <DsButton variant="secondary" size="sm" :to="voltarPath">Voltar</DsButton>
       </div>
-    </div>
+      <DsTable>
+        <template #head>
+          <tr>
+            <th>Versão</th>
+            <th>Data</th>
+            <th>Ativa</th>
+            <th>Ações</th>
+          </tr>
+        </template>
+        <tr v-for="v in versoes" :key="v.codVersao">
+          <td>{{ v.numeroVersao }}</td>
+          <td>{{ formatDate(v.dataCriacao) }}</td>
+          <td>
+            <DsBadge v-if="v.ativo === 'T'" variant="success">Ativa</DsBadge>
+            <DsButton v-else variant="secondary" size="sm" @click="ativar(v.codVersao)">Ativar</DsButton>
+          </td>
+          <td>
+            <DsButton variant="ghost" size="sm" :to="`/scripts/${id}/versoes/${v.codVersao}`">Detalhes</DsButton>
+          </td>
+        </tr>
+      </DsTable>
+    </DsPageShell>
   </div>
 </template>
 

@@ -1,85 +1,118 @@
 <template>
-  <div class="btn-group">
-    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+  <DsDropdown trigger-class="inline-flex items-center gap-1 text-sm font-medium px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50">
+    <template #trigger>
       <i class="bi bi-gear-fill" /> Ações
-    </button>
-    <ul class="dropdown-menu dropdown-menu-end">
-      <li v-if="auth.isAdmin">
-        <NuxtLink class="dropdown-item" :to="`/scripts/${item.codScriptLaudo}/variaveis`">
-          <i class="bi bi-link-45deg me-2" />Vincular Variáveis
-        </NuxtLink>
-      </li>
-      <li v-if="auth.isAdmin">
-        <NuxtLink class="dropdown-item" :to="`/scripts/${item.codScriptLaudo}/mrd`">
-          <i class="bi bi-file-earmark-binary me-2" />Gerenciar MRDs
-        </NuxtLink>
-      </li>
-      <li v-if="auth.isAdmin">
-        <NuxtLink class="dropdown-item" :to="`/scripts/${item.codScriptLaudo}/editar`">
-          <i class="bi bi-pencil-fill me-2" />Editar
-        </NuxtLink>
-      </li>
-      <li v-if="auth.isAdmin"><hr class="dropdown-divider" /></li>
-      <li v-if="auth.isAdmin">
-        <NuxtLink class="dropdown-item" :to="`/scripts/${item.codScriptLaudo}/versoes`">
-          <i class="bi bi-layers me-2" />Gerenciar Versões
-        </NuxtLink>
-      </li>
-      <li v-if="auth.isAdmin">
-        <NuxtLink class="dropdown-item" :to="`/scripts/${item.codScriptLaudo}/versoes/nova`">
-          <i class="bi bi-plus-circle me-2" />Nova Versão
-        </NuxtLink>
-      </li>
-      <li v-if="showExportJson">
-        <a class="dropdown-item" href="#" @click.prevent="exportJson">
-          <i class="bi bi-file-earmark-arrow-down-fill me-2" />Exportar JSON
-        </a>
-      </li>
-      <li v-if="azureDisponivel">
-        <a class="dropdown-item" href="#" @click.prevent="openAzure">
-          <i class="bi bi-git me-2" />Projeto Azure
-        </a>
-      </li>
-      <li v-if="dllDisponivel">
-        <a class="dropdown-item" href="#" @click.prevent="exportDll">
-          <i class="bi bi-file-earmark-code-fill me-2" />Exportar DLL
-        </a>
-      </li>
+    </template>
+    <template #default="{ close }">
+      <NuxtLink
+        v-if="auth.isAdmin"
+        :to="`/scripts/${item.codScriptLaudo}/variaveis`"
+        class="block px-4 py-2 text-sm hover:bg-gray-50"
+        @click="close"
+      >
+        <i class="bi bi-link-45deg me-2" />Vincular Variáveis
+      </NuxtLink>
+      <NuxtLink
+        v-if="auth.isAdmin"
+        :to="`/scripts/${item.codScriptLaudo}/mrd`"
+        class="block px-4 py-2 text-sm hover:bg-gray-50"
+        @click="close"
+      >
+        <i class="bi bi-file-earmark-binary me-2" />Gerenciar MRDs
+      </NuxtLink>
+      <NuxtLink
+        v-if="auth.isAdmin"
+        :to="`/scripts/${item.codScriptLaudo}/editar`"
+        class="block px-4 py-2 text-sm hover:bg-gray-50"
+        @click="close"
+      >
+        <i class="bi bi-pencil-fill me-2" />Editar
+      </NuxtLink>
+      <div v-if="auth.isAdmin" class="border-t border-gray-100 my-1" />
+      <NuxtLink
+        v-if="auth.isAdmin"
+        :to="`/scripts/${item.codScriptLaudo}/versoes`"
+        class="block px-4 py-2 text-sm hover:bg-gray-50"
+        @click="close"
+      >
+        <i class="bi bi-layers me-2" />Gerenciar Versões
+      </NuxtLink>
+      <NuxtLink
+        v-if="auth.isAdmin"
+        :to="`/scripts/${item.codScriptLaudo}/versoes/nova`"
+        class="block px-4 py-2 text-sm hover:bg-gray-50"
+        @click="close"
+      >
+        <i class="bi bi-plus-circle me-2" />Nova Versão
+      </NuxtLink>
+      <button
+        v-if="showExportJson"
+        type="button"
+        class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+        @click="exportJson(); close()"
+      >
+        <i class="bi bi-file-earmark-arrow-down-fill me-2" />Exportar JSON
+      </button>
+      <button
+        v-if="azureDisponivel"
+        type="button"
+        class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+        @click="openAzure(); close()"
+      >
+        <i class="bi bi-git me-2" />Projeto Azure
+      </button>
+      <button
+        v-if="dllDisponivel"
+        type="button"
+        class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+        @click="exportDll(); close()"
+      >
+        <i class="bi bi-file-earmark-code-fill me-2" />Exportar DLL
+      </button>
       <template v-if="item.temArquivoMrd && item.mrdList?.length">
-        <li v-for="m in item.mrdList" :key="m.codScriptMrd">
-          <a class="dropdown-item" href="#" @click.prevent="exportMrd(m.codScriptMrd)">
-            <i class="bi bi-file-earmark-binary-fill me-2" />{{ m.nomeArquivo }}
-          </a>
-        </li>
+        <button
+          v-for="m in item.mrdList"
+          :key="m.codScriptMrd"
+          type="button"
+          class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 truncate"
+          @click="exportMrd(m.codScriptMrd); close()"
+        >
+          <i class="bi bi-file-earmark-binary-fill me-2" />{{ m.nomeArquivo }}
+        </button>
       </template>
-      <li v-if="auth.isAdmin"><hr class="dropdown-divider" /></li>
-      <li v-if="auth.isAdmin">
-        <a class="dropdown-item" href="#" @click.prevent="toggleAprovacao">
-          <i
-            :class="item.aprovado ? 'bi bi-hand-thumbs-down-fill text-danger me-2' : 'bi bi-hand-thumbs-up-fill text-success me-2'"
-          />
-          {{ item.aprovado ? 'Desaprovar' : 'Aprovar' }}
-        </a>
-      </li>
-      <li v-if="auth.isAdmin">
-        <a class="dropdown-item" href="#" @click.prevent="toggleAtivo">
-          <i :class="item.ativo ? 'bi bi-toggle-off text-secondary me-2' : 'bi bi-toggle-on text-success me-2'" />
-          {{ item.ativo ? 'Desativar' : 'Ativar' }}
-        </a>
-      </li>
-      <li><hr class="dropdown-divider" /></li>
-      <li>
-        <a class="dropdown-item" href="#" @click.prevent="enviarImagensEmail">
-          <i class="bi bi-envelope-fill me-2" />Enviar Imagens
-        </a>
-      </li>
-      <li v-if="item.linkTeste">
-        <a class="dropdown-item" href="#" @click.prevent="solicitarAprovacao">
-          <i class="bi bi-send-fill text-primary me-2" />Solicitar Aprovação
-        </a>
-      </li>
-    </ul>
-  </div>
+      <div v-if="auth.isAdmin" class="border-t border-gray-100 my-1" />
+      <button
+        v-if="auth.isAdmin"
+        type="button"
+        class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+        @click="toggleAprovacao(); close()"
+      >
+        <i :class="item.aprovado ? 'bi bi-hand-thumbs-down-fill text-rose-600 me-2' : 'bi bi-hand-thumbs-up-fill text-green-600 me-2'" />
+        {{ item.aprovado ? 'Desaprovar' : 'Aprovar' }}
+      </button>
+      <button
+        v-if="auth.isAdmin"
+        type="button"
+        class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+        @click="toggleAtivo(); close()"
+      >
+        <i :class="item.ativo ? 'bi bi-toggle-off me-2' : 'bi bi-toggle-on text-green-600 me-2'" />
+        {{ item.ativo ? 'Desativar' : 'Ativar' }}
+      </button>
+      <div class="border-t border-gray-100 my-1" />
+      <button type="button" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" @click="enviarImagensEmail(); close()">
+        <i class="bi bi-envelope-fill me-2" />Enviar Imagens
+      </button>
+      <button
+        v-if="item.linkTeste"
+        type="button"
+        class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+        @click="solicitarAprovacao(); close()"
+      >
+        <i class="bi bi-send-fill text-blue-600 me-2" />Solicitar Aprovação
+      </button>
+    </template>
+  </DsDropdown>
 </template>
 
 <script setup lang="ts">

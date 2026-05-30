@@ -1,32 +1,25 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="Seleção de Sistema" icon="gear-fill" />
-    <div class="card shadow-sm">
-      <div class="card-body text-center">
-        <h5 class="fw-bold mb-4">Escolha o Sistema</h5>
-        <p class="text-muted mb-4">Selecione o sistema para visualizar os scripts disponíveis</p>
-        <div class="row justify-content-center g-4">
-          <div class="col-md-5">
-            <div class="system-card card h-100 p-4" role="button" @click="select('Laudos UX')">
-              <div class="card-body">
-                <i class="bi bi-pc-display-horizontal fs-1 text-primary" />
-                <h5 class="mt-3">Laudos UX</h5>
-                <p class="text-muted small mb-0">Sistema moderno de laudos</p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-5">
-            <div class="system-card card h-100 p-4" role="button" @click="select('Laudos Flex')">
-              <div class="card-body">
-                <i class="bi bi-laptop fs-1 text-info" />
-                <h5 class="mt-3">Laudos Flex</h5>
-                <p class="text-muted small mb-0">Sistema tradicional de laudos</p>
-              </div>
-            </div>
-          </div>
-        </div>
+    <DsPageHeader title="Seleção de Sistema" icon="gear-fill" />
+    <DsPageShell>
+      <DsSectionTitle title="Escolha o Sistema" subtitle="Selecione o sistema para visualizar os scripts disponíveis" />
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <DsHubCard
+          title="Laudos UX"
+          desc="Sistema moderno de laudos"
+          icon="pc-display-horizontal"
+          theme-name="blue"
+          @click="select('Laudos UX')"
+        />
+        <DsHubCard
+          title="Laudos Flex"
+          desc="Sistema tradicional de laudos"
+          icon="laptop"
+          theme-name="purple"
+          @click="select('Laudos Flex')"
+        />
       </div>
-    </div>
+    </DsPageShell>
   </div>
 </template>
 

@@ -1,18 +1,16 @@
 <template>
   <div>
-    <LayoutAppPageHeader title="Cadastrar Novo Script" icon="file-earmark-plus-fill" />
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <ScriptsScriptForm
-          v-model="form"
-          :pacotes="pacotes"
-          :loading="loading"
-          @submit="salvar"
-          @cancel="voltar"
-          @files="(f) => (fileRefs = f)"
-        />
-      </div>
-    </div>
+    <DsPageHeader title="Cadastrar Novo Script" icon="file-earmark-plus-fill" />
+    <DsPageShell panel-class="!p-6 md:!p-8">
+      <ScriptsScriptForm
+        v-model="form"
+        :pacotes="pacotes"
+        :loading="loading"
+        @submit="salvar"
+        @cancel="voltar"
+        @files="(f) => (fileRefs = f)"
+      />
+    </DsPageShell>
   </div>
 </template>
 
@@ -61,7 +59,7 @@ async function salvar() {
       return
     }
     const fd = buildScriptFormData(form.value, fileRefs.value)
-    const res = await scriptsApi.createScript(fd)
+    await scriptsApi.createScript(fd)
     await swal.toast('Script criado com sucesso!')
     await router.push({
       path: '/scripts',
