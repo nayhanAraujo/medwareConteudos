@@ -107,29 +107,12 @@ const cards: ContentCard[] = [
     nuxtPath: '/variaveis'
   },
   {
-    type: 'modelos',
-    title: 'Modo Texto',
-    desc: 'Modo texto e templates personalizados',
-    icon: 'file-earmark-text',
-    themeName: 'rose',
-    flaskPath: '/modelos'
-  },
-  {
     type: 'impressos',
     title: 'Impressos',
     desc: 'Impressos e documentos MRD com scripts VBS',
     icon: 'printer',
     themeName: 'slate',
     flaskPath: '/impressos'
-  },
-  {
-    type: 'oraculo',
-    title: 'Oráculo IA',
-    desc: 'Assistente IA para dúvidas sobre o sistema',
-    icon: 'robot',
-    themeName: 'dark',
-    badge: 'IA',
-    flaskPath: '/conteudos/oraculo'
   }
 ]
 

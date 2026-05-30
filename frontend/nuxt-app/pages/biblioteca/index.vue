@@ -117,14 +117,13 @@ const tabs = [
 const quickRef: BibAction[] = [
   { label: 'Nova Variável', icon: 'bi bi-plus-circle', flaskPath: '/variaveis/nova' },
   { label: 'Nova Fórmula', icon: 'bi bi-plus-square', flaskPath: '/formulas/nova' },
-  { label: 'Nova Referência', icon: 'bi bi-journal-plus', flaskPath: '/referencias/nova' },
-  { label: 'Novo Modelo', icon: 'bi bi-file-earmark-plus', flaskPath: '/modelos/novo' },
+  { label: 'Nova Referência', icon: 'bi bi-journal-plus', nuxtPath: '/referencias/nova' },
   { label: 'Importar JSON', icon: 'bi bi-upload', flaskPath: '/uploads/uploaddll' },
   { label: 'Novo Script', icon: 'bi bi-code-slash', nuxtPath: '/scripts/sistema' },
   { label: 'Novo Pacote', icon: 'bi bi-box-fill', flaskPath: '/pacotes/novo' },
   { label: 'Agente de Extração', icon: 'bi bi-robot', flaskPath: '/agente/processar_documento' },
   { label: 'Grupos de Variáveis', icon: 'bi bi-collection', flaskPath: '/grupos' },
-  { label: 'Vincular Autores', icon: 'bi bi-person-lines-fill', flaskPath: '/autores' },
+  { label: 'Vincular Autores', icon: 'bi bi-person-lines-fill', nuxtPath: '/referencias' },
   { label: 'Tipos de Autores', icon: 'bi bi-tags', flaskPath: '/autores/tipos' },
   { label: 'Gerenciar Classificações', icon: 'bi bi-tags-fill', flaskPath: '/variaveis/classificacoes' }
 ]
@@ -148,8 +147,8 @@ const modulosRef = [
     icon: 'bi bi-journal-bookmark-fill',
     iconColor: '#198754',
     actions: [
-      { label: 'Nova Referência', flaskPath: '/referencias/nova' },
-      { label: 'Listar Referências', flaskPath: '/referencias' }
+      { label: 'Nova Referência', nuxtPath: '/referencias/nova' },
+      { label: 'Listar Referências', nuxtPath: '/referencias' }
     ]
   },
   {

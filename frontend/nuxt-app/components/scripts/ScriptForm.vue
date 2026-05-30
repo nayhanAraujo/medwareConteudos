@@ -21,25 +21,44 @@
     <DsInput v-model="model.link_teste" label="Link de teste" type="url" />
     <DsInput v-if="model.sistema === 'Laudos Flex'" v-model="model.caminho_azure" label="Caminho Azure" />
     <div v-if="model.sistema === 'Laudos UX' && !editMode" class="md:col-span-2">
-      <label class="block text-sm font-medium text-ds-text mb-1.5">Arquivo JSON *</label>
-      <input type="file" accept=".json" class="w-full text-sm" @change="onJson" />
+      <DsFileInput
+        label="Arquivo JSON *"
+        accept=".json"
+        icon="filetype-json"
+        required
+        @change="onJson"
+      />
     </div>
     <div v-if="model.sistema === 'Laudos Flex' && model.linguagem === 'C#'" class="md:col-span-2">
-      <label class="block text-sm font-medium text-ds-text mb-1.5">Arquivo DLL</label>
-      <input type="file" accept=".dll" class="w-full text-sm" @change="onDll" />
+      <DsFileInput
+        label="Arquivo DLL"
+        accept=".dll"
+        icon="file-earmark-code"
+        @change="onDll"
+      />
     </div>
     <div class="md:col-span-2">
-      <label class="block text-sm font-medium text-ds-text mb-1.5">Arquivos MRD</label>
-      <input type="file" multiple class="w-full text-sm" @change="onMrd" />
+      <DsFileInput
+        label="Arquivos MRD"
+        multiple
+        icon="files"
+        @change="onMrd"
+      />
     </div>
-    <div>
-      <label class="block text-sm font-medium text-ds-text mb-1.5">Imagens</label>
-      <input type="file" accept="image/*" multiple class="w-full text-sm" @change="onImg" />
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-ds-text mb-1.5">PDFs</label>
-      <input type="file" accept=".pdf" multiple class="w-full text-sm" @change="onPdf" />
-    </div>
+    <DsFileInput
+      label="Imagens"
+      accept="image/*"
+      multiple
+      icon="images"
+      @change="onImg"
+    />
+    <DsFileInput
+      label="PDFs"
+      accept=".pdf"
+      multiple
+      icon="file-earmark-pdf"
+      @change="onPdf"
+    />
     <div v-if="imagePreviewUrls.length || (existingImagens?.length || 0)" class="md:col-span-2 rounded-2xl border border-gray-200 bg-white p-4">
       <h6 class="font-semibold mb-3 text-sm">Pré-visualização de imagens</h6>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -124,27 +143,26 @@ function onSistemaChange() {
 
 watch(() => model.value.sistema, onSistemaChange)
 
-function onJson(e: Event) {
-  files.value.arquivo_json = (e.target as HTMLInputElement).files?.[0] ?? null
+function onJson(fileList: FileList | null) {
+  files.value.arquivo_json = fileList?.[0] ?? null
   emit('files', files.value)
 }
-function onDll(e: Event) {
-  files.value.arquivo_dll = (e.target as HTMLInputElement).files?.[0] ?? null
+function onDll(fileList: FileList | null) {
+  files.value.arquivo_dll = fileList?.[0] ?? null
   emit('files', files.value)
 }
-function onMrd(e: Event) {
-  files.value.arquivos_mrd = (e.target as HTMLInputElement).files
+function onMrd(fileList: FileList | null) {
+  files.value.arquivos_mrd = fileList
   emit('files', files.value)
 }
-function onImg(e: Event) {
+function onImg(fileList: FileList | null) {
   cleanupPreviewUrls()
-  const list = (e.target as HTMLInputElement).files
-  files.value.imagens = list
-  imagePreviewUrls.value = list ? Array.from(list).map((f) => ({ url: URL.createObjectURL(f), nome: f.name })) : []
+  files.value.imagens = fileList
+  imagePreviewUrls.value = fileList ? Array.from(fileList).map((f) => ({ url: URL.createObjectURL(f), nome: f.name })) : []
   emit('files', files.value)
 }
-function onPdf(e: Event) {
-  files.value.pdfs = (e.target as HTMLInputElement).files
+function onPdf(fileList: FileList | null) {
+  files.value.pdfs = fileList
   emit('files', files.value)
 }
 

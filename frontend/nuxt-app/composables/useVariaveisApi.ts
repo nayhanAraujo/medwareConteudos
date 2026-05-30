@@ -1,3 +1,31 @@
+export interface UnidadeMedidaDto {
+  codUnidadeMedida: number
+  descricao: string
+}
+
+export interface VariavelCreatePayload {
+  nome: string
+  variavel: string
+  sigla: string
+  abreviacao: string
+  descricao?: string
+  codUnidadeMedida: number
+  casasDecimais: number
+  alternativas?: string[]
+}
+
+export interface VariavelEdicaoDto {
+  codVariavel: number
+  nome?: string
+  variavel?: string
+  sigla?: string
+  abreviacao?: string
+  descricao?: string
+  codUnidadeMedida?: number | null
+  casasDecimais?: number | null
+  alternativas: string[]
+}
+
 export interface GrupoVariavelDto {
   codGrupo: number
   nome: string
@@ -40,6 +68,41 @@ export interface VariavelListItem {
 
 /** @deprecated use VariavelListItem */
 export type VariavelItem = VariavelListItem
+
+export interface VariavelReferenciaResumoDto {
+  codigo?: number | null
+  titulo?: string | null
+  ano?: string | null
+  descricao?: string | null
+  autores?: string | null
+}
+
+export interface VariavelNormalidadeDetalheDto {
+  codNormalidade: number
+  sexo?: string | null
+  valorMin?: number | null
+  valorMax?: number | null
+  idadeMin?: number | null
+  idadeMax?: number | null
+  referencia?: VariavelReferenciaResumoDto | null
+}
+
+export interface VariavelEquacaoDetalheDto {
+  codEquacao: number
+  equacao?: string | null
+  linguagem?: string | null
+  referencia?: VariavelReferenciaResumoDto | null
+}
+
+export interface VariavelDetalhesCompletosDto {
+  normalidades: VariavelNormalidadeDetalheDto[]
+  equacoes: VariavelEquacaoDetalheDto[]
+}
+
+export interface VariavelCodigoDicomDto {
+  codigo: string
+  descricaoPtBr?: string | null
+}
 
 export interface ReferenciasNormalidadesPainel {
   referencias: Array<{
@@ -111,6 +174,18 @@ export function useVariaveisApi() {
   const listGrupos = () =>
     api.get<{ success: boolean; data: GrupoVariavelDto[] }>('/api/web/variaveis/grupos')
 
+  const getMeta = () =>
+    api.get<{ success: boolean; data: { unidades: UnidadeMedidaDto[] } }>('/api/web/variaveis/meta')
+
+  const createVariavel = (body: VariavelCreatePayload) =>
+    api.post<{ success: boolean; codVariavel: number }>('/api/web/variaveis', body)
+
+  const getVariavelEdicao = (id: number) =>
+    api.get<{ success: boolean; data: VariavelEdicaoDto }>(`/api/web/variaveis/${id}/edicao`)
+
+  const updateVariavel = (id: number, body: VariavelCreatePayload) =>
+    api.put<{ success: boolean }>(`/api/web/variaveis/${id}`, body)
+
   const listVariaveis = (q: { skip?: number; take?: number; search?: string; grupo?: number | '' }) => {
     const params = new URLSearchParams()
     Object.entries(q).forEach(([k, v]) => {
@@ -120,6 +195,16 @@ export function useVariaveisApi() {
       `/api/web/variaveis?${params.toString()}`
     )
   }
+
+  const getDetalhesCompletos = (id: number) =>
+    api.get<{ success: boolean; data: VariavelDetalhesCompletosDto }>(
+      `/api/web/variaveis/${id}/detalhes-completos`
+    )
+
+  const getCodigosVinculados = (id: number) =>
+    api.get<{ success: boolean; data: VariavelCodigoDicomDto[] }>(
+      `/api/web/variaveis/${id}/codigos-vinculados`
+    )
 
   const getReferenciasNormalidades = (q: {
     referenciaId?: number
@@ -161,7 +246,13 @@ export function useVariaveisApi() {
 
   return {
     listGrupos,
+    getMeta,
+    createVariavel,
+    getVariavelEdicao,
+    updateVariavel,
     listVariaveis,
+    getDetalhesCompletos,
+    getCodigosVinculados,
     getReferenciasNormalidades,
     vincularNormalidadesReferencia,
     atualizarNormalidadeReferencia,

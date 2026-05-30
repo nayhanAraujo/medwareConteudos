@@ -64,37 +64,39 @@
         <DsAlert v-else-if="!items.length" variant="info">Nenhum script encontrado para os filtros selecionados.</DsAlert>
 
         <div v-else-if="viewMode === 'cards'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          <div
+          <article
             v-for="item in items"
             :key="item.codScriptLaudo"
-            class="rounded-2xl border border-gray-200 bg-white overflow-hidden hover:shadow-lg transition-all flex flex-col"
+            class="rounded-2xl border border-gray-200 bg-white hover:shadow-lg transition-all flex flex-col overflow-hidden"
           >
-            <img
-              v-if="item.imagensDisplay?.[0]?.caminho"
-              :src="mediaUrl(item.imagensDisplay[0].caminho)"
-              :alt="item.nome"
-              class="w-full h-40 object-cover"
-            />
-            <div v-else class="h-40 bg-ds-surface flex items-center justify-center text-gray-400">
-              <i class="bi bi-image-fill text-4xl" />
+            <div class="aspect-[4/3] bg-ds-surface overflow-hidden">
+              <img
+                v-if="item.imagensDisplay?.[0]?.caminho"
+                :src="mediaUrl(item.imagensDisplay[0].caminho)"
+                :alt="item.nome"
+                class="w-full h-full object-cover"
+              />
+              <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
+                <i class="bi bi-image-fill text-4xl" />
+              </div>
             </div>
-            <div class="p-4 flex flex-col flex-1">
-              <h3 class="font-semibold font-manrope text-ds-text mb-2">{{ item.nome }}</h3>
-              <div class="flex flex-wrap gap-1 mb-2">
+            <div class="p-4 flex flex-col gap-2">
+              <h3 class="font-semibold font-manrope text-ds-text line-clamp-2">{{ item.nome }}</h3>
+              <div class="flex flex-wrap gap-1">
                 <DsBadge v-if="item.nomePacote" variant="primary">{{ item.nomePacote }}</DsBadge>
                 <DsBadge variant="default">{{ item.sistema }}</DsBadge>
                 <DsBadge v-if="item.ultimaVersao" variant="success">{{ item.ultimaVersao }}</DsBadge>
               </div>
-              <p class="text-xs text-gray-600 mb-3">
+              <p class="text-xs text-gray-600">
                 Aprovado: <span :class="item.aprovado ? 'text-green-600' : 'text-rose-600'">{{ item.aprovado ? 'Sim' : 'Não' }}</span>
                 · Ativo: {{ item.ativo ? 'Sim' : 'Não' }}
               </p>
-              <div class="mt-auto flex justify-between items-center gap-2">
+              <div class="flex justify-between items-center gap-2 pt-1">
                 <DsButton variant="secondary" size="sm" icon="info-circle-fill" @click="detailModalId = item.codScriptLaudo">Detalhes</DsButton>
                 <ScriptsScriptActionsDropdown :item="item" />
               </div>
             </div>
-          </div>
+          </article>
         </div>
 
         <DsTable v-else>
@@ -188,6 +190,7 @@
             <div class="space-y-2">
               <p><strong>Aprovado:</strong> {{ detailItem.aprovado ? 'Sim' : 'Não' }}</p>
               <p><strong>Status:</strong> {{ detailItem.ativo ? 'Ativo' : 'Inativo' }}</p>
+              <p><strong>Verificado em:</strong> {{ formatDateTime(detailItem.dataVerificacao) }}</p>
               <p><strong>Aprovado Por:</strong> {{ detailItem.aprovadoPor || '—' }}</p>
               <p><strong>Criado por:</strong> {{ detailItem.criadoPor || '—' }}</p>
             </div>
@@ -272,6 +275,19 @@ function mediaUrl(path?: string) {
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
   return `http://localhost:5080${path.startsWith('/') ? '' : '/'}${path}`
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 async function load(p = 1) {
