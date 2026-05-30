@@ -8,8 +8,47 @@
     <DsPageShell>
       <div class="flex flex-wrap justify-end gap-2 mb-4">
         <DsButton variant="secondary" size="sm" icon="journal-richtext" to="/referencias">Listar Referências</DsButton>
+        <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="plus-lg" to="/variaveis/nova">
+          Nova Variável
+        </DsButton>
         <DsButton variant="secondary" size="sm" icon="journal-medical" to="/variaveis/referencias-normalidades">
-          Referências x Normalidades
+          Normalidades x Referências
+        </DsButton>
+        <DsButton
+          v-if="auth.isAdmin"
+          variant="secondary"
+          size="sm"
+          icon="diagram-3"
+          @click="navegarFlask('/grupos/associar_grupos')"
+        >
+          Associar a Grupos
+        </DsButton>
+        <DsButton
+          v-if="auth.isAdmin"
+          variant="secondary"
+          size="sm"
+          icon="upload"
+          @click="navegarFlask('/variaveis/importar_variaveis')"
+        >
+          Importar (.cs)
+        </DsButton>
+        <DsButton
+          v-if="auth.isAdmin"
+          variant="secondary"
+          size="sm"
+          icon="link-45deg"
+          @click="navegarFlask('/variaveis/vincular_codigo_universal')"
+        >
+          Vincular DICOM
+        </DsButton>
+        <DsButton
+          v-if="auth.isAdmin"
+          variant="secondary"
+          size="sm"
+          icon="check2-all"
+          @click="navegarFlask('/variaveis/vincular_especialidades_em_lote')"
+        >
+          Vincular em Especialidade
         </DsButton>
       </div>
 
@@ -39,77 +78,64 @@
       <DsAlert v-else-if="!items.length" variant="info">
         Nenhuma variável encontrada.
         <template v-if="hasActiveFilter"> Tente refinar sua busca ou limpar os filtros.</template>
+        <template v-else-if="auth.isAdmin">
+          <DsButton variant="ghost" size="sm" class="ml-2 p-0 h-auto" to="/variaveis/nova">
+            Cadastre uma nova variável
+          </DsButton>
+        </template>
       </DsAlert>
 
-      <DsTable v-else>
-        <template #head>
-          <tr>
-            <th class="w-16 text-center">Cód.</th>
-            <th>Grupo</th>
-            <th>Nome Clínico</th>
-            <th>Variável (Código)</th>
-            <th class="text-center">Sigla</th>
-            <th class="text-center">Abreviação</th>
-            <th>Alternativas</th>
-            <th>Scripts Vinculados</th>
-            <th>Anexos</th>
+      <template v-else>
+        <VariaveisActionsLegend />
+
+        <DsTable>
+          <template #head>
+            <tr>
+              <th class="w-16 text-center">Cód.</th>
+              <th>Grupo</th>
+              <th>Nome Clínico</th>
+              <th>Variável (Código)</th>
+              <th class="text-center">Sigla</th>
+              <th>Alternativas</th>
+              <th>Scripts Vinculados</th>
+              <th class="text-center w-[120px]">Ações</th>
+            </tr>
+          </template>
+          <tr v-for="item in items" :key="item.codVariavel">
+            <td class="text-center">{{ item.codVariavel }}</td>
+            <td>
+              <DsBadge v-if="item.nomeGrupo" variant="primary">{{ item.nomeGrupo }}</DsBadge>
+              <DsBadge v-else variant="dark">Sem grupo</DsBadge>
+            </td>
+            <td>{{ item.nome }}</td>
+            <td><code class="text-sm bg-gray-100 px-1 rounded">{{ item.variavel }}</code></td>
+            <td class="text-center">{{ item.sigla }}</td>
+            <td>
+              <template v-if="item.alternativas?.length">
+                <DsBadge variant="default" class="mr-1">{{ item.alternativas.length }}</DsBadge>
+                <DsButton variant="ghost" size="sm" icon="list-ul" @click="openListModal('alternativas', item)">Ver</DsButton>
+              </template>
+              <span v-else class="text-gray-400 italic text-sm">-</span>
+            </td>
+            <td>
+              <template v-if="item.scripts?.length">
+                <DsBadge variant="default" class="mr-1">{{ item.scripts.length }}</DsBadge>
+                <DsButton variant="ghost" size="sm" icon="list-ul" @click="openListModal('scripts', item)">Ver</DsButton>
+              </template>
+              <span v-else class="text-gray-400 italic text-sm">-</span>
+            </td>
+            <td>
+              <VariaveisRowActions
+                :item="item"
+                @detalhes="openDetalhesModal"
+                @formula="openFormulaModal"
+                @dicom="openDicomSwal"
+                @excluir="confirmarExclusao"
+              />
+            </td>
           </tr>
-        </template>
-        <tr v-for="item in items" :key="item.codVariavel">
-          <td class="text-center">{{ item.codVariavel }}</td>
-          <td>
-            <DsBadge v-if="item.nomeGrupo" variant="primary">{{ item.nomeGrupo }}</DsBadge>
-            <DsBadge v-else variant="dark">Sem grupo</DsBadge>
-          </td>
-          <td>{{ item.nome }}</td>
-          <td><code class="text-sm bg-gray-100 px-1 rounded">{{ item.variavel }}</code></td>
-          <td class="text-center">{{ item.sigla }}</td>
-          <td class="text-center">{{ item.abreviacao || '-' }}</td>
-          <td>
-            <template v-if="item.alternativas?.length">
-              <DsBadge variant="default" class="mr-1">{{ item.alternativas.length }}</DsBadge>
-              <DsButton variant="ghost" size="sm" icon="list-ul" @click="openListModal('alternativas', item)">Ver</DsButton>
-            </template>
-            <span v-else class="text-gray-400 italic text-sm">-</span>
-          </td>
-          <td>
-            <template v-if="item.scripts?.length">
-              <DsBadge variant="default" class="mr-1">{{ item.scripts.length }}</DsBadge>
-              <DsButton variant="ghost" size="sm" icon="list-ul" @click="openListModal('scripts', item)">Ver</DsButton>
-            </template>
-            <span v-else class="text-gray-400 italic text-sm">-</span>
-          </td>
-          <td>
-            <template v-if="item.anexos?.length">
-              <ul class="list-none p-0 m-0 text-sm space-y-1">
-                <li v-for="anexo in item.anexos.slice(0, 2)" :key="anexo.codAnexo">
-                  <i class="bi bi-paperclip" />
-                  {{ anexo.descricao || anexo.tipoAnexo }}
-                  <span v-if="anexo.referencia?.titulo" class="text-gray-500">
-                    (Ref: {{ truncate(anexo.referencia.autores, 15) || 'N/A' }} {{ anexo.referencia.ano || '' }})
-                  </span>
-                  <a
-                    v-if="anexo.caminho"
-                    :href="anexo.caminho"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="ml-1 text-ds-primary"
-                    title="Abrir anexo"
-                  >
-                    <i class="bi bi-box-arrow-up-right" />
-                  </a>
-                </li>
-                <li v-if="item.anexos.length > 2">
-                  <DsButton variant="ghost" size="sm" class="p-0 h-auto" @click="openListModal('anexos', item)">
-                    ... e mais {{ item.anexos.length - 2 }}
-                  </DsButton>
-                </li>
-              </ul>
-            </template>
-            <span v-else class="text-gray-400 italic text-sm">-</span>
-          </td>
-        </tr>
-      </DsTable>
+        </DsTable>
+      </template>
 
       <div v-if="totalPages > 1" class="flex justify-center gap-2 mt-6">
         <DsButton variant="secondary" size="sm" :disabled="page <= 1" @click="load(page - 1)">Anterior</DsButton>
@@ -161,17 +187,82 @@
         <DsButton variant="secondary" size="sm" @click="hideListModal">Fechar</DsButton>
       </template>
     </DsModal>
+
+    <DsModal v-model="detalhesModalOpen" :title="detalhesModalTitle" size="xl">
+      <div v-if="detalhesLoading" class="text-center py-6 text-gray-500">Carregando detalhes...</div>
+      <DsAlert v-else-if="detalhesError" variant="error">{{ detalhesError }}</DsAlert>
+      <template v-else-if="detalhesData">
+        <p class="mb-1"><strong>Nome clínico:</strong> {{ detalhesItem?.nome }}</p>
+        <p class="mb-4"><strong>Variável:</strong> <code class="text-sm bg-gray-100 px-1 rounded">{{ detalhesItem?.variavel }}</code></p>
+
+        <h6 class="font-semibold mb-2">Normalidades</h6>
+        <ul v-if="detalhesData.normalidades.length" class="list-none p-0 m-0 mb-4 space-y-2 text-sm">
+          <li v-for="n in detalhesData.normalidades" :key="n.codNormalidade" class="border-b border-gray-100 pb-2">
+            <strong>Sexo:</strong> {{ n.sexo || 'N/A' }},
+            <strong>Min:</strong> {{ n.valorMin ?? '-' }},
+            <strong>Max:</strong> {{ n.valorMax ?? '-' }}
+            <br />
+            <span class="text-gray-500">Idade: {{ n.idadeMin ?? 'N/A' }}-{{ n.idadeMax ?? 'N/A' }}</span>
+            <br v-if="n.referencia?.titulo" />
+            <span v-if="n.referencia?.titulo" class="text-gray-500">
+              (Ref: {{ n.referencia.titulo || 'N/A' }} ({{ n.referencia.ano || '' }}) {{ n.referencia.autores || '' }})
+            </span>
+            <span v-else class="text-gray-500">(Sem referência)</span>
+          </li>
+        </ul>
+        <p v-else class="text-gray-500 italic text-sm mb-4">Nenhuma normalidade definida para esta variável.</p>
+
+        <h6 class="font-semibold mb-2">Equações</h6>
+        <ul v-if="detalhesData.equacoes.length" class="list-none p-0 m-0 space-y-2 text-sm">
+          <li v-for="eq in detalhesData.equacoes" :key="eq.codEquacao" class="border-b border-gray-100 pb-2">
+            <strong>{{ eq.linguagem || 'N/A' }}:</strong>
+            <code class="text-sm bg-gray-100 px-1 rounded">{{ eq.equacao || '-' }}</code>
+            <br v-if="eq.referencia?.titulo" />
+            <span v-if="eq.referencia?.titulo" class="text-gray-500">
+              (Ref: {{ eq.referencia.titulo || 'N/A' }} ({{ eq.referencia.ano || '' }}) {{ eq.referencia.autores || '' }})
+            </span>
+            <span v-else class="text-gray-500">(Sem referência)</span>
+          </li>
+        </ul>
+        <p v-else class="text-gray-500 italic text-sm">Nenhuma equação associada a esta variável.</p>
+      </template>
+      <template #footer>
+        <DsButton variant="secondary" size="sm" @click="hideDetalhesModal">Fechar</DsButton>
+      </template>
+    </DsModal>
+
+    <DsModal v-model="formulaModalOpen" :title="formulaModalTitle" size="lg">
+      <p class="mb-2">
+        <strong>Variável:</strong>
+        <code class="text-sm bg-gray-100 px-1 rounded">{{ formulaItem?.variavel }}</code>
+      </p>
+      <p class="mb-2"><strong>Fórmula:</strong></p>
+      <pre class="bg-gray-100 rounded-xl p-3 text-sm overflow-x-auto"><code>{{ formulaItem?.formula || '-' }}</code></pre>
+      <p class="mb-0"><strong>Casas Decimais:</strong> {{ formulaItem?.casasDecimais ?? 'N/A' }}</p>
+      <template #footer>
+        <DsButton variant="secondary" size="sm" @click="hideFormulaModal">Fechar</DsButton>
+      </template>
+    </DsModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { VariavelAnexoDto, VariavelListItem } from '~/composables/useVariaveisApi'
+import type {
+  VariavelAnexoDto,
+  VariavelDetalhesCompletosDto,
+  VariavelListItem
+} from '~/composables/useVariaveisApi'
 
 definePageMeta({ layout: 'default' })
 
 const PAGE_SIZE = 10
+const auth = useAuthStore()
+const swal = useSwal()
 const variaveisApi = useVariaveisApi()
+const { navegarFlask } = useMigracao()
 const { open: listModalOpen, show: showListModal, hide: hideListModal } = useDsModal()
+const { open: detalhesModalOpen, show: showDetalhesModal, hide: hideDetalhesModal } = useDsModal()
+const { open: formulaModalOpen, show: showFormulaModal, hide: hideFormulaModal } = useDsModal()
 
 const filtros = reactive({ search: '', grupo: '' })
 const applied = reactive({ search: '', grupo: '' })
@@ -201,6 +292,19 @@ const listModalMode = ref<'alternativas' | 'scripts' | 'anexos'>('alternativas')
 const listModalTitle = ref('')
 const listModalItems = ref<string[]>([])
 const listModalAnexos = ref<VariavelAnexoDto[]>([])
+
+const detalhesItem = ref<VariavelListItem | null>(null)
+const detalhesData = ref<VariavelDetalhesCompletosDto | null>(null)
+const detalhesLoading = ref(false)
+const detalhesError = ref('')
+const detalhesModalTitle = computed(() =>
+  detalhesItem.value ? `Detalhes da Variável: ${detalhesItem.value.nome}` : 'Detalhes da Variável'
+)
+
+const formulaItem = ref<VariavelListItem | null>(null)
+const formulaModalTitle = computed(() =>
+  formulaItem.value ? `Fórmula da Variável: ${formulaItem.value.variavel}` : 'Fórmula da Variável'
+)
 
 function truncate(value: string | undefined, max: number) {
   if (!value) return ''
@@ -268,6 +372,79 @@ function openListModal(mode: 'alternativas' | 'scripts' | 'anexos', item: Variav
     listModalAnexos.value = item.anexos ?? []
   }
   showListModal()
+}
+
+async function openDetalhesModal(item: VariavelListItem) {
+  detalhesItem.value = item
+  detalhesData.value = null
+  detalhesError.value = ''
+  detalhesLoading.value = true
+  showDetalhesModal()
+  try {
+    const res = await variaveisApi.getDetalhesCompletos(item.codVariavel)
+    detalhesData.value = res.data
+  } catch (err) {
+    detalhesError.value = err instanceof Error ? err.message : 'Erro ao carregar detalhes.'
+  } finally {
+    detalhesLoading.value = false
+  }
+}
+
+function openFormulaModal(item: VariavelListItem) {
+  formulaItem.value = item
+  showFormulaModal()
+}
+
+async function openDicomSwal(item: VariavelListItem) {
+  if (!import.meta.client) return
+  const { default: Swal } = await import('sweetalert2')
+  Swal.fire({
+    title: 'Códigos DICOM Vinculados',
+    html: `
+      <p class="text-start mb-1"><strong>Variável:</strong> ${item.nome || ''}</p>
+      <div class="text-start mt-2">
+        <h6 class="mb-1">Códigos Vinculados:</h6>
+        <ul id="codigos-list-swal" class="list-unstyled ps-3 small text-start">
+          <li>Carregando...</li>
+        </ul>
+      </div>`,
+    showCloseButton: true,
+    showConfirmButton: false,
+    didOpen: async () => {
+      const listEl = Swal.getHtmlContainer()?.querySelector('#codigos-list-swal')
+      if (!listEl) return
+      try {
+        const res = await variaveisApi.getCodigosVinculados(item.codVariavel)
+        const codigos = res.data || []
+        if (!codigos.length) {
+          listEl.innerHTML = '<li><i class="bi bi-info-circle me-1"></i>Nenhum código DICOM vinculado.</li>'
+          return
+        }
+        listEl.innerHTML = codigos
+          .map(
+            (c) =>
+              `<li><code>${c.codigo}</code> - ${c.descricaoPtBr || '<span class="text-muted fst-italic">Sem descrição</span>'}</li>`
+          )
+          .join('')
+      } catch {
+        listEl.innerHTML =
+          '<li class="text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>Erro ao carregar códigos.</li>'
+      }
+    }
+  })
+}
+
+async function confirmarExclusao(item: VariavelListItem) {
+  const result = await swal.confirm(
+    'Excluir variável?',
+    `Deseja excluir a variável "${item.nome}"?`
+  )
+  if (!result.isConfirmed) return
+  if (auth.isAdmin) {
+    navegarFlask('/variaveis/visualizar_variaveis')
+    return
+  }
+  await swal.warning('Acesso negado', 'Apenas administradores podem excluir variáveis.')
 }
 
 onMounted(async () => {

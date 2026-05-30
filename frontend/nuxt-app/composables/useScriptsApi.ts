@@ -75,6 +75,8 @@ export interface ScriptListItem {
   temArquivoDll: boolean
   temArquivoMrd: boolean
   criadoPor?: string
+  aprovadoPor?: string
+  dataVerificacao?: string | null
   linkTeste?: string
   ultimaVersao?: string
   mrdList: ScriptMrdDto[]

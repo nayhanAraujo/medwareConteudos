@@ -65,6 +65,7 @@ builder.Services.AddScoped<IConteudosWebService, ConteudosWebService>();
 builder.Services.AddScoped<IPaineisWebService, PaineisWebService>();
 builder.Services.AddScoped<IRelatoriosWebService, RelatoriosWebService>();
 builder.Services.AddScoped<IVariaveisWebService, VariaveisWebService>();
+builder.Services.AddScoped<IReferenciasService, ReferenciasService>();
 builder.Services.AddScoped<ScriptsService>();
 
 builder.Services.AddControllers().AddJsonOptions(o =>
