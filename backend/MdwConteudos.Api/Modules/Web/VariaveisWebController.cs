@@ -13,8 +13,17 @@ public class VariaveisWebController : ControllerBase
     public VariaveisWebController(IVariaveisWebService svc) => _svc = svc;
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] int skip = 0, [FromQuery] int take = 50, [FromQuery] string? search = null, CancellationToken ct = default)
-        => Ok(await _svc.ListVariaveisAsync(skip, take, search, ct));
+    public async Task<IActionResult> List(
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] int? grupo = null,
+        CancellationToken ct = default)
+        => Ok(await _svc.ListVariaveisAsync(skip, take, search, grupo, ct));
+
+    [HttpGet("grupos")]
+    public async Task<IActionResult> ListGrupos(CancellationToken ct)
+        => Ok(await _svc.ListGruposAsync(ct));
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> Get(int id, CancellationToken ct)
