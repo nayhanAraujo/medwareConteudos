@@ -63,7 +63,7 @@
         <DsAlert v-else-if="errorMsg" variant="error">{{ errorMsg }}</DsAlert>
         <DsAlert v-else-if="!items.length" variant="info">Nenhum script encontrado para os filtros selecionados.</DsAlert>
 
-        <div v-else-if="viewMode === 'cards'" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+        <div v-else-if="viewMode === 'cards'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <article
             v-for="item in items"
             :key="item.codScriptLaudo"
@@ -81,7 +81,7 @@
               </div>
             </div>
             <div class="p-3 flex flex-col gap-1.5">
-              <h3 class="text-sm font-semibold font-manrope text-ds-text line-clamp-2 leading-snug">{{ item.nome }}</h3>
+              <h3 class="font-semibold font-manrope text-sm text-ds-text line-clamp-2">{{ item.nome }}</h3>
               <div class="flex flex-wrap gap-1">
                 <DsBadge v-if="item.nomePacote" variant="primary">{{ item.nomePacote }}</DsBadge>
                 <DsBadge variant="default">{{ item.sistema }}</DsBadge>
