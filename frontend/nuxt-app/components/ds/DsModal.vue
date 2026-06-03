@@ -19,7 +19,7 @@
             </h3>
             <button
               type="button"
-              class="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+              class="p-2 rounded-full border-0 bg-transparent shadow-none hover:bg-gray-100 text-gray-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
               aria-label="Fechar"
               @click="close"
             >

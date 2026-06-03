@@ -68,9 +68,24 @@ public record VersaoDto(
     string NumeroVersao,
     DateTime? DataCriacao,
     string? Ativo,
-    int? Aprovado,
-    string? Observacoes
+    string? Aprovado,
+    string? Observacoes,
+    string? UsuarioResponsavel,
+    string? DescricaoAlteracoes,
+    string? AprovadoPor
 );
+
+public record VersaoCreateMetaDto(
+    string NomeScript,
+    string? DescricaoScript,
+    string Sistema,
+    string? Linguagem,
+    string? NomePacote,
+    string ProximaVersao,
+    IReadOnlyList<VersaoDto> VersoesExistentes
+);
+
+public record VersaoExportMetaDto(string NomeScript, string NumeroVersao, string Sistema, string? Linguagem);
 
 public record ScriptVersionFileDto(
     int CodArquivo,

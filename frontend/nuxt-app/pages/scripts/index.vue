@@ -63,13 +63,13 @@
         <DsAlert v-else-if="errorMsg" variant="error">{{ errorMsg }}</DsAlert>
         <DsAlert v-else-if="!items.length" variant="info">Nenhum script encontrado para os filtros selecionados.</DsAlert>
 
-        <div v-else-if="viewMode === 'cards'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div v-else-if="viewMode === 'cards'" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4">
           <article
             v-for="item in items"
             :key="item.codScriptLaudo"
-            class="rounded-2xl border border-gray-200 bg-white hover:shadow-lg transition-all flex flex-col overflow-hidden"
+            class="rounded-xl border border-gray-200 bg-white hover:shadow-ds transition-shadow flex flex-col overflow-hidden"
           >
-            <div class="aspect-[4/3] bg-ds-surface overflow-hidden">
+            <div class="aspect-[16/9] bg-ds-surface overflow-hidden">
               <img
                 v-if="item.imagensDisplay?.[0]?.caminho"
                 :src="mediaUrl(item.imagensDisplay[0].caminho)"
@@ -77,21 +77,21 @@
                 class="w-full h-full object-cover"
               />
               <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
-                <i class="bi bi-image-fill text-4xl" />
+                <i class="bi bi-image-fill text-2xl" />
               </div>
             </div>
-            <div class="p-4 flex flex-col gap-2">
-              <h3 class="font-semibold font-manrope text-ds-text line-clamp-2">{{ item.nome }}</h3>
+            <div class="p-3 flex flex-col gap-1.5">
+              <h3 class="text-sm font-semibold font-manrope text-ds-text line-clamp-2 leading-snug">{{ item.nome }}</h3>
               <div class="flex flex-wrap gap-1">
                 <DsBadge v-if="item.nomePacote" variant="primary">{{ item.nomePacote }}</DsBadge>
                 <DsBadge variant="default">{{ item.sistema }}</DsBadge>
                 <DsBadge v-if="item.ultimaVersao" variant="success">{{ item.ultimaVersao }}</DsBadge>
               </div>
-              <p class="text-xs text-gray-600">
+              <p class="text-[11px] text-gray-600 leading-tight">
                 Aprovado: <span :class="item.aprovado ? 'text-green-600' : 'text-rose-600'">{{ item.aprovado ? 'Sim' : 'Não' }}</span>
                 · Ativo: {{ item.ativo ? 'Sim' : 'Não' }}
               </p>
-              <div class="flex justify-between items-center gap-2 pt-1">
+              <div class="flex justify-between items-center gap-1.5 pt-0.5">
                 <DsButton variant="secondary" size="sm" icon="info-circle-fill" @click="detailModalId = item.codScriptLaudo">Detalhes</DsButton>
                 <ScriptsScriptActionsDropdown :item="item" />
               </div>

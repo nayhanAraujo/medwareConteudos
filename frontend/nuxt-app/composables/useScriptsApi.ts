@@ -34,6 +34,28 @@ export interface ScriptVersionHistoryDto {
   dataAlteracao?: string
 }
 
+export interface VersaoDto {
+  codVersao: number
+  numeroVersao: string
+  dataCriacao?: string
+  ativo?: string
+  aprovado?: string
+  observacoes?: string
+  usuarioResponsavel?: string
+  descricaoAlteracoes?: string
+  aprovadoPor?: string
+}
+
+export interface VersaoCreateMetaDto {
+  nomeScript: string
+  descricaoScript?: string
+  sistema: string
+  linguagem?: string
+  nomePacote?: string
+  proximaVersao: string
+  versoesExistentes: VersaoDto[]
+}
+
 export interface ScriptVersionDetailDto {
   codVersao: number
   codScriptLaudo: number
@@ -92,6 +114,17 @@ export interface PagedScripts {
   totalItems: number
 }
 
+export interface VersaoFormFiles {
+  arquivo_json?: File | null
+  arquivo_dll?: File | null
+  arquivos_mrd?: FileList | null
+  imagens?: FileList | null
+  pdfs?: FileList | null
+  mrd_padrao_versao_idx?: number
+  mrd_padrao?: number
+  mrd_excluir?: number[]
+}
+
 export function useScriptsApi() {
   const api = useApi()
 
@@ -139,24 +172,79 @@ export function useScriptsApi() {
 
   const deleteMrd = (codScriptMrd: number) => api.del(`/api/web/scripts/mrd/${codScriptMrd}`)
 
-  const listVersoes = (id: number) =>
-    api.get<{ data: { codVersao: number; numeroVersao: string; dataCriacao?: string; ativo?: string }[] }>(
-      `/api/web/scripts/${id}/versoes`
-    )
+  const listVersoes = (id: number, filters?: { numeroVersao?: string; aprovado?: string; ativo?: string }) => {
+    const params = new URLSearchParams()
+    if (filters?.numeroVersao) params.set('numeroVersao', filters.numeroVersao)
+    if (filters?.aprovado) params.set('aprovado', filters.aprovado)
+    if (filters?.ativo) params.set('ativo', filters.ativo)
+    const q = params.toString()
+    return api.get<{ data: VersaoDto[] }>(`/api/web/scripts/${id}/versoes${q ? `?${q}` : ''}`)
+  }
+
+  const getVersaoCreateMeta = (id: number) =>
+    api.get<{ data: VersaoCreateMetaDto }>(`/api/web/scripts/${id}/versoes/meta`)
 
   const getVersao = (id: number, codVersao: number) =>
     api.get<{ data: ScriptVersionDetailDto }>(`/api/web/scripts/${id}/versoes/${codVersao}`)
 
-  const createVersao = (id: number, body: { numeroVersao: string; observacoes?: string; criadoPor?: string }) =>
-    api.post<{ codVersao: number }>(`/api/web/scripts/${id}/versoes`, body)
+  function buildVersaoFormData(
+    body: {
+      numeroVersao?: string
+      descricaoAlteracoes: string
+      alteracoesInterface?: string
+      alteracoesCodigo?: string
+      observacoes?: string
+      usuarioResponsavel?: string
+    },
+    files?: VersaoFormFiles
+  ) {
+    const fd = new FormData()
+    if (body.numeroVersao) fd.append('numero_versao', body.numeroVersao)
+    fd.append('descricao_alteracoes', body.descricaoAlteracoes)
+    if (body.alteracoesInterface) fd.append('alteracoes_interface', body.alteracoesInterface)
+    if (body.alteracoesCodigo) fd.append('alteracoes_codigo', body.alteracoesCodigo)
+    if (body.observacoes) fd.append('observacoes', body.observacoes)
+    if (body.usuarioResponsavel) fd.append('usuario_responsavel', body.usuarioResponsavel)
+    if (files?.arquivo_json) fd.append('arquivo_json', files.arquivo_json)
+    if (files?.arquivo_dll) fd.append('arquivo_dll', files.arquivo_dll)
+    if (files?.arquivos_mrd) Array.from(files.arquivos_mrd).forEach((f) => fd.append('arquivos_mrd', f))
+    if (files?.imagens) Array.from(files.imagens).forEach((f) => fd.append('imagens', f))
+    if (files?.pdfs) Array.from(files.pdfs).forEach((f) => fd.append('pdfs', f))
+    if (files?.mrd_padrao_versao_idx != null)
+      fd.append('mrd_padrao_versao_idx', String(files.mrd_padrao_versao_idx))
+    if (files?.mrd_padrao != null) fd.append('mrd_padrao', String(files.mrd_padrao))
+    files?.mrd_excluir?.forEach((id) => fd.append('mrd_excluir_list', String(id)))
+    return fd
+  }
+
+  const createVersao = (
+    id: number,
+    body: Parameters<typeof buildVersaoFormData>[0],
+    files?: VersaoFormFiles
+  ) => api.postForm<{ codVersao: number }>(`/api/web/scripts/${id}/versoes`, buildVersaoFormData(body, files))
+
+  const updateVersao = (
+    codVersao: number,
+    body: Parameters<typeof buildVersaoFormData>[0],
+    files?: VersaoFormFiles
+  ) => api.putForm<{ success: boolean }>(`/api/web/scripts/versoes/${codVersao}`, buildVersaoFormData(body, files))
 
   const ativarVersao = (codVersao: number) => api.post(`/api/web/scripts/versoes/${codVersao}/ativar`)
+  const aprovarVersao = (codVersao: number) => api.post(`/api/web/scripts/versoes/${codVersao}/aprovar`)
+  const excluirVersao = (codVersao: number) => api.del(`/api/web/scripts/versoes/${codVersao}`)
+  const excluirVersaoAnexo = (codArquivo: number) => api.del(`/api/web/scripts/versoes/anexos/${codArquivo}`)
 
-  const exportUrl = (path: string) => {
-    const config = useRuntimeConfig()
-    const auth = useAuthStore()
-    return `${config.public.apiBase}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(auth.token)}`
-  }
+  const downloadVersaoArquivo = (codVersao: number, tipo: 'json' | 'dll' | 'mrd', filename: string) =>
+    download(`/api/web/scripts/versoes/${codVersao}/exportar/${tipo}`, filename)
+
+  const downloadVersaoMrd = (codVersao: number, codVersaoMrd: number, filename: string) =>
+    download(`/api/web/scripts/versoes/${codVersao}/exportar-mrd?codVersaoMrd=${codVersaoMrd}`, filename)
+
+  const downloadVersaoMrdZip = (codVersao: number, filename: string) =>
+    download(`/api/web/scripts/versoes/${codVersao}/exportar-mrd-zip`, filename)
+
+  const downloadVersaoAnexo = (codArquivo: number, filename: string) =>
+    download(`/api/web/scripts/versoes/anexos/${codArquivo}/download`, filename)
 
   const download = (path: string, filename: string) =>
     api.getBlob(path).then((blob) => {
@@ -200,9 +288,18 @@ export function useScriptsApi() {
     addMrd,
     deleteMrd,
     listVersoes,
+    getVersaoCreateMeta,
     getVersao,
     createVersao,
+    updateVersao,
     ativarVersao,
+    aprovarVersao,
+    excluirVersao,
+    excluirVersaoAnexo,
+    downloadVersaoArquivo,
+    downloadVersaoMrd,
+    downloadVersaoMrdZip,
+    downloadVersaoAnexo,
     download,
     getEmails,
     saveEmails,

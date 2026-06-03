@@ -161,9 +161,22 @@ public class WebScriptsController : ControllerBase
 
     [HttpGet("{id:int}/versoes")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> ListVersoes(int id)
+    public async Task<IActionResult> ListVersoes(
+        int id,
+        [FromQuery] string? numeroVersao,
+        [FromQuery] string? aprovado,
+        [FromQuery] string? ativo)
     {
-        var data = await _scripts.ListVersoesAsync(id);
+        var data = await _scripts.ListVersoesAsync(id, numeroVersao, aprovado, ativo);
+        return Ok(new { success = true, data });
+    }
+
+    [HttpGet("{id:int}/versoes/meta")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> GetVersaoCreateMeta(int id)
+    {
+        var data = await _scripts.GetVersaoCreateMetaAsync(id);
+        if (data == null) return NotFound(new { message = "Script não encontrado." });
         return Ok(new { success = true, data });
     }
 
@@ -172,24 +185,143 @@ public class WebScriptsController : ControllerBase
     public async Task<IActionResult> GetVersao(int id, int codVersao)
     {
         var data = await _scripts.GetVersaoAsync(id, codVersao);
-        if (data == null) return NotFound(new { message = "VersÃ£o nÃ£o encontrada." });
+        if (data == null) return NotFound(new { message = "Versão não encontrada." });
         return Ok(new { success = true, data });
     }
 
     [HttpPost("{id:int}/versoes")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> CreateVersao(int id, [FromBody] CreateVersaoRequest req)
+    [RequestSizeLimit(100_000_000)]
+    public async Task<IActionResult> CreateVersao(int id, [FromForm] VersaoFormDto form)
     {
-        var cod = await _scripts.CreateVersaoAsync(id, req.NumeroVersao, req.Observacoes, req.CriadoPor ?? User.Identity?.Name ?? "");
-        return Ok(new { success = true, codVersao = cod });
+        try
+        {
+            var input = await MapVersaoFormAsync(form);
+            input.UsuarioResponsavel = FirstUserName(input.UsuarioResponsavel);
+            var cod = await _scripts.CreateVersaoAsync(id, input);
+            return Ok(new { success = true, codVersao = cod });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("versoes/{codVersao:int}")]
+    [Authorize(Roles = "admin")]
+    [RequestSizeLimit(100_000_000)]
+    public async Task<IActionResult> UpdateVersao(int codVersao, [FromForm] VersaoFormDto form)
+    {
+        try
+        {
+            var input = await MapVersaoFormAsync(form);
+            input.UsuarioResponsavel = FirstUserName(input.UsuarioResponsavel);
+            await _scripts.UpdateVersaoAsync(codVersao, input);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("versoes/{codVersao:int}/ativar")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> AtivarVersao(int codVersao)
     {
-        await _scripts.ActivateVersaoAsync(codVersao);
-        return Ok(new { success = true });
+        try
+        {
+            var user = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "Admin";
+            await _scripts.ActivateVersaoAsync(codVersao, user);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("versoes/{codVersao:int}/aprovar")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> AprovarVersao(int codVersao)
+    {
+        try
+        {
+            var user = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "Admin";
+            await _scripts.ApproveVersaoAsync(codVersao, user);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("versoes/{codVersao:int}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteVersao(int codVersao)
+    {
+        try
+        {
+            var user = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "Admin";
+            await _scripts.DeleteVersaoAsync(codVersao, user);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("versoes/{codVersao:int}/exportar/{tipo}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ExportVersaoArquivo(int codVersao, string tipo)
+    {
+        var r = await _scripts.ExportVersaoArquivoAsync(codVersao, tipo);
+        if (r == null) return NotFound(new { message = "Arquivo não encontrado." });
+        return File(r.Value.content, r.Value.mime, r.Value.filename);
+    }
+
+    [HttpGet("versoes/{codVersao:int}/exportar-mrd")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ExportVersaoMrd(int codVersao, [FromQuery] int? codVersaoMrd)
+    {
+        var r = await _scripts.ExportVersaoMrdAsync(codVersao, codVersaoMrd);
+        if (r == null) return NotFound(new { message = "MRD não encontrado." });
+        return File(r.Value.content, r.Value.mime, r.Value.filename);
+    }
+
+    [HttpGet("versoes/{codVersao:int}/exportar-mrd-zip")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ExportVersaoMrdZip(int codVersao)
+    {
+        var r = await _scripts.ExportVersaoMrdZipAsync(codVersao);
+        if (r == null) return NotFound(new { message = "Nenhum MRD nesta versão." });
+        return File(r.Value.content, "application/zip", r.Value.filename);
+    }
+
+    [HttpGet("versoes/anexos/{codArquivo:int}/download")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DownloadVersaoAnexo(int codArquivo)
+    {
+        var r = await _scripts.DownloadVersaoAnexoAsync(codArquivo);
+        if (r == null) return NotFound(new { message = "Anexo não encontrado." });
+        return File(r.Value.content, r.Value.mime, r.Value.filename);
+    }
+
+    [HttpDelete("versoes/anexos/{codArquivo:int}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteVersaoAnexo(int codArquivo)
+    {
+        try
+        {
+            await _scripts.DeleteVersaoAnexoAsync(codArquivo);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id:int}/exportar-json")]
@@ -298,6 +430,11 @@ public class WebScriptsController : ControllerBase
         }
     }
 
+    private string FirstUserName(string? fallback) =>
+        string.IsNullOrWhiteSpace(fallback)
+            ? User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "Admin"
+            : fallback;
+
     private static bool ParseBool(string? v) =>
         v is "true" or "on" or "1" or "True";
 
@@ -364,7 +501,54 @@ public class WebScriptsController : ControllerBase
 
     public record VerificarNomeRequest(string Nome, int? ExcludeId);
     public record SaveVariaveisRequest(List<int>? CodVariaveis);
-    public record CreateVersaoRequest(string NumeroVersao, string? Observacoes, string? CriadoPor);
+    private static async Task<VersaoFormInput> MapVersaoFormAsync(VersaoFormDto form)
+    {
+        var mrdExcluir = new List<int>();
+        if (!string.IsNullOrWhiteSpace(form.Mrd_excluir))
+        {
+            foreach (var part in form.Mrd_excluir.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                if (int.TryParse(part, out var id)) mrdExcluir.Add(id);
+        }
+        foreach (var c in form.Mrd_excluir_list ?? [])
+            if (c > 0) mrdExcluir.Add(c);
+
+        return new VersaoFormInput
+        {
+            NumeroVersao = form.Numero_versao ?? "",
+            DescricaoAlteracoes = form.Descricao_alteracoes ?? "",
+            AlteracoesInterface = form.Alteracoes_interface,
+            AlteracoesCodigo = form.Alteracoes_codigo,
+            Observacoes = form.Observacoes,
+            UsuarioResponsavel = form.Usuario_responsavel ?? "",
+            ArquivoJson = form.Arquivo_json != null ? await ReadBytes(form.Arquivo_json) : null,
+            ArquivoDll = form.Arquivo_dll != null ? await ReadBytes(form.Arquivo_dll) : null,
+            MrdFiles = await ReadFilesAsync(form.Arquivos_mrd),
+            Imagens = await ReadFilesAsync(form.Imagens),
+            Pdfs = await ReadFilesAsync(form.Pdfs),
+            MrdPadraoIdx = form.Mrd_padrao_versao_idx,
+            MrdPadraoCod = int.TryParse(form.Mrd_padrao, out var mp) ? mp : null,
+            MrdExcluir = mrdExcluir.Count > 0 ? mrdExcluir : null
+        };
+    }
+
+    public class VersaoFormDto
+    {
+        public string? Numero_versao { get; set; }
+        public string? Descricao_alteracoes { get; set; }
+        public string? Alteracoes_interface { get; set; }
+        public string? Alteracoes_codigo { get; set; }
+        public string? Observacoes { get; set; }
+        public string? Usuario_responsavel { get; set; }
+        public IFormFile? Arquivo_json { get; set; }
+        public IFormFile? Arquivo_dll { get; set; }
+        public List<IFormFile>? Arquivos_mrd { get; set; }
+        public List<IFormFile>? Imagens { get; set; }
+        public List<IFormFile>? Pdfs { get; set; }
+        public int? Mrd_padrao_versao_idx { get; set; }
+        public string? Mrd_padrao { get; set; }
+        public string? Mrd_excluir { get; set; }
+        public List<int>? Mrd_excluir_list { get; set; }
+    }
     public record EmailsRequest(string? Emails);
     public record AprovarRequest(string Acao);
     public record SendImagesEmailRequest(string Email, string Sistema);

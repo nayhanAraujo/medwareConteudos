@@ -1,4 +1,5 @@
 using System.Data;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
@@ -488,26 +489,93 @@ public class ScriptsService
         await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDO_MRD WHERE CODSCRIPTMRD = @cod", new { cod = codScriptMrd });
     }
 
-    public async Task<IReadOnlyList<VersaoDto>> ListVersoesAsync(int scriptId)
+    public async Task<IReadOnlyList<VersaoDto>> ListVersoesAsync(
+        int scriptId, string? numeroVersao = null, string? aprovado = null, string? ativo = null)
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
-        var rows = await conn.QueryAsync(@"
-            SELECT CODVERSAO, NUMERO_VERSAO, DATA_CRIACAO, ATIVO, APROVADO, OBSERVACOES
-            FROM SCRIPT_VERSOES WHERE CODSCRIPTLAUDO = @scriptId ORDER BY DATA_CRIACAO DESC",
-            new { scriptId });
-        return rows.Select(r =>
+        var where = new List<string> { "CODSCRIPTLAUDO = @scriptId" };
+        var p = new DynamicParameters();
+        p.Add("scriptId", scriptId);
+        if (!string.IsNullOrWhiteSpace(numeroVersao))
         {
-            var d = (IDictionary<string, object>)r;
-            return new VersaoDto(
-                Convert.ToInt32(d["CODVERSAO"]),
-                d["NUMERO_VERSAO"]?.ToString() ?? "",
-                d["DATA_CRIACAO"] as DateTime?,
-                d["ATIVO"]?.ToString(),
-                d["APROVADO"] as int?,
-                d["OBSERVACOES"]?.ToString()
-            );
-        }).ToList();
+            where.Add("UPPER(NUMERO_VERSAO) LIKE UPPER(@num)");
+            p.Add("num", $"%{numeroVersao.Trim()}%");
+        }
+        if (aprovado is "0" or "1")
+        {
+            where.Add(aprovado == "1" ? "APROVADO = 'T'" : "(APROVADO IS NULL OR APROVADO = 'F' OR APROVADO = 0)");
+        }
+        if (ativo is "0" or "1")
+        {
+            where.Add(ativo == "1" ? "ATIVO = 'T'" : "(ATIVO IS NULL OR ATIVO = 'F')");
+        }
+        var sql = $@"
+            SELECT CODVERSAO, NUMERO_VERSAO, DATA_CRIACAO, ATIVO, APROVADO, OBSERVACOES,
+                   USUARIO_RESPONSAVEL, DESCRICAO_ALTERACOES, APROVADO_POR
+            FROM SCRIPT_VERSOES WHERE {string.Join(" AND ", where)} ORDER BY DATA_CRIACAO DESC";
+        var rows = await conn.QueryAsync(sql, p);
+        return rows.Select(MapVersaoDto).ToList();
+    }
+
+    private static VersaoDto MapVersaoDto(dynamic r)
+    {
+        var d = (IDictionary<string, object>)r;
+        return new VersaoDto(
+            Convert.ToInt32(d["CODVERSAO"]),
+            d["NUMERO_VERSAO"]?.ToString() ?? "",
+            d["DATA_CRIACAO"] as DateTime?,
+            d["ATIVO"]?.ToString(),
+            NormalizeFlag(d.TryGetValue("APROVADO", out var ap) ? ap : null),
+            d["OBSERVACOES"]?.ToString(),
+            d["USUARIO_RESPONSAVEL"]?.ToString(),
+            d["DESCRICAO_ALTERACOES"]?.ToString(),
+            d["APROVADO_POR"]?.ToString()
+        );
+    }
+
+    private static string? NormalizeFlag(object? value)
+    {
+        if (value is null or DBNull) return "F";
+        var s = value.ToString()?.Trim().ToUpperInvariant();
+        return s is "T" or "1" or "TRUE" or "S" or "Y" ? "T" : "F";
+    }
+
+    public async Task<VersaoCreateMetaDto?> GetVersaoCreateMetaAsync(int scriptId)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var script = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT s.NOME, s.DESCRICAO, s.SISTEMA, s.LINGUAGEM, p.NOME AS NOME_PACOTE
+            FROM SCRIPTLAUDO s
+            LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE
+            WHERE s.CODSCRIPTLAUDO = @scriptId", new { scriptId });
+        if (script == null) return null;
+        var sd = (IDictionary<string, object>)script;
+        var versoes = await ListVersoesAsync(scriptId);
+        return new VersaoCreateMetaDto(
+            sd["NOME"]!.ToString()!,
+            sd["DESCRICAO"]?.ToString(),
+            sd["SISTEMA"]!.ToString()!,
+            sd["LINGUAGEM"]?.ToString(),
+            sd["NOME_PACOTE"]?.ToString(),
+            await GerarProximoNumeroVersaoAsync(conn, scriptId),
+            versoes
+        );
+    }
+
+    private static async Task<string> GerarProximoNumeroVersaoAsync(FbConnection conn, int scriptId)
+    {
+        var ultima = await conn.ExecuteScalarAsync<string?>(@"
+            SELECT FIRST 1 NUMERO_VERSAO FROM SCRIPT_VERSOES
+            WHERE CODSCRIPTLAUDO = @scriptId ORDER BY DATA_CRIACAO DESC", new { scriptId });
+        if (string.IsNullOrWhiteSpace(ultima)) return "V1.0";
+        if (!ultima.StartsWith("V", StringComparison.OrdinalIgnoreCase)) return "V1.0";
+        var numero = ultima[1..];
+        var parts = numero.Split('.');
+        if (parts.Length != 2 || !int.TryParse(parts[0], out var major) || !int.TryParse(parts[1], out var minor))
+            return "V1.0";
+        return $"V{major}.{minor + 1}";
     }
 
     public async Task<ScriptVersionDetailDto?> GetVersaoAsync(int scriptId, int codVersao)
@@ -550,7 +618,7 @@ public class ScriptsService
             d["DATA_CRIACAO"] as DateTime?,
             d["USUARIO_RESPONSAVEL"]?.ToString(),
             d["ATIVO"]?.ToString(),
-            d["APROVADO"]?.ToString(),
+            NormalizeFlag(d.TryGetValue("APROVADO", out var apv) ? apv : null),
             d["APROVADO_POR"]?.ToString(),
             d["DATA_APROVACAO"] as DateTime?,
             d["OBSERVACOES"]?.ToString(),
@@ -638,29 +706,522 @@ public class ScriptsService
         }
     }
 
-    public async Task<int> CreateVersaoAsync(int scriptId, string numeroVersao, string? observacoes, string criadoPor)
+    public async Task<int> CreateVersaoAsync(int scriptId, VersaoFormInput input)
     {
+        if (string.IsNullOrWhiteSpace(input.NumeroVersao))
+            throw new InvalidOperationException("Número da versão é obrigatório.");
+        if (string.IsNullOrWhiteSpace(input.DescricaoAlteracoes))
+            throw new InvalidOperationException("Descrição das alterações é obrigatória.");
+
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
-        return await conn.ExecuteScalarAsync<int>(@"
-            INSERT INTO SCRIPT_VERSOES (CODSCRIPTLAUDO, NUMERO_VERSAO, OBSERVACOES, CRIADO_POR, ATIVO, APROVADO, DATA_CRIACAO)
-            VALUES (@scriptId, @num, @obs, @criado, 'F', 0, CURRENT_TIMESTAMP)
-            RETURNING CODVERSAO",
-            new { scriptId, num = numeroVersao, obs = observacoes, criado = criadoPor });
+        var sistema = await conn.ExecuteScalarAsync<string>(
+            "SELECT SISTEMA FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId })
+            ?? throw new InvalidOperationException("Script não encontrado.");
+
+        var exists = await conn.ExecuteScalarAsync<int>(@"
+            SELECT COUNT(*) FROM SCRIPT_VERSOES
+            WHERE CODSCRIPTLAUDO = @scriptId AND NUMERO_VERSAO = @num",
+            new { scriptId, num = input.NumeroVersao.Trim() });
+        if (exists > 0) throw new InvalidOperationException("Já existe uma versão com este número.");
+
+        byte[]? arquivoJson = input.ArquivoJson;
+        byte[]? arquivoDll = input.ArquivoDll;
+        if (arquivoJson == null && arquivoDll == null)
+        {
+            var blobs = await conn.QueryFirstOrDefaultAsync(@"
+                SELECT ARQUIVO_JSON, DLL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId });
+            if (blobs != null)
+            {
+                var bd = (IDictionary<string, object>)blobs;
+                arquivoJson = BlobToBytes(bd.TryGetValue("ARQUIVO_JSON", out var j) ? j : null);
+                arquivoDll = BlobToBytes(bd.TryGetValue("DLL", out var d) ? d : null);
+            }
+        }
+
+        await using var tx = await conn.BeginTransactionAsync();
+        await conn.ExecuteAsync(
+            "UPDATE SCRIPT_VERSOES SET ATIVO = 'F' WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId }, tx);
+
+        var codVersao = await conn.ExecuteScalarAsync<int>(@"
+            INSERT INTO SCRIPT_VERSOES (
+                CODSCRIPTLAUDO, NUMERO_VERSAO, DESCRICAO_ALTERACOES,
+                ALTERACOES_INTERFACE, ALTERACOES_CODIGO, USUARIO_RESPONSAVEL,
+                OBSERVACOES, ATIVO, DATA_CRIACAO
+            ) VALUES (
+                @scriptId, @num, @desc, @iface, @cod, @user, @obs, 'T', CURRENT_TIMESTAMP
+            ) RETURNING CODVERSAO",
+            new
+            {
+                scriptId,
+                num = input.NumeroVersao.Trim(),
+                desc = input.DescricaoAlteracoes,
+                iface = input.AlteracoesInterface,
+                cod = input.AlteracoesCodigo,
+                user = input.UsuarioResponsavel,
+                obs = input.Observacoes
+            }, tx);
+
+        if (arquivoJson != null || arquivoDll != null)
+        {
+            var sets = new List<string>();
+            var p = new DynamicParameters();
+            p.Add("codVersao", codVersao);
+            if (arquivoJson != null) { sets.Add("ARQUIVO_JSON = @json"); p.Add("json", arquivoJson); }
+            if (arquivoDll != null) { sets.Add("ARQUIVO_DLL = @dll"); p.Add("dll", arquivoDll); }
+            await conn.ExecuteAsync($"UPDATE SCRIPT_VERSOES SET {string.Join(", ", sets)} WHERE CODVERSAO = @codVersao", p, tx);
+        }
+
+        var mrdFiles = input.MrdFiles?.Where(f => !string.IsNullOrWhiteSpace(f.FileName)).ToList();
+        if (mrdFiles is { Count: > 0 })
+        {
+            for (var i = 0; i < mrdFiles.Count; i++)
+            {
+                var f = mrdFiles[i];
+                var err = ValidateMrdExtension(sistema, f.FileName);
+                if (err != null) throw new InvalidOperationException(err);
+                var isPadrao = input.MrdPadraoIdx.HasValue ? input.MrdPadraoIdx == i : i == 0;
+                await InsertVersaoMrdAsync(conn, tx, codVersao, f.FileName, f.Content, isPadrao);
+            }
+        }
+        else
+        {
+            await CopyScriptMrdToVersaoAsync(conn, tx, scriptId, codVersao);
+        }
+
+        foreach (var img in input.Imagens ?? [])
+        {
+            var (path, name) = await SaveVersaoDiskFileAsync(img, "versoes/interfaces", $"versao_{codVersao}_interface");
+            await conn.ExecuteAsync(@"
+                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                VALUES (@codVersao, 'IMAGEM', @path, @name, @user)",
+                new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
+        }
+        foreach (var pdf in input.Pdfs ?? [])
+        {
+            var (path, name) = await SaveVersaoDiskFileAsync(pdf, "versoes/impressoes", $"versao_{codVersao}_impressao");
+            await conn.ExecuteAsync(@"
+                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                VALUES (@codVersao, 'PDF', @path, @name, @user)",
+                new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
+        }
+
+        await InsertVersaoHistoricoAsync(conn, tx, codVersao, "CRIACAO",
+            $"Versão {input.NumeroVersao.Trim()} criada", input.UsuarioResponsavel);
+        await tx.CommitAsync();
+        return codVersao;
     }
 
-    public async Task ActivateVersaoAsync(int codVersao)
+    public async Task UpdateVersaoAsync(int codVersao, VersaoFormInput input)
+    {
+        if (string.IsNullOrWhiteSpace(input.DescricaoAlteracoes))
+            throw new InvalidOperationException("Descrição das alterações é obrigatória.");
+
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var meta = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT sv.CODSCRIPTLAUDO, sv.NUMERO_VERSAO, s.SISTEMA
+            FROM SCRIPT_VERSOES sv
+            JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
+            WHERE sv.CODVERSAO = @codVersao", new { codVersao });
+        if (meta == null) throw new InvalidOperationException("Versão não encontrada.");
+        var md = (IDictionary<string, object>)meta;
+        var scriptId = Convert.ToInt32(md["CODSCRIPTLAUDO"]);
+        var numeroVersao = md["NUMERO_VERSAO"]?.ToString() ?? "";
+        var sistema = md["SISTEMA"]?.ToString() ?? "";
+
+        await using var tx = await conn.BeginTransactionAsync();
+        await conn.ExecuteAsync(@"
+            UPDATE SCRIPT_VERSOES SET
+                DESCRICAO_ALTERACOES = @desc,
+                ALTERACOES_INTERFACE = @iface,
+                ALTERACOES_CODIGO = @cod,
+                OBSERVACOES = @obs
+            WHERE CODVERSAO = @codVersao",
+            new
+            {
+                codVersao,
+                desc = input.DescricaoAlteracoes,
+                iface = input.AlteracoesInterface,
+                cod = input.AlteracoesCodigo,
+                obs = input.Observacoes
+            }, tx);
+
+        if (input.ArquivoJson != null)
+            await conn.ExecuteAsync("UPDATE SCRIPT_VERSOES SET ARQUIVO_JSON = @b WHERE CODVERSAO = @codVersao",
+                new { b = input.ArquivoJson, codVersao }, tx);
+        if (input.ArquivoDll != null)
+            await conn.ExecuteAsync("UPDATE SCRIPT_VERSOES SET ARQUIVO_DLL = @b WHERE CODVERSAO = @codVersao",
+                new { b = input.ArquivoDll, codVersao }, tx);
+
+        foreach (var codMrd in input.MrdExcluir ?? [])
+        {
+            await conn.ExecuteAsync(@"
+                DELETE FROM SCRIPT_VERSAO_MRD WHERE CODVERSAOMRD = @id AND CODVERSAO = @codVersao",
+                new { id = codMrd, codVersao }, tx);
+        }
+
+        var hasMrd = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM SCRIPT_VERSAO_MRD WHERE CODVERSAO = @codVersao", new { codVersao }, tx) > 0;
+        foreach (var f in input.MrdFiles ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(f.FileName)) continue;
+            var err = ValidateMrdExtension(sistema, f.FileName);
+            if (err != null) throw new InvalidOperationException(err);
+            await InsertVersaoMrdAsync(conn, tx, codVersao, f.FileName, f.Content, padrao: !hasMrd);
+            hasMrd = true;
+        }
+        if (input.MrdPadraoCod.HasValue)
+            await SetVersaoMrdPadraoAsync(conn, tx, codVersao, input.MrdPadraoCod.Value);
+        else
+        {
+            var remaining = await ListVersaoMrdAsync(conn, codVersao);
+            if (remaining.Count > 0 && remaining.All(m => !m.Padrao))
+                await SetVersaoMrdPadraoAsync(conn, tx, codVersao, remaining[0].CodVersaoMrd);
+        }
+
+        foreach (var img in input.Imagens ?? [])
+        {
+            var (path, name) = await SaveVersaoDiskFileAsync(img, "versoes/interfaces", $"versao_{codVersao}_interface");
+            await conn.ExecuteAsync(@"
+                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                VALUES (@codVersao, 'IMAGEM', @path, @name, @user)",
+                new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
+        }
+        foreach (var pdf in input.Pdfs ?? [])
+        {
+            var (path, name) = await SaveVersaoDiskFileAsync(pdf, "versoes/impressoes", $"versao_{codVersao}_impressao");
+            await conn.ExecuteAsync(@"
+                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                VALUES (@codVersao, 'PDF', @path, @name, @user)",
+                new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
+        }
+
+        await InsertVersaoHistoricoAsync(conn, tx, codVersao, "EDICAO",
+            $"Versão {numeroVersao} editada", input.UsuarioResponsavel);
+        await tx.CommitAsync();
+        _ = scriptId;
+    }
+
+    public async Task ActivateVersaoAsync(int codVersao, string usuario)
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
-        var scriptId = await conn.ExecuteScalarAsync<int>(
-            "SELECT CODSCRIPTLAUDO FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao", new { codVersao });
+        var row = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT CODSCRIPTLAUDO, NUMERO_VERSAO FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao",
+            new { codVersao });
+        if (row == null) throw new InvalidOperationException("Versão não encontrada.");
+        var d = (IDictionary<string, object>)row;
+        var scriptId = Convert.ToInt32(d["CODSCRIPTLAUDO"]);
+        var numero = d["NUMERO_VERSAO"]?.ToString() ?? "";
         await using var tx = await conn.BeginTransactionAsync();
         await conn.ExecuteAsync(
             "UPDATE SCRIPT_VERSOES SET ATIVO = 'F' WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId }, tx);
         await conn.ExecuteAsync(
             "UPDATE SCRIPT_VERSOES SET ATIVO = 'T' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await InsertVersaoHistoricoAsync(conn, tx, codVersao, "ATIVACAO", $"Versão {numero} ativada", usuario);
         await tx.CommitAsync();
+    }
+
+    public async Task ApproveVersaoAsync(int codVersao, string usuario)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var row = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT NUMERO_VERSAO, APROVADO FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao", new { codVersao });
+        if (row == null) throw new InvalidOperationException("Versão não encontrada.");
+        var d = (IDictionary<string, object>)row;
+        if (NormalizeFlag(d["APROVADO"]) == "T")
+            throw new InvalidOperationException("Esta versão já foi aprovada.");
+        var numero = d["NUMERO_VERSAO"]?.ToString() ?? "";
+        await using var tx = await conn.BeginTransactionAsync();
+        await conn.ExecuteAsync(@"
+            UPDATE SCRIPT_VERSOES SET APROVADO = 'T', APROVADO_POR = @user, DATA_APROVACAO = CURRENT_TIMESTAMP
+            WHERE CODVERSAO = @codVersao", new { user = usuario, codVersao }, tx);
+        await InsertVersaoHistoricoAsync(conn, tx, codVersao, "APROVACAO",
+            $"Versão {numero} aprovada por {usuario}", usuario);
+        await tx.CommitAsync();
+    }
+
+    public async Task DeleteVersaoAsync(int codVersao, string usuario)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var row = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT CODSCRIPTLAUDO, NUMERO_VERSAO, ATIVO FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao",
+            new { codVersao });
+        if (row == null) throw new InvalidOperationException("Versão não encontrada.");
+        var d = (IDictionary<string, object>)row;
+        var scriptId = Convert.ToInt32(d["CODSCRIPTLAUDO"]);
+        var numero = d["NUMERO_VERSAO"]?.ToString() ?? "";
+        if ((d["ATIVO"]?.ToString() ?? "").Trim().ToUpperInvariant() == "T")
+            throw new InvalidOperationException("Não é possível excluir a versão ativa. Ative outra versão antes.");
+        var total = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM SCRIPT_VERSOES WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId });
+        if (total <= 1)
+            throw new InvalidOperationException("Não é possível excluir a única versão existente do script.");
+
+        var caminhos = (await conn.QueryAsync<string>(
+            "SELECT CAMINHO FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODVERSAO = @codVersao", new { codVersao }))
+            .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+
+        await using var tx = await conn.BeginTransactionAsync();
+        try
+        {
+            await InsertVersaoHistoricoAsync(conn, tx, codVersao, "EXCLUSAO",
+                $"Versão {numero} excluída por {usuario}", usuario);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Histórico de exclusão não registrado para versão {CodVersao}", codVersao);
+        }
+        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSAO_MRD WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await tx.CommitAsync();
+
+        foreach (var caminho in caminhos)
+        {
+            try
+            {
+                var path = ResolveLegacyPath(caminho);
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Erro ao excluir arquivo físico da versão {CodVersao}", codVersao);
+            }
+        }
+    }
+
+    public async Task<(byte[] content, string filename, string mime)?> ExportVersaoArquivoAsync(int codVersao, string tipo)
+    {
+        tipo = tipo.ToLowerInvariant();
+        if (tipo == "mrd") return await ExportVersaoMrdAsync(codVersao, null);
+        if (tipo is not ("json" or "dll")) return null;
+
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var campo = tipo == "json" ? "ARQUIVO_JSON" : "ARQUIVO_DLL";
+        var row = await conn.QueryFirstOrDefaultAsync($@"
+            SELECT sv.{campo}, sv.NUMERO_VERSAO, s.NOME
+            FROM SCRIPT_VERSOES sv
+            JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
+            WHERE sv.CODVERSAO = @codVersao", new { codVersao });
+        if (row == null) return null;
+        var d = (IDictionary<string, object>)row;
+        var bytes = BlobToBytes(d[campo]);
+        if (bytes == null || bytes.Length == 0) return null;
+        var nome = d["NOME"]?.ToString() ?? "script";
+        var versao = d["NUMERO_VERSAO"]?.ToString() ?? codVersao.ToString();
+        var ext = tipo == "json" ? ".json" : ".dll";
+        var mime = tipo == "json" ? "application/json" : "application/octet-stream";
+        return (bytes, $"{nome}_{versao}{ext}", mime);
+    }
+
+    public async Task<(byte[] content, string filename, string mime)?> ExportVersaoMrdAsync(int codVersao, int? codVersaoMrd)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        dynamic? row;
+        if (codVersaoMrd.HasValue)
+        {
+            row = await conn.QueryFirstOrDefaultAsync(@"
+                SELECT vm.NOME_ARQUIVO, vm.ARQUIVO_MRD, sv.NUMERO_VERSAO, s.NOME, s.SISTEMA, s.LINGUAGEM
+                FROM SCRIPT_VERSAO_MRD vm
+                JOIN SCRIPT_VERSOES sv ON vm.CODVERSAO = sv.CODVERSAO
+                JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
+                WHERE vm.CODVERSAOMRD = @id AND vm.CODVERSAO = @codVersao",
+                new { id = codVersaoMrd, codVersao });
+        }
+        else
+        {
+            row = await conn.QueryFirstOrDefaultAsync(@"
+                SELECT FIRST 1 vm.NOME_ARQUIVO, vm.ARQUIVO_MRD, sv.NUMERO_VERSAO, s.NOME, s.SISTEMA, s.LINGUAGEM
+                FROM SCRIPT_VERSAO_MRD vm
+                JOIN SCRIPT_VERSOES sv ON vm.CODVERSAO = sv.CODVERSAO
+                JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
+                WHERE vm.CODVERSAO = @codVersao AND vm.PADRAO = 'T'
+                ORDER BY vm.CODVERSAOMRD", new { codVersao });
+        }
+        if (row == null) return null;
+        var d = (IDictionary<string, object>)row;
+        var bytes = BlobToBytes(d["ARQUIVO_MRD"]);
+        if (bytes == null || bytes.Length == 0) return null;
+        var nomeArquivo = d["NOME_ARQUIVO"]?.ToString();
+        var nomeScript = d["NOME"]?.ToString() ?? "script";
+        var numero = d["NUMERO_VERSAO"]?.ToString() ?? "";
+        var ext = MrdExtensionForScript(d["LINGUAGEM"]?.ToString(), d["SISTEMA"]?.ToString());
+        var downloadName = !string.IsNullOrWhiteSpace(nomeArquivo) && nomeArquivo.Contains('.')
+            ? nomeArquivo
+            : $"{nomeScript}_{numero}.{ext}";
+        var mime = ext == "json" ? "application/json" : "application/octet-stream";
+        return (bytes, downloadName, mime);
+    }
+
+    public async Task<(byte[] content, string filename)?> ExportVersaoMrdZipAsync(int codVersao)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var meta = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT sv.NUMERO_VERSAO, s.NOME FROM SCRIPT_VERSOES sv
+            JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
+            WHERE sv.CODVERSAO = @codVersao", new { codVersao });
+        if (meta == null) return null;
+        var md = (IDictionary<string, object>)meta;
+        var mrdList = await ListVersaoMrdAsync(conn, codVersao);
+        if (mrdList.Count == 0) return null;
+
+        using var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))
+        {
+            foreach (var m in mrdList)
+            {
+                var blob = await conn.ExecuteScalarAsync<object>(@"
+                    SELECT ARQUIVO_MRD FROM SCRIPT_VERSAO_MRD
+                    WHERE CODVERSAOMRD = @id AND CODVERSAO = @codVersao",
+                    new { id = m.CodVersaoMrd, codVersao });
+                var data = BlobToBytes(blob);
+                if (data == null || data.Length == 0) continue;
+                var entry = zip.CreateEntry(m.NomeArquivo, CompressionLevel.Optimal);
+                await using var es = entry.Open();
+                await es.WriteAsync(data);
+            }
+        }
+        var safe = string.Concat((md["NOME"]?.ToString() ?? "script")
+            .Select(c => char.IsLetterOrDigit(c) || c is ' ' or '_' or '-' ? c : '_')).Trim().Replace(' ', '_');
+        return (ms.ToArray(), $"{safe}_v{md["NUMERO_VERSAO"]}_mrd.zip");
+    }
+
+    public async Task<(byte[] content, string filename, string mime)?> DownloadVersaoAnexoAsync(int codArquivo)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var row = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODARQUIVO = @id",
+            new { id = codArquivo });
+        if (row == null) return null;
+        var d = (IDictionary<string, object>)row;
+        var path = ResolveLegacyPath(d["CAMINHO"]?.ToString());
+        if (!File.Exists(path)) return null;
+        var bytes = await File.ReadAllBytesAsync(path);
+        var nome = d["NOME_ARQUIVO"]?.ToString() ?? "anexo";
+        var tipo = d["TIPO"]?.ToString()?.ToUpperInvariant();
+        var mime = tipo switch
+        {
+            "PDF" => "application/pdf",
+            "IMAGEM" when nome.EndsWith(".png", StringComparison.OrdinalIgnoreCase) => "image/png",
+            "IMAGEM" when nome.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) => "image/gif",
+            "IMAGEM" => "image/jpeg",
+            _ => "application/octet-stream"
+        };
+        return (bytes, nome, mime);
+    }
+
+    public async Task DeleteVersaoAnexoAsync(int codArquivo)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var row = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT CAMINHO FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODARQUIVO = @id", new { id = codArquivo });
+        if (row == null) throw new InvalidOperationException("Arquivo não encontrado.");
+        var caminho = ((IDictionary<string, object>)row)["CAMINHO"]?.ToString();
+        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODARQUIVO = @id", new { id = codArquivo });
+        if (!string.IsNullOrWhiteSpace(caminho))
+        {
+            var path = ResolveLegacyPath(caminho);
+            if (File.Exists(path))
+            {
+                try { File.Delete(path); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Erro ao excluir anexo físico {Path}", path); }
+            }
+        }
+    }
+
+    private async Task InsertVersaoMrdAsync(FbConnection conn, FbTransaction tx, int codVersao,
+        string nomeArquivo, byte[] content, bool padrao)
+    {
+        if (padrao)
+            await conn.ExecuteAsync(
+                "UPDATE SCRIPT_VERSAO_MRD SET PADRAO = 'F' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await conn.ExecuteAsync(@"
+            INSERT INTO SCRIPT_VERSAO_MRD (CODVERSAO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO)
+            VALUES (@codVersao, @nome, @blob, @padrao)",
+            new { codVersao, nome = nomeArquivo, blob = content, padrao = padrao ? "T" : "F" }, tx);
+    }
+
+    private static async Task CopyScriptMrdToVersaoAsync(FbConnection conn, FbTransaction tx, int scriptId, int codVersao)
+    {
+        var rows = await conn.QueryAsync(@"
+            SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPTLAUDO_MRD
+            WHERE CODSCRIPTLAUDO = @scriptId
+            ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODSCRIPTMRD", new { scriptId });
+        foreach (var r in rows)
+        {
+            var d = (IDictionary<string, object>)r;
+            await conn.ExecuteAsync(@"
+                INSERT INTO SCRIPT_VERSAO_MRD (CODVERSAO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO)
+                VALUES (@codVersao, @nome, @blob, @padrao)",
+                new
+                {
+                    codVersao,
+                    nome = d["NOME_ARQUIVO"],
+                    blob = d["ARQUIVO_MRD"],
+                    padrao = (d["PADRAO"]?.ToString() ?? "F").Trim().ToUpperInvariant() == "T" ? "T" : "F"
+                }, tx);
+        }
+    }
+
+    private static async Task SetVersaoMrdPadraoAsync(FbConnection conn, FbTransaction tx, int codVersao, int codVersaoMrd)
+    {
+        await conn.ExecuteAsync(
+            "UPDATE SCRIPT_VERSAO_MRD SET PADRAO = 'F' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await conn.ExecuteAsync(@"
+            UPDATE SCRIPT_VERSAO_MRD SET PADRAO = 'T'
+            WHERE CODVERSAOMRD = @id AND CODVERSAO = @codVersao",
+            new { id = codVersaoMrd, codVersao }, tx);
+    }
+
+    private static async Task InsertVersaoHistoricoAsync(FbConnection conn, FbTransaction tx, int codVersao,
+        string tipo, string descricao, string? usuario)
+    {
+        await conn.ExecuteAsync(@"
+            INSERT INTO SCRIPT_VERSAO_HISTORICO (CODVERSAO_DESTINO, TIPO_ALTERACAO, DESCRICAO, USUARIO)
+            VALUES (@codVersao, @tipo, @desc, @user)",
+            new { codVersao, tipo, desc = descricao, user = usuario }, tx);
+    }
+
+    private async Task<(string path, string name)> SaveVersaoDiskFileAsync(UploadedFile file, string folder, string prefix)
+    {
+        var ext = Path.GetExtension(file.FileName);
+        var filename = $"{prefix}_{Guid.NewGuid():N}{ext}";
+        var dir = Path.Combine(_migracaoStaticUploadsRoot, folder);
+        Directory.CreateDirectory(dir);
+        var full = Path.Combine(dir, filename);
+        await File.WriteAllBytesAsync(full, file.Content);
+        return ($"/static/uploads/{folder}/{filename}", file.FileName);
+    }
+
+    private static byte[]? BlobToBytes(object? blob)
+    {
+        if (blob is null or DBNull) return null;
+        if (blob is byte[] bytes) return bytes;
+        if (blob is Stream stream)
+        {
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            return ms.ToArray();
+        }
+        try { return Convert.FromBase64String(blob.ToString()!); }
+        catch { return Encoding.UTF8.GetBytes(blob.ToString()!); }
+    }
+
+    private static string MrdExtensionForScript(string? linguagem, string? sistema)
+    {
+        if (!string.IsNullOrWhiteSpace(linguagem) && linguagem.Contains("HTML", StringComparison.OrdinalIgnoreCase))
+            return "json";
+        if (sistema == "Laudos UX") return "json";
+        return "mrd";
     }
 
     public async Task<byte[]?> ExportJsonAsync(int id)
@@ -947,4 +1508,22 @@ public class UploadedFile
 {
     public string FileName { get; set; } = "";
     public byte[] Content { get; set; } = [];
+}
+
+public class VersaoFormInput
+{
+    public string NumeroVersao { get; set; } = "";
+    public string DescricaoAlteracoes { get; set; } = "";
+    public string? AlteracoesInterface { get; set; }
+    public string? AlteracoesCodigo { get; set; }
+    public string? Observacoes { get; set; }
+    public string UsuarioResponsavel { get; set; } = "";
+    public byte[]? ArquivoJson { get; set; }
+    public byte[]? ArquivoDll { get; set; }
+    public IList<UploadedFile>? MrdFiles { get; set; }
+    public IList<UploadedFile>? Imagens { get; set; }
+    public IList<UploadedFile>? Pdfs { get; set; }
+    public int? MrdPadraoIdx { get; set; }
+    public int? MrdPadraoCod { get; set; }
+    public IList<int>? MrdExcluir { get; set; }
 }
