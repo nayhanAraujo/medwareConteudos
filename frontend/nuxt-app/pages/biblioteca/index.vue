@@ -86,7 +86,15 @@
           :icon="card.icon"
           :icon-color="card.color"
         >
-          <DsButton variant="secondary" size="sm" @click="emMigracao()">Em migração</DsButton>
+          <DsButton
+            v-if="card.nuxtPath"
+            variant="secondary"
+            size="sm"
+            @click="irOuMigracao(card.nuxtPath)"
+          >
+            Abrir
+          </DsButton>
+          <DsButton v-else variant="secondary" size="sm" @click="emMigracao()">Em migração</DsButton>
         </DsModuleCard>
       </div>
     </DsPageShell>
@@ -176,7 +184,7 @@ const placeholderTabs = [
     id: 'relatorios',
     sectionTitle: 'Módulos de Relatórios',
     cards: [
-      { title: 'Relatórios', desc: 'Gerencie relatórios personalizados.', icon: 'bi bi-file-earmark-text', color: '#0d6efd' },
+      { title: 'Relatórios', desc: 'Gerencie relatórios personalizados.', icon: 'bi bi-file-earmark-text', color: '#0d6efd', nuxtPath: '/relatorios' },
       { title: 'Templates', desc: 'Modelos de relatório.', icon: 'bi bi-layout-text-window', color: '#6f42c1' }
     ]
   },
@@ -184,8 +192,8 @@ const placeholderTabs = [
     id: 'paineis',
     sectionTitle: 'Módulos de Painéis',
     cards: [
-      { title: 'Painéis API', desc: 'Dashboards via API.', icon: 'bi bi-bar-chart', color: '#fd7e14' },
-      { title: 'Power BI', desc: 'Integração Power BI.', icon: 'bi bi-graph-up', color: '#198754' }
+      { title: 'Painéis API', desc: 'Dashboards via API.', icon: 'bi bi-bar-chart', color: '#fd7e14', nuxtPath: '/paineis?tipo=api&view=lista' },
+      { title: 'Power BI', desc: 'Integração Power BI.', icon: 'bi bi-graph-up', color: '#198754', nuxtPath: '/paineis?tipo=powerbi&view=lista' }
     ]
   },
   {

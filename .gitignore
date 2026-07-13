@@ -93,6 +93,7 @@ __pycache__/
 # -----------------------------------------------------------------------------
 # Pastas auxiliares do legado (não usadas na migração, mantidas por paridade)
 # -----------------------------------------------------------------------------
+/Conteudos/
 sessions/
 scenario/
 ParseCSFile/

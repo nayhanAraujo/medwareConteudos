@@ -37,6 +37,30 @@ export function useMigracao() {
     if (normalized.startsWith('/autores/vincular_autores')) {
       return '/referencias'
     }
+    if (
+      normalized === '/relatorios' ||
+      normalized === '/relatorios/' ||
+      normalized === '/relatorios/relatorios'
+    ) {
+      return '/relatorios'
+    }
+    if (normalized === '/relatorios/nova' || normalized.startsWith('/relatorios/relatorios/nova')) {
+      return '/relatorios/nova'
+    }
+    if (
+      normalized === '/paineis' ||
+      normalized === '/paineis/' ||
+      normalized === '/paineis/selecionar_tipo_listagem' ||
+      normalized === '/paineis/listar'
+    ) {
+      return '/paineis'
+    }
+    if (normalized.startsWith('/paineis/novo')) {
+      return '/paineis/nova'
+    }
+    if (normalized.startsWith('/paineis/listar/')) {
+      return '/paineis'
+    }
     return null
   }
 

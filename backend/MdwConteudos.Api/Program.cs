@@ -12,6 +12,8 @@ using MdwConteudos.Api.Modules.Users;
 using MdwConteudos.Api.Modules.Web;
 using MdwConteudos.Api.Services;
 
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
 var builder = WebApplication.CreateBuilder(args);
 EnvFileLoader.LoadFromRepoRoot(builder.Configuration, builder.Environment.ContentRootPath);
 const string DefaultWebJwtSecret = "mdw-web-dev-secret-change-me-2026-local-migration-only";
@@ -71,6 +73,7 @@ builder.Services.AddScoped<ScriptsService>();
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

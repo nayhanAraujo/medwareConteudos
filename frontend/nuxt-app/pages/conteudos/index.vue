@@ -88,6 +88,7 @@ const cards: ContentCard[] = [
     desc: 'Dashboards e relatórios via API',
     icon: 'bar-chart-line',
     themeName: 'orange',
+    nuxtPath: '/paineis',
     flaskPath: '/paineis/selecionar_tipo_listagem'
   },
   {
@@ -96,6 +97,7 @@ const cards: ContentCard[] = [
     desc: 'Relatórios personalizados e documentos',
     icon: 'file-earmark-bar-graph',
     themeName: 'gray',
+    nuxtPath: '/relatorios',
     flaskPath: '/relatorios'
   },
   {

@@ -40,7 +40,7 @@ const props = withDefaults(
     disabled?: boolean
     loading?: boolean
     block?: boolean
-    to?: string
+    to?: string | Record<string, unknown> | object
     href?: string
   }>(),
   { variant: 'primary', size: 'md', type: 'button' }
