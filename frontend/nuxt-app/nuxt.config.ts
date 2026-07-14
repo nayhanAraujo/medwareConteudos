@@ -6,7 +6,6 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@pinia/nuxt'],
   css: [
-    'bootstrap/dist/css/bootstrap.min.css',
     '~/assets/css/tailwind.css',
     '~/assets/css/app-layout.css',
     '~/assets/css/scripts.css'

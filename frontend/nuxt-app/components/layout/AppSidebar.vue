@@ -8,11 +8,11 @@
         v-for="item in menu"
         :key="item.path"
         :to="item.path"
-        class="flex items-center px-6 py-3.5 text-sm font-medium transition-all border-l-4"
+        class="flex items-center px-6 py-3.5 text-sm font-medium no-underline transition-all border-l-4"
         :class="
           isMenuActive(route.path, item)
             ? 'bg-white/10 text-white border-white'
-            : 'text-gray-400 border-transparent hover:bg-white/5 hover:text-white hover:border-blue-400'
+            : 'text-gray-300 border-transparent hover:bg-white/5 hover:text-white hover:border-gray-500'
         "
       >
         <i :class="`bi bi-${item.icon} text-lg w-6 mr-3 text-center`" />
@@ -22,7 +22,7 @@
     <div class="border-t border-white/10">
       <a
         href="#"
-        class="flex items-center px-6 py-3.5 text-sm font-medium text-gray-400 border-l-4 border-transparent hover:bg-white/5 hover:text-rose-300 hover:border-rose-400 transition-all"
+        class="flex items-center px-6 py-3.5 text-sm font-medium no-underline text-gray-300 border-l-4 border-transparent hover:bg-white/5 hover:text-rose-300 hover:border-rose-400 transition-all"
         @click.prevent="onLogout"
       >
         <i class="bi bi-box-arrow-left text-lg w-6 mr-3 text-center" />

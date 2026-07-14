@@ -1,6 +1,9 @@
-/* Tailwind 4 — theme + utilities only (Preflight OFF: Bootstrap cuida do reset) */
+/* Tailwind 4 + Bootstrap:
+   Bootstrap em layer(base) para que utilities (text-*, no-underline) vençam o estilo de <a>.
+   Sem Preflight do Tailwind — Bootstrap cobre o reset. */
 @layer theme, base, components, utilities;
 
+@import "bootstrap/dist/css/bootstrap.min.css" layer(base);
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
