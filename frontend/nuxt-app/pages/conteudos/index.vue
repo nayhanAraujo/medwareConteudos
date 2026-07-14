@@ -6,41 +6,23 @@
       icon="box-seam"
     />
 
-    <DsPageShell>
-      <DsSectionTitle
-        title="Escolha o Tipo de Conteúdo"
-        :subtitle="`${visibleCards.length} módulo${visibleCards.length === 1 ? '' : 's'} disponível${visibleCards.length === 1 ? '' : 'is'}`"
-      />
-
-      <DsSearchInput
-        v-model="searchQuery"
-        wrapper-class="max-w-xl mx-auto"
-        placeholder="Buscar tipo de conteúdo..."
-        hint="Digite para filtrar os módulos disponíveis"
-      />
-
-      <DsEmptyState
-        v-if="visibleCards.length === 0"
-        title="Nenhum módulo encontrado"
-        message="Tente outro termo de busca"
-        action-label="Limpar busca"
-        @action="searchQuery = ''"
-      />
-
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <DsHubCard
-          v-for="(card, index) in visibleCards"
-          :key="card.type"
-          :title="card.title"
-          :desc="card.desc"
-          :icon="card.icon"
-          :theme-name="card.themeName"
-          :badge="card.badge"
-          :delay-index="index"
-          @click="onSelect(card)"
-        />
-      </div>
-    </DsPageShell>
+    <div class="max-w-[90rem] mx-auto">
+      <DsPageShell>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <DsHubCard
+            v-for="(card, index) in visibleCards"
+            :key="card.type"
+            :title="card.title"
+            :desc="card.desc"
+            :icon="card.icon"
+            :theme-name="card.themeName"
+            :badge="card.badge"
+            :delay-index="index"
+            @click="onSelect(card)"
+          />
+        </div>
+      </DsPageShell>
+    </div>
   </div>
 </template>
 
@@ -62,7 +44,6 @@ interface ContentCard {
 }
 
 const { irOuMigracao } = useMigracao()
-const searchQuery = ref('')
 
 const cards: ContentCard[] = [
   {
@@ -118,14 +99,7 @@ const cards: ContentCard[] = [
   }
 ]
 
-const visibleCards = computed(() =>
-  cards.filter((card) => {
-    if (card.hidden) return false
-    const q = searchQuery.value.trim().toLowerCase()
-    if (!q) return true
-    return card.title.toLowerCase().includes(q) || card.desc.toLowerCase().includes(q)
-  })
-)
+const visibleCards = computed(() => cards.filter((card) => !card.hidden))
 
 function onSelect(card: ContentCard) {
   irOuMigracao(card.nuxtPath, card.flaskPath)
