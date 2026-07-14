@@ -1,15 +1,18 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import tailwindcss from '@tailwindcss/vite'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@pinia/nuxt', '@nuxtjs/tailwindcss'],
-  css: ['bootstrap/dist/css/bootstrap.min.css', '~/assets/css/app-layout.css', '~/assets/css/scripts.css'],
-  tailwindcss: {
-    config: {
-      corePlugins: {
-        preflight: false
-      }
-    }
+  modules: ['@pinia/nuxt'],
+  css: [
+    'bootstrap/dist/css/bootstrap.min.css',
+    '~/assets/css/tailwind.css',
+    '~/assets/css/app-layout.css',
+    '~/assets/css/scripts.css'
+  ],
+  vite: {
+    plugins: [tailwindcss()]
   },
   runtimeConfig: {
     public: {
