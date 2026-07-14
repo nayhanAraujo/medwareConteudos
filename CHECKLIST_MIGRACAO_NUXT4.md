@@ -270,5 +270,5 @@ npm run dev
 | Tema DS em `tailwind.css` | ☑ | Nayhan |
 | Build OK | ☑ | Nayhan |
 | Smoke test OK | ☑ | Nayhan (login 200 + tokens DS no CSS) |
-| Push / merge main | ☐ | |
+| Push / merge main | ☑ | Nayhan (`12d5280`) |
 | Time sincronizado | ☐ | |
