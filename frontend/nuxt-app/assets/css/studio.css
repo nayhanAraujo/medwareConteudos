@@ -1,0 +1,179 @@
+/**
+ * Studio / Conversor LaudosUX
+ * - Escuro: guia Medware Windows 11 (AppBackground #202020, Border #454545, …)
+ * - Claro: design system static/Desing System/hu169yr (#cfddea, glass, bordas suaves)
+ * Escopo: apenas .studio-shell (não altera o hub Conteúdos)
+ */
+
+.studio-shell {
+  --studio-radius: 8px;
+  --studio-radius-sm: 6px;
+  --studio-radius-btn: 7px;
+  --studio-space-l: 16px;
+  --studio-space-xl: 24px;
+
+  min-height: 100vh;
+  color: var(--color-ds-text);
+  background-color: var(--color-ds-page);
+  font-family: "Segoe UI", Segoe UI, system-ui, sans-serif;
+
+  /* Neutraliza Bootstrap dentro do Studio (bordas claras) */
+  --bs-border-color: var(--color-ds-border);
+  --bs-border-width: 1px;
+  --bs-body-bg: var(--color-ds-page);
+  --bs-body-color: var(--color-ds-text);
+  --bs-secondary-color: var(--color-ds-text-secondary);
+  --bs-tertiary-bg: var(--color-ds-surface-elevated);
+  --bs-secondary-bg: var(--color-ds-surface-secondary);
+}
+
+/* ——— Tema escuro (Medware Windows 11) ——— */
+.studio-shell,
+.studio-shell[data-theme='dark'] {
+  --color-ds-page: #202020;
+  --color-ds-surface: #2b2b2b;
+  --color-ds-surface-secondary: #252525;
+  --color-ds-surface-elevated: #323232;
+  --color-ds-text: #f5f5f5;
+  --color-ds-text-secondary: #c7c7c7;
+  --color-ds-muted: #9a9a9a;
+  --color-ds-primary: #0f6cbd;
+  --color-ds-primary-hover: #1a86d9;
+  --color-ds-primary-pressed: #0c3b5e;
+  --color-ds-primary-light: #153f59;
+  --color-ds-primary-accent: #60cdff;
+  --color-ds-border: #454545;
+  --color-ds-divider: #3a3a3a;
+  --color-ds-field-border: #555555;
+  --color-ds-success: #107c10;
+  --color-ds-success-hover: #168b16;
+  --color-ds-warning: #e6a700;
+  --color-ds-danger: #c42b1c;
+  --color-ds-danger-hover: #d13438;
+  --color-ds-info: #2589d8;
+  --color-ds-media: #101010;
+  --shadow-ds: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* ——— Tema claro (hu169yr / DS estático) ——— */
+.studio-shell[data-theme='light'] {
+  --color-ds-page: #cfddea;
+  --color-ds-surface: #ffffff;
+  --color-ds-surface-secondary: #f1f2f3;
+  --color-ds-surface-elevated: #ffffff;
+  --color-ds-text: #0f0f0f;
+  --color-ds-text-secondary: #4b5563;
+  --color-ds-muted: #6b7280;
+  --color-ds-primary: #0f0f0f;
+  --color-ds-primary-hover: #111827;
+  --color-ds-primary-pressed: #000000;
+  --color-ds-primary-light: #e5e7eb;
+  --color-ds-primary-accent: #2563eb;
+  --color-ds-border: #e5e7eb;
+  --color-ds-divider: rgba(229, 231, 235, 0.8);
+  --color-ds-field-border: #e5e7eb;
+  --color-ds-success: #16a34a;
+  --color-ds-success-hover: #15803d;
+  --color-ds-warning: #e6a700;
+  --color-ds-danger: #e11d48;
+  --color-ds-danger-hover: #be123c;
+  --color-ds-info: #2563eb;
+  --color-ds-media: #f1f2f3;
+  --shadow-ds: rgba(255, 255, 255, 0.1) 0px 1px 1px 0px inset,
+    rgba(50, 50, 93, 0.25) 0px 50px 100px -20px,
+    rgba(0, 0, 0, 0.3) 0px 30px 60px -30px;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Força cor de borda do token (vence .border do Bootstrap) */
+.studio-shell :where(.border, .border-x, .border-y, .border-t, .border-b, .border-l, .border-r) {
+  border-color: var(--color-ds-border);
+}
+
+.studio-shell :where(.border-dashed) {
+  border-color: var(--color-ds-border);
+}
+
+.studio-shell :where(.border-transparent) {
+  border-color: transparent;
+}
+
+.studio-shell :where(.divide-ds-divider > :not([hidden]) ~ :not([hidden])) {
+  border-color: var(--color-ds-divider);
+}
+
+.studio-shell :where(.border-ds-primary) {
+  border-color: var(--color-ds-primary);
+}
+
+.studio-shell :where(.border-ds-field-border) {
+  border-color: var(--color-ds-field-border);
+}
+
+.studio-shell :where(.hover\:border-ds-primary-accent:hover),
+.studio-shell :where(.hover\:border-ds-primary:hover) {
+  border-color: var(--color-ds-primary-accent);
+}
+
+.studio-shell :where(.focus\:border-ds-primary-accent:focus) {
+  border-color: var(--color-ds-primary-accent);
+}
+
+/* Cartão padrão Medware (escuro) / glass (claro) */
+.studio-shell .studio-card {
+  border-radius: var(--studio-radius);
+  border: 1px solid var(--color-ds-border);
+  background-color: var(--color-ds-surface);
+  padding: var(--studio-space-l);
+  box-shadow: none;
+}
+
+.studio-shell[data-theme='light'] .studio-card {
+  background-color: rgb(255 255 255 / 0.5);
+  border-color: rgb(255 255 255 / 0.6);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-ds);
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+}
+
+.studio-shell .studio-nav {
+  border-bottom: 1px solid var(--color-ds-border);
+  background-color: var(--color-ds-surface);
+}
+
+.studio-shell[data-theme='light'] .studio-nav {
+  background-color: rgb(255 255 255 / 0.9);
+  border-bottom-color: #e5e7eb;
+  backdrop-filter: blur(12px);
+}
+
+.studio-shell .studio-header {
+  border-bottom: 1px solid var(--color-ds-divider);
+  background-color: var(--color-ds-surface-secondary);
+}
+
+.studio-shell[data-theme='light'] .studio-header {
+  background-color: transparent;
+  border-bottom-color: rgb(229 231 235 / 0.8);
+}
+
+.studio-shell .studio-header h1 {
+  font-size: 1.375rem; /* ~22px Medware título */
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.studio-shell[data-theme='light'] .studio-header h1 {
+  font-family: Manrope, Inter, sans-serif;
+  font-size: 1.5rem;
+}
+
+.studio-shell .studio-header .studio-subtitle {
+  font-size: 0.6875rem; /* ~11pt Medware subtítulo */
+  color: var(--color-ds-text-secondary);
+}
+
+.studio-shell[data-theme='light'] .studio-header .studio-subtitle {
+  font-size: 0.875rem;
+}

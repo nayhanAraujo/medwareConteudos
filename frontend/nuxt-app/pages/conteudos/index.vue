@@ -41,6 +41,7 @@ interface ContentCard {
   hidden?: boolean
   nuxtPath?: string
   flaskPath?: string
+  externalUrl?: string
 }
 
 const { irOuMigracao } = useMigracao()
@@ -96,12 +97,26 @@ const cards: ContentCard[] = [
     icon: 'printer',
     themeName: 'slate',
     flaskPath: '/impressos'
+  },
+  {
+    type: 'studio',
+    title: 'Studio',
+    desc: 'Converta imagens de laudos em HTML compatível com LaudosUX',
+    icon: 'magic',
+    themeName: 'rose',
+    externalUrl: 'http://localhost:3000/studio'
   }
 ]
 
 const visibleCards = computed(() => cards.filter((card) => !card.hidden))
 
 function onSelect(card: ContentCard) {
+  if (card.externalUrl) {
+    if (import.meta.client) {
+      window.open(card.externalUrl, '_blank', 'noopener,noreferrer')
+    }
+    return
+  }
   irOuMigracao(card.nuxtPath, card.flaskPath)
 }
 </script>

@@ -1,20 +1,41 @@
-/* Tailwind 4 + Bootstrap:
-   Bootstrap em layer(base) para que utilities (text-*, no-underline) vençam o estilo de <a>.
-   Sem Preflight do Tailwind — Bootstrap cobre o reset. */
 @layer theme, base, components, utilities;
 
 @import "bootstrap/dist/css/bootstrap.min.css" layer(base);
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+@import "./studio.css";
 
 @theme {
   --color-ds-page: #cfddea;
   --color-ds-surface: #f1f2f3;
+  --color-ds-surface-secondary: #e8eef4;
+  --color-ds-surface-elevated: #ffffff;
   --color-ds-text: #0f0f0f;
+  --color-ds-text-secondary: #5e6e7e;
+  --color-ds-muted: #8493a3;
   --color-ds-primary: #2563eb;
+  --color-ds-primary-hover: #1a86d9;
+  --color-ds-primary-pressed: #0c3b5e;
+  --color-ds-primary-light: #eaf3fb;
+  --color-ds-primary-accent: #0f6cbd;
+  --color-ds-border: #d9e2ec;
+  --color-ds-divider: #e7edf3;
+  --color-ds-field-border: #d9e2ec;
+  --color-ds-success: #107c10;
+  --color-ds-success-hover: #168b16;
+  --color-ds-warning: #e6a700;
+  --color-ds-danger: #c42b1c;
+  --color-ds-danger-hover: #d13438;
+  --color-ds-info: #2589d8;
+  --color-ds-media: #e7edf3;
 
   --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-manrope: Manrope, Inter, sans-serif;
+  --font-segoe: "Segoe UI", Segoe UI, system-ui, sans-serif;
+
+  --radius-ds: 8px;
+  --radius-ds-sm: 6px;
+  --radius-ds-btn: 7px;
 
   --shadow-ds: rgba(255, 255, 255, 0.1) 0px 1px 1px 0px inset, rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px;
   --shadow-ds-card: 0 2.8px 2.2px rgba(0, 0, 0, 0.034), 0 6.7px 5.3px rgba(0, 0, 0, 0.048), 0 12.5px 10px rgba(0, 0, 0, 0.06), 0 22.3px 17.9px rgba(0, 0, 0, 0.072), 0 41.8px 33.4px rgba(0, 0, 0, 0.086), 0 100px 80px rgba(0, 0, 0, 0.12);

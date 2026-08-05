@@ -53,15 +53,16 @@ TestResults/
 project.lock.json
 project.fragment.lock.json
 
-# Visual Studio / Rider
+# Visual Studio / Rider / Fleet
 .vs/
 .vscode/
 .idea/
+.fleet/
 *.rsuser
 *.sln.iml
 
 # -----------------------------------------------------------------------------
-# Nuxt 3 / Node.js
+# Nuxt 3 / Node.js (nuxt-app, agent-bridge e demais pastas Node)
 # -----------------------------------------------------------------------------
 node_modules/
 .nuxt/

@@ -35,12 +35,32 @@ cd ..\..
 .\venv\Scripts\python.exe app.py
 ```
 
+### 4. Studio — Conversor HTML (unificado)
+
+Rotas Nuxt em `/studio` (mesmo app na porta **3000**). API em `/api/conversions` na porta **5080**.  
+O card **Studio** em `/conteudos` abre `http://localhost:3000/studio` em nova aba.
+
+Bridge do agente Cursor (conversão real):
+
+```powershell
+cd backend\agent-bridge
+npm install
+
+cd ..\MdwConteudos.Api
+dotnet user-secrets set "Cursor:ApiKey" "crsr_sua_chave"
+```
+
+Alternativa: variável `CURSOR_API_KEY`. Para testar sem Cursor, em `appsettings.json`: `"Conversion": { "Provider": "Mock" }`.
+
+Manual do agente: [`backend/manual_scripts_html_UX.md`](backend/manual_scripts_html_UX.md).
+
 ## Endpoints principais
 
 | Área | Prefixo |
 |------|---------|
 | API parceiros (JWT) | `/apiconteudos/v1` |
 | API interna (sem JWT) | `/api/v1` |
+| Conversor HTML (Studio) | `/api/conversions` |
 | Web (Nuxt + JWT usuário) | `/api/web` |
 | Swagger | `/swagger` |
 
@@ -48,9 +68,14 @@ cd ..\..
 
 ```
 mdw-migracao/
-├── backend/MdwConteudos.Api/   # ASP.NET Core 8 + Dapper + Firebird
-├── frontend/nuxt-app/          # Nuxt 3 + Pinia + Bootstrap + SweetAlert2
-├── docs/CUTOVER.md             # Guia de cutover e pipeline
+├── backend/
+│   ├── MdwConteudos.Api/          # ASP.NET Core 8 (inclui /api/conversions)
+│   ├── ConversorHtml.Application/ # Conversão imagem → HTML
+│   ├── ConversorHtml.Domain/
+│   ├── agent-bridge/              # Cursor Composer bridge
+│   └── manual_scripts_html_UX.md
+├── frontend/nuxt-app/             # Nuxt + hub + /studio (Conversor)
+├── docs/CUTOVER.md
 └── README.md
 ```
 

@@ -11,6 +11,7 @@ using MdwConteudos.Api.Modules.Auth;
 using MdwConteudos.Api.Modules.Users;
 using MdwConteudos.Api.Modules.Web;
 using MdwConteudos.Api.Services;
+using ConversorHtml.Application;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -69,6 +70,8 @@ builder.Services.AddScoped<IRelatoriosWebService, RelatoriosWebService>();
 builder.Services.AddScoped<IVariaveisWebService, VariaveisWebService>();
 builder.Services.AddScoped<IReferenciasService, ReferenciasService>();
 builder.Services.AddScoped<ScriptsService>();
+builder.Services.AddApplicationServices(builder.Configuration);
+builder.Services.AddRequestTimeouts();
 
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
@@ -114,7 +117,9 @@ builder.Services.AddSwaggerGen(c =>
         return docName switch
         {
             SwaggerDocPaths.Parceiros => path.StartsWith("apiconteudos/v1", StringComparison.OrdinalIgnoreCase),
-            SwaggerDocPaths.ApiInterna => path.StartsWith("api/v1", StringComparison.OrdinalIgnoreCase),
+            SwaggerDocPaths.ApiInterna =>
+                path.StartsWith("api/v1", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("api/conversions", StringComparison.OrdinalIgnoreCase),
             SwaggerDocPaths.Web => path.StartsWith("api/web", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
@@ -164,6 +169,7 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 
 var app = builder.Build();
 app.UseCors();
+app.UseRequestTimeouts();
 var repoRoot = FindRepoRoot(builder.Environment.ContentRootPath) ?? Directory.GetCurrentDirectory();
 var migracaoStaticDir = Path.Combine(repoRoot, "mdw-migracao", "static");
 if (Directory.Exists(migracaoStaticDir))
@@ -181,7 +187,7 @@ app.UseSwaggerUI(c =>
     c.DocumentTitle = "MDW Conteúdos — Documentação API";
     c.RoutePrefix = "swagger";
     c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.Parceiros}/swagger.json", "API Parceiros (JWT)");
-    c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.ApiInterna}/swagger.json", "API Interna (/api/v1)");
+    c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.ApiInterna}/swagger.json", "API Interna (/api/v1 + conversions)");
     c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.Web}/swagger.json", "Web Admin (/api/web)");
     c.DisplayRequestDuration();
     c.EnableTryItOutByDefault();
