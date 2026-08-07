@@ -7,6 +7,7 @@
       <RelatoriosRelatorioForm v-else v-model="form" :modulos="modulos" @submit="onSubmit">
         <template #actions>
           <DsButton variant="secondary" icon="arrow-left" to="/relatorios?view=lista">Voltar</DsButton>
+          <DsButton variant="secondary" icon="sliders" :to="`/relatorios/${id}/configuracoes`">Validações e filtros</DsButton>
           <DsButton type="submit" icon="check-circle" :loading="saving" :disabled="saving">Salvar</DsButton>
         </template>
       </RelatoriosRelatorioForm>

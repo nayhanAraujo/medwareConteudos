@@ -62,6 +62,7 @@ const cards: ContentCard[] = [
     desc: 'Gerência de frases',
     icon: 'quote',
     themeName: 'green',
+    nuxtPath: '/conteudos/banco-de-frases',
     flaskPath: '/conteudos/banco_de_frases'
   },
   {
@@ -96,7 +97,16 @@ const cards: ContentCard[] = [
     desc: 'Impressos e documentos MRD com scripts VBS',
     icon: 'printer',
     themeName: 'slate',
+    nuxtPath: '/impressos',
     flaskPath: '/impressos'
+  },
+  {
+    type: 'modelos_mensagens',
+    title: 'Modelos de mensagens',
+    desc: 'Grupos e modelos de mensagens reutilizáveis',
+    icon: 'chat-square-text',
+    themeName: 'purple',
+    nuxtPath: '/conteudos/modelos-mensagens'
   },
   {
     type: 'studio',

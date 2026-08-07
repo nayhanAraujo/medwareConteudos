@@ -43,6 +43,56 @@ export interface RelatorioModuloSimples {
   descricao?: string
 }
 
+export interface RelatorioValidacao {
+  codvalidacao: number
+  status_validacao: 'A' | 'R' | 'P'
+  metodo_validacao: string
+  criterios_validacao?: string | null
+  observacoes?: string | null
+  dthrvalidacao?: string | null
+  dthrproxima_validacao?: string | null
+  validador?: string | null
+}
+
+export interface RelatorioFiltro {
+  codfiltro: number
+  nome: string
+  descricao: string
+  tipo: string
+  sql_filtro?: string | null
+  sql_query: string
+  ativo: string
+}
+
+export interface RelatorioColuna {
+  nome_coluna: string
+  posicao_coluna: number
+  tipo_coluna?: string | null
+  dthrcriacao?: string | null
+}
+
+export interface RelatorioColunaStatus {
+  tabelaExiste: boolean
+  message?: string
+  totalRelatoriosXml?: number
+  totalColunasIndexadas?: number
+  relatoriosComColunas?: number
+  relatoriosSemColunas?: number
+  relatoriosSemColunasLista?: Array<{ codrelatorio: number; nome: string; dthrcriacao?: string | null }>
+}
+
+interface ComplementResponse<T> {
+  success: boolean
+  data: T
+  total: number
+}
+
+interface ComplementList<T> {
+  data: T[]
+  total: number
+  tabelaExiste: boolean
+}
+
 interface ListRelatoriosResponse {
   success: boolean
   data: RelatorioItem[]
@@ -155,6 +205,53 @@ export function useRelatoriosApi() {
   const deleteModulo = (nomeModulo: string) =>
     api.del<{ success: boolean }>(`/api/web/relatorios/modulos/${encodeURIComponent(nomeModulo)}`)
 
+  const listValidacoes = (id: number) =>
+    api.get<ComplementResponse<ComplementList<RelatorioValidacao>>>(`/api/web/relatorios/${id}/validacoes`)
+
+  const createValidacao = (id: number, body: {
+    statusValidacao: 'A' | 'R' | 'P'
+    metodoValidacao: string
+    criteriosValidacao?: string | null
+    observacoes?: string | null
+    dthrProximaValidacao?: string | null
+  }) => api.post<{ success: boolean; message?: string }>(`/api/web/relatorios/${id}/validacoes`, body)
+
+  const listFiltros = () =>
+    api.get<ComplementResponse<ComplementList<RelatorioFiltro>>>(`/api/web/relatorios/filtros`)
+
+  const createFiltro = (body: Omit<RelatorioFiltro, 'codfiltro'>) =>
+    api.post<{ success: boolean; data: { codFiltro: number } }>(`/api/web/relatorios/filtros`, body)
+
+  const updateFiltro = (id: number, body: Omit<RelatorioFiltro, 'codfiltro'>) =>
+    api.put<{ success: boolean; message?: string }>(`/api/web/relatorios/filtros/${id}`, body)
+
+  const deleteFiltro = (id: number) =>
+    api.del<{ success: boolean; message?: string }>(`/api/web/relatorios/filtros/${id}`)
+
+  const listColunas = (id: number) =>
+    api.get<ComplementResponse<ComplementList<RelatorioColuna>>>(`/api/web/relatorios/${id}/colunas`)
+
+  const searchColunas = (query: string) =>
+    api.get<ComplementResponse<{
+      data: Array<RelatorioItem & { colunasEncontradas: Array<{ nome: string; posicao: number }> }>
+      total: number
+      colunaBuscada: string
+      colunasProcessadas: string[]
+      tipoBusca: string
+    }>>(`/api/web/relatorios/colunas/search?q=${encodeURIComponent(query)}`)
+
+  const reindexarColunas = () =>
+    api.post<ComplementResponse<{
+      message: string
+      totalRelatorios: number
+      sucessos: number
+      falhas: number
+      resultados: Array<{ codRelatorio: number; nome: string; sucesso: boolean; colunas?: number; erro?: string }>
+    }>>(`/api/web/relatorios/colunas/reindexar`)
+
+  const getStatusColunas = () =>
+    api.get<ComplementResponse<RelatorioColunaStatus>>(`/api/web/relatorios/colunas/status`)
+
   const downloadBlob = (path: string, filename: string) =>
     api.getBlob(path).then((blob) => triggerDownload(blob, filename))
 
@@ -181,6 +278,16 @@ export function useRelatoriosApi() {
     listModulosSimples,
     createModulo,
     updateModulo,
-    deleteModulo
+    deleteModulo,
+    listValidacoes,
+    createValidacao,
+    listFiltros,
+    createFiltro,
+    updateFiltro,
+    deleteFiltro,
+    listColunas,
+    searchColunas,
+    reindexarColunas,
+    getStatusColunas
   }
 }

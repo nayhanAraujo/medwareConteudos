@@ -4,6 +4,7 @@
     <DsPageShell>
       <div class="flex flex-wrap gap-2 mb-4">
         <DsButton variant="success" size="sm" icon="plus-circle" :to="`/scripts/${id}/versoes/nova`">Nova Versão</DsButton>
+        <DsButton variant="secondary" size="sm" icon="arrow-left-right" :to="`/scripts/${id}/comparar-versoes`">Comparar versões</DsButton>
         <DsButton variant="secondary" size="sm" :to="voltarPath">Voltar</DsButton>
       </div>
 

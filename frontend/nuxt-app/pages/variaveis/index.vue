@@ -19,16 +19,16 @@
           variant="secondary"
           size="sm"
           icon="diagram-3"
-          @click="navegarFlask('/grupos/associar_grupos')"
+          to="/variaveis/classificacoes"
         >
-          Associar a Grupos
+          Grupos/Classificações
         </DsButton>
         <DsButton
           v-if="auth.isAdmin"
           variant="secondary"
           size="sm"
           icon="upload"
-          @click="navegarFlask('/variaveis/importar_variaveis')"
+          to="/variaveis/importar"
         >
           Importar (.cs)
         </DsButton>
@@ -37,16 +37,16 @@
           variant="secondary"
           size="sm"
           icon="link-45deg"
-          @click="navegarFlask('/variaveis/vincular_codigo_universal')"
+          to="/variaveis/modelos-modo-texto"
         >
-          Vincular DICOM
+          Modelos modo texto
         </DsButton>
         <DsButton
           v-if="auth.isAdmin"
           variant="secondary"
           size="sm"
           icon="check2-all"
-          @click="navegarFlask('/variaveis/vincular_especialidades_em_lote')"
+          to="/variaveis/especialidades-lote"
         >
           Vincular em Especialidade
         </DsButton>
@@ -125,13 +125,10 @@
               <span v-else class="text-gray-400 italic text-sm">-</span>
             </td>
             <td>
-              <VariaveisRowActions
-                :item="item"
-                @detalhes="openDetalhesModal"
-                @formula="openFormulaModal"
-                @dicom="openDicomSwal"
-                @excluir="confirmarExclusao"
-              />
+              <div class="flex gap-1 justify-center">
+                <DsButton variant="secondary" size="sm" icon="sliders" title="Complementos" :to="`/variaveis/${item.codVariavel}/complementos`" />
+                <VariaveisRowActions :item="item" @detalhes="openDetalhesModal" @formula="openFormulaModal" @dicom="openDicomSwal" @excluir="confirmarExclusao" />
+              </div>
             </td>
           </tr>
         </DsTable>
@@ -259,7 +256,6 @@ const PAGE_SIZE = 10
 const auth = useAuthStore()
 const swal = useSwal()
 const variaveisApi = useVariaveisApi()
-const { navegarFlask } = useMigracao()
 const { open: listModalOpen, show: showListModal, hide: hideListModal } = useDsModal()
 const { open: detalhesModalOpen, show: showDetalhesModal, hide: hideDetalhesModal } = useDsModal()
 const { open: formulaModalOpen, show: showFormulaModal, hide: hideFormulaModal } = useDsModal()
@@ -435,16 +431,30 @@ async function openDicomSwal(item: VariavelListItem) {
 }
 
 async function confirmarExclusao(item: VariavelListItem) {
-  const result = await swal.confirm(
-    'Excluir variável?',
-    `Deseja excluir a variável "${item.nome}"?`
-  )
-  if (!result.isConfirmed) return
-  if (auth.isAdmin) {
-    navegarFlask('/variaveis/visualizar_variaveis')
+  if (!auth.isAdmin) {
+    await swal.warning('Acesso negado', 'Apenas administradores podem excluir variáveis.')
     return
   }
-  await swal.warning('Acesso negado', 'Apenas administradores podem excluir variáveis.')
+  try {
+    const deps = (await variaveisApi.getDependencias(item.codVariavel)).data
+    const details = Object.entries(deps)
+      .filter(([key, value]) => key !== 'possuiVinculos' && Number(value) > 0)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(', ')
+    const confirm = await swal.confirm(
+      'Excluir variável?',
+      deps.possuiVinculos
+        ? `Existem vínculos (${details}). A exclusão forçada removerá todos em uma transação.`
+        : `Deseja excluir "${item.nome}"?`
+    )
+    if (confirm.isConfirmed) {
+      await variaveisApi.deleteVariavel(item.codVariavel, deps.possuiVinculos)
+      await swal.toast('Variável excluída.')
+      await load(page.value)
+    }
+  } catch (err) {
+    await swal.toast(err instanceof Error ? err.message : 'Erro ao excluir variável.', 'error')
+  }
 }
 
 onMounted(async () => {

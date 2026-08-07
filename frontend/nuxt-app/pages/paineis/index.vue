@@ -1,6 +1,10 @@
 <template>
   <div>
-    <DsPageHeader :title="headerTitle" :subtitle="headerSubtitle" icon="bar-chart-line" />
+    <DsPageHeader :title="headerTitle" :subtitle="headerSubtitle" icon="bar-chart-line">
+      <template #actions>
+        <DsButton v-if="auth.isAdmin" variant="secondary" size="sm" icon="gear" to="/paineis/cadastros">Cadastros</DsButton>
+      </template>
+    </DsPageHeader>
 
     <DsPageShell>
       <!-- Tipo hub -->

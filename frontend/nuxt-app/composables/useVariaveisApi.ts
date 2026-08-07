@@ -23,6 +23,7 @@ export interface VariavelEdicaoDto {
   descricao?: string
   codUnidadeMedida?: number | null
   casasDecimais?: number | null
+  codGrupo?: number | null
   alternativas: string[]
 }
 
@@ -102,6 +103,26 @@ export interface VariavelDetalhesCompletosDto {
 export interface VariavelCodigoDicomDto {
   codigo: string
   descricaoPtBr?: string | null
+}
+
+export interface VariavelDependencias {
+  formulas: number; normalidades: number; scripts: number; secoes: number
+  codigosUniversais: number; alternativas: number; classificacoes: number
+  especialidades: number; anexos: number; possuiVinculos: boolean
+}
+export interface ClassificacaoGrupo { codGrupo: number; nome: string }
+export interface Classificacao { codClassificacao: number; codGrupo: number; nome: string }
+export interface CodigoUniversal { codUniversal: number; codigo: string; descricaoPtBr?: string | null }
+export interface Especialidade { codEspecialidade: number; nome: string; descricao?: string | null }
+export interface AnexoContexto {
+  anexos: Array<{ codAnexo: number; nome?: string; descricao?: string; tipoAnexo?: string; link?: string; caminho?: string; codFormula?: number; codReferencia?: number }>
+  formulas: Array<{ codFormula: number; formula: string }>
+  referencias: Array<{ codReferencia: number; titulo: string; ano?: string }>
+}
+export interface ImportacaoCsPreview {
+  variaveis: Array<{ codigo: string; nome: string; sigla: string; abreviacao: string; unidade: string; existeNoBanco: boolean }>
+  formulas: Array<{ variavel: string; expressao: string; casasDecimais: number }>
+  normalidades: Array<{ variavel: string; sexo: string; valorMin: number; valorMax: number; idadeMin: number; idadeMax: number; referencia: string }>
 }
 
 export interface ReferenciasNormalidadesPainel {
@@ -244,6 +265,33 @@ export function useVariaveisApi() {
       body
     )
 
+  const getDependencias = (id: number) => api.get<{ success: boolean; data: VariavelDependencias }>(`/api/web/variaveis/${id}/dependencias`)
+  const deleteVariavel = (id: number, force = false) => api.del<{ success: boolean }>(`/api/web/variaveis/${id}?force=${force}`)
+  const alterarGrupo = (id: number, codGrupo: number | null) => api.request<{ success: boolean }>(`/api/web/variaveis/${id}/grupo`, { method: 'PATCH', body: JSON.stringify({ codGrupo }) })
+  const getClassificacoes = () => api.get<{ success: boolean; data: { grupos: ClassificacaoGrupo[]; classificacoes: Classificacao[] } }>('/api/web/variaveis/classificacoes')
+  const createGrupoClassificacao = (nome: string) => api.post('/api/web/variaveis/classificacoes/grupos', { nome })
+  const updateGrupoClassificacao = (id: number, nome: string) => api.put(`/api/web/variaveis/classificacoes/grupos/${id}`, { nome })
+  const deleteGrupoClassificacao = (id: number) => api.del(`/api/web/variaveis/classificacoes/grupos/${id}`)
+  const createClassificacao = (body: { nome: string; codGrupo: number }) => api.post('/api/web/variaveis/classificacoes', body)
+  const updateClassificacao = (id: number, body: { nome: string; codGrupo: number }) => api.put(`/api/web/variaveis/classificacoes/${id}`, body)
+  const deleteClassificacao = (id: number) => api.del(`/api/web/variaveis/classificacoes/${id}`)
+  const getVariavelClassificacoes = (id: number) => api.get<{ success: boolean; data: Classificacao[] }>(`/api/web/variaveis/${id}/classificacoes`)
+  const setVariavelClassificacoes = (id: number, classificacoes: number[]) => api.put(`/api/web/variaveis/${id}/classificacoes`, { classificacoes })
+  const listCodigosUniversais = (search = '') => api.get<{ success: boolean; data: CodigoUniversal[] }>(`/api/web/variaveis/codigos-universais?search=${encodeURIComponent(search)}`)
+  const setCodigosUniversais = (id: number, codigos: number[]) => api.put(`/api/web/variaveis/${id}/codigos-universais`, { codigos })
+  const getEspecialidades = (id: number) => api.get<{ success: boolean; data: { vinculadas: Especialidade[]; disponiveis: Especialidade[] } }>(`/api/web/variaveis/${id}/especialidades`)
+  const setEspecialidade = (id: number, body: { codEspecialidade: number; descricao?: string }) => api.put(`/api/web/variaveis/${id}/especialidades`, body)
+  const removeEspecialidade = (id: number, codEspecialidade: number) => api.del(`/api/web/variaveis/${id}/especialidades/${codEspecialidade}`)
+  const setEspecialidadesLote = (body: { codEspecialidade: number; descricao?: string; variaveis: number[] }) => api.post('/api/web/variaveis/especialidades/lote', body)
+  const getAnexos = (id: number) => api.get<{ success: boolean; data: AnexoContexto }>(`/api/web/variaveis/${id}/anexos`)
+  const createAnexo = (id: number, form: FormData) => api.postForm(`/api/web/variaveis/${id}/anexos`, form)
+  const deleteAnexo = (id: number, codAnexo: number) => api.del(`/api/web/variaveis/${id}/anexos/${codAnexo}`)
+  const getEstudos = (id: number) => api.get<{ success: boolean; data: Array<Record<string, unknown>> }>(`/api/web/variaveis/${id}/estudos`)
+  const listModelosModoTexto = (search = '') => api.get<{ success: boolean; data: Array<{ codModelo: number; nome: string; totalSecoes: number }> }>(`/api/web/variaveis/modelos-modo-texto?search=${encodeURIComponent(search)}`)
+  const downloadModoTexto = (id: number) => api.getBlob(`/api/web/variaveis/modelos-modo-texto/${id}/arquivo`)
+  const previewImportacaoCs = (arquivo: File) => { const form = new FormData(); form.append('arquivo', arquivo); return api.postForm<{ success: boolean; data: ImportacaoCsPreview }>('/api/web/variaveis/importacao-cs/preview', form) }
+  const confirmarImportacaoCs = (body: ImportacaoCsPreview & { variaveisSelecionadas: string[] }) => api.post<{ success: boolean; data: { inseridas: number; ignoradas: number } }>('/api/web/variaveis/importacao-cs/confirmar', body)
+
   return {
     listGrupos,
     getMeta,
@@ -257,6 +305,14 @@ export function useVariaveisApi() {
     vincularNormalidadesReferencia,
     atualizarNormalidadeReferencia,
     desvincularNormalidadeReferencia,
-    importarNormalidadesReferencia
+    importarNormalidadesReferencia,
+    getDependencias, deleteVariavel, alterarGrupo,
+    getClassificacoes, createGrupoClassificacao, updateGrupoClassificacao, deleteGrupoClassificacao,
+    createClassificacao, updateClassificacao, deleteClassificacao, getVariavelClassificacoes, setVariavelClassificacoes,
+    listCodigosUniversais, setCodigosUniversais,
+    getEspecialidades, setEspecialidade, removeEspecialidade, setEspecialidadesLote,
+    getAnexos, createAnexo, deleteAnexo, getEstudos,
+    listModelosModoTexto, downloadModoTexto,
+    previewImportacaoCs, confirmarImportacaoCs
   }
 }

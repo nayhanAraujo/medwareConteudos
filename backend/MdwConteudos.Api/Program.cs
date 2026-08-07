@@ -2,12 +2,19 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using MdwConteudos.Api.Configuration;
 using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Infrastructure.Swagger;
 using MdwConteudos.Api.Modules.ApiPublica;
 using MdwConteudos.Api.Modules.Auth;
+using MdwConteudos.Api.Modules.Cadastros;
+using MdwConteudos.Api.Modules.Dashboard;
+using MdwConteudos.Api.Modules.FirebirdAdmin;
+using MdwConteudos.Api.Modules.FormulasModelos;
+using MdwConteudos.Api.Modules.PaineisCadastros;
+using MdwConteudos.Api.Modules.PaineisComplementos;
+using MdwConteudos.Api.Modules.RelatoriosComplementos;
 using MdwConteudos.Api.Modules.Users;
 using MdwConteudos.Api.Modules.Web;
 using MdwConteudos.Api.Services;
@@ -24,11 +31,11 @@ builder.Services.PostConfigure<FirebirdOptions>(opt =>
 {
     opt.Database = FirstNonEmpty(
         Environment.GetEnvironmentVariable("FIREBIRD_DB"),
-        opt.Database);
+        opt.Database) ?? opt.Database;
     opt.Password = FirstNonEmpty(
         Environment.GetEnvironmentVariable("FIREBIRD_PASSWORD"),
         Environment.GetEnvironmentVariable("LOCAL_DB_PASSWORD"),
-        opt.Password);
+        opt.Password) ?? opt.Password;
     opt.Host = FirstNonEmpty(Environment.GetEnvironmentVariable("FIREBIRD_HOST"), opt.Host) ?? opt.Host;
     if (int.TryParse(Environment.GetEnvironmentVariable("FIREBIRD_PORT"), out var port))
         opt.Port = port;
@@ -70,6 +77,13 @@ builder.Services.AddScoped<IRelatoriosWebService, RelatoriosWebService>();
 builder.Services.AddScoped<IVariaveisWebService, VariaveisWebService>();
 builder.Services.AddScoped<IReferenciasService, ReferenciasService>();
 builder.Services.AddScoped<ScriptsService>();
+builder.Services.AddCadastrosModules();
+builder.Services.AddDashboardModule();
+builder.Services.AddFirebirdAdminModule();
+builder.Services.AddFormulasModelosModules();
+builder.Services.AddPaineisCadastros();
+builder.Services.AddPaineisComplementos();
+builder.Services.AddRelatoriosComplementos();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddRequestTimeouts();
 

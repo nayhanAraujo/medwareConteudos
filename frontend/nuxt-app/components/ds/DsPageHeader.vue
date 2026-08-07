@@ -8,7 +8,9 @@
         </h1>
         <p v-if="subtitle" class="text-sm text-gray-600 mb-0">{{ subtitle }}</p>
       </div>
-      <div v-if="showUserInfo" class="text-right">
+      <div v-if="$slots.actions || showUserInfo" class="flex items-center gap-3 text-right">
+        <slot name="actions" />
+        <div v-if="showUserInfo">
         <p class="mb-1 text-sm text-gray-600">
           Bem-vindo(a), <strong class="text-ds-text">{{ userName }}</strong>
         </p>
@@ -16,6 +18,7 @@
           <i class="bi bi-clock" />
           {{ now }}
         </span>
+        </div>
       </div>
     </div>
     <hr class="mt-4 border-gray-200/80" />

@@ -9,7 +9,6 @@ export function useAppMenu(): AppMenuItem[] {
   return [
     { label: 'Dashboards', path: '/', icon: 'speedometer', exact: true },
     { label: 'Visualizar Conteúdos', path: '/conteudos', icon: 'box-seam' },
-    { label: 'Pesquisas', path: '/agente', icon: 'search' },
     { label: 'Biblioteca', path: '/biblioteca', icon: 'bookshelf' }
   ]
 }

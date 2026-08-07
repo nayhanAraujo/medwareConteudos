@@ -70,13 +70,17 @@
         </form>
 
         <DsAlert v-else-if="activeTab === 'formulas'" variant="info">
-          Fórmulas podem ser configuradas na edição avançada (legado) enquanto esta aba é migrada.
+          Fórmulas e equações vinculadas estão disponíveis nos detalhes da variável e no módulo de fórmulas.
         </DsAlert>
         <DsAlert v-else-if="activeTab === 'normalidades'" variant="info">
           Normalidades simples podem ser gerenciadas pelo botão de normalidades na listagem de variáveis.
         </DsAlert>
         <DsAlert v-else variant="info">
-          Normalidades por classificações ainda estão disponíveis na edição avançada (legado).
+          Gerencie grupos e classificações na tela própria e os demais vínculos nos complementos desta variável.
+          <div class="flex gap-2 mt-3">
+            <DsButton size="sm" to="/variaveis/classificacoes">Grupos/Classificações</DsButton>
+            <DsButton size="sm" variant="secondary" :to="`/variaveis/${codVariavel}/complementos`">Complementos</DsButton>
+          </div>
         </DsAlert>
       </template>
     </DsPageShell>

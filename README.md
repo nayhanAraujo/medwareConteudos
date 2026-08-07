@@ -1,10 +1,12 @@
 # MDW Conteúdos — Stack nova (migração)
 
-Pasta **gitignored** com Nuxt 3 + ASP.NET Core 8. O Flask/Jinja na raiz do repositório continua funcionando até o cutover módulo a módulo.
+Stack de migração com Nuxt 4 + ASP.NET Core 10. O Flask/Jinja na raiz do repositório continua funcionando até o cutover módulo a módulo.
+
+Ficam deliberadamente no legado: `uploads/uploaddll`, automação E2E e os módulos de IA (Agente PubMed/Grok, Oráculo/XML e conversor Azure OpenAI). Essa exclusão não abrange importação de variáveis `.cs`, impressos `.mrd`, anexos ou arquivos de versões.
 
 ## Pré-requisitos
 
-- .NET 8 SDK
+- .NET 10 SDK
 - Node.js 18+
 - Firebird (mesmo `BD/REFERENCIAS.FDB` e `.env` do projeto pai)
 
@@ -69,7 +71,7 @@ Manual do agente: [`backend/manual_scripts_html_UX.md`](backend/manual_scripts_h
 ```
 mdw-migracao/
 ├── backend/
-│   ├── MdwConteudos.Api/          # ASP.NET Core 8 (inclui /api/conversions)
+│   ├── MdwConteudos.Api/          # ASP.NET Core 10 (inclui /api/conversions)
 │   ├── ConversorHtml.Application/ # Conversão imagem → HTML
 │   ├── ConversorHtml.Domain/
 │   ├── agent-bridge/              # Cursor Composer bridge
@@ -83,7 +85,10 @@ mdw-migracao/
 
 - Auth / usuários (SHA-256, JWT web)
 - API pública (`routes/api.py`) — paridade de rotas
-- Web: variáveis, scripts, relatórios, referências, impressos, conteúdos, painéis, agente (listagens)
+- Web: variáveis, fórmulas, modelos, scripts, relatórios, referências, impressos, conteúdos, painéis, usuários e cadastros-base
+- IA legada (Agente PubMed/Grok e Oráculo/XML): **fora do escopo**
+- Conversor Azure OpenAI: **fora do escopo**
+- Upload/importação legada `uploaddll`: **fora do escopo**
 - Automação E2E: **fora do escopo** (descontinuada na nova stack)
 
 ## Próximos passos (cutover)

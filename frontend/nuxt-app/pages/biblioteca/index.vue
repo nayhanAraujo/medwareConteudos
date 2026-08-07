@@ -123,17 +123,17 @@ const tabs = [
 ]
 
 const quickRef: BibAction[] = [
-  { label: 'Nova Variável', icon: 'bi bi-plus-circle', flaskPath: '/variaveis/nova' },
-  { label: 'Nova Fórmula', icon: 'bi bi-plus-square', flaskPath: '/formulas/nova' },
+  { label: 'Nova Variável', icon: 'bi bi-plus-circle', nuxtPath: '/variaveis/nova' },
+  { label: 'Nova Fórmula', icon: 'bi bi-plus-square', nuxtPath: '/formulas' },
   { label: 'Nova Referência', icon: 'bi bi-journal-plus', nuxtPath: '/referencias/nova' },
   { label: 'Importar JSON', icon: 'bi bi-upload', flaskPath: '/uploads/uploaddll' },
   { label: 'Novo Script', icon: 'bi bi-code-slash', nuxtPath: '/scripts/sistema' },
-  { label: 'Novo Pacote', icon: 'bi bi-box-fill', flaskPath: '/pacotes/novo' },
+  { label: 'Novo Pacote', icon: 'bi bi-box-fill', nuxtPath: '/pacotes' },
   { label: 'Agente de Extração', icon: 'bi bi-robot', flaskPath: '/agente/processar_documento' },
-  { label: 'Grupos de Variáveis', icon: 'bi bi-collection', flaskPath: '/grupos' },
+  { label: 'Grupos de Variáveis', icon: 'bi bi-collection', nuxtPath: '/grupos' },
   { label: 'Vincular Autores', icon: 'bi bi-person-lines-fill', nuxtPath: '/referencias' },
-  { label: 'Tipos de Autores', icon: 'bi bi-tags', flaskPath: '/autores/tipos' },
-  { label: 'Gerenciar Classificações', icon: 'bi bi-tags-fill', flaskPath: '/variaveis/classificacoes' }
+  { label: 'Tipos de Autores', icon: 'bi bi-tags', nuxtPath: '/autores' },
+  { label: 'Gerenciar Classificações', icon: 'bi bi-tags-fill', nuxtPath: '/classificacoes' }
 ]
 
 const modulosRef = [
@@ -144,9 +144,9 @@ const modulosRef = [
     iconColor: '#0d6efd',
     actions: [
       { label: 'Listar Variáveis', nuxtPath: '/variaveis' },
-      { label: 'Nova Variável', flaskPath: '/variaveis/nova' },
-      { label: 'Nova Fórmula', flaskPath: '/formulas/nova' },
-      { label: 'Listar Fórmulas', flaskPath: '/formulas' }
+      { label: 'Nova Variável', nuxtPath: '/variaveis/nova' },
+      { label: 'Nova Fórmula', nuxtPath: '/formulas' },
+      { label: 'Listar Fórmulas', nuxtPath: '/formulas' }
     ] as BibAction[]
   },
   {
@@ -200,9 +200,9 @@ const placeholderTabs = [
     id: 'configuracoes',
     sectionTitle: 'Configurações do Sistema',
     cards: [
-      { title: 'Usuários', desc: 'Gerencie usuários do sistema.', icon: 'bi bi-people', color: '#0d6efd' },
+      { title: 'Usuários', desc: 'Gerencie usuários do sistema.', icon: 'bi bi-people', color: '#0d6efd', nuxtPath: '/usuarios' },
       { title: 'Permissões', desc: 'Controle de acesso.', icon: 'bi bi-shield-lock', color: '#dc3545' },
-      { title: 'Unidades', desc: 'Unidades de medida.', icon: 'bi bi-rulers', color: '#6c757d' }
+      { title: 'Unidades', desc: 'Unidades de medida.', icon: 'bi bi-rulers', color: '#6c757d', nuxtPath: '/configuracoes' }
     ]
   }
 ]

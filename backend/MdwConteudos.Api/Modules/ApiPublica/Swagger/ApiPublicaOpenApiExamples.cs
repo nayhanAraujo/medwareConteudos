@@ -1,4 +1,5 @@
-using Microsoft.OpenApi.Any;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace MdwConteudos.Api.Modules.ApiPublica.Swagger;
 
@@ -6,215 +7,168 @@ public static class ApiPublicaOpenApiExamples
 {
     private const string Ts = "2026-05-29T12:00:00.0000000-03:00";
 
-    public static OpenApiObject TokenRequest => new()
+    public static JsonNode TokenRequest => Node(new { senha = "sua_senha_parceiro" });
+    public static JsonNode UpdateNormalidadeRequest => Node(new
     {
-        ["senha"] = new OpenApiString("sua_senha_parceiro")
-    };
+        valor_min = 10.5,
+        valor_max = 50.0,
+        sexo = "M",
+        idade_min = 18,
+        idade_max = 65
+    });
 
-    public static OpenApiObject UpdateNormalidadeRequest => new()
+    public static JsonNode TokenOk => Node(new
     {
-        ["valor_min"] = new OpenApiDouble(10.5),
-        ["valor_max"] = new OpenApiDouble(50.0),
-        ["sexo"] = new OpenApiString("M"),
-        ["idade_min"] = new OpenApiInteger(18),
-        ["idade_max"] = new OpenApiInteger(65)
-    };
+        success = true,
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.exemplo",
+        expires_info = "Válido no dia atual (UTC) e por até 24h. Gere um novo token quando necessário."
+    });
+    public static JsonNode Token401 => Error("Não autorizado", "Senha inválida");
+    public static JsonNode Token400 => Error("Senha não informada", "Envie um JSON com o campo senha");
+    public static JsonNode Token503 => Error("Configuração do servidor", "Autenticação da API não configurada");
 
-    public static OpenApiObject TokenOk => new()
+    public static JsonNode HealthOk => Node(new
     {
-        ["success"] = new OpenApiBoolean(true),
-        ["token"] = new OpenApiString("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6Ii4uLiIsImRhdGFob3JhIjoiMjAyNi0wNS0yOVQxNTowMDowMFoifQ.exemplo"),
-        ["expires_info"] = new OpenApiString("Válido no dia atual (UTC) e por até 24h. Gere um novo token quando necessário.")
-    };
-
-    public static OpenApiObject Token401 => Error("Não autorizado", "Senha inválida");
-    public static OpenApiObject Token400 => Error("Senha não informada", "Envie um JSON com o campo \"senha\"");
-    public static OpenApiObject Token503 => Error("Configuração do servidor", "Autenticação da API não configurada");
-
-    public static OpenApiObject HealthOk => new()
+        success = true,
+        status = "healthy",
+        database = "connected",
+        timestamp = Ts
+    });
+    public static JsonNode Health500 => Node(new
     {
-        ["success"] = new OpenApiBoolean(true),
-        ["status"] = new OpenApiString("healthy"),
-        ["database"] = new OpenApiString("connected"),
-        ["timestamp"] = new OpenApiString(Ts)
-    };
+        success = false,
+        status = "unhealthy",
+        database = "disconnected",
+        error = "Unable to complete network request to host localhost.",
+        timestamp = Ts
+    });
 
-    public static OpenApiObject Health500 => new()
+    public static JsonNode VariaveisOk => Node(new
     {
-        ["success"] = new OpenApiBoolean(false),
-        ["status"] = new OpenApiString("unhealthy"),
-        ["database"] = new OpenApiString("disconnected"),
-        ["error"] = new OpenApiString("Unable to complete network request to host \"localhost\"."),
-        ["timestamp"] = new OpenApiString(Ts)
-    };
-
-    public static OpenApiObject VariaveisOk => new()
-    {
-        ["success"] = new OpenApiBoolean(true),
-        ["data"] = new OpenApiArray
+        success = true,
+        data = new[]
         {
-            new OpenApiObject
+            new
             {
-                ["codvariavel"] = new OpenApiInteger(5),
-                ["nome"] = new OpenApiString("Diâmetro da Aorta"),
-                ["variavel"] = new OpenApiString("DAORTA"),
-                ["sigla"] = new OpenApiString("DAo"),
-                ["abreviacao"] = new OpenApiString("DAo"),
-                ["descricao"] = new OpenApiNull(),
-                ["casas_decimais"] = new OpenApiInteger(1),
-                ["unidade_medida"] = new OpenApiString("mm"),
-                ["especialidades"] = new OpenApiArray { new OpenApiString("Cardiologia") }
+                codvariavel = 5,
+                nome = "Diâmetro da Aorta",
+                variavel = "DAORTA",
+                sigla = "DAo",
+                abreviacao = "DAo",
+                descricao = (string?)null,
+                casas_decimais = 1,
+                unidade_medida = "mm",
+                especialidades = new[] { "Cardiologia" }
             }
         },
-        ["total"] = new OpenApiInteger(1),
-        ["timestamp"] = new OpenApiString(Ts)
-    };
+        total = 1,
+        timestamp = Ts
+    });
 
-    public static OpenApiObject VariavelDetalheOk => new()
+    public static JsonNode VariavelDetalheOk => Node(new
     {
-        ["success"] = new OpenApiBoolean(true),
-        ["data"] = new OpenApiObject
+        success = true,
+        data = new
         {
-            ["variavel"] = new OpenApiObject
+            variavel = new
             {
-                ["codvariavel"] = new OpenApiInteger(5),
-                ["nome"] = new OpenApiString("Diâmetro da Aorta"),
-                ["variavel"] = new OpenApiString("DAORTA"),
-                ["sigla"] = new OpenApiString("DAo"),
-                ["casas_decimais"] = new OpenApiInteger(1),
-                ["unidade_medida"] = new OpenApiString("mm"),
-                ["especialidades"] = new OpenApiArray { new OpenApiString("Cardiologia") }
+                codvariavel = 5,
+                nome = "Diâmetro da Aorta",
+                variavel = "DAORTA",
+                sigla = "DAo",
+                casas_decimais = 1,
+                unidade_medida = "mm",
+                especialidades = new[] { "Cardiologia" }
             },
-            ["normalidades"] = new OpenApiArray
+            normalidades = new[]
             {
-                new OpenApiObject
+                new
                 {
-                    ["codnormalidade"] = new OpenApiInteger(120),
-                    ["sexo"] = new OpenApiString("M"),
-                    ["valor_min"] = new OpenApiDouble(20.0),
-                    ["valor_max"] = new OpenApiDouble(37.0),
-                    ["referencia"] = new OpenApiObject
+                    codnormalidade = 120,
+                    sexo = "M",
+                    valor_min = 20.0,
+                    valor_max = 37.0,
+                    referencia = new
                     {
-                        ["codigo"] = new OpenApiInteger(1),
-                        ["titulo"] = new OpenApiString("Recommendations for Cardiac Chamber Quantification"),
-                        ["ano"] = new OpenApiInteger(2015)
+                        codigo = 1,
+                        titulo = "Recommendations for Cardiac Chamber Quantification",
+                        ano = 2015
                     }
                 }
             },
-            ["formulas"] = new OpenApiArray(),
-            ["alternativas"] = new OpenApiArray { new OpenApiString("Aorta") }
+            formulas = Array.Empty<object>(),
+            alternativas = new[] { "Aorta" }
         },
-        ["timestamp"] = new OpenApiString(Ts)
-    };
+        timestamp = Ts
+    });
 
-    public static OpenApiObject Variavel404 => new()
+    public static JsonNode Variavel404 => Node(new
     {
-        ["success"] = new OpenApiBoolean(false),
-        ["error"] = new OpenApiString("Variável não encontrada"),
-        ["codvariavel_buscado"] = new OpenApiInteger(99999)
-    };
+        success = false,
+        error = "Variável não encontrada",
+        codvariavel_buscado = 99999
+    });
 
-    public static OpenApiObject NormalidadesOk => new()
+    public static JsonNode NormalidadesOk => Node(new
     {
-        ["success"] = new OpenApiBoolean(true),
-        ["data"] = new OpenApiArray
+        success = true,
+        data = new[]
         {
-            new OpenApiObject
+            new
             {
-                ["codnormalidade"] = new OpenApiInteger(120),
-                ["variavel"] = new OpenApiObject
-                {
-                    ["codigo"] = new OpenApiInteger(5),
-                    ["nome"] = new OpenApiString("Diâmetro da Aorta"),
-                    ["sigla"] = new OpenApiString("DAo")
-                },
-                ["sexo"] = new OpenApiString("M"),
-                ["valor_min"] = new OpenApiDouble(20.0),
-                ["valor_max"] = new OpenApiDouble(37.0)
+                codnormalidade = 120,
+                variavel = new { codigo = 5, nome = "Diâmetro da Aorta", sigla = "DAo" },
+                sexo = "M",
+                valor_min = 20.0,
+                valor_max = 37.0
             }
         },
-        ["total"] = new OpenApiInteger(1),
-        ["timestamp"] = new OpenApiString(Ts)
-    };
+        total = 1,
+        timestamp = Ts
+    });
 
-    public static OpenApiObject EcodopplerOk => new()
+    public static JsonNode EcodopplerOk => Node(new
     {
-        ["DAORTA"] = new OpenApiObject
+        DAORTA = new
         {
-            ["M"] = new OpenApiObject
+            M = new
             {
-                ["low"] = new OpenApiObject
-                {
-                    ["min"] = new OpenApiDouble(20.0),
-                    ["max"] = new OpenApiDouble(24.25),
-                    ["_meta"] = new OpenApiObject { ["Fonte"] = new OpenApiString("ASE 2015") }
-                },
-                ["high"] = new OpenApiObject
-                {
-                    ["min"] = new OpenApiDouble(32.75),
-                    ["max"] = new OpenApiDouble(37.0)
-                }
+                low = new { min = 20.0, max = 24.25, _meta = new { Fonte = "ASE 2015" } },
+                high = new { min = 32.75, max = 37.0 }
             }
         }
-    };
+    });
+    public static JsonNode Ecodoppler400 => Error("Parâmetro referencia inválido", "Informe um código de referência inteiro maior ou igual a 1.");
+    public static JsonNode Ecodoppler404 => Error("Referência não encontrada", "Não existe referência com CODREFERENCIA = 99.");
 
-    public static OpenApiObject Ecodoppler400 => Error("Parâmetro referencia inválido", "Informe um código de referência inteiro ≥ 1.");
-    public static OpenApiObject Ecodoppler404 => Error("Referência não encontrada", "Não existe referência com CODREFERENCIA = 99.");
-
-    public static OpenApiObject FormulasOk => new()
+    public static JsonNode FormulasOk => Node(new
     {
-        ["DAORTA"] = new OpenApiArray
-        {
-            new OpenApiObject
-            {
-                ["nome_funcao"] = new OpenApiString("calcDAorta"),
-                ["equacao"] = new OpenApiString("return valor * 1.0;"),
-                ["linguagem"] = new OpenApiString("JavaScript")
-            }
-        }
-    };
+        DAORTA = new[] { new { nome_funcao = "calcDAorta", equacao = "return valor * 1.0;", linguagem = "JavaScript" } }
+    });
 
-    public static OpenApiObject SistemaInfoOk => new()
+    public static JsonNode SistemaInfoOk => Node(new
     {
-        ["success"] = new OpenApiBoolean(true),
-        ["data"] = new OpenApiObject
-        {
-            ["variaveis"] = new OpenApiInteger(450),
-            ["normalidades"] = new OpenApiInteger(3200),
-            ["referencias"] = new OpenApiInteger(85),
-            ["scripts"] = new OpenApiInteger(120)
-        },
-        ["timestamp"] = new OpenApiString(Ts)
-    };
+        success = true,
+        data = new { variaveis = 450, normalidades = 3200, referencias = 85, scripts = 120 },
+        timestamp = Ts
+    });
 
-    public static OpenApiObject UpdateNormalidadeOk => new()
+    public static JsonNode UpdateNormalidadeOk => Node(new
     {
-        ["success"] = new OpenApiBoolean(true),
-        ["message"] = new OpenApiString("Normalidade atualizada com sucesso."),
-        ["timestamp"] = new OpenApiString(Ts)
-    };
+        success = true,
+        message = "Normalidade atualizada com sucesso.",
+        timestamp = Ts
+    });
+    public static JsonNode UpdateNormalidade400 => Error("valor_min e valor_max são obrigatórios");
+    public static JsonNode UpdateNormalidade404 => Error("Normalidade não encontrada");
+    public static JsonNode Resource404(string error) => Error(error);
+    public static JsonNode Error500 => Error("Erro interno do servidor", "Detalhe técnico da exceção");
+    public static JsonNode Unauthorized401 => Error("Não autorizado", "Token JWT inválido ou expirado");
+    public static JsonNode Empty => new JsonObject();
 
-    public static OpenApiObject UpdateNormalidade400 => Error("valor_min e valor_max são obrigatórios");
-    public static OpenApiObject UpdateNormalidade404 => Error("Normalidade não encontrada");
+    private static JsonNode Error(string error, string? message = null)
+        => Node(new { success = false, error, message });
 
-    public static OpenApiObject Resource404(string error) => new()
-    {
-        ["success"] = new OpenApiBoolean(false),
-        ["error"] = new OpenApiString(error)
-    };
-
-    public static OpenApiObject Error500 => Error("Erro interno do servidor", "Detalhe técnico da exceção");
-    public static OpenApiObject Unauthorized401 => Error("Não autorizado", "Token JWT inválido ou expirado");
-
-    private static OpenApiObject Error(string error, string? message = null)
-    {
-        var o = new OpenApiObject
-        {
-            ["success"] = new OpenApiBoolean(false),
-            ["error"] = new OpenApiString(error)
-        };
-        if (message != null)
-            o["message"] = new OpenApiString(message);
-        return o;
-    }
+    private static JsonNode Node<T>(T value)
+        => JsonSerializer.SerializeToNode(value) ?? new JsonObject();
 }

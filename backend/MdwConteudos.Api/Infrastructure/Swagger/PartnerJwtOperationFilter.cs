@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace MdwConteudos.Api.Infrastructure.Swagger;
@@ -25,11 +25,8 @@ public class PartnerJwtOperationFilter : IOperationFilter
         operation.Security.Add(new OpenApiSecurityRequirement
         {
             {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "PartnerJwt" }
-                },
-                Array.Empty<string>()
+                new OpenApiSecuritySchemeReference("PartnerJwt", null, null),
+                new List<string>()
             }
         });
     }

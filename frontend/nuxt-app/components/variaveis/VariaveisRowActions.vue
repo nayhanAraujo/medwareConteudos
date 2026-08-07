@@ -12,7 +12,7 @@
       size="sm"
       icon="graph-up"
       :title="item.possuiNormalidades ? 'Visualizar Normalidades (possui normalidades)' : 'Visualizar Normalidades'"
-      @click="navegarFlask(`/variaveis/visualizar_normalidades/${item.codVariavel}`)"
+      :to="`/variaveis/${item.codVariavel}/complementos#normalidades`"
     />
 
     <DsDropdown
@@ -24,8 +24,8 @@
         <span class="hidden xl:inline">Mais</span>
       </template>
       <template #default="{ close }">
-        <DsDropdownItem disabled>
-          <i class="bi bi-paperclip" /> Vincular Anexo (inativo)
+        <DsDropdownItem :to="`/variaveis/${item.codVariavel}/complementos#anexos`" @click="close">
+          <i class="bi bi-paperclip" /> Vincular Anexo
         </DsDropdownItem>
         <DsDropdownItem @click="emitAction('detalhes', close)">
           <i class="bi bi-search-heart text-cyan-600" /> Detalhes
@@ -33,13 +33,13 @@
         <DsDropdownItem v-if="item.formula" @click="emitAction('formula', close)">
           <i class="bi bi-calculator text-green-600" /> Ver Fórmula
         </DsDropdownItem>
-        <DsDropdownItem @click="goFlask(`/variaveis/consultar_estudos/${item.codVariavel}`, close)">
+        <DsDropdownItem :to="`/variaveis/${item.codVariavel}/complementos#estudos`" @click="close">
           <i class="bi bi-book text-orange-500" /> Consultar Estudos
         </DsDropdownItem>
         <DsDropdownItem @click="emitAction('dicom', close)">
           <i class="bi bi-qr-code-scan text-cyan-600" /> Códigos DICOM
         </DsDropdownItem>
-        <DsDropdownItem @click="goFlask(`/variaveis/vincular_especialidades/${item.codVariavel}`, close)">
+        <DsDropdownItem :to="`/variaveis/${item.codVariavel}/complementos#especialidades`" @click="close">
           <i class="bi bi-link-45deg text-blue-600" /> Vincular Especialidades
         </DsDropdownItem>
         <DsDropdownDivider />
@@ -62,8 +62,6 @@ const emit = defineEmits<{
   excluir: [item: VariavelListItem]
 }>()
 
-const { navegarFlask } = useMigracao()
-
 function emitAction(
   action: 'detalhes' | 'formula' | 'dicom' | 'excluir',
   close: () => void
@@ -72,8 +70,4 @@ function emitAction(
   emit(action, props.item)
 }
 
-function goFlask(path: string, close: () => void) {
-  close()
-  navegarFlask(path)
-}
 </script>

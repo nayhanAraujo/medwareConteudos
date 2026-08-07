@@ -752,7 +752,7 @@ public class ReferenciasService : IReferenciasService
                         list = [];
                         normalidadesPorVariavel[codVariavel] = list;
                     }
-                    list.Add(new
+                    list!.Add(new
                     {
                         codNormalidade = ToInt(d, "CODNORMALIDADE"),
                         codVariavel,

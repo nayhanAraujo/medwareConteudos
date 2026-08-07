@@ -11,6 +11,9 @@
         <DsButton v-if="detail" variant="secondary" size="sm" icon="pencil-square" :to="`/paineis/${id}/editar`">
           Editar
         </DsButton>
+        <DsButton v-if="detail" variant="secondary" size="sm" icon="layers" :to="`/paineis/${id}/versoes`">
+          Gerenciar versões
+        </DsButton>
         <DsButton
           v-if="detail?.tem_arquivo_pbix"
           size="sm"
@@ -48,14 +51,18 @@
                 <th>Publicado</th>
               </tr>
             </template>
-            <tr v-for="v in detail.versoes" :key="v.codversaopainel">
+            <tr
+              v-for="v in detail.versoes"
+              :key="v.codversaopainel"
+              class="cursor-pointer hover:bg-gray-50"
+              @click="navigateTo(`/paineis/${id}/versoes/${v.codversaopainel}`)"
+            >
               <td>{{ v.codversaopainel }}</td>
               <td>{{ v.numeroversao }}</td>
               <td>{{ v.datacriacao || '—' }}</td>
               <td>{{ v.publicado ? 'Sim' : 'Não' }}</td>
             </tr>
           </DsTable>
-          <p class="text-xs text-gray-500 mt-2">Gestão completa de versões será migrada na próxima fatia.</p>
         </div>
       </div>
     </DsPageShell>

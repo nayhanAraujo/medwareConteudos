@@ -1,4 +1,5 @@
-using Microsoft.OpenApi.Models;
+using System.Text.Json.Nodes;
+using Microsoft.OpenApi;
 using MdwConteudos.Api.Modules.ApiPublica.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -35,24 +36,29 @@ public class ApiPublicaExamplesOperationFilter : IOperationFilter
 
     private static void SetResponseExamples(OpenApiOperation operation, string action)
     {
+        if (operation.Responses is null)
+            return;
+
         var map = GetResponseMap(action);
         foreach (var (code, example) in map)
         {
             if (!operation.Responses.TryGetValue(code, out var response))
                 continue;
-            EnsureJsonContent(response);
-            response.Content!["application/json"].Example = example;
+            var media = EnsureJsonContent(response);
+            if (media is not null)
+                media.Example = example;
         }
 
         if (action is not ("Token" or "Health") &&
             operation.Responses.TryGetValue("401", out var unauthorized))
         {
-            EnsureJsonContent(unauthorized);
-            unauthorized.Content!["application/json"].Example = ApiPublicaOpenApiExamples.Unauthorized401;
+            var media = EnsureJsonContent(unauthorized);
+            if (media is not null)
+                media.Example = ApiPublicaOpenApiExamples.Unauthorized401;
         }
     }
 
-    private static Dictionary<string, Microsoft.OpenApi.Any.IOpenApiAny> GetResponseMap(string action) =>
+    private static Dictionary<string, JsonNode> GetResponseMap(string action) =>
         action switch
         {
             "Token" => new()
@@ -120,7 +126,7 @@ public class ApiPublicaExamplesOperationFilter : IOperationFilter
             },
             "ScriptUltimoVerificado" => new()
             {
-                ["204"] = new Microsoft.OpenApi.Any.OpenApiObject(),
+                ["204"] = ApiPublicaOpenApiExamples.Empty,
                 ["500"] = ApiPublicaOpenApiExamples.Error500
             },
             "DownloadPainel" => new()
@@ -134,10 +140,16 @@ public class ApiPublicaExamplesOperationFilter : IOperationFilter
             }
         };
 
-    private static void EnsureJsonContent(OpenApiResponse response)
+    private static OpenApiMediaType? EnsureJsonContent(IOpenApiResponse response)
     {
-        response.Content ??= new Dictionary<string, OpenApiMediaType>();
-        if (!response.Content.ContainsKey("application/json"))
-            response.Content["application/json"] = new OpenApiMediaType();
+        var content = response.Content;
+        if (content is null)
+            return null;
+        if (!content.TryGetValue("application/json", out var media))
+        {
+            media = new OpenApiMediaType();
+            content["application/json"] = media;
+        }
+        return media;
     }
 }
