@@ -109,6 +109,14 @@ const cards: ContentCard[] = [
     nuxtPath: '/conteudos/modelos-mensagens'
   },
   {
+    type: 'assistente',
+    title: 'Assistente',
+    desc: 'Gerencie procedimentos, scripts e modelos do banco Assistente',
+    icon: 'database-gear',
+    themeName: 'dark',
+    nuxtPath: '/assistente'
+  },
+  {
     type: 'studio',
     title: 'Studio',
     desc: 'Converta imagens de laudos em HTML compatível com LaudosUX',

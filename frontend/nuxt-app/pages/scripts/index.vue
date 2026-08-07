@@ -39,6 +39,9 @@
             <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="plus-circle-fill" :to="{ path: '/scripts/novo', query: { pacote, sistema } }">
               Novo Script
             </DsButton>
+            <DsButton v-if="auth.isAdmin" variant="secondary" size="sm" icon="database-add" to="/assistente/modelos/importar?origem=scripts">
+              Importar no Assistente
+            </DsButton>
           </div>
         </div>
 

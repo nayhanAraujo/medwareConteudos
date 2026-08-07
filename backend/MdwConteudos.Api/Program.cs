@@ -7,6 +7,9 @@ using MdwConteudos.Api.Configuration;
 using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Infrastructure.Swagger;
 using MdwConteudos.Api.Modules.ApiPublica;
+using MdwConteudos.Api.Modules.Assistente.Dominios;
+using MdwConteudos.Api.Modules.Assistente.Importacao;
+using MdwConteudos.Api.Modules.Assistente.Vinculos;
 using MdwConteudos.Api.Modules.Auth;
 using MdwConteudos.Api.Modules.Cadastros;
 using MdwConteudos.Api.Modules.Dashboard;
@@ -47,6 +50,20 @@ builder.Services.PostConfigure<FirebirdOptions>(opt =>
     }
 });
 
+builder.Services.Configure<AssistantFirebirdOptions>(builder.Configuration.GetSection(AssistantFirebirdOptions.SectionName));
+builder.Services.PostConfigure<AssistantFirebirdOptions>(opt =>
+{
+    opt.ApplyEnvironmentVariables();
+    if (!Path.IsPathFullyQualified(opt.Database))
+    {
+        var root = FindRepoRoot(builder.Environment.ContentRootPath);
+        var migrationRoot = root != null && Directory.Exists(Path.Combine(root, "mdw-migracao"))
+            ? Path.Combine(root, "mdw-migracao")
+            : Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".."));
+        opt.Database = Path.GetFullPath(Path.Combine(migrationRoot, opt.Database));
+    }
+});
+
 builder.Services.Configure<WebAuthOptions>(builder.Configuration.GetSection(WebAuthOptions.SectionName));
 builder.Services.PostConfigure<WebAuthOptions>(opt =>
 {
@@ -65,6 +82,10 @@ builder.Services.PostConfigure<ApiPartnerOptions>(opt =>
 builder.Services.Configure<LegacyPathsOptions>(builder.Configuration.GetSection("LegacyPaths"));
 
 builder.Services.AddSingleton<IFirebirdConnectionFactory, FirebirdConnectionFactory>();
+builder.Services.AddSingleton<IAssistantFirebirdConnectionFactory, AssistantFirebirdConnectionFactory>();
+builder.Services.AddScoped<IAssistenteDominiosService, AssistenteDominiosService>();
+builder.Services.AddScoped<IAssistenteImportacaoService, AssistenteImportacaoService>();
+builder.Services.AddScoped<IAssistenteVinculosService, AssistenteVinculosService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<IApiPublicaService, ApiPublicaService>();

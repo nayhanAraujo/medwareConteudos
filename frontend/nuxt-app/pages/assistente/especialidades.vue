@@ -1,0 +1,2 @@
+<template><AssistenteDomainCrud domain="especialidades" title="Especialidades" singular="especialidade" subtitle="Catálogo de especialidades do Assistente" icon="heart-pulse" :columns="columns" :fields="fields" /></template>
+<script setup lang="ts">definePageMeta({ layout: 'default' }); const columns=[{key:'codigo',label:'Código'},{key:'nome',label:'Nome',primary:true},{key:'sigla',label:'Sigla'}]; const fields=[{key:'nome',label:'Nome',required:true},{key:'sigla',label:'Sigla'}]</script>
