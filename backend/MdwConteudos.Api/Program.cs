@@ -26,6 +26,11 @@ using ConversorHtml.Application;
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var builder = WebApplication.CreateBuilder(args);
+// Override local por máquina (appsettings.*.local.json está no .gitignore)
+builder.Configuration.AddJsonFile(
+    $"appsettings.{builder.Environment.EnvironmentName}.local.json",
+    optional: true,
+    reloadOnChange: true);
 EnvFileLoader.LoadFromRepoRoot(builder.Configuration, builder.Environment.ContentRootPath);
 const string DefaultWebJwtSecret = "mdw-web-dev-secret-change-me-2026-local-migration-only";
 
