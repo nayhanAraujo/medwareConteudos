@@ -53,6 +53,10 @@ builder.Services.PostConfigure<FirebirdOptions>(opt =>
         if (root != null)
             opt.Database = Path.Combine(root, "BD", "REFERENCIAS.FDB").Replace('\\', '/');
     }
+    else if (!Path.IsPathFullyQualified(opt.Database))
+    {
+        opt.Database = Path.GetFullPath(Path.Combine(GetMigrationRoot(builder.Environment.ContentRootPath), opt.Database));
+    }
 });
 
 builder.Services.Configure<AssistantFirebirdOptions>(builder.Configuration.GetSection(AssistantFirebirdOptions.SectionName));
@@ -61,11 +65,7 @@ builder.Services.PostConfigure<AssistantFirebirdOptions>(opt =>
     opt.ApplyEnvironmentVariables();
     if (!Path.IsPathFullyQualified(opt.Database))
     {
-        var root = FindRepoRoot(builder.Environment.ContentRootPath);
-        var migrationRoot = root != null && Directory.Exists(Path.Combine(root, "mdw-migracao"))
-            ? Path.Combine(root, "mdw-migracao")
-            : Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".."));
-        opt.Database = Path.GetFullPath(Path.Combine(migrationRoot, opt.Database));
+        opt.Database = Path.GetFullPath(Path.Combine(GetMigrationRoot(builder.Environment.ContentRootPath), opt.Database));
     }
 });
 
@@ -257,4 +257,12 @@ static string? FindRepoRoot(string startDir)
         dir = parent.FullName;
     }
     return null;
+}
+
+static string GetMigrationRoot(string contentRoot)
+{
+    var root = FindRepoRoot(contentRoot);
+    return root != null && Directory.Exists(Path.Combine(root, "mdw-migracao"))
+        ? Path.Combine(root, "mdw-migracao")
+        : Path.GetFullPath(Path.Combine(contentRoot, "..", ".."));
 }
