@@ -58,12 +58,12 @@ type ApiEnvelope<T> = { data?: T; items?: T[]; total?: number; page?: number; pa
 
 const domainFields: Record<string, Record<string, string>> = {
   especialidades: { codigo: 'CODESPECIALIDADE', id: 'CODESPECIALIDADE', nome: 'DESCRICAO', descricao: 'DESCRICAO' },
-  grupos: { codigo: 'CODGRUPO', id: 'CODGRUPO', nome: 'GRUPO', grupo: 'GRUPO', grupoPaiId: 'CODGRUPOPAI', status: 'STATUS' },
-  frases: { codigo: 'CODFRASE', id: 'CODFRASE', titulo: 'TITULO', conteudo: 'FRASE', grupo: 'CODGRUPO', grupoId: 'CODGRUPO', status: 'STATUS' },
+  grupos: { codigo: 'CODGRUPO', id: 'CODGRUPO', nome: 'GRUPO', grupo: 'GRUPO', codGrupoPai: 'CODGRUPOPAI', grupoPaiId: 'CODGRUPOPAI', status: 'STATUS' },
+  frases: { codigo: 'CODFRASE', id: 'CODFRASE', codigoFrase: 'CODIGO', titulo: 'TITULO', frase: 'FRASE', conteudo: 'FRASE', grupo: 'CODGRUPO', codGrupo: 'CODGRUPO', grupoId: 'CODGRUPO', status: 'STATUS' },
   operadoras: { codigo: 'CODOPERADORA', id: 'CODOPERADORA', nome: 'NOMEFANTASIA', nomeFantasia: 'NOMEFANTASIA', razaoSocial: 'RAZAOSOCIAL', registroAns: 'REGISTROANS', cnpj: 'CNPJ' },
   'grupos-operadoras': { codigo: 'CODGRUPOOPERADORA', id: 'CODGRUPOOPERADORA', nome: 'DESCRICAO', descricao: 'DESCRICAO' },
   'tabela-procedimentos': { codigo: 'CODTABELAPROCEDIMENTO', id: 'CODTABELAPROCEDIMENTO', codigoTuss: 'CODIGOTUSS', nome: 'DESCRICAOTUSS', descricaoTuss: 'DESCRICAOTUSS' },
-  procedimentos: { codigo: 'CODPROCEDIMENTO', id: 'CODPROCEDIMENTO', nome: 'DESCRICAO_PROCED', descricao: 'DESCRICAO_PROCED', especialidade: 'CODESPECIALIDADE', especialidadeId: 'CODESPECIALIDADE', tabelaProcedimentoId: 'CODTABELAPROCEDIMENTO', status: 'STATUS' },
+  procedimentos: { codigo: 'CODPROCEDIMENTO', id: 'CODPROCEDIMENTO', codigoTuss: 'CODIGOTUSS', nome: 'DESCRICAO_PROCED', descricao: 'DESCRICAO_PROCED', especialidade: 'ESPECIALIDADE', codEspecialidade: 'CODESPECIALIDADE', especialidadeId: 'CODESPECIALIDADE', codTabelaProcedimento: 'CODTABELAPROCEDIMENTO', tabelaProcedimentoId: 'CODTABELAPROCEDIMENTO', status: 'STATUS' },
   referencias: { codigo: 'CODREFERENCIA', id: 'CODREFERENCIA', titulo: 'DESCRICAO', descricao: 'DESCRICAO', tipo: 'TIPO', conteudo: 'VALOR', valor: 'VALOR' },
   esquemas: { codigo: 'CODESQUEMA', id: 'CODESQUEMA', nome: 'DESCRICAO', descricao: 'DESCRICAO', conteudo: 'IMAGEM', imagem: 'IMAGEM' },
   'esquemas-fotos': { codigo: 'CODESQUEMAFOTOS', id: 'CODESQUEMAFOTOS', nome: 'TITULO', titulo: 'TITULO', conteudo: 'ESQUEMA', esquema: 'ESQUEMA' },

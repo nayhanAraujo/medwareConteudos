@@ -49,10 +49,31 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
     {
         var d = Resolve(domain); page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 200);
         await using var c = await connections.OpenConnectionAsync(ct);
+        if (domain.Equals("procedimentos", StringComparison.OrdinalIgnoreCase))
+            return await ListProcedimentos(c, page, pageSize, search, ct);
         var where = string.IsNullOrWhiteSpace(search) ? "" : $"WHERE UPPER(COALESCE(CAST({d.SearchColumn} AS VARCHAR(512)), '')) LIKE @Search";
         var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", Skip = (page - 1) * pageSize, Take = pageSize };
         var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) FROM {d.Table} {where}", args, cancellationToken: ct));
         var rows = (await c.QueryAsync(new CommandDefinition($"SELECT * FROM {d.Table} {where} ORDER BY {d.SearchColumn} ROWS @Skip + 1 TO @Skip + @Take", args, cancellationToken: ct))).ToList();
+        return new(rows, total, page, pageSize);
+    }
+
+    private static async Task<PagedResult<dynamic>> ListProcedimentos(DbConnection c, int page, int pageSize, string? search, CancellationToken ct)
+    {
+        const string from = @"FROM PROCEDIMENTO p
+            LEFT JOIN TABELAPROCEDIMENTO tp ON tp.CODTABELAPROCEDIMENTO = p.CODTABELAPROCEDIMENTO
+            LEFT JOIN ESPECIALIDADE e ON e.CODESPECIALIDADE = p.CODESPECIALIDADE";
+        var where = string.IsNullOrWhiteSpace(search) ? "" : @"WHERE
+            UPPER(COALESCE(CAST(p.DESCRICAO_PROCED AS VARCHAR(512)), '')) LIKE @Search OR
+            UPPER(COALESCE(CAST(tp.CODIGOTUSS AS VARCHAR(32)), '')) LIKE @Search OR
+            UPPER(COALESCE(CAST(e.DESCRICAO AS VARCHAR(512)), '')) LIKE @Search";
+        var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", Skip = (page - 1) * pageSize, Take = pageSize };
+        var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) {from} {where}", args, cancellationToken: ct));
+        var rows = (await c.QueryAsync(new CommandDefinition($@"SELECT
+                p.*, tp.CODIGOTUSS, tp.DESCRICAOTUSS, e.DESCRICAO AS ESPECIALIDADE
+            {from} {where}
+            ORDER BY p.DESCRICAO_PROCED
+            ROWS @Skip + 1 TO @Skip + @Take", args, cancellationToken: ct))).ToList();
         return new(rows, total, page, pageSize);
     }
 

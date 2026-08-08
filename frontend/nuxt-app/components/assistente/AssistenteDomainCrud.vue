@@ -43,14 +43,15 @@
     </DsPageShell>
 
     <DsModal v-model="editorOpen" :title="editingId ? `Editar ${singular}` : `Novo ${singular}`" size="xl">
+      <p class="mb-4 text-sm text-gray-600"><span class="font-semibold text-red-600">*</span> Campos obrigatórios</p>
       <div class="grid gap-4 md:grid-cols-2">
         <template v-for="field in fields" :key="field.key">
-          <DsTextarea v-if="field.kind === 'textarea'" v-model="form[field.key]" :label="field.label" :required="field.required" class="md:col-span-2" />
-          <DsSelect v-else-if="field.kind === 'select'" v-model="form[field.key]" :label="field.label" :required="field.required">
-            <option value="">Selecione</option><option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+          <DsTextarea v-if="field.kind === 'textarea'" v-model="form[field.key]" :label="fieldLabel(field)" :required="field.required" class="md:col-span-2" />
+          <DsSelect v-else-if="field.kind === 'select'" v-model="form[field.key]" :label="fieldLabel(field)" :required="field.required">
+            <option value="">Selecione</option><option v-for="option in fieldOptions(field)" :key="option.value" :value="option.value">{{ option.label }}</option>
           </DsSelect>
-          <AssistenteMultiSelect v-else-if="field.kind === 'multi'" v-model="form[field.key]" :label="field.label" :options="relationOptions[field.optionsDomain || ''] || []" class="md:col-span-2" />
-          <DsInput v-else v-model="form[field.key]" :type="field.kind === 'number' ? 'number' : 'text'" :label="field.label" :required="field.required" />
+          <AssistenteMultiSelect v-else-if="field.kind === 'multi'" v-model="form[field.key]" :label="fieldLabel(field)" :options="relationOptions[field.optionsDomain || ''] || []" class="md:col-span-2" />
+          <DsInput v-else v-model="form[field.key]" :type="field.kind === 'number' ? 'number' : 'text'" :label="fieldLabel(field)" :required="field.required" />
         </template>
       </div>
       <template #footer><DsButton variant="secondary" @click="editorOpen = false">Cancelar</DsButton><DsButton :loading="saving" @click="save">Salvar</DsButton></template>
@@ -63,7 +64,7 @@
 
 <script setup lang="ts">
 import type { AssistenteEntity, AssistenteOption } from '~/composables/useAssistenteApi'
-export interface AssistenteField { key: string; label: string; kind?: 'text' | 'number' | 'textarea' | 'select' | 'multi'; required?: boolean; options?: { label: string; value: string | number }[]; optionsDomain?: string }
+export interface AssistenteField { key: string; apiKey?: string; label: string; kind?: 'text' | 'number' | 'textarea' | 'select' | 'multi'; required?: boolean; defaultValue?: string | number; options?: { label: string; value: string | number }[]; optionsDomain?: string }
 export interface AssistenteColumn { key: string; label: string; primary?: boolean }
 const props = defineProps<{ domain: string; title: string; singular: string; subtitle: string; icon?: string; fields: AssistenteField[]; columns: AssistenteColumn[] }>()
 const auth = useAuthStore(); const api = useAssistenteApi(); const swal = useSwal()
@@ -77,12 +78,15 @@ function message(reason: unknown) { return reason instanceof Error ? reason.mess
 function entityId(row: AssistenteEntity) { return Number(row.id ?? row.codigo ?? row.codigoscriptlaudo ?? row.codpagfotos ?? row.codprocedimento ?? 0) }
 function isActive(row: AssistenteEntity) { return row.status === undefined || row.status === true || Number(row.status) === -1 || Number(row.status) === 1 }
 function display(row: AssistenteEntity, key: string) { const value = row[key]; if (Array.isArray(value)) return value.map(item => typeof item === 'object' ? (item.nome || item.titulo || item.id) : item).join(', '); return value ?? '—' }
-function resetForm(row?: AssistenteEntity) { props.fields.forEach(field => { const value = row?.[field.key]; form[field.key] = field.kind === 'multi' ? (Array.isArray(value) ? value.map(item => Number(typeof item === 'object' ? item.id : item)) : []) : (value ?? '') }) }
+function fieldLabel(field: AssistenteField) { return `${field.label}${field.required ? ' *' : ''}` }
+function fieldOptions(field: AssistenteField) { return field.options || (relationOptions[field.optionsDomain || ''] || []).map(option => ({ label: option.nome, value: option.id })) }
+function resetForm(row?: AssistenteEntity) { props.fields.forEach(field => { const value = row?.[field.key]; form[field.key] = field.kind === 'multi' ? (Array.isArray(value) ? value.map(item => Number(typeof item === 'object' ? item.id : item)) : []) : (value ?? field.defaultValue ?? '') }) }
+function requestBody() { return Object.fromEntries(props.fields.map(field => [field.apiKey || field.key, form[field.key]])) }
 async function load(target = page.value) { loading.value = true; error.value = ''; try { const result = await api.list(props.domain, target, Number(pageSize.value), search.value); rows.value = result.items || []; total.value = result.total ?? rows.value.length; page.value = result.page || target } catch (reason) { error.value = message(reason); rows.value = [] } finally { loading.value = false } }
-async function loadRelations() { const domains = [...new Set(props.fields.filter(f => f.kind === 'multi').map(f => f.optionsDomain).filter(Boolean))] as string[]; await Promise.all(domains.map(async domain => { if (!relationOptions[domain]) relationOptions[domain] = await api.options(domain) })) }
+async function loadRelations() { const domains = [...new Set(props.fields.filter(f => (f.kind === 'multi' || f.kind === 'select') && f.optionsDomain).map(f => f.optionsDomain).filter(Boolean))] as string[]; await Promise.all(domains.map(async domain => { if (!relationOptions[domain]) relationOptions[domain] = await api.options(domain) })) }
 async function openEditor(row?: AssistenteEntity) { editingId.value = row ? entityId(row) : null; let detail = row; if (editingId.value) { try { detail = await api.get(props.domain, editingId.value) } catch { /* use list row */ } } resetForm(detail); await loadRelations(); editorOpen.value = true }
 function openLinks(row: AssistenteEntity) { linkedId.value = entityId(row); linksOpen.value = true }
-async function save() { const missing = props.fields.find(field => field.required && (form[field.key] === '' || (Array.isArray(form[field.key]) && !form[field.key].length))); if (missing) return void swal.toast(`Preencha ${missing.label}.`, 'warning'); saving.value = true; try { if (editingId.value) await api.update(props.domain, editingId.value, { ...form }); else await api.create(props.domain, { ...form }); editorOpen.value = false; await load(); await swal.toast(`${props.singular} salvo com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } finally { saving.value = false } }
+async function save() { const missing = props.fields.find(field => field.required && (form[field.key] === '' || form[field.key] === null || form[field.key] === undefined || (Array.isArray(form[field.key]) && !form[field.key].length))); if (missing) return void swal.toast(`Preencha ${missing.label}.`, 'warning'); saving.value = true; try { const body = requestBody(); if (editingId.value) await api.update(props.domain, editingId.value, body); else await api.create(props.domain, body); editorOpen.value = false; await load(); await swal.toast(`${props.singular} salvo com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } finally { saving.value = false } }
 async function toggle(row: AssistenteEntity) { try { await api.setStatus(props.domain, entityId(row), !isActive(row)); await load() } catch (reason) { await swal.toast(message(reason), 'error') } }
 async function remove(row: AssistenteEntity) { const confirmation = await swal.confirm(`Excluir ${props.singular}`, 'A exclusão será bloqueada caso existam vínculos. Deseja continuar?'); if (!confirmation?.isConfirmed) return; try { await api.remove(props.domain, entityId(row)); await load(); await swal.toast(`${props.singular} excluído com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } }
 onMounted(() => load())
