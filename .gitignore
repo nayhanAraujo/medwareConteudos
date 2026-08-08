@@ -19,7 +19,9 @@ bd_assistente/
 .env.*
 !.env.example
 web.config
+# Caminhos locais de BD / segredos por máquina — NÃO versionar
 appsettings.*.local.json
+**/appsettings.Local.json
 secrets.json
 **/Properties/launchSettings.json.user
 
