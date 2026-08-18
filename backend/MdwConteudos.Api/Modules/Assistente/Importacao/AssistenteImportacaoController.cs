@@ -17,6 +17,7 @@ public sealed class AssistenteImportacaoController(IAssistenteImportacaoService 
     {
         try { return Ok(ApiResponse.Ok(await service.ImportAsync(form, ct))); }
         catch (AssistenteImportacaoException ex) { return Conflict(ApiResponse.Fail("Validação", ex.Message, 409)); }
+        catch (Exception ex) { return StatusCode(500, ApiResponse.Fail("Erro ao importar", ex.Message, 500)); }
     }
 
     [HttpGet("scripts/{id:int}/download")]

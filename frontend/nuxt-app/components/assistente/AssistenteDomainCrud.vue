@@ -3,7 +3,7 @@
     <DsPageHeader :title="title" :subtitle="subtitle" :icon="icon">
       <template #actions>
         <DsButton variant="secondary" size="sm" to="/assistente">Voltar</DsButton>
-        <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="plus-lg" @click="openEditor()">Novo</DsButton>
+        <DsButton v-if="auth.isAdmin && !hideCreate" variant="success" size="sm" icon="plus-lg" @click="openEditor()">Novo</DsButton>
       </template>
     </DsPageHeader>
     <DsPageShell>
@@ -21,7 +21,7 @@
       <DsTable v-else>
         <template #head><tr><th v-for="column in columns" :key="column.key">{{ column.label }}</th><th>Status</th><th class="text-right">Ações</th></tr></template>
         <tr v-for="row in rows" :key="entityId(row)">
-          <td v-for="column in columns" :key="column.key"><span :class="column.primary ? 'font-semibold' : ''">{{ display(row, column.key) }}</span></td>
+          <td v-for="column in columns" :key="column.key"><span :class="column.primary ? 'font-semibold' : ''">{{ display(row, column) }}</span></td>
           <td><DsBadge :variant="isActive(row) ? 'success' : 'neutral'">{{ isActive(row) ? 'Ativo' : 'Inativo' }}</DsBadge></td>
           <td><div class="flex justify-end gap-2">
             <DsButton variant="secondary" size="sm" icon="diagram-3" @click="openLinks(row)">Vínculos</DsButton>
@@ -65,8 +65,8 @@
 <script setup lang="ts">
 import type { AssistenteEntity, AssistenteOption } from '~/composables/useAssistenteApi'
 export interface AssistenteField { key: string; apiKey?: string; label: string; kind?: 'text' | 'number' | 'textarea' | 'select' | 'multi'; required?: boolean; defaultValue?: string | number; options?: { label: string; value: string | number }[]; optionsDomain?: string }
-export interface AssistenteColumn { key: string; label: string; primary?: boolean }
-const props = defineProps<{ domain: string; title: string; singular: string; subtitle: string; icon?: string; fields: AssistenteField[]; columns: AssistenteColumn[] }>()
+export interface AssistenteColumn { key: string; label: string; primary?: boolean; format?: (value: unknown, row: AssistenteEntity) => string }
+const props = defineProps<{ domain: string; title: string; singular: string; subtitle: string; icon?: string; fields: AssistenteField[]; columns: AssistenteColumn[]; hideCreate?: boolean }>()
 const auth = useAuthStore(); const api = useAssistenteApi(); const swal = useSwal()
 const rows = ref<AssistenteEntity[]>([]); const search = ref(''); const page = ref(1); const pageSize = ref(20); const total = ref(0)
 const loading = ref(false); const saving = ref(false); const error = ref(''); const editorOpen = ref(false); const editingId = ref<number | null>(null)
@@ -77,7 +77,12 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined
 function message(reason: unknown) { return reason instanceof Error ? reason.message : 'Não foi possível concluir a operação.' }
 function entityId(row: AssistenteEntity) { return Number(row.id ?? row.codigo ?? row.codigoscriptlaudo ?? row.codpagfotos ?? row.codprocedimento ?? 0) }
 function isActive(row: AssistenteEntity) { return row.status === undefined || row.status === true || Number(row.status) === -1 || Number(row.status) === 1 }
-function display(row: AssistenteEntity, key: string) { const value = row[key]; if (Array.isArray(value)) return value.map(item => typeof item === 'object' ? (item.nome || item.titulo || item.id) : item).join(', '); return value ?? '—' }
+function display(row: AssistenteEntity, column: AssistenteColumn) {
+  if (column.format) return column.format(row[column.key], row)
+  const value = row[column.key]
+  if (Array.isArray(value)) return value.map(item => typeof item === 'object' ? (item.nome || item.titulo || item.id) : item).join(', ')
+  return value ?? '—'
+}
 function fieldLabel(field: AssistenteField) { return `${field.label}${field.required ? ' *' : ''}` }
 function fieldOptions(field: AssistenteField) { return field.options || (relationOptions[field.optionsDomain || ''] || []).map(option => ({ label: option.nome, value: option.id })) }
 function resetForm(row?: AssistenteEntity) { props.fields.forEach(field => { const value = row?.[field.key]; form[field.key] = field.kind === 'multi' ? (Array.isArray(value) ? value.map(item => Number(typeof item === 'object' ? item.id : item)) : []) : (value ?? field.defaultValue ?? '') }) }

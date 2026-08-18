@@ -1,5 +1,8 @@
+using System.Data;
 using Dapper;
+using FirebirdSql.Data.FirebirdClient;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Assistente.Importacao;
 
@@ -10,23 +13,95 @@ public interface IAssistenteImportacaoService
     Task<AssistenteArquivoPreparado?> DownloadMrdAsync(int id, CancellationToken ct);
 }
 
-public sealed class AssistenteImportacaoService(IAssistantFirebirdConnectionFactory connectionFactory) : IAssistenteImportacaoService
+public sealed class AssistenteImportacaoService(
+    IAssistantFirebirdConnectionFactory connectionFactory,
+    ScriptsService scriptsService) : IAssistenteImportacaoService
 {
     public async Task<AssistenteImportacaoResult> ImportAsync(AssistenteImportacaoForm form, CancellationToken ct)
     {
-        var scriptTitle = AssistenteImportacaoValidator.ValidateTitle(form.TituloScript, "Título do script", 252);
-        var mrdTitle = AssistenteImportacaoValidator.ValidateTitle(form.TituloMrd, "Título do MRD", 128);
         var specialties = form.Especialidades.Where(x => x > 0).Distinct().ToArray();
         var procedures = form.Procedimentos.Where(x => x > 0).Distinct().ToArray();
         if (specialties.Length == 0) throw new AssistenteImportacaoException("Selecione ao menos uma especialidade.");
-        if (form.ArquivoScript is null) throw new AssistenteImportacaoException("O arquivo do script é obrigatório.");
-        if (form.ArquivoMrd is null) throw new AssistenteImportacaoException("O arquivo MRD é obrigatório.");
 
+        string scriptTitle;
+        string mrdTitle;
+        string scriptContent;
+        short tipoScript;
+
+        if (form.CodScriptLaudoOrigem.HasValue && form.CodScriptLaudoOrigem.Value > 0)
+        {
+            var codOrigem = form.CodScriptLaudoOrigem.Value;
+            var loaded = await LoadFromReferenciasAsync(form, codOrigem, ct);
+            return await PersistImportAsync(
+                loaded.ScriptTitle, loaded.MrdTitle, loaded.ScriptContent, loaded.MrdContent,
+                loaded.TipoScript, specialties, procedures, ct);
+        }
+
+        scriptTitle = AssistenteImportacaoValidator.ValidateTitle(form.TituloScript, "Título do script", 252);
+        mrdTitle = AssistenteImportacaoValidator.ValidateTitle(form.TituloMrd, "Título do MRD", 128);
+        if (form.ArquivoScript is null) throw new AssistenteImportacaoException("Selecione um script de origem ou envie o arquivo do script.");
+        if (form.ArquivoMrd is null) throw new AssistenteImportacaoException("O arquivo MRD é obrigatório.");
         var scriptBytes = await ReadFileAsync(form.ArquivoScript, "O arquivo do script", ct);
         var mrdBytes = await ReadFileAsync(form.ArquivoMrd, "O arquivo MRD", ct);
-        var scriptContent = AssistenteImportacaoValidator.PrepareScript(form.TipoScript, form.ArquivoScript.FileName, scriptBytes);
+        scriptContent = AssistenteImportacaoValidator.PrepareScript(form.TipoScript, form.ArquivoScript.FileName, scriptBytes);
         var mrdContent = AssistenteImportacaoValidator.PrepareMrd(form.ArquivoMrd.FileName, mrdBytes);
+        tipoScript = form.TipoScript;
+        return await PersistImportAsync(scriptTitle, mrdTitle, scriptContent, mrdContent, tipoScript, specialties, procedures, ct);
+    }
 
+    private async Task<ReferenciasImportPayload> LoadFromReferenciasAsync(
+        AssistenteImportacaoForm form, int codOrigem, CancellationToken ct)
+    {
+        var script = await scriptsService.GetScriptAsync(codOrigem);
+        if (script is null)
+            throw new AssistenteImportacaoException($"Script de origem {codOrigem} não encontrado em /scripts/pacotes.");
+
+        if (script.Sistema is not ("Laudos Flex" or "Laudos UX"))
+            throw new AssistenteImportacaoException("Somente scripts Laudos Flex ou Laudos UX podem ser importados.");
+
+        byte[]? scriptBytes;
+        short tipoScript;
+
+        if (string.Equals(script.Sistema, "Laudos UX", StringComparison.OrdinalIgnoreCase))
+        {
+            scriptBytes = await scriptsService.ExportJsonAsync(codOrigem);
+            tipoScript = 3;
+        }
+        else
+        {
+            scriptBytes = await scriptsService.ExportDllAsync(codOrigem);
+            tipoScript = AssistenteScriptEncoding.ResolveTipoScript(script.Sistema, script.Linguagem, scriptBytes ?? []);
+        }
+
+        if (scriptBytes is null || scriptBytes.Length == 0)
+            throw new AssistenteImportacaoException("O script selecionado não possui DLL/JSON disponível para importação.");
+
+        var scriptTitle = AssistenteImportacaoValidator.ValidateTitle(
+            string.IsNullOrWhiteSpace(form.TituloScript) ? script.Nome : form.TituloScript,
+            "Título do script", 252);
+
+        var mrdExport = await scriptsService.ExportMrdAsync(codOrigem, form.CodScriptMrdOrigem);
+        if (mrdExport is null)
+            throw new AssistenteImportacaoException("O script selecionado não possui MRD padrão para importação.");
+
+        var mrdTitle = AssistenteImportacaoValidator.ValidateTitle(
+            string.IsNullOrWhiteSpace(form.TituloMrd)
+                ? Path.GetFileNameWithoutExtension(mrdExport.Value.filename)
+                : form.TituloMrd,
+            "Título do MRD", 128);
+
+        var scriptContent = AssistenteScriptEncoding.PrepareFromReferencias(tipoScript, scriptBytes);
+        var mrdContent = AssistenteImportacaoValidator.PrepareMrd(mrdExport.Value.filename, mrdExport.Value.content);
+        return new ReferenciasImportPayload(scriptTitle, mrdTitle, scriptContent, mrdContent, tipoScript);
+    }
+
+    private sealed record ReferenciasImportPayload(
+        string ScriptTitle, string MrdTitle, string ScriptContent, string MrdContent, short TipoScript);
+
+    private async Task<AssistenteImportacaoResult> PersistImportAsync(
+        string scriptTitle, string mrdTitle, string scriptContent, string mrdContent,
+        short tipoScript, int[] specialties, int[] procedures, CancellationToken ct)
+    {
         await using var connection = await connectionFactory.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         try
@@ -46,17 +121,24 @@ public sealed class AssistenteImportacaoService(IAssistantFirebirdConnectionFact
             await RequireIdsAsync(connection, transaction, "ESPECIALIDADE", "CODESPECIALIDADE", specialties, "especialidade", ct);
             await RequireIdsAsync(connection, transaction, "PROCEDIMENTO", "CODPROCEDIMENTO", procedures, "procedimento", ct);
 
+            var scriptParams = BlobParameters();
+            scriptParams.Add("Title", scriptTitle);
+            AddBlob(scriptParams, "Content", scriptContent);
+            scriptParams.Add("Type", tipoScript);
             var scriptId = await connection.ExecuteScalarAsync<int>(new CommandDefinition("""
                 INSERT INTO SCRIPTLAUDO (TITULO, ESTRUTURASCRIPT, TIPOSCRIPT, STATUS)
                 VALUES (@Title, @Content, @Type, -1)
                 RETURNING CODSCRIPTLAUDO
-                """, new { Title = scriptTitle, Content = scriptContent, Type = form.TipoScript }, transaction, cancellationToken: ct));
+                """, scriptParams, transaction, cancellationToken: ct));
 
+            var mrdParams = BlobParameters();
+            mrdParams.Add("Title", mrdTitle);
+            AddBlob(mrdParams, "Content", mrdContent);
             var mrdId = await connection.ExecuteScalarAsync<int>(new CommandDefinition("""
                 INSERT INTO PAGFOTOS (TITULO, ESTRUTURAPAGFOTOS, STATUS)
                 VALUES (@Title, @Content, -1)
                 RETURNING CODPAGFOTOS
-                """, new { Title = mrdTitle, Content = mrdContent }, transaction, cancellationToken: ct));
+                """, mrdParams, transaction, cancellationToken: ct));
 
             var sequence = await connection.ExecuteScalarAsync<short>(new CommandDefinition("""
                 SELECT CAST(COALESCE(MAX(SEQUENCIA), 0) + 1 AS SMALLINT)
@@ -133,6 +215,26 @@ public sealed class AssistenteImportacaoService(IAssistantFirebirdConnectionFact
         var missing = ids.Where(x => !existing.Contains(x)).ToArray();
         if (missing.Length > 0)
             throw new AssistenteImportacaoException($"Código(s) de {label} inexistente(s): {string.Join(", ", missing)}.");
+    }
+
+    private static DynamicParameters BlobParameters() => new();
+
+    /// <summary>
+    /// Firebird rejeita Size = -1 (Dapper) e Size &gt; 32767 em VARCHAR.
+    /// ESTRUTURASCRIPT/ESTRUTURAPAGFOTOS são BLOB: não definir Size.
+    /// </summary>
+    private static void AddBlob(DynamicParameters parameters, string name, string value)
+    {
+        parameters.Add(name, new FirebirdTextBlob(value ?? string.Empty));
+    }
+
+    private sealed class FirebirdTextBlob(string value) : SqlMapper.ICustomQueryParameter
+    {
+        public void AddParameter(IDbCommand command, string name)
+        {
+            var parameter = new FbParameter(name, FbDbType.Text) { Value = value };
+            command.Parameters.Add(parameter);
+        }
     }
 
     private static string SafeFileName(string title) => string.Concat(title.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));

@@ -1,8 +1,207 @@
-<template><div><DsPageHeader title="Importar modelo de laudo" subtitle="Cadastre o script e o MRD em uma única operação" icon="cloud-arrow-up"><template #actions><DsButton variant="secondary" to="/assistente">Cancelar</DsButton></template></DsPageHeader><DsPageShell><AssistenteNav /><DsAlert variant="info" class="mb-5">O script e o MRD formam um par obrigatório. Se qualquer etapa falhar, nenhum registro será gravado.</DsAlert><form class="space-y-6" @submit.prevent="submit"><DsCard><DsSectionTitle title="1. Script de laudo" /><div class="mt-4 grid gap-4 md:grid-cols-2"><DsInput v-model="form.tituloScript" label="Título do script" required /><DsSelect v-model="form.tipoScript" label="Tipo" required><option :value="1">1 — Legado</option><option :value="2">2 — DLL</option><option :value="3">3 — JSON / Laudos UX</option></DsSelect><div class="md:col-span-2"><label class="mb-1.5 block text-sm font-medium">Arquivo do script</label><input type="file" :accept="scriptAccept" required class="w-full rounded-2xl border border-gray-200 p-3" @change="pickScript"></div></div></DsCard><DsCard><DsSectionTitle title="2. Modelo MRD" /><div class="mt-4 grid gap-4 md:grid-cols-2"><DsInput v-model="form.tituloMrd" label="Título do MRD" required /><div><label class="mb-1.5 block text-sm font-medium">Arquivo .mrd</label><input type="file" accept=".mrd" required class="w-full rounded-2xl border border-gray-200 p-3" @change="pickMrd"></div></div></DsCard><DsCard><DsSectionTitle title="3. Vínculos" /><div class="mt-4 grid gap-4 md:grid-cols-2"><AssistenteMultiSelect v-model="form.especialidades" label="Especialidades (obrigatório)" :options="especialidades" /><AssistenteMultiSelect v-model="form.procedimentos" label="Procedimentos (opcional)" :options="procedimentos" /></div></DsCard><DsAlert v-if="validationError" variant="error">{{ validationError }}</DsAlert><div class="flex justify-end gap-2"><DsButton variant="secondary" to="/assistente">Cancelar</DsButton><DsButton type="submit" variant="success" :loading="saving">Importar modelo</DsButton></div></form></DsPageShell></div></template>
+<template>
+  <div>
+    <DsPageHeader title="Importar modelo de laudo" subtitle="Selecione um script de /scripts/pacotes e vincule especialidades e procedimentos" icon="cloud-arrow-up">
+      <template #actions>
+        <DsButton variant="secondary" to="/assistente">Cancelar</DsButton>
+      </template>
+    </DsPageHeader>
+    <DsPageShell>
+      <AssistenteNav />
+      <DsAlert variant="info" class="mb-5">
+        Selecione um modelo já cadastrado em Scripts/Pacotes. Laudos Flex importa a DLL em Base64; Laudos UX importa JSON (tipo 3). O MRD padrão do script será copiado automaticamente.
+      </DsAlert>
+      <form class="space-y-6" @submit.prevent="submit">
+        <DsCard>
+          <DsSectionTitle title="1. Script de origem (/scripts/pacotes)" />
+          <div class="mt-4 grid gap-4 md:grid-cols-2">
+            <DsSelect v-model="form.sistema" label="Sistema" required @update:model-value="onSistemaChange">
+              <option value="Laudos Flex">Laudos Flex</option>
+              <option value="Laudos UX">Laudos UX</option>
+            </DsSelect>
+            <DsInput
+              v-model="scriptSearch"
+              label="Filtrar por nome"
+              hint="Atualiza a lista do campo Script abaixo conforme você digita."
+              placeholder="Ex.: ecocardiograma, consulta..."
+              @update:model-value="loadScripts"
+            />
+            <DsSelect v-model="codScriptSelecionado" label="Script" required class="md:col-span-2" hint="Modelos cadastrados em /scripts/pacotes do sistema escolhido." @update:model-value="onScriptSelected">
+              <option value="0">Selecione um script</option>
+              <option v-for="script in scripts" :key="script.codScriptLaudo" :value="String(script.codScriptLaudo)">
+                {{ script.nome }} — {{ script.sistema }}{{ script.nomePacote ? ` (${script.nomePacote})` : '' }}
+              </option>
+            </DsSelect>
+            <DsInput v-model="form.tituloScript" label="Título no Assistente (opcional)" placeholder="Usa o nome do script se vazio" />
+            <DsInput v-model="form.tituloMrd" label="Título do MRD no Assistente (opcional)" placeholder="Usa o MRD padrão se vazio" />
+            <div v-if="selectedScript" class="md:col-span-2 text-sm text-gray-600">
+              Tipo detectado: <strong>{{ tipoLabel(inferredTipo) }}</strong>
+              · DLL: {{ selectedScript.temArquivoDll ? 'sim' : 'não' }}
+              · JSON: {{ selectedScript.temArquivoJson ? 'sim' : 'não' }}
+              · MRD: {{ selectedScript.temArquivoMrd ? 'sim' : 'não' }}
+            </div>
+          </div>
+        </DsCard>
+
+        <DsCard>
+          <DsSectionTitle title="2. Vínculos" />
+          <div class="mt-4 grid gap-4 md:grid-cols-2">
+            <AssistenteMultiSelect v-model="form.especialidades" label="Especialidades (obrigatório)" :options="especialidades" />
+            <AssistenteSearchMultiSelect v-model="form.procedimentos" label="Procedimentos (opcional)" />
+          </div>
+        </DsCard>
+
+        <DsAlert v-if="validationError" variant="error">{{ validationError }}</DsAlert>
+        <div class="flex justify-end gap-2">
+          <DsButton variant="secondary" to="/assistente">Cancelar</DsButton>
+          <DsButton type="submit" variant="success" :loading="saving" :disabled="!form.codScriptLaudoOrigem">Importar modelo</DsButton>
+        </div>
+      </form>
+    </DsPageShell>
+  </div>
+</template>
+
 <script setup lang="ts">
-definePageMeta({layout:'default',middleware:'admin'}); const api=useAssistenteApi(); const swal=useSwal(); const saving=ref(false); const validationError=ref(''); const especialidades=ref<any[]>([]); const procedimentos=ref<any[]>([]); const form=reactive({tituloScript:'',tipoScript:1 as 1|2|3,arquivoScript:null as File|null,tituloMrd:'',arquivoMrd:null as File|null,especialidades:[] as number[],procedimentos:[] as number[]}); const scriptAccept=computed(()=>form.tipoScript===2?'.dll':form.tipoScript===3?'.json':'*/*'); const max=20*1024*1024
-function file(event:Event){return (event.target as HTMLInputElement).files?.[0]||null} function pickScript(event:Event){form.arquivoScript=file(event)} function pickMrd(event:Event){form.arquivoMrd=file(event)}
-async function validate(){if(!form.tituloScript.trim()||!form.tituloMrd.trim()||!form.arquivoScript||!form.arquivoMrd)return'Preencha os títulos e selecione os dois arquivos.'; if(!form.especialidades.length)return'Selecione ao menos uma especialidade.'; if(form.arquivoScript.size>max||form.arquivoMrd.size>max)return'Cada arquivo deve ter no máximo 20 MB.'; if(!form.arquivoMrd.name.toLowerCase().endsWith('.mrd'))return'Selecione um arquivo MRD válido.'; if(form.tipoScript===2){const bytes=new Uint8Array(await form.arquivoScript.slice(0,2).arrayBuffer());if(bytes[0]!==0x4d||bytes[1]!==0x5a)return'A DLL não possui assinatura PE/MZ válida.'} if(form.tipoScript===3){try{JSON.parse(await form.arquivoScript.text())}catch{return'O arquivo JSON é inválido.'}} const header=await form.arquivoMrd.slice(0,128).text();if(!header.includes('Medware Designer Report 1.0'))return'O cabeçalho do MRD é inválido.';return''}
-async function submit(){validationError.value=await validate();if(validationError.value)return;saving.value=true;try{const result=await api.importModel({...form,arquivoScript:form.arquivoScript!,arquivoMrd:form.arquivoMrd!});await swal.success('Modelo importado',`Script ${result.codScriptLaudo} e MRD ${result.codPagFotos} cadastrados.`);await navigateTo('/assistente/scripts')}catch(reason){validationError.value=reason instanceof Error?reason.message:'Não foi possível importar o modelo.'}finally{saving.value=false}}
-onMounted(async()=>{try{[especialidades.value,procedimentos.value]=await Promise.all([api.options('especialidades'),api.options('procedimentos')])}catch(reason){validationError.value=reason instanceof Error?reason.message:'Não foi possível carregar os vínculos.'}})
+import type { ScriptListItem } from '~/composables/useScriptsApi'
+
+definePageMeta({ layout: 'default', middleware: 'admin' })
+
+const api = useAssistenteApi()
+const scriptsApi = useScriptsApi()
+const swal = useSwal()
+
+const saving = ref(false)
+const validationError = ref('')
+const especialidades = ref<{ id: number; nome: string }[]>([])
+const scripts = ref<ScriptListItem[]>([])
+const scriptSearch = ref('')
+
+const form = reactive({
+  codScriptLaudoOrigem: 0,
+  sistema: 'Laudos Flex' as 'Laudos Flex' | 'Laudos UX',
+  tituloScript: '',
+  tituloMrd: '',
+  especialidades: [] as number[],
+  procedimentos: [] as number[]
+})
+
+const codScriptSelecionado = computed({
+  get: () => String(form.codScriptLaudoOrigem || 0),
+  set: (value: string | number) => {
+    form.codScriptLaudoOrigem = Number(value) || 0
+  }
+})
+
+function normalizeScript(raw: Record<string, unknown>): ScriptListItem {
+  return {
+    codScriptLaudo: Number(raw.codScriptLaudo ?? raw.CodScriptLaudo ?? 0),
+    nome: String(raw.nome ?? raw.Nome ?? ''),
+    descricao: raw.descricao as string | undefined,
+    linguagem: raw.linguagem as string | undefined,
+    sistema: String(raw.sistema ?? raw.Sistema ?? ''),
+    aprovado: Number(raw.aprovado ?? 0),
+    ativo: Number(raw.ativo ?? 0),
+    temArquivoJson: Boolean(raw.temArquivoJson ?? raw.TemArquivoJson),
+    temArquivoDll: Boolean(raw.temArquivoDll ?? raw.TemArquivoDll),
+    temArquivoMrd: Boolean(raw.temArquivoMrd ?? raw.TemArquivoMrd),
+    nomePacote: raw.nomePacote as string | undefined,
+    mrdList: (raw.mrdList as ScriptListItem['mrdList']) ?? [],
+    imagensDisplay: (raw.imagensDisplay as ScriptListItem['imagensDisplay']) ?? []
+  }
+}
+
+const selectedScript = computed(() => {
+  const id = form.codScriptLaudoOrigem
+  if (!id) return null
+  return scripts.value.find(s => s.codScriptLaudo === id) ?? null
+})
+
+const inferredTipo = computed(() => {
+  if (form.sistema === 'Laudos UX') return 3
+  if (selectedScript.value?.linguagem?.toLowerCase().includes('c#')) return 2
+  return 2
+})
+
+function tipoLabel(value: number) {
+  const map: Record<number, string> = { 1: 'VB (legado)', 2: 'C#', 3: 'JSON' }
+  return map[value] ?? String(value)
+}
+
+let scriptTimer: ReturnType<typeof setTimeout> | undefined
+
+async function fetchScripts(search = scriptSearch.value.trim()) {
+  try {
+    const res = await scriptsApi.listScripts({
+      sistema: form.sistema,
+      nome: search || undefined,
+      page: 1,
+      pageSize: 100,
+      ativo: 1
+    })
+    scripts.value = (res.data || []).map(item => normalizeScript(item as Record<string, unknown>))
+  } catch (reason) {
+    validationError.value = reason instanceof Error ? reason.message : 'Não foi possível carregar os scripts.'
+  }
+}
+
+function loadScripts() {
+  clearTimeout(scriptTimer)
+  scriptTimer = setTimeout(() => fetchScripts(), 300)
+}
+
+function onSistemaChange() {
+  form.codScriptLaudoOrigem = 0
+  form.tituloScript = ''
+  form.tituloMrd = ''
+  scriptSearch.value = ''
+  fetchScripts('')
+}
+
+function onScriptSelected() {
+  const script = selectedScript.value
+  if (!script) return
+  if (!form.tituloScript) form.tituloScript = script.nome
+}
+
+async function validate() {
+  if (!form.codScriptLaudoOrigem) return 'Selecione um script de origem.'
+  if (!form.especialidades.length) return 'Selecione ao menos uma especialidade.'
+  const script = selectedScript.value
+  if (!script) return 'Script de origem inválido.'
+  if (form.sistema === 'Laudos UX' && !script.temArquivoJson) return 'O script selecionado não possui JSON.'
+  if (form.sistema === 'Laudos Flex' && !script.temArquivoDll) return 'O script selecionado não possui DLL.'
+  if (!script.temArquivoMrd) return 'O script selecionado não possui MRD padrão.'
+  return ''
+}
+
+async function submit() {
+  validationError.value = await validate()
+  if (validationError.value) return
+  saving.value = true
+  try {
+    const result = await api.importModel({
+      codScriptLaudoOrigem: form.codScriptLaudoOrigem,
+      tituloScript: form.tituloScript.trim() || undefined,
+      tituloMrd: form.tituloMrd.trim() || undefined,
+      especialidades: form.especialidades,
+      procedimentos: form.procedimentos
+    })
+    await swal.toast(`Modelo importado. Script ${result.codScriptLaudo} e MRD ${result.codPagFotos} cadastrados.`)
+    await navigateTo('/assistente/scripts')
+  } catch (reason) {
+    validationError.value = reason instanceof Error ? reason.message : 'Não foi possível importar o modelo.'
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    especialidades.value = await api.options('especialidades')
+    await fetchScripts()
+  } catch (reason) {
+    validationError.value = reason instanceof Error ? reason.message : 'Não foi possível carregar os vínculos.'
+  }
+})
+
+onUnmounted(() => clearTimeout(scriptTimer))
 </script>

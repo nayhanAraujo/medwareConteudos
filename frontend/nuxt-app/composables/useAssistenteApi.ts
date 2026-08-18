@@ -28,11 +28,13 @@ export interface AssistenteDashboard {
 }
 
 export interface ImportarModeloPayload {
-  tituloScript: string
-  tipoScript: 1 | 2 | 3
-  arquivoScript: File
-  tituloMrd: string
-  arquivoMrd: File
+  codScriptLaudoOrigem: number
+  codScriptMrdOrigem?: number
+  tituloScript?: string
+  tituloMrd?: string
+  tipoScript?: 1 | 2 | 3
+  arquivoScript?: File
+  arquivoMrd?: File
   especialidades: number[]
   procedimentos: number[]
 }
@@ -67,7 +69,7 @@ const domainFields: Record<string, Record<string, string>> = {
   referencias: { codigo: 'CODREFERENCIA', id: 'CODREFERENCIA', titulo: 'DESCRICAO', descricao: 'DESCRICAO', tipo: 'TIPO', conteudo: 'VALOR', valor: 'VALOR' },
   esquemas: { codigo: 'CODESQUEMA', id: 'CODESQUEMA', nome: 'DESCRICAO', descricao: 'DESCRICAO', conteudo: 'IMAGEM', imagem: 'IMAGEM' },
   'esquemas-fotos': { codigo: 'CODESQUEMAFOTOS', id: 'CODESQUEMAFOTOS', nome: 'TITULO', titulo: 'TITULO', conteudo: 'ESQUEMA', esquema: 'ESQUEMA' },
-  scripts: { codigo: 'CODSCRIPTLAUDO', id: 'CODSCRIPTLAUDO', titulo: 'TITULO', tipo: 'TIPOSCRIPT', tipoScript: 'TIPOSCRIPT', conteudo: 'ESTRUTURASCRIPT', estruturaScript: 'ESTRUTURASCRIPT', status: 'STATUS' },
+  scripts: { codigo: 'CODSCRIPTLAUDO', id: 'CODSCRIPTLAUDO', titulo: 'TITULO', tipo: 'TIPOSCRIPT', tipoScript: 'TIPOSCRIPT', conteudo: 'ESTRUTURASCRIPT', estruturaScript: 'ESTRUTURASCRIPT', status: 'STATUS', especialidades: 'ESPECIALIDADES', especialidade: 'ESPECIALIDADES' },
   'paginas-fotos': { codigo: 'CODPAGFOTOS', id: 'CODPAGFOTOS', titulo: 'TITULO', conteudo: 'ESTRUTURAPAGFOTOS', estruturaPagFotos: 'ESTRUTURAPAGFOTOS', status: 'STATUS' }
 }
 
@@ -153,11 +155,13 @@ export function useAssistenteApi() {
       api.put(`${root}/${domain}/${id}/vinculos/${relation}`, { ids, items }),
     importModel: async (payload: ImportarModeloPayload) => {
       const form = new FormData()
-      form.append('tituloScript', payload.tituloScript)
-      form.append('tipoScript', String(payload.tipoScript))
-      form.append('arquivoScript', payload.arquivoScript)
-      form.append('tituloMrd', payload.tituloMrd)
-      form.append('arquivoMrd', payload.arquivoMrd)
+      form.append('codScriptLaudoOrigem', String(payload.codScriptLaudoOrigem))
+      if (payload.codScriptMrdOrigem) form.append('codScriptMrdOrigem', String(payload.codScriptMrdOrigem))
+      if (payload.tituloScript) form.append('tituloScript', payload.tituloScript)
+      if (payload.tituloMrd) form.append('tituloMrd', payload.tituloMrd)
+      if (payload.tipoScript) form.append('tipoScript', String(payload.tipoScript))
+      if (payload.arquivoScript) form.append('arquivoScript', payload.arquivoScript)
+      if (payload.arquivoMrd) form.append('arquivoMrd', payload.arquivoMrd)
       payload.especialidades.forEach(id => form.append('especialidades', String(id)))
       payload.procedimentos.forEach(id => form.append('procedimentos', String(id)))
       return unwrap(await api.postForm<ApiEnvelope<ImportarModeloResult>>(`${root}/modelos/importar`, form))

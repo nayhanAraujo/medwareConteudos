@@ -4,6 +4,8 @@ namespace MdwConteudos.Api.Modules.Assistente.Importacao;
 
 public sealed class AssistenteImportacaoForm
 {
+    public int? CodScriptLaudoOrigem { get; set; }
+    public int? CodScriptMrdOrigem { get; set; }
     public string TituloScript { get; set; } = string.Empty;
     public short TipoScript { get; set; }
     public IFormFile? ArquivoScript { get; set; }

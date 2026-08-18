@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Dapper;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Assistente.Core;
 
 namespace MdwConteudos.Api.Modules.Assistente.Dominios;
 
@@ -51,6 +52,8 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         await using var c = await connections.OpenConnectionAsync(ct);
         if (domain.Equals("procedimentos", StringComparison.OrdinalIgnoreCase))
             return await ListProcedimentos(c, page, pageSize, search, ct);
+        if (domain.Equals("scripts", StringComparison.OrdinalIgnoreCase))
+            return await ListScripts(c, page, pageSize, search, ct);
         var where = string.IsNullOrWhiteSpace(search) ? "" : $"WHERE UPPER(COALESCE(CAST({d.SearchColumn} AS VARCHAR(512)), '')) LIKE @Search";
         var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", Skip = (page - 1) * pageSize, Take = pageSize };
         var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) FROM {d.Table} {where}", args, cancellationToken: ct));
@@ -77,11 +80,35 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         return new(rows, total, page, pageSize);
     }
 
+    private static async Task<PagedResult<dynamic>> ListScripts(DbConnection c, int page, int pageSize, string? search, CancellationToken ct)
+    {
+        const string from = @"FROM SCRIPTLAUDO s
+            LEFT JOIN (
+                SELECT se.CODSCRIPTLAUDO,
+                       LIST(e.DESCRICAO, ', ') AS ESPECIALIDADES
+                FROM SCRIPTLAUDO_ESPECIALIDADE se
+                JOIN ESPECIALIDADE e ON e.CODESPECIALIDADE = se.CODESPECIALIDADE
+                GROUP BY se.CODSCRIPTLAUDO
+            ) esp ON esp.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO";
+        var where = string.IsNullOrWhiteSpace(search) ? "" : @"WHERE
+            UPPER(COALESCE(CAST(s.TITULO AS VARCHAR(512)), '')) LIKE @Search OR
+            UPPER(COALESCE(CAST(esp.ESPECIALIDADES AS VARCHAR(512)), '')) LIKE @Search";
+        var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", Skip = (page - 1) * pageSize, Take = pageSize };
+        var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) {from} {where}", args, cancellationToken: ct));
+        var rows = (await c.QueryAsync(new CommandDefinition($@"SELECT s.*, esp.ESPECIALIDADES
+            {from} {where}
+            ORDER BY s.TITULO
+            ROWS @Skip + 1 TO @Skip + @Take", args, cancellationToken: ct))).ToList();
+        return new(rows, total, page, pageSize);
+    }
+
     public async Task<dynamic?> Get(string domain, int id, CancellationToken ct)
     {
         var d = Resolve(domain); await using var c = await connections.OpenConnectionAsync(ct);
         var item = await c.QuerySingleOrDefaultAsync(new CommandDefinition($"SELECT * FROM {d.Table} WHERE {d.Key}=@Id", new { Id = id }, cancellationToken: ct));
         if (item is null) return null;
+        if (domain.Equals("frases", StringComparison.OrdinalIgnoreCase) && item is IDictionary<string, object> fraseRow && fraseRow.TryGetValue("FRASE", out var fraseValue))
+            fraseRow["FRASE"] = RtfAnsiHelper.NormalizeForEditing(fraseValue?.ToString());
         return new { item, links = await ReadLinks(c, domain, id, ct) };
     }
 
@@ -128,7 +155,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
     {
         "especialidades" => await Returning(c, tx, "INSERT INTO ESPECIALIDADE (CODESPECIALIDADE,DESCRICAO) SELECT COALESCE(MAX(CODESPECIALIDADE),0)+1,@Descricao FROM ESPECIALIDADE RETURNING CODESPECIALIDADE", request, ct),
         "grupos" => await Returning(c, tx, "INSERT INTO GRUPO (GRUPO,CODGRUPOPAI,STATUS) VALUES (@Grupo,@CodGrupoPai,@Status) RETURNING CODGRUPO", request, ct),
-        "frases" => await Returning(c, tx, "INSERT INTO FRASE (CODGRUPO,CODIGO,TITULO,FRASE,STATUS) VALUES (@CodGrupo,@Codigo,@Titulo,@Frase,@Status) RETURNING CODFRASE", request, ct),
+        "frases" => await Returning(c, tx, "INSERT INTO FRASE (CODGRUPO,CODIGO,TITULO,FRASE,STATUS) VALUES (@CodGrupo,@Codigo,@Titulo,@Frase,@Status) RETURNING CODFRASE", NormalizeFraseRequest(request), ct),
         "operadoras" => await Returning(c, tx, "INSERT INTO OPERADORA (RAZAOSOCIAL,NOMEFANTASIA,UCASE_NOMEFANTASIA,REGISTROANS,CNPJ) VALUES (@RazaoSocial,@NomeFantasia,UPPER(@NomeFantasia),@RegistroAns,@Cnpj) RETURNING CODOPERADORA", request, ct),
         "grupos-operadoras" => await Returning(c, tx, "INSERT INTO GRUPOOPERADORA (DESCRICAO) VALUES (@Descricao) RETURNING CODGRUPOOPERADORA", request, ct),
         "tabela-procedimentos" => await Returning(c, tx, "INSERT INTO TABELAPROCEDIMENTO (CODTABELAPROCEDIMENTO,CODIGOTUSS,DESCRICAOTUSS) SELECT COALESCE(MAX(CODTABELAPROCEDIMENTO),0)+1,@CodigoTuss,@DescricaoTuss FROM TABELAPROCEDIMENTO RETURNING CODTABELAPROCEDIMENTO", request, ct),
@@ -159,7 +186,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
             "paginas-fotos" => "UPDATE PAGFOTOS SET TITULO=@Titulo,ESTRUTURAPAGFOTOS=@EstruturaPagFotos,STATUS=@Status WHERE CODPAGFOTOS=@Id",
             _ => throw new ArgumentException("Domínio inválido.")
         };
-        var p = new DynamicParameters(request); p.Add("Id", id); return await c.ExecuteAsync(new CommandDefinition(sql, p, tx, cancellationToken: ct)) > 0;
+        var p = new DynamicParameters(domain.Equals("frases", StringComparison.OrdinalIgnoreCase) ? NormalizeFraseRequest(request) : request); p.Add("Id", id); return await c.ExecuteAsync(new CommandDefinition(sql, p, tx, cancellationToken: ct)) > 0;
     }
 
     private static async Task SaveAggregateLinks(DbConnection c, DbTransaction tx, string domain, int id, object request, CancellationToken ct)
@@ -174,6 +201,12 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
             case ScriptRequest r: await ReplaceLinks(c, tx, ResolveLink(domain, "especialidades"), id, r.Especialidades ?? [], ct); await ReplaceLinks(c, tx, ResolveLink(domain, "esquemas"), id, r.Esquemas ?? [], ct); await ReplaceLinks(c, tx, ResolveLink(domain, "procedimentos"), id, r.Procedimentos ?? [], ct); await ReplaceSequenced(c, tx, ResolveLink(domain, "paginas-fotos"), id, r.PaginasFotos ?? [], ct); break;
             case PaginaFotosRequest r: await ReplaceLinks(c, tx, ResolveLink(domain, "especialidades"), id, r.Especialidades ?? [], ct); await ReplaceLinks(c, tx, ResolveLink(domain, "esquemas"), id, r.Esquemas ?? [], ct); await ReplaceSequenced(c, tx, ResolveLink(domain, "scripts"), id, r.Scripts ?? [], ct); break;
         }
+    }
+
+    private static FraseRequest NormalizeFraseRequest(object request)
+    {
+        if (request is not FraseRequest frase) return (FraseRequest)request;
+        return frase with { Frase = RtfAnsiHelper.NormalizeForStorage(frase.Frase) };
     }
 
     private static async Task<object> ReadLinks(DbConnection c, string domain, int id, CancellationToken ct)

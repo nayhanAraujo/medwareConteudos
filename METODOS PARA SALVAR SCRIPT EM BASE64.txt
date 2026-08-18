@@ -1,0 +1,184 @@
+================================================================================
+COMO O SISTEMA SALVA A DLL EM SCRIPTLAUDO.ESTRUTURASCRIPT (Base64)
+Referência para projeto web .NET 10 + Nuxt 4 + Vue 3
+================================================================================
+
+FLUXO
+1) Cadastro/recadastro na tela frmScriptLaudo.SalvarModeloLaudo()
+2) A DLL selecionada é lida do disco e convertida em Base64
+3) O Base64 é atribuído a mScriptLaudo.EstruturaScript
+4) SalvarComEstrutura() chama ScriptLaudo_Salvar() (SqlBd)
+5) UPDATE OR INSERT em SCRIPTLAUDO, gravando o Base64 no campo ESTRUTURASCRIPT
+   (via parâmetro @ESTRUTURASCRIPT)
+
+--------------------------------------------------------------------------------
+1) frmScriptLaudo.SalvarModeloLaudo() - trecho que grava a DLL
+--------------------------------------------------------------------------------
+// Caminho do arquivo selecionado (txtArqDll.Text), localizado em disco -> arquivoOrigem
+
+// SALVAR ESTRUTURA NO BANCO
+mScriptLaudo.EstruturaScript = clsUtil.FileInString64(arquivoOrigem.FullName);
+
+// DEFINIR TIPO DO SCRIPT (detecção pelo conteúdo)
+mScriptLaudo.TipoScript = 2; // padrão DLL
+// - Se começa com '{' e é JSON válido -> TipoScript = 3 (JSON)
+// - Se começa com bytes 0x4D 0x5A ("MZ") -> TipoScript = 2 (DLL .NET)
+// - Caso contrário -> TipoScript = 1 (Texto/HTML)
+
+// Preenche demais dados
+mScriptLaudo.Titulo = tituloScript;
+mScriptLaudo.Scriptlaudo = caminhoRelativoBanco; // ex: \SCRIPT\ARQUIVO.DLL
+mScriptLaudo.Ativo = true;
+mScriptLaudo.Usuario.Codigo = clsUtilBibliotecas.UsuarioLogado.Codigo;
+// flags (FlagLaudo, FlagTextoLaudo, etc.) conforme o tipo
+
+// SALVAR NO BANCO
+int novoCodScript = mScriptLaudo.SalvarComEstrutura();
+
+--------------------------------------------------------------------------------
+2) clsUtil.FileInString64 / String64InStream (Medware.Clinicas.Util - mdwUtil.cs)
+--------------------------------------------------------------------------------
+public static string FileInString64(string caminhoArquivo)
+{
+    string retorno = string.Empty;
+    if (!string.IsNullOrEmpty(caminhoArquivo) && ArquivoExiste(caminhoArquivo))
+        retorno = Convert.ToBase64String(File.ReadAllBytes(caminhoArquivo));
+    return retorno;
+}
+
+public static MemoryStream String64InStream(string dados)
+{
+    byte[] imageBytes = Convert.FromBase64String(dados);
+    MemoryStream ms = new MemoryStream(imageBytes, 0, imageBytes.Length);
+    ms.Write(imageBytes, 0, imageBytes.Length);
+    return ms;
+}
+
+--------------------------------------------------------------------------------
+3) clsScriptLaudo.SalvarComEstrutura (Medware.Clinicas.Entidades)
+--------------------------------------------------------------------------------
+public int SalvarComEstrutura()
+{
+    mCodscriptLaudo = mSqlBd.ScriptLaudo_Salvar(
+        mCodscriptLaudo, mLiberado, mTitulo, mScriptLaudo, mEstruturaScript,
+        mFlagLaudo, mFlagTextoLaudo, mFlagAutoGeracaoLaudo, mFlagCapturaImagem,
+        mFlagCapturaTelaLaudo, mFlagVisualizacao, mFlagAssociacao, mFlagAutoAssociacao,
+        mFlagAdicaoArquivo, mFlagMontaLaudo, mFlagCapturaVideo, mFlagEcoStress,
+        mTotFotos, mAtivo, mImpressaoAutomatica, mUsuario.Codigo, mTipoScript);
+    return mCodscriptLaudo;
+}
+
+Propriedade EstruturaScript e leitura do DataReader:
+public string EstruturaScript { get { return mEstruturaScript; } set { mEstruturaScript = value; } }
+// ao carregar: mEstruturaScript = drScriptLaudo["ESTRUTURASCRIPT"].ToString();
+
+--------------------------------------------------------------------------------
+4) clsScriptLaudo.ScriptLaudo_Salvar (Medware.Clinicas.SqlBd) - grava ESTRUTURASCRIPT
+--------------------------------------------------------------------------------
+public int ScriptLaudo_Salvar(int codScriptLaudo, int liberado, string titulo, string scriptLaudo,
+    string estruturaScript, bool flagLaudo, bool flagTextoLaudo, bool flagAutoGeracaoLaudo,
+    bool flagCapturaImagem, bool flagCapturaTelaLaudo, bool flagVisualizacao, bool flagAssociacao,
+    bool flagAutoAssociacao, bool flagAdicaoArquivo, bool flagMontaLaudo, bool flagCapturaVideo,
+    bool flagEcoStress, int totFotos, bool ativo, bool impressaoAutomatica, int codUsuario, int tipoScript)
+{
+    StringBuilder sql = new StringBuilder();
+    List<FbParameter> parametros = new List<FbParameter>();
+    MdwBdInst conexao = new MdwBdInst();
+
+    parametros.Add(new FbParameter("@ESTRUTURASCRIPT", estruturaScript));
+
+    sql.AppendLine("UPDATE OR INSERT INTO SCRIPTLAUDO(");
+    sql.AppendLine("  CODSCRIPTLAUDO,");
+    sql.AppendLine("  LIBERADO,");
+    sql.AppendLine("  TITULO,");
+    sql.AppendLine("  SCRIPTLAUDO,");
+    sql.AppendLine("  ESTRUTURASCRIPT,");
+    sql.AppendLine("  ATIVO,");
+    sql.AppendLine("  FLAGLAUDO,");
+    sql.AppendLine("  FLAGTEXTOLAUDO,");
+    sql.AppendLine("  FLAGAUTOGERACAOLAUDO,");
+    sql.AppendLine("  FLAGCAPTURAIMAGEM,");
+    sql.AppendLine("  FLAGCAPTURATELALAUDO,");
+    sql.AppendLine("  FLAGVISUALIZACAO,");
+    sql.AppendLine("  FLAGASSOCIACAO,");
+    sql.AppendLine("  FLAGAUTOASSOCIACAO,");
+    sql.AppendLine("  FLAGADICAOARQUIVO,");
+    sql.AppendLine("  FLAGMONTALAUDO,");
+    sql.AppendLine("  FLAGCAPTURAVIDEO,");
+    sql.AppendLine("  FLAGECOSTRESS,");
+    sql.AppendLine("  TOTFOTOS,");
+    sql.AppendLine("  TIPOSCRIPT,");
+    sql.AppendLine("  IMPRESSAOAUTOMATICA,");
+    sql.AppendLine("  CODUSUARIO,");
+    sql.AppendLine("  DTHRULTMODIFICACAO)");
+    sql.AppendLine("VALUES(");
+    sql.AppendFormat("{0},", codScriptLaudo.Equals(0) ? "Null" : codScriptLaudo.ToString()).AppendLine();
+    sql.AppendFormat("{0},", liberado.ToString()).AppendLine();
+    sql.AppendFormat("{0},", titulo.StringBD()).AppendLine();
+    sql.AppendFormat("{0},", scriptLaudo.StringBD()).AppendLine();
+    sql.AppendLine("@ESTRUTURASCRIPT,");
+    sql.AppendFormat("{0},", ativo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagLaudo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagTextoLaudo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagAutoGeracaoLaudo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagCapturaImagem ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagCapturaTelaLaudo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagVisualizacao ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagAssociacao ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagAutoAssociacao ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagAdicaoArquivo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagMontaLaudo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagCapturaVideo ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", flagEcoStress ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", totFotos.ToString()).AppendLine();
+    sql.AppendFormat("{0},", tipoScript.ToString()).AppendLine();
+    sql.AppendFormat("{0},", impressaoAutomatica ? "-1" : "0").AppendLine();
+    sql.AppendFormat("{0},", codUsuario.ToString()).AppendLine();
+    sql.AppendLine("  CURRENT_TIMESTAMP)").AppendLine();
+    sql.AppendLine("Returning CODSCRIPTLAUDO;");
+
+    int retorno = Convert.ToInt32(conexao.Executar(sql.ToString(), parametros, "CODSCRIPTLAUDO", FbDbType.Integer));
+    return retorno;
+}
+
+Observações:
+- Firebird usa boolean como -1 (true) / 0 (false).
+- ESTRUTURASCRIPT sempre via parâmetro (@ESTRUTURASCRIPT) por ser BLOB/texto grande.
+- TIPOSCRIPT: 1 = Texto/HTML, 2 = DLL .NET, 3 = JSON.
+
+--------------------------------------------------------------------------------
+5) Import por ZIP (frmStore.cs) - também grava EstruturaScript
+--------------------------------------------------------------------------------
+if (nome.EndsWith(".dll") || nome.Contains("_script"))
+{
+    clsScriptLaudo scriptLaudo = new clsScriptLaudo();
+    int existe = scriptLaudo.ExisteDescricao(script.Nome);
+    if (existe == 0)
+    {
+        scriptLaudo.Titulo = script.Nome;
+        scriptLaudo.Usuario.Codigo = clsUtilLaudos.UsuarioLogado.Codigo;
+        scriptLaudo.Scriptlaudo = @"\SCRIPT\" + entry.Name.ConverteCaracter().Replace(" ", "_").ToUpper() + ".dll";
+        scriptLaudo.EstruturaScript = content; // conteúdo (Base64/estrutura)
+        scriptLaudo.TipoScript = 1;
+        codScriptAux = scriptLaudo.SalvarComEstrutura();
+    }
+}
+
+================================================================================
+EQUIVALENTE MÍNIMO PARA .NET 10 (upload -> Base64 -> coluna)
+================================================================================
+// Controller / endpoint recebendo IFormFile arquivo
+using var ms = new MemoryStream();
+await arquivo.CopyToAsync(ms);
+string estruturaScript = Convert.ToBase64String(ms.ToArray());
+
+// SQL Firebird (FirebirdSql.Data.FirebirdClient)
+// UPDATE OR INSERT INTO SCRIPTLAUDO (
+//   CODSCRIPTLAUDO, TITULO, SCRIPTLAUDO, ESTRUTURASCRIPT, TIPOSCRIPT, ATIVO, CODUSUARIO, DTHRULTMODIFICACAO
+// ) VALUES (
+//   @cod, @titulo, @caminhoRelativo, @estruturaScript, 2, -1, @codUsuario, CURRENT_TIMESTAMP
+// ) RETURNING CODSCRIPTLAUDO;
+
+// Parametrizar SEMPRE @estruturaScript (BLOB/texto). Ler de volta:
+// byte[] dll = Convert.FromBase64String(reader["ESTRUTURASCRIPT"].ToString());
+================================================================================
