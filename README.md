@@ -7,8 +7,10 @@ Ficam deliberadamente no legado: `uploads/uploaddll`, automação E2E e os módu
 ## Pré-requisitos
 
 - .NET 10 SDK
-- Node.js 18+
+- Node.js 18+ (frontend Nuxt); **Node.js 22+** obrigatório para o conversor Studio (`backend/agent-bridge`)
 - Firebird (mesmo `BD/REFERENCIAS.FDB` e `.env` do projeto pai)
+
+**Deploy em servidor:** checklist completo em [docs/DEPLOY.md](docs/DEPLOY.md) (pacotes npm, variáveis de ambiente, Studio/Cursor, verificação pós-deploy).
 
 ## Subir em desenvolvimento
 
@@ -37,10 +39,12 @@ cd ..\..
 .\venv\Scripts\python.exe app.py
 ```
 
-### 4. Studio — Conversor HTML (unificado)
+### 4. Studio — Conversor imagem (HTML ou TXT modo texto)
 
 Rotas Nuxt em `/studio` (mesmo app na porta **3000**). API em `/api/conversions` na porta **5080**.  
 O card **Studio** em `/conteudos` abre `http://localhost:3000/studio` em nova aba.
+
+Após clicar em **Converter**, escolha **HTML LaudosUX** ou **TXT modo texto** (importável em LaudosUX → Script → Importar, `tipoScript = 3`).
 
 Bridge do agente Cursor (conversão real):
 
@@ -54,7 +58,22 @@ dotnet user-secrets set "Cursor:ApiKey" "crsr_sua_chave"
 
 Alternativa: variável `CURSOR_API_KEY`. Para testar sem Cursor, em `appsettings.json`: `"Conversion": { "Provider": "Mock" }`.
 
-Manual do agente: [`backend/manual_scripts_html_UX.md`](backend/manual_scripts_html_UX.md).
+### 5. Studio — Laudo por voz
+
+Rota Nuxt: `/studio/voz`. API: `/api/voice/sessions` (sessão em memória, TTL configurável).
+
+- **Do zero:** fale a descrição completa → agente Cursor gera o modelo (`camposScript`) e TXT modo texto ao parar.
+- **Com imagem:** bootstrap inicial a partir do layout; a voz edita (adicionar/remover/mover campos).
+- **STT:** Web Speech API no browser (padrão) ou upload de áudio com Whisper (`POST /api/voice/transcribe`).
+- **Provider padrão:** `Voice:Provider: Cursor` (agente via `voice.mjs`). Mock apenas para dev offline.
+
+Dev offline sem Cursor: `"Voice": { "Provider": "Mock" }` em `appsettings.json`.  
+Manual do agente: [`docs/AGENTE-LAUDO-POR-VOZ.md`](docs/AGENTE-LAUDO-POR-VOZ.md).  
+Microfone exige **HTTPS** ou **localhost**.
+
+Manual do agente HTML: [`backend/manual_scripts_html_UX.md`](backend/manual_scripts_html_UX.md).  
+Manual modo texto: [`backend/AGENTE-MODELOS-MODO-TEXTO.md`](backend/AGENTE-MODELOS-MODO-TEXTO.md).  
+Instalação completa, produção e troubleshooting: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Endpoints principais
 
@@ -62,7 +81,8 @@ Manual do agente: [`backend/manual_scripts_html_UX.md`](backend/manual_scripts_h
 |------|---------|
 | API parceiros (JWT) | `/apiconteudos/v1` |
 | API interna (sem JWT) | `/api/v1` |
-| Conversor HTML (Studio) | `/api/conversions` |
+| Conversor Studio (HTML / TXT) | `/api/conversions` |
+| Laudo por voz (Studio) | `/api/voice/sessions` |
 | Web (Nuxt + JWT usuário) | `/api/web` |
 | Swagger | `/swagger` |
 
@@ -72,12 +92,14 @@ Manual do agente: [`backend/manual_scripts_html_UX.md`](backend/manual_scripts_h
 mdw-migracao/
 ├── backend/
 │   ├── MdwConteudos.Api/          # ASP.NET Core 10 (inclui /api/conversions)
-│   ├── ConversorHtml.Application/ # Conversão imagem → HTML
+│   ├── ConversorHtml.Application/ # Conversão imagem → HTML ou TXT
 │   ├── ConversorHtml.Domain/
-│   ├── agent-bridge/              # Cursor Composer bridge
-│   └── manual_scripts_html_UX.md
+│   ├── agent-bridge/              # Cursor Composer bridge (convert.mjs, voice.mjs)
+│   └── AGENTE-LAUDO-POR-VOZ.md
 ├── frontend/nuxt-app/             # Nuxt + hub + /studio (Conversor)
 ├── docs/CUTOVER.md
+├── docs/DEPLOY.md                 # Requisitos de runtime e deploy (servidor)
+├── docs/PLANO_REFATORACAO_ESTRUTURA.md  # Plano incremental (alta prioridade)
 └── README.md
 ```
 
@@ -94,3 +116,5 @@ mdw-migracao/
 ## Próximos passos (cutover)
 
 Ver [docs/CUTOVER.md](docs/CUTOVER.md).
+
+Refatoração de estrutura (paths, git, Modules/Web): [docs/PLANO_REFATORACAO_ESTRUTURA.md](docs/PLANO_REFATORACAO_ESTRUTURA.md).

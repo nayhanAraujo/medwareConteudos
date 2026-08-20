@@ -1,11 +1,23 @@
 <script setup lang="ts">
+import type { ConversionFormat } from '~/types/conversion'
+
 const props = defineProps<{
   validation: {
     isValid: boolean
     errors: string[]
     warnings: string[]
   } | null
+  format?: ConversionFormat
 }>()
+
+const isModoTexto = computed(() => props.format === 'modoTexto')
+
+const statusLabel = computed(() => {
+  if (isModoTexto.value) {
+    return props.validation?.isValid ? 'TXT modo texto válido' : 'TXT com erros de validação'
+  }
+  return props.validation?.isValid ? 'HTML válido para LaudosUX' : 'HTML com erros de validação'
+})
 </script>
 
 <template>
@@ -17,7 +29,7 @@ const props = defineProps<{
         : 'bg-ds-danger/15 text-ds-danger'"
     >
       <i :class="validation.isValid ? 'bi bi-check-circle' : 'bi bi-x-circle'" />
-      {{ validation.isValid ? 'HTML válido para LaudosUX' : 'HTML com erros de validação' }}
+      {{ statusLabel }}
     </div>
 
     <ul v-if="validation.errors.length" class="space-y-1">

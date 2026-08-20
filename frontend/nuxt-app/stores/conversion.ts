@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import type { ConversionRecord } from '~/types/conversion'
+import type { ConversionFormat, ConversionRecord } from '~/types/conversion'
 
 export const useConversionStore = defineStore('conversion', {
   state: () => ({
@@ -18,12 +18,28 @@ export const useConversionStore = defineStore('conversion', {
       }
     },
 
-    updateHtml(id: string, html: string) {
+    updateContent(id: string, format: ConversionFormat, content: string) {
       if (this.current?.id === id) {
-        this.current.html = html
+        this.current.format = format
+        if (format === 'modoTexto') {
+          this.current.text = content
+        } else {
+          this.current.html = content
+        }
       }
       const item = this.history.find(h => h.id === id)
-      if (item) item.html = html
+      if (item) {
+        item.format = format
+        if (format === 'modoTexto') {
+          item.text = content
+        } else {
+          item.html = content
+        }
+      }
+    },
+
+    updateHtml(id: string, html: string) {
+      this.updateContent(id, 'html', html)
     },
 
     getById(id: string) {

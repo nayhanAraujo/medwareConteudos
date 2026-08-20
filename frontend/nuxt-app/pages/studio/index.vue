@@ -26,9 +26,20 @@ const onFileSelect = (file: File) => {
       icon="bi-image"
     />
     <StudioDsPageShell>
-      <div class="grid gap-6 lg:grid-cols-2">
+      <div class="grid gap-6 lg:grid-cols-3">
         <StudioDsCard title="Upload de imagem">
           <StudioImageUploadZone @select="onFileSelect" />
+        </StudioDsCard>
+
+        <StudioDsCard title="Modo voz">
+          <p class="mb-4 text-sm text-ds-text-secondary">
+            Monte ou edite modelos falando em português. Exporte em HTML ou TXT Modo Texto.
+          </p>
+          <NuxtLink to="/studio/voz">
+            <StudioDsButton icon="bi-mic">
+              Abrir modo voz
+            </StudioDsButton>
+          </NuxtLink>
         </StudioDsCard>
 
         <StudioDsCard title="Como funciona">

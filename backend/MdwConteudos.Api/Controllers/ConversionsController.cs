@@ -1,5 +1,7 @@
+using ConversorHtml.Application;
 using ConversorHtml.Application.Dtos;
 using ConversorHtml.Application.Interfaces;
+using ConversorHtml.Domain.Enums;
 using ConversorHtml.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
@@ -19,17 +21,20 @@ public class ConversionsController : ControllerBase
 
     private const long MaxFileSize = 10 * 1024 * 1024;
 
-    private readonly IImageToHtmlConverter _converter;
-    private readonly ILaudosUxHtmlValidator _validator;
+    private readonly IImageConversionConverter _converter;
+    private readonly ILaudosUxHtmlValidator _htmlValidator;
+    private readonly ILaudosUxModoTextoValidator _modoTextoValidator;
     private readonly ILogger<ConversionsController> _logger;
 
     public ConversionsController(
-        IImageToHtmlConverter converter,
-        ILaudosUxHtmlValidator validator,
+        IImageConversionConverter converter,
+        ILaudosUxHtmlValidator htmlValidator,
+        ILaudosUxModoTextoValidator modoTextoValidator,
         ILogger<ConversionsController> logger)
     {
         _converter = converter;
-        _validator = validator;
+        _htmlValidator = htmlValidator;
+        _modoTextoValidator = modoTextoValidator;
         _logger = logger;
     }
 
@@ -40,7 +45,8 @@ public class ConversionsController : ControllerBase
         {
             status = "healthy",
             timestamp = DateTime.UtcNow,
-            provider = _converter.GetType().Name
+            provider = _converter.GetType().Name,
+            formats = new[] { "html", "modoTexto" }
         });
     }
 
@@ -48,7 +54,10 @@ public class ConversionsController : ControllerBase
     [RequestSizeLimit(MaxFileSize)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxFileSize)]
     [RequestTimeout(300000)]
-    public async Task<ActionResult<ConversionResponseDto>> Convert(IFormFile? image, CancellationToken cancellationToken)
+    public async Task<ActionResult<ConversionResponseDto>> Convert(
+        IFormFile? image,
+        [FromForm] string? format,
+        CancellationToken cancellationToken)
     {
         if (image is null || image.Length == 0)
         {
@@ -65,20 +74,31 @@ public class ConversionsController : ControllerBase
             return BadRequest(new { message = $"Tipo de arquivo não suportado: {image.ContentType}" });
         }
 
+        var outputFormat = ConversionFormatParser.Parse(format);
+
         try
         {
             await using var stream = image.OpenReadStream();
-            var html = await _converter.ConvertAsync(stream, image.FileName, cancellationToken);
-            var validation = _validator.Validate(html);
+            var content = await _converter.ConvertAsync(stream, image.FileName, outputFormat, cancellationToken);
+            var validation = ValidateContent(outputFormat, content);
 
             var response = new ConversionResponseDto
             {
-                Html = html,
+                Format = outputFormat,
                 SourceFileName = image.FileName,
                 ConvertedAt = DateTime.UtcNow,
                 Provider = _converter.GetType().Name.Replace("ImageToHtmlConverter", "", StringComparison.Ordinal),
                 Validation = MapValidation(validation)
             };
+
+            if (outputFormat == ConversionOutputFormat.ModoTexto)
+            {
+                response.Text = content;
+            }
+            else
+            {
+                response.Html = content;
+            }
 
             return Ok(response);
         }
@@ -105,16 +125,22 @@ public class ConversionsController : ControllerBase
     }
 
     [HttpPost("validate")]
-    public ActionResult<ValidationResponseDto> Validate([FromBody] ValidateHtmlRequestDto request)
+    public ActionResult<ValidationResponseDto> Validate([FromBody] ValidateConversionRequestDto request)
     {
-        if (string.IsNullOrWhiteSpace(request.Html))
+        if (string.IsNullOrWhiteSpace(request.Content))
         {
-            return BadRequest(new { message = "HTML não informado." });
+            return BadRequest(new { message = "Conteúdo não informado." });
         }
 
-        var validation = _validator.Validate(request.Html);
+        var format = ConversionFormatParser.Parse(request.Format);
+        var validation = ValidateContent(format, request.Content);
         return Ok(MapValidation(validation));
     }
+
+    private ValidationResult ValidateContent(ConversionOutputFormat format, string content) =>
+        format == ConversionOutputFormat.ModoTexto
+            ? _modoTextoValidator.Validate(content)
+            : _htmlValidator.Validate(content);
 
     private static ValidationResponseDto MapValidation(ValidationResult validation) => new()
     {

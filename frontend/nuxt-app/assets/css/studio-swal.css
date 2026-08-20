@@ -1,0 +1,25 @@
+/* SweetAlert2 — modal do Studio (formato de conversão) */
+.studio-swal-popup .studio-swal-html {
+  overflow: visible !important;
+  margin: 0.25rem 0 0 !important;
+  padding: 0 0.5rem !important;
+}
+
+.studio-swal-popup .swal2-validation-message {
+  background: transparent !important;
+  color: #f87171 !important;
+  font-size: 0.875rem !important;
+}
+
+.studio-swal-popup .swal2-actions {
+  margin-top: 1rem !important;
+  gap: 0.5rem !important;
+}
+
+.studio-swal-popup .studio-format-option:hover {
+  filter: brightness(1.06);
+}
+
+.studio-swal-popup .studio-format-option:last-child {
+  margin-bottom: 0 !important;
+}

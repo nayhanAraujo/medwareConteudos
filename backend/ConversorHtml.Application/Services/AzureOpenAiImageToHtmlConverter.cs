@@ -1,5 +1,6 @@
 using ConversorHtml.Application.Configuration;
 using ConversorHtml.Application.Interfaces;
+using ConversorHtml.Domain.Enums;
 using Microsoft.Extensions.Options;
 
 namespace ConversorHtml.Application.Services;
@@ -8,7 +9,7 @@ namespace ConversorHtml.Application.Services;
 /// Stub para integração futura com Azure OpenAI Vision.
 /// Ative via Conversion:Provider = AzureOpenAI em appsettings.json.
 /// </summary>
-public class AzureOpenAiImageToHtmlConverter : IImageToHtmlConverter
+public class AzureOpenAiImageToHtmlConverter : IImageConversionConverter
 {
     private readonly AzureOpenAIOptions _options;
 
@@ -17,7 +18,11 @@ public class AzureOpenAiImageToHtmlConverter : IImageToHtmlConverter
         _options = options.Value;
     }
 
-    public Task<string> ConvertAsync(Stream imageStream, string fileName, CancellationToken cancellationToken = default)
+    public Task<string> ConvertAsync(
+        Stream imageStream,
+        string fileName,
+        ConversionOutputFormat format,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.Endpoint) || string.IsNullOrWhiteSpace(_options.ApiKey))
         {

@@ -117,6 +117,8 @@ builder.Services.AddControllers().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(
+        System.Text.Json.JsonNamingPolicy.CamelCase));
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -159,7 +161,8 @@ builder.Services.AddSwaggerGen(c =>
             SwaggerDocPaths.Parceiros => path.StartsWith("apiconteudos/v1", StringComparison.OrdinalIgnoreCase),
             SwaggerDocPaths.ApiInterna =>
                 path.StartsWith("api/v1", StringComparison.OrdinalIgnoreCase)
-                || path.StartsWith("api/conversions", StringComparison.OrdinalIgnoreCase),
+                || path.StartsWith("api/conversions", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("api/voice", StringComparison.OrdinalIgnoreCase),
             SwaggerDocPaths.Web => path.StartsWith("api/web", StringComparison.OrdinalIgnoreCase),
             _ => false
         };

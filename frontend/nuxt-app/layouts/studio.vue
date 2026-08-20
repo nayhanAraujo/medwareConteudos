@@ -17,6 +17,7 @@ onMounted(() => {
         <div class="flex items-center gap-4 text-sm">
           <NuxtLink to="/studio" class="text-ds-text-secondary hover:text-ds-primary-accent">Início</NuxtLink>
           <NuxtLink to="/studio/converter" class="text-ds-text-secondary hover:text-ds-primary-accent">Converter</NuxtLink>
+          <NuxtLink to="/studio/voz" class="text-ds-text-secondary hover:text-ds-primary-accent">Modo voz</NuxtLink>
           <NuxtLink to="/studio/editor" class="text-ds-text-secondary hover:text-ds-primary-accent">Editor</NuxtLink>
           <button
             type="button"

@@ -3,12 +3,13 @@ using System.Text;
 using System.Text.Json;
 using ConversorHtml.Application.Configuration;
 using ConversorHtml.Application.Interfaces;
+using ConversorHtml.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace ConversorHtml.Application.Services;
 
-public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
+public class CursorComposerImageToHtmlConverter : IImageConversionConverter
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -26,7 +27,11 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
         _logger = logger;
     }
 
-    public async Task<string> ConvertAsync(Stream imageStream, string fileName, CancellationToken cancellationToken = default)
+    public async Task<string> ConvertAsync(
+        Stream imageStream,
+        string fileName,
+        ConversionOutputFormat format,
+        CancellationToken cancellationToken = default)
     {
         var apiKey = _options.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -46,6 +51,14 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
             throw new FileNotFoundException(
                 $"Bridge Node não encontrado em '{bridgePath}'. Execute npm install em backend/agent-bridge.",
                 bridgePath);
+        }
+
+        var sdkPath = Path.Combine(Path.GetDirectoryName(bridgePath)!, "node_modules", "@cursor", "sdk");
+        if (!Directory.Exists(sdkPath))
+        {
+            throw new FileNotFoundException(
+                $"Pacote @cursor/sdk não encontrado em '{sdkPath}'. Execute npm install em backend/agent-bridge.",
+                sdkPath);
         }
 
         var extension = Path.GetExtension(fileName);
@@ -70,10 +83,13 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(timeout);
 
+            var formatArg = format == ConversionOutputFormat.ModoTexto ? "modoTexto" : "html";
+
             var (exitCode, stdout, stderr) = await RunNodeBridgeAsync(
                 bridgePath,
                 tempImagePath,
                 mimeType,
+                formatArg,
                 repoRoot,
                 apiKey,
                 cts.Token);
@@ -112,6 +128,22 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
                     $"Bridge Node retornou JSON inválido: {Truncate(stdout, 300)}", ex);
             }
 
+            if (format == ConversionOutputFormat.ModoTexto)
+            {
+                if (string.IsNullOrWhiteSpace(response?.Text))
+                {
+                    throw new InvalidOperationException("Resposta do agente sem TXT modo texto.");
+                }
+
+                _logger.LogInformation(
+                    "Conversão Cursor (modo texto) concluída. RunId={RunId}, Model={Model}, TextLength={Length}",
+                    response.RunId,
+                    response.Model ?? _options.Model,
+                    response.Text.Length);
+
+                return response.Text;
+            }
+
             if (string.IsNullOrWhiteSpace(response?.Html))
             {
                 throw new InvalidOperationException("Resposta do agente sem HTML.");
@@ -145,6 +177,7 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
         string bridgePath,
         string imagePath,
         string mimeType,
+        string formatArg,
         string repoRoot,
         string apiKey,
         CancellationToken cancellationToken)
@@ -152,7 +185,7 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
         var startInfo = new ProcessStartInfo
         {
             FileName = "node",
-            Arguments = $"\"{bridgePath}\" \"{imagePath}\" \"{mimeType}\"",
+            Arguments = $"\"{bridgePath}\" \"{imagePath}\" \"{mimeType}\" \"{formatArg}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -160,6 +193,7 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
             WorkingDirectory = Path.GetDirectoryName(bridgePath) ?? repoRoot
         };
 
+        startInfo.Environment["CURSOR_OUTPUT_FORMAT"] = formatArg;
         startInfo.Environment["CURSOR_API_KEY"] = apiKey;
         startInfo.Environment["CURSOR_MODEL"] = _options.Model;
         startInfo.Environment["CURSOR_USE_FAST"] = _options.UseFast ? "true" : "false";
@@ -268,7 +302,9 @@ public class CursorComposerImageToHtmlConverter : IImageToHtmlConverter
 
     private sealed class BridgeResponse
     {
+        public string? Format { get; set; }
         public string Html { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
         public string? RunId { get; set; }
         public string? Model { get; set; }
     }

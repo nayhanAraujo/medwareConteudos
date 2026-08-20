@@ -1,21 +1,44 @@
 using System.Text;
 using ConversorHtml.Application.Interfaces;
+using ConversorHtml.Domain.Enums;
 
 namespace ConversorHtml.Application.Services;
 
-public class MockImageToHtmlConverter : IImageToHtmlConverter
+public class MockImageToHtmlConverter : IImageConversionConverter
 {
-    public async Task<string> ConvertAsync(Stream imageStream, string fileName, CancellationToken cancellationToken = default)
+    public async Task<string> ConvertAsync(
+        Stream imageStream,
+        string fileName,
+        ConversionOutputFormat format,
+        CancellationToken cancellationToken = default)
     {
         await imageStream.CopyToAsync(Stream.Null, cancellationToken);
 
         var safeName = Path.GetFileNameWithoutExtension(fileName);
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
-        return BuildTemplate(safeName, timestamp);
+        return format == ConversionOutputFormat.ModoTexto
+            ? BuildModoTextoTemplate(safeName)
+            : BuildHtmlTemplate(safeName, timestamp);
     }
 
-    private static string BuildTemplate(string sourceName, string timestamp)
+    private static string BuildModoTextoTemplate(string sourceName)
+    {
+        return """
+[DADOS GERAIS]
+Altura (ALTURA): 0.0  cm (F:  a ) (M:  a )
+Peso (PESO): 0.0  kg (F:  a ) (M:  a )
+Sup. Corp (SUPCOR): 0.0  m² (F:  a ) (M:  a )  Código: if(<<VR_PESO>> > 0 && <<VR_ALTURA>> > 0) { (0.007184 * Math.pow(<<VR_PESO>>, 0.425) * Math.pow(<<VR_ALTURA>>, 0.725)).toFixed(2) } else { '' }
+IMC (IMC): 0.0  kg/m² (F:  a ) (M:  a )  Código: if(<<VR_PESO>> > 0 && <<VR_ALTURA>> > 0) { (<<VR_PESO>> / Math.pow(<<VR_ALTURA>> / 100, 2)).toFixed(1) } else { '' }
+Ritmo (RITMO) = Ritmo Sinusal, Fibrilação Atrial, Flutter Atrial [Lista]
+
+[AORTA]
+Anel (AO): 0.0  mm (M: 19 a 23.4) (F: 17.4 a 21.6)  Comentário: (F: {17,4, 21,6,  verde }),(M: {19, 23,4,  verde })
+
+""" + $"*Modelo mock gerado a partir de {sourceName}\n";
+    }
+
+    private static string BuildHtmlTemplate(string sourceName, string timestamp)
     {
         var sb = new StringBuilder();
 
