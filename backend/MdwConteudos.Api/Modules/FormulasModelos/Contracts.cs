@@ -51,7 +51,9 @@ public sealed record VariavelOpcao(
     string Nome,
     string Sigla,
     string? Formula,
-    string? Normalidade);
+    string? Normalidade,
+    string? Unidade = null,
+    string? Abreviacao = null);
 
 public sealed record EquacaoDto(
     int CodLinguagem,
@@ -80,7 +82,9 @@ public sealed record SecaoVariavelDto(
     string Nome,
     string Sigla,
     bool ExibirGrafico,
-    int Ordem);
+    int Ordem,
+    string? Unidade = null,
+    string? Normalidade = null);
 
 public sealed record SecaoDto(
     int CodSecao,

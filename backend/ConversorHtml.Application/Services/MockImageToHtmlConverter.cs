@@ -1,10 +1,11 @@
 using System.Text;
+using ConversorHtml.Application.Dtos;
 using ConversorHtml.Application.Interfaces;
 using ConversorHtml.Domain.Enums;
 
 namespace ConversorHtml.Application.Services;
 
-public class MockImageToHtmlConverter : IImageConversionConverter
+public class MockImageToHtmlConverter : IImageConversionConverter, IImageMeasureAnalyzer
 {
     public async Task<string> ConvertAsync(
         Stream imageStream,
@@ -20,6 +21,26 @@ public class MockImageToHtmlConverter : IImageConversionConverter
         return format == ConversionOutputFormat.ModoTexto
             ? BuildModoTextoTemplate(safeName)
             : BuildHtmlTemplate(safeName, timestamp);
+    }
+
+    public async Task<MeasureExtractionResultDto> AnalyzeAsync(
+        Stream imageStream,
+        string fileName,
+        CancellationToken cancellationToken = default)
+    {
+        await imageStream.CopyToAsync(Stream.Null, cancellationToken);
+
+        return new MeasureExtractionResultDto
+        {
+            SourceFileName = fileName,
+            Provider = "Mock",
+            Measures =
+            [
+                new() { Label = "Altura", VariableName = "ALTURA", Section = "DADOS GERAIS", Unit = "cm", OriginalText = "Altura" },
+                new() { Label = "Peso", VariableName = "PESO", Section = "DADOS GERAIS", Unit = "kg", OriginalText = "Peso" },
+                new() { Label = "Anel aortico", VariableName = "AO", Section = "AORTA", Unit = "mm", OriginalText = "Anel aortico" }
+            ]
+        };
     }
 
     private static string BuildModoTextoTemplate(string sourceName)

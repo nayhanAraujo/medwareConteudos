@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using ConversorHtml.Application.Configuration;
+using ConversorHtml.Application.Dtos;
 using ConversorHtml.Application.Interfaces;
 using ConversorHtml.Domain.Enums;
 using Microsoft.Extensions.Logging;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace ConversorHtml.Application.Services;
 
-public class CursorComposerImageToHtmlConverter : IImageConversionConverter
+public class CursorComposerImageToHtmlConverter : IImageConversionConverter, IImageMeasureAnalyzer
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -32,6 +33,59 @@ public class CursorComposerImageToHtmlConverter : IImageConversionConverter
         string fileName,
         ConversionOutputFormat format,
         CancellationToken cancellationToken = default)
+    {
+        var formatArg = format == ConversionOutputFormat.ModoTexto ? "modoTexto" : "html";
+        var response = await RunBridgeAsync(imageStream, fileName, formatArg, cancellationToken);
+
+        if (format == ConversionOutputFormat.ModoTexto)
+        {
+            if (string.IsNullOrWhiteSpace(response.Text))
+            {
+                throw new InvalidOperationException("Resposta do agente sem TXT modo texto.");
+            }
+
+            _logger.LogInformation(
+                "Conversão Cursor (modo texto) concluída. RunId={RunId}, Model={Model}, TextLength={Length}",
+                response.RunId,
+                response.Model ?? _options.Model,
+                response.Text.Length);
+
+            return response.Text;
+        }
+
+        if (string.IsNullOrWhiteSpace(response.Html))
+        {
+            throw new InvalidOperationException("Resposta do agente sem HTML.");
+        }
+
+        _logger.LogInformation(
+            "Conversão Cursor concluída. RunId={RunId}, Model={Model}, HtmlLength={Length}",
+            response.RunId,
+            response.Model ?? _options.Model,
+            response.Html.Length);
+
+        return response.Html;
+    }
+
+    public async Task<MeasureExtractionResultDto> AnalyzeAsync(
+        Stream imageStream,
+        string fileName,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await RunBridgeAsync(imageStream, fileName, "analysis", cancellationToken);
+        return new MeasureExtractionResultDto
+        {
+            SourceFileName = fileName,
+            Provider = "Cursor",
+            Measures = response.Measures
+        };
+    }
+
+    private async Task<BridgeResponse> RunBridgeAsync(
+        Stream imageStream,
+        string fileName,
+        string formatArg,
+        CancellationToken cancellationToken)
     {
         var apiKey = _options.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -83,8 +137,6 @@ public class CursorComposerImageToHtmlConverter : IImageConversionConverter
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(timeout);
 
-            var formatArg = format == ConversionOutputFormat.ModoTexto ? "modoTexto" : "html";
-
             var (exitCode, stdout, stderr) = await RunNodeBridgeAsync(
                 bridgePath,
                 tempImagePath,
@@ -128,34 +180,12 @@ public class CursorComposerImageToHtmlConverter : IImageConversionConverter
                     $"Bridge Node retornou JSON inválido: {Truncate(stdout, 300)}", ex);
             }
 
-            if (format == ConversionOutputFormat.ModoTexto)
+            if (response is null)
             {
-                if (string.IsNullOrWhiteSpace(response?.Text))
-                {
-                    throw new InvalidOperationException("Resposta do agente sem TXT modo texto.");
-                }
-
-                _logger.LogInformation(
-                    "Conversão Cursor (modo texto) concluída. RunId={RunId}, Model={Model}, TextLength={Length}",
-                    response.RunId,
-                    response.Model ?? _options.Model,
-                    response.Text.Length);
-
-                return response.Text;
+                throw new InvalidOperationException("Bridge Node retornou resposta vazia.");
             }
 
-            if (string.IsNullOrWhiteSpace(response?.Html))
-            {
-                throw new InvalidOperationException("Resposta do agente sem HTML.");
-            }
-
-            _logger.LogInformation(
-                "Conversão Cursor concluída. RunId={RunId}, Model={Model}, HtmlLength={Length}",
-                response.RunId,
-                response.Model ?? _options.Model,
-                response.Html.Length);
-
-            return response.Html;
+            return response;
         }
         finally
         {
@@ -305,6 +335,7 @@ public class CursorComposerImageToHtmlConverter : IImageConversionConverter
         public string? Format { get; set; }
         public string Html { get; set; } = string.Empty;
         public string Text { get; set; } = string.Empty;
+        public IReadOnlyList<ExtractedMeasureDto> Measures { get; set; } = [];
         public string? RunId { get; set; }
         public string? Model { get; set; }
     }

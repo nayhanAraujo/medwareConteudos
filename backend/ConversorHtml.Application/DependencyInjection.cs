@@ -81,18 +81,21 @@ public static class DependencyInjection
             case ConversionProvider.AzureOpenAI:
 
                 services.AddScoped<IImageConversionConverter, AzureOpenAiImageToHtmlConverter>();
+                services.AddScoped<IImageMeasureAnalyzer, MockImageToHtmlConverter>();
 
                 break;
 
             case ConversionProvider.Mock:
 
                 services.AddScoped<IImageConversionConverter, MockImageToHtmlConverter>();
+                services.AddScoped<IImageMeasureAnalyzer, MockImageToHtmlConverter>();
 
                 break;
 
             default:
 
                 services.AddScoped<IImageConversionConverter, CursorComposerImageToHtmlConverter>();
+                services.AddScoped<IImageMeasureAnalyzer, CursorComposerImageToHtmlConverter>();
 
                 break;
 

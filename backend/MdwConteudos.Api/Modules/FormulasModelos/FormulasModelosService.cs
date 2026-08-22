@@ -94,6 +94,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 V.CODVARIAVEL AS CodVariavel,
                 COALESCE(V.NOME, '') AS Nome,
                 COALESCE(V.SIGLA, '') AS Sigla,
+                U.DESCRICAO AS Unidade,
+                V.ABREVIACAO AS Abreviacao,
                 (SELECT FIRST 1 F.FORMULA
                    FROM FORMULA_VARIAVEL FV
                    JOIN FORMULAS F ON F.CODFORMULA = FV.CODFORMULA
@@ -102,6 +104,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
                    FROM NORMALIDADE N
                   WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade
             FROM VARIAVEIS V
+            LEFT JOIN UNIDADEMEDIDA U ON U.CODUNIDADEMEDIDA = V.CODUNIDADEMEDIDA
             ORDER BY V.NOME, V.SIGLA", ct: ct))).AsList();
 
         var linguagens = (await connection.QueryAsync<LinguagemOpcao>(Cmd(@"
@@ -338,9 +341,14 @@ public sealed class FormulasModelosService : IFormulasModelosService
                        COALESCE(V.NOME, '') AS Nome,
                        COALESCE(V.SIGLA, '') AS Sigla,
                        COALESCE(SV.EXIBIR_GRAFICO, 0) AS ExibirGrafico,
-                       COALESCE(SV.ORDEM, 0) AS Ordem
+                       COALESCE(SV.ORDEM, 0) AS Ordem,
+                       U.DESCRICAO AS Unidade,
+                       (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), ''), '; ')
+                          FROM NORMALIDADE N
+                         WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade
                 FROM SECAO_VARIAVEL SV
                 JOIN VARIAVEIS V ON V.CODVARIAVEL = SV.CODVARIAVEL
+                LEFT JOIN UNIDADEMEDIDA U ON U.CODUNIDADEMEDIDA = V.CODUNIDADEMEDIDA
                 WHERE SV.CODSECAO = @sectionId
                 ORDER BY SV.ORDEM, V.SIGLA", new { sectionId = section.CodSecao }, ct: ct))).AsList();
 
@@ -762,15 +770,26 @@ public sealed class FormulasModelosService : IFormulasModelosService
     private static string GenerateText(ModeloDetalhe model)
     {
         var builder = new StringBuilder();
-        builder.AppendLine(model.Nome.ToUpperInvariant());
         foreach (var section in model.Secoes.OrderBy(x => x.Ordem))
         {
-            builder.AppendLine();
             builder.AppendLine($"[{section.Nome.ToUpperInvariant()}]");
             foreach (var variable in section.Variaveis.OrderBy(x => x.Ordem))
-                builder.AppendLine($"{variable.Nome} ({variable.Sigla}): {{{{{variable.Sigla}}}}}");
+            {
+                var normality = string.IsNullOrWhiteSpace(variable.Normalidade)
+                    ? ""
+                    : " " + string.Join(" ", variable.Normalidade.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => $"({x})"));
+                builder.AppendLine($"{variable.Nome} ({NormalizeVariableToken(variable.Sigla)}): 0.0  {variable.Unidade ?? "sem unidade"}{normality}");
+            }
+            builder.AppendLine();
         }
         return builder.ToString();
+    }
+
+    private static string NormalizeVariableToken(string value)
+    {
+        var token = Regex.Replace(value ?? "", @"^VR_", "", RegexOptions.IgnoreCase);
+        token = Regex.Replace(token, @"[^A-Za-z0-9_]+", "_").Trim('_');
+        return string.IsNullOrWhiteSpace(token) ? "CAMPO" : token;
     }
 
     private static string GenerateHtml(ModeloDetalhe model)

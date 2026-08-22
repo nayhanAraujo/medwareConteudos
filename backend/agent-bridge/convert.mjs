@@ -5,7 +5,7 @@
  * Usage:
  *   node convert.mjs <imagePath> [mimeType] [format]
  *
- * format: html (default) | modoTexto
+ * format: html (default) | modoTexto | analysis
  *
  * Env:
  *   CURSOR_API_KEY (required)
@@ -39,6 +39,7 @@ function isAuthError(err) {
 
 function normalizeFormat(value) {
   const v = String(value ?? 'html').trim().toLowerCase()
+  if (v === 'analysis' || v === 'analise' || v === 'analyze') return 'analysis'
   if (v === 'modotexto' || v === 'modo-texto' || v === 'modo_texto' || v === 'txt' || v === 'text') {
     return 'modoTexto'
   }
@@ -70,6 +71,17 @@ function extractText(text) {
   }
 
   return text.trim()
+}
+
+function extractJson(text) {
+  if (!text || typeof text !== 'string') return null
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  const raw = (fenced?.[1] || text).trim()
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start < 0 || end < start) return null
+  return JSON.parse(raw.slice(start, end + 1))
 }
 
 function buildPromptHtml(fileName) {
@@ -120,6 +132,35 @@ function buildPromptModoTexto(fileName) {
   ].join('\n')
 }
 
+function buildPromptAnalysis(fileName) {
+  return [
+    'Você é um especialista em modelos de laudo médico LaudosUX.',
+    'Analise a imagem anexada e extraia somente as medidas/campos que parecem variáveis de laudo.',
+    '',
+    'Responda SOMENTE com JSON válido, sem markdown, no formato:',
+    '{',
+    '  "measures": [',
+    '    {',
+    '      "label": "Nome visível da medida",',
+    '      "variableName": "SIGLA ou identificador quando existir no layout",',
+    '      "section": "Nome da seção sugerida",',
+    '      "unit": "unidade detectada, como mm, cm, kg, m²",',
+    '      "originalText": "trecho exato observado na imagem"',
+    '    }',
+    '  ]',
+    '}',
+    '',
+    'Regras:',
+    '- Não invente medidas que não apareçam na imagem.',
+    '- Não gere HTML nem TXT modo texto.',
+    '- Se a seção não estiver clara, use "GERAL".',
+    '- Se a unidade não estiver clara, use null.',
+    '- Use português e UTF-8.',
+    '',
+    `Nome do arquivo de origem: ${fileName}`
+  ].join('\n')
+}
+
 async function main() {
   const imagePath = process.argv[2]
   const mimeType = process.argv[3] || 'image/png'
@@ -156,7 +197,11 @@ async function main() {
     ...(useFast ? { params: [{ id: 'fast', value: 'true' }] } : {})
   }
 
-  const prompt = format === 'modoTexto' ? buildPromptModoTexto(fileName) : buildPromptHtml(fileName)
+  const prompt = format === 'analysis'
+    ? buildPromptAnalysis(fileName)
+    : format === 'modoTexto'
+      ? buildPromptModoTexto(fileName)
+      : buildPromptHtml(fileName)
 
   let agent
   let skipDispose = false
@@ -180,6 +225,28 @@ async function main() {
     }
 
     const rawText = result.result ?? ''
+
+    if (format === 'analysis') {
+      const parsed = extractJson(rawText)
+      const measures = Array.isArray(parsed?.measures)
+        ? parsed.measures
+            .filter(item => item && typeof item === 'object' && String(item.label || '').trim())
+            .map(item => ({
+              label: String(item.label || '').trim(),
+              variableName: item.variableName == null ? null : String(item.variableName).trim() || null,
+              section: item.section == null ? null : String(item.section).trim() || null,
+              unit: item.unit == null ? null : String(item.unit).trim() || null,
+              originalText: item.originalText == null ? null : String(item.originalText).trim() || null
+            }))
+        : []
+      process.stdout.write(JSON.stringify({
+        format: 'analysis',
+        measures,
+        runId: result.id,
+        model: modelId
+      }))
+      return
+    }
 
     if (format === 'modoTexto') {
       const text = extractText(rawText)

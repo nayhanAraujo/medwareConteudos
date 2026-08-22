@@ -3,6 +3,7 @@ using ConversorHtml.Application.Dtos;
 using ConversorHtml.Application.Interfaces;
 using ConversorHtml.Domain.Enums;
 using ConversorHtml.Domain.Models;
+using MdwConteudos.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
@@ -22,20 +23,97 @@ public class ConversionsController : ControllerBase
     private const long MaxFileSize = 10 * 1024 * 1024;
 
     private readonly IImageConversionConverter _converter;
+    private readonly IImageMeasureAnalyzer _analyzer;
+    private readonly IConversionAnalysisService _analysisService;
     private readonly ILaudosUxHtmlValidator _htmlValidator;
     private readonly ILaudosUxModoTextoValidator _modoTextoValidator;
     private readonly ILogger<ConversionsController> _logger;
 
     public ConversionsController(
         IImageConversionConverter converter,
+        IImageMeasureAnalyzer analyzer,
+        IConversionAnalysisService analysisService,
         ILaudosUxHtmlValidator htmlValidator,
         ILaudosUxModoTextoValidator modoTextoValidator,
         ILogger<ConversionsController> logger)
     {
         _converter = converter;
+        _analyzer = analyzer;
+        _analysisService = analysisService;
         _htmlValidator = htmlValidator;
         _modoTextoValidator = modoTextoValidator;
         _logger = logger;
+    }
+
+    [HttpPost("analyze")]
+    [RequestSizeLimit(MaxFileSize)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxFileSize)]
+    [RequestTimeout(300000)]
+    public async Task<IActionResult> Analyze(
+        IFormFile? image,
+        CancellationToken cancellationToken)
+    {
+        var validation = ValidateImage(image);
+        if (validation is not null) return validation;
+
+        try
+        {
+            await using var stream = image!.OpenReadStream();
+            var extracted = await _analyzer.AnalyzeAsync(stream, image.FileName, cancellationToken);
+            return Ok(await _analysisService.MatchAsync(extracted, cancellationToken));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Autenticação Cursor falhou");
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Timeout na análise");
+            return StatusCode(StatusCodes.Status504GatewayTimeout, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Falha na análise");
+            return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("generate-modo-texto-from-analysis")]
+    public async Task<ActionResult<ConversionResponseDto>> GenerateModoTextoFromAnalysis(
+        [FromBody] GenerateModoTextoFromAnalysisRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Measures.Count == 0)
+        {
+            return BadRequest(new { message = "Nenhuma medida informada." });
+        }
+
+        if (request.Measures.Any(m => !m.CodVariavel.HasValue
+                && !string.Equals(m.Decision, "ignore", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(m.Decision, "keep", StringComparison.OrdinalIgnoreCase)))
+        {
+            return BadRequest(new { message = "Há medidas sem decisão de revisão." });
+        }
+
+        try
+        {
+            var text = await _analysisService.GenerateModoTextoAsync(request.Measures, cancellationToken);
+            var validation = _modoTextoValidator.Validate(text);
+            return Ok(new ConversionResponseDto
+            {
+                Format = ConversionOutputFormat.ModoTexto,
+                Text = text,
+                SourceFileName = request.SourceFileName ?? string.Empty,
+                ConvertedAt = DateTime.UtcNow,
+                Provider = "Analysis",
+                Validation = MapValidation(validation)
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("health")]
@@ -141,6 +219,26 @@ public class ConversionsController : ControllerBase
         format == ConversionOutputFormat.ModoTexto
             ? _modoTextoValidator.Validate(content)
             : _htmlValidator.Validate(content);
+
+    private IActionResult? ValidateImage(IFormFile? image)
+    {
+        if (image is null || image.Length == 0)
+        {
+            return BadRequest(new { message = "Nenhuma imagem enviada." });
+        }
+
+        if (image.Length > MaxFileSize)
+        {
+            return BadRequest(new { message = "Imagem excede o limite de 10MB." });
+        }
+
+        if (!AllowedContentTypes.Contains(image.ContentType, StringComparer.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = $"Tipo de arquivo não suportado: {image.ContentType}" });
+        }
+
+        return null;
+    }
 
     private static ValidationResponseDto MapValidation(ValidationResult validation) => new()
     {

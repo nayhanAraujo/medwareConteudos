@@ -102,6 +102,7 @@ builder.Services.AddScoped<IPaineisWebService, PaineisWebService>();
 builder.Services.AddScoped<IRelatoriosWebService, RelatoriosWebService>();
 builder.Services.AddScoped<IVariaveisWebService, VariaveisWebService>();
 builder.Services.AddScoped<IReferenciasService, ReferenciasService>();
+builder.Services.AddScoped<IConversionAnalysisService, ConversionAnalysisService>();
 builder.Services.AddScoped<ScriptsService>();
 builder.Services.AddCadastrosModules();
 builder.Services.AddDashboardModule();

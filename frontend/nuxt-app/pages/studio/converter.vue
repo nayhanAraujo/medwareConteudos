@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { ConversionFormat, ConversionRecord } from '~/types/conversion'
+import type { AnalyzedMeasure, ConversionFormat, ConversionRecord, ReviewedMeasure } from '~/types/conversion'
 import { looksLikeHtml, resolveConversionContent } from '~/utils/conversionFormat'
 
 definePageMeta({ layout: 'studio' })
 const store = useConversionStore()
-const { convertImage, validateContent, checkHealth } = useConversionApi()
+const { convertImage, validateContent, checkHealth, analyzeImage, generateModoTextoFromAnalysis } = useConversionApi()
 const { downloadHtml, downloadText, copyToClipboard } = useHtmlPreview()
 const { toast, alert, chooseConversionFormat } = useStudioSwal()
 
@@ -17,6 +17,13 @@ const validation = ref<ConversionRecord['validation'] | null>(null)
 const loading = ref(false)
 const elapsedMs = ref(0)
 const executeScripts = ref(false)
+const analysis = ref<AnalyzedMeasure[]>([])
+const analysisSourceFileName = ref('')
+const analyzing = ref(false)
+const generatingReviewedText = ref(false)
+const variableSearch = ref('')
+const variableOptions = ref<Array<{ codvariavel: number; nome?: string; sigla?: string; variavel?: string; unidade_medida?: string }>>([])
+const reviewState = ref<Record<string, { codVariavel: number | null; decision: 'keep' | 'ignore' | 'pending' }>>({})
 
 const hasOutput = computed(() =>
   outputFormat.value === 'modoTexto' ? generatedText.value.length > 0 : generatedHtml.value.length > 0
@@ -99,6 +106,9 @@ const resetOutput = () => {
   generatedHtml.value = ''
   generatedText.value = ''
   validation.value = null
+  analysis.value = []
+  analysisSourceFileName.value = ''
+  reviewState.value = {}
 }
 
 const onFileSelect = (file: File) => {
@@ -126,6 +136,11 @@ const handleConvert = async () => {
 
   outputFormat.value = format
   resetOutput()
+
+  if (format === 'modoTexto') {
+    await handleAnalyzeModoTexto()
+    return
+  }
 
   loading.value = true
   startProgress()
@@ -186,6 +201,121 @@ const handleConvert = async () => {
   } finally {
     stopProgress()
     loading.value = false
+  }
+}
+
+const filteredVariableOptions = computed(() => {
+  const term = variableSearch.value.trim().toLocaleLowerCase()
+  const rows = variableOptions.value
+  if (!term) return rows.slice(0, 80)
+  return rows
+    .filter(v => `${v.nome ?? ''} ${v.sigla ?? ''} ${v.variavel ?? ''}`.toLocaleLowerCase().includes(term))
+    .slice(0, 80)
+})
+
+const hasPendingReview = computed(() =>
+  analysis.value.some(m => (reviewState.value[m.id]?.decision ?? 'pending') === 'pending')
+)
+
+const loadVariableOptions = async () => {
+  if (variableOptions.value.length) return
+  const config = useRuntimeConfig()
+  const apiBase = config.public.apiBase as string
+  const res = await $fetch<{ success: boolean; data: typeof variableOptions.value }>(`${apiBase}/api/v1/variaveis`)
+  variableOptions.value = res.data || []
+}
+
+const handleAnalyzeModoTexto = async () => {
+  if (!selectedFile.value) return
+  analyzing.value = true
+  loading.value = true
+  startProgress()
+  try {
+    await loadVariableOptions()
+    const result = await analyzeImage(selectedFile.value)
+    analysisSourceFileName.value = result.sourceFileName
+    analysis.value = result.measures || []
+    reviewState.value = Object.fromEntries(analysis.value.map(m => [
+      m.id,
+      {
+        codVariavel: m.selectedCandidate?.codVariavel ?? null,
+        decision: m.selectedCandidate ? 'keep' : 'pending'
+      }
+    ]))
+
+    if (!analysis.value.length) {
+      await alert('Nenhuma medida encontrada', 'O agente não retornou medidas estruturadas para revisar.', 'warning')
+      return
+    }
+
+    toast('Análise concluída. Revise as correlações antes de gerar o TXT.', 'success')
+  } catch (e) {
+    toast(conversionErrorMessage(e, 'Erro ao analisar imagem.'), 'error')
+  } finally {
+    stopProgress()
+    loading.value = false
+    analyzing.value = false
+  }
+}
+
+const selectCandidate = (measureId: string, codVariavel: number | null) => {
+  reviewState.value[measureId] = { codVariavel, decision: codVariavel ? 'keep' : 'pending' }
+}
+
+const onCandidateChange = (measureId: string, event: Event) => {
+  const value = event.target instanceof HTMLSelectElement ? event.target.value : ''
+  selectCandidate(measureId, value ? Number(value) : null)
+}
+
+const setMeasureDecision = (measureId: string, decision: 'keep' | 'ignore') => {
+  const current = reviewState.value[measureId] ?? { codVariavel: null, decision: 'pending' }
+  reviewState.value[measureId] = { ...current, decision, codVariavel: decision === 'ignore' ? null : current.codVariavel }
+}
+
+const handleGenerateReviewedModoTexto = async () => {
+  if (hasPendingReview.value) {
+    toast('Revise todas as medidas sem correlação antes de gerar o TXT.', 'warning')
+    return
+  }
+
+  generatingReviewedText.value = true
+  try {
+    const measures: ReviewedMeasure[] = analysis.value.map(m => {
+      const state = reviewState.value[m.id] ?? { codVariavel: null, decision: 'keep' as const }
+      return {
+        id: m.id,
+        label: m.label,
+        section: m.section,
+        unit: m.unit,
+        originalText: m.originalText,
+        codVariavel: state.codVariavel,
+        decision: state.decision === 'ignore' ? 'ignore' : 'keep'
+      }
+    })
+    const result = await generateModoTextoFromAnalysis(analysisSourceFileName.value, measures)
+    const resolved = resolveConversionContent('modoTexto', result)
+    outputFormat.value = 'modoTexto'
+    generatedText.value = resolved.text
+    generatedHtml.value = ''
+    validation.value = result.validation
+
+    store.setCurrent({
+      id: crypto.randomUUID(),
+      format: 'modoTexto',
+      html: '',
+      text: generatedText.value,
+      sourceFileName: result.sourceFileName,
+      convertedAt: result.convertedAt,
+      provider: result.provider,
+      imagePreviewUrl: imagePreview.value ?? undefined,
+      validation: validation.value ?? { isValid: false, errors: [], warnings: [] }
+    })
+
+    toast(validation.value?.isValid ? 'TXT gerado com sucesso' : 'TXT gerado com avisos', validation.value?.isValid ? 'success' : 'warning')
+  } catch (e) {
+    toast(conversionErrorMessage(e, 'Erro ao gerar TXT revisado.'), 'error')
+  } finally {
+    generatingReviewedText.value = false
   }
 }
 
@@ -331,6 +461,106 @@ const handleDownload = () => {
         :percent="progressPercent"
         :format="outputFormat"
       />
+
+      <StudioDsCard v-if="analysis.length" class="mb-6" title="Revisão das correlações">
+        <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p class="text-sm text-ds-muted">
+              Confira as medidas encontradas na imagem. Itens sem correlação precisam ser associados, ignorados ou mantidos como campo novo antes de gerar o TXT.
+            </p>
+            <p class="mt-1 text-xs text-ds-muted">
+              Pendentes: {{ analysis.filter(m => (reviewState[m.id]?.decision ?? 'pending') === 'pending').length }}
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <input
+              v-model="variableSearch"
+              class="h-10 min-w-64 rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated px-3 text-sm text-ds-text outline-none focus:border-ds-primary-accent"
+              placeholder="Buscar variável no banco..."
+            >
+            <StudioDsButton
+              icon="bi-file-text"
+              :loading="generatingReviewedText"
+              :disabled="hasPendingReview || generatingReviewedText"
+              @click="handleGenerateReviewedModoTexto"
+            >
+              Gerar TXT revisado
+            </StudioDsButton>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[960px] text-left text-sm">
+            <thead class="border-b border-ds-border text-xs uppercase text-ds-muted">
+              <tr>
+                <th class="py-2 pr-3">Medida</th>
+                <th class="py-2 pr-3">Seção</th>
+                <th class="py-2 pr-3">Status</th>
+                <th class="py-2 pr-3">Variável</th>
+                <th class="py-2 pr-3">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="measure in analysis" :key="measure.id" class="border-b border-ds-border/70">
+                <td class="py-3 pr-3">
+                  <strong class="block text-ds-text">{{ measure.label }}</strong>
+                  <span class="text-xs text-ds-muted">{{ measure.originalText || measure.variableName || 'Sem trecho original' }}</span>
+                </td>
+                <td class="py-3 pr-3 text-ds-text">{{ measure.section || 'GERAL' }}</td>
+                <td class="py-3 pr-3">
+                  <span
+                    class="inline-flex rounded-full border px-2 py-1 text-xs"
+                    :class="reviewState[measure.id]?.decision === 'pending'
+                      ? 'border-ds-danger/50 text-ds-danger'
+                      : reviewState[measure.id]?.codVariavel
+                        ? 'border-ds-success/50 text-ds-success'
+                        : 'border-ds-primary-accent/50 text-ds-primary-accent'"
+                  >
+                    {{
+                      reviewState[measure.id]?.decision === 'pending'
+                        ? 'Pendente'
+                        : reviewState[measure.id]?.codVariavel
+                          ? 'Correlacionada'
+                          : reviewState[measure.id]?.decision === 'ignore'
+                            ? 'Ignorada'
+                            : 'Campo novo'
+                    }}
+                  </span>
+                </td>
+                <td class="py-3 pr-3">
+                  <select
+                    class="h-10 w-full rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated px-2 text-sm text-ds-text"
+                    :value="reviewState[measure.id]?.codVariavel ?? ''"
+                    @change="onCandidateChange(measure.id, $event)"
+                  >
+                    <option value="">Selecionar variável...</option>
+                    <optgroup v-if="measure.candidates.length" label="Sugestões">
+                      <option v-for="candidate in measure.candidates" :key="candidate.codVariavel" :value="candidate.codVariavel">
+                        {{ candidate.nome }} ({{ candidate.sigla }}) - {{ candidate.score }}%
+                      </option>
+                    </optgroup>
+                    <optgroup label="Banco de variáveis">
+                      <option v-for="variable in filteredVariableOptions" :key="variable.codvariavel" :value="variable.codvariavel">
+                        {{ variable.nome }} ({{ variable.sigla || variable.variavel }})
+                      </option>
+                    </optgroup>
+                  </select>
+                </td>
+                <td class="py-3 pr-3">
+                  <div class="flex flex-wrap gap-2">
+                    <StudioDsButton size="sm" variant="secondary" icon="bi-plus-circle" @click="setMeasureDecision(measure.id, 'keep')">
+                      Campo novo
+                    </StudioDsButton>
+                    <StudioDsButton size="sm" variant="ghost" icon="bi-x-circle" @click="setMeasureDecision(measure.id, 'ignore')">
+                      Ignorar
+                    </StudioDsButton>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </StudioDsCard>
 
       <div class="grid gap-6 lg:grid-cols-2">
         <StudioDsCard title="Imagem original">

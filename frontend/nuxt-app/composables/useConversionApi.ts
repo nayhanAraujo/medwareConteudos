@@ -1,4 +1,11 @@
-import type { ConversionFormat, ConversionHealthResponse, ConversionResponse, ValidationResponse } from '~/types/conversion'
+import type {
+  ConversionAnalysisResponse,
+  ConversionFormat,
+  ConversionHealthResponse,
+  ConversionResponse,
+  ReviewedMeasure,
+  ValidationResponse
+} from '~/types/conversion'
 
 export function useConversionApi() {
   const config = useRuntimeConfig()
@@ -22,9 +29,29 @@ export function useConversionApi() {
     })
   }
 
+  const analyzeImage = async (file: File): Promise<ConversionAnalysisResponse> => {
+    const formData = new FormData()
+    formData.append('image', file)
+
+    return await $fetch<ConversionAnalysisResponse>(`${apiBase}/api/conversions/analyze`, {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  const generateModoTextoFromAnalysis = async (
+    sourceFileName: string,
+    measures: ReviewedMeasure[]
+  ): Promise<ConversionResponse> => {
+    return await $fetch<ConversionResponse>(`${apiBase}/api/conversions/generate-modo-texto-from-analysis`, {
+      method: 'POST',
+      body: { sourceFileName, measures }
+    })
+  }
+
   const checkHealth = async (): Promise<ConversionHealthResponse> => {
     return await $fetch<ConversionHealthResponse>(`${apiBase}/api/conversions/health`)
   }
 
-  return { convertImage, validateContent, checkHealth }
+  return { convertImage, validateContent, checkHealth, analyzeImage, generateModoTextoFromAnalysis }
 }
