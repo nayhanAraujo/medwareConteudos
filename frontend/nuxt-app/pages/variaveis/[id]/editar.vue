@@ -40,6 +40,21 @@
             </DsButton>
           </div>
 
+          <div>
+            <label class="block text-sm font-medium text-ds-text mb-1.5">Nomes clínicos alternativos</label>
+            <div class="space-y-2">
+              <DsInput
+                v-for="(_, idx) in form.nomesClinicos"
+                :key="idx"
+                v-model="form.nomesClinicos[idx]"
+                placeholder="Ex: Diâmetro da aorta"
+              />
+            </div>
+            <DsButton variant="secondary" size="sm" icon="plus-circle" class="mt-2" type="button" @click="addNomeClinico">
+              Adicionar outro
+            </DsButton>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DsInput v-model="form.sigla" label="Sigla" required />
             <DsInput v-model="form.abreviacao" label="Abreviação" required />
@@ -120,11 +135,16 @@ const form = reactive({
   descricao: '',
   codUnidadeMedida: '',
   casasDecimais: '0',
-  alternativas: ['']
+  alternativas: [''],
+  nomesClinicos: ['']
 })
 
 function addAlternativa() {
   form.alternativas.push('')
+}
+
+function addNomeClinico() {
+  form.nomesClinicos.push('')
 }
 
 function buildPayload() {
@@ -136,7 +156,8 @@ function buildPayload() {
     descricao: form.descricao.trim() || undefined,
     codUnidadeMedida: Number(form.codUnidadeMedida),
     casasDecimais: Number(form.casasDecimais),
-    alternativas: form.alternativas.map((a) => a.trim()).filter(Boolean)
+    alternativas: form.alternativas.map((a) => a.trim()).filter(Boolean),
+    nomesClinicos: form.nomesClinicos.map((n) => n.trim()).filter(Boolean)
   }
 }
 
@@ -158,6 +179,7 @@ async function load() {
     form.codUnidadeMedida = v.codUnidadeMedida ? String(v.codUnidadeMedida) : ''
     form.casasDecimais = v.casasDecimais != null ? String(v.casasDecimais) : '0'
     form.alternativas = v.alternativas?.length ? [...v.alternativas] : ['']
+    form.nomesClinicos = v.nomesClinicos?.length ? [...v.nomesClinicos] : ['']
   } catch (err) {
     errorMsg.value = err instanceof Error ? err.message : 'Erro ao carregar variável.'
   } finally {

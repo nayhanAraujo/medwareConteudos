@@ -52,7 +52,7 @@ public class VariaveisWebService : IVariaveisWebService
         await using var conn = await _db.OpenConnectionAsync(ct);
         var rows = await conn.QueryAsync<GrupoVariavelDto>(@"
             SELECT CODGRUPO AS CodGrupo, NOME AS Nome
-            FROM GRUPOS_VARIAVEIS
+            FROM GRUPOSVARIAVEIS
             WHERE ATIVO = 1
             ORDER BY NOME");
         return ApiResponse.Ok(rows);
@@ -84,7 +84,7 @@ public class VariaveisWebService : IVariaveisWebService
         var countSql = $@"
             SELECT COUNT(*)
             FROM VARIAVEIS V
-            LEFT JOIN GRUPOS_VARIAVEIS G ON V.CODGRUPO = G.CODGRUPO
+            LEFT JOIN GRUPOSVARIAVEIS G ON V.CODGRUPO = G.CODGRUPO
             WHERE {whereClause}";
 
         var total = await conn.ExecuteScalarAsync<int>(countSql, parameters);
@@ -99,7 +99,7 @@ public class VariaveisWebService : IVariaveisWebService
                    V.CODGRUPO AS CodGrupo,
                    G.NOME AS NomeGrupo
             FROM VARIAVEIS V
-            LEFT JOIN GRUPOS_VARIAVEIS G ON V.CODGRUPO = G.CODGRUPO
+            LEFT JOIN GRUPOSVARIAVEIS G ON V.CODGRUPO = G.CODGRUPO
             WHERE {whereClause}
             ORDER BY COALESCE(G.NOME, ''), V.NOME";
 
@@ -111,13 +111,14 @@ public class VariaveisWebService : IVariaveisWebService
             var cod = row.CodVariavel;
 
             var formulaRow = await conn.QueryFirstOrDefaultAsync<FormulaRow>(@"
-                SELECT f.FORMULA AS Formula, f.CASADECIMAIS AS CasasDecimais
+                SELECT FIRST 1 f.FORMULA AS Formula, f.CASADECIMAIS AS CasasDecimais
                 FROM FORMULAS f
-                JOIN FORMULA_VARIAVEL fv ON f.CODFORMULA = fv.CODFORMULA
-                WHERE fv.CODVARIAVEL = @cod", new { cod });
+                LEFT JOIN FORMULA_VARIAVEL fv ON f.CODFORMULA = fv.CODFORMULA
+                WHERE f.CODVARIAVEL = @cod OR fv.CODVARIAVEL = @cod
+                ORDER BY CASE WHEN f.CODVARIAVEL = @cod THEN 0 ELSE 1 END", new { cod });
 
             var alternativas = (await conn.QueryAsync<string>(@"
-                SELECT ALTERNATIVA FROM VARIAVEIS_ALTERNATIVAS WHERE CODVARIAVEL = @cod", new { cod }))
+                SELECT ALTERNATIVA FROM VARIAVEISALTERNATIVAS WHERE CODVARIAVEL = @cod", new { cod }))
                 .Where(a => !string.IsNullOrWhiteSpace(a))
                 .ToList();
 
@@ -216,14 +217,14 @@ public class VariaveisWebService : IVariaveisWebService
                    r.ANO AS RefAno,
                    r.DESCRICAO AS RefDescricao,
                    LIST(a.NOME || ' (' || COALESCE(a.ABREVIACAO, '') || ')', ', ') AS RefAutores
-            FROM FORMULA_VARIAVEL fv
-            JOIN FORMULAS f ON fv.CODFORMULA = f.CODFORMULA
-            JOIN EQUACOES_LINGUAGEM el ON f.CODFORMULA = el.CODFORMULA
+            FROM FORMULAS f
+            LEFT JOIN FORMULA_VARIAVEL fv ON fv.CODFORMULA = f.CODFORMULA AND fv.CODVARIAVEL = @id
+            JOIN EQUACOESLINGUAGEM el ON f.CODFORMULA = el.CODFORMULA
             JOIN TIPOLINGUAGEM tl ON el.CODLINGUAGEM = tl.CODLINGUAGEM
             LEFT JOIN REFERENCIA r ON el.CODREFERENCIA = r.CODREFERENCIA
             LEFT JOIN REFERENCIA_AUTORES ra ON r.CODREFERENCIA = ra.CODREFERENCIA
             LEFT JOIN AUTORES a ON ra.CODAUTOR = a.CODAUTOR
-            WHERE fv.CODVARIAVEL = @id
+            WHERE f.CODVARIAVEL = @id OR fv.CODVARIAVEL = @id
             GROUP BY el.CODEQUACAO, el.EQUACAO, tl.NOME,
                      r.CODREFERENCIA, r.TITULO, r.ANO, r.DESCRICAO
             ORDER BY r.ANO DESC NULLS LAST", new { id });
@@ -256,7 +257,7 @@ public class VariaveisWebService : IVariaveisWebService
         var rows = await conn.QueryAsync<VariavelCodigoDicomDto>(@"
             SELECT cu.CODIGO AS Codigo, cu.DESCRICAOPTBR AS DescricaoPtBr
             FROM VARIAVEL_CODIGO_UNIVERSAL vcu
-            JOIN CODIGO_UNIVERSAL cu ON vcu.COD_UNIVERSAL = cu.COD_UNIVERSAL
+            JOIN CODIGOUNIVERSAL cu ON vcu.COD_UNIVERSAL = cu.COD_UNIVERSAL
             WHERE vcu.CODVARIAVEL = @id
             ORDER BY cu.CODIGO", new { id });
         return ApiResponse.Ok(rows);
@@ -337,9 +338,17 @@ public class VariaveisWebService : IVariaveisWebService
             var alt = alternativa?.Trim();
             if (string.IsNullOrWhiteSpace(alt)) continue;
             await conn.ExecuteAsync(@"
-                INSERT INTO VARIAVEIS_ALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
+                INSERT INTO VARIAVEISALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
                 VALUES (@codVariavel, @alt, @codUsuario, @now)",
                 new { codVariavel, alt, codUsuario, now = DateTime.Now });
+        }
+
+        foreach (var nomeClinico in DistinctNomesClinicos(req.NomesClinicos))
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO VARIAVEISNOMESCLINICOS (CODVARIAVEL, NOME, CODUSUARIO, DTHRULTMODIFICACAO)
+                VALUES (@codVariavel, @nomeClinico, @codUsuario, @now)",
+                new { codVariavel, nomeClinico, codUsuario, now = DateTime.Now });
         }
 
         return codVariavel;
@@ -364,14 +373,20 @@ public class VariaveisWebService : IVariaveisWebService
         if (row is null) return null;
 
         var alternativas = (await conn.QueryAsync<string>(@"
-            SELECT ALTERNATIVA FROM VARIAVEIS_ALTERNATIVAS WHERE CODVARIAVEL = @id ORDER BY ALTERNATIVA", new { id }))
+            SELECT ALTERNATIVA FROM VARIAVEISALTERNATIVAS WHERE CODVARIAVEL = @id ORDER BY ALTERNATIVA", new { id }))
             .Where(a => !string.IsNullOrWhiteSpace(a))
+            .ToList();
+
+        var nomesClinicos = (await conn.QueryAsync<string>(@"
+            SELECT NOME FROM VARIAVEISNOMESCLINICOS WHERE CODVARIAVEL = @id ORDER BY NOME", new { id }))
+            .Where(n => !string.IsNullOrWhiteSpace(n))
             .ToList();
 
         return ApiResponse.Ok(new {
             row.CodVariavel, row.Nome, row.Variavel, row.Sigla, row.Abreviacao,
             row.Descricao, row.CodUnidadeMedida, row.CasasDecimais, row.CodGrupo,
-            Alternativas = alternativas
+            Alternativas = alternativas,
+            NomesClinicos = nomesClinicos
         });
     }
 
@@ -443,16 +458,26 @@ public class VariaveisWebService : IVariaveisWebService
                 id
             });
 
-        await conn.ExecuteAsync("DELETE FROM VARIAVEIS_ALTERNATIVAS WHERE CODVARIAVEL = @id", new { id });
+        await conn.ExecuteAsync("DELETE FROM VARIAVEISALTERNATIVAS WHERE CODVARIAVEL = @id", new { id });
 
         foreach (var alternativa in req.Alternativas ?? Array.Empty<string>())
         {
             var alt = alternativa?.Trim();
             if (string.IsNullOrWhiteSpace(alt)) continue;
             await conn.ExecuteAsync(@"
-                INSERT INTO VARIAVEIS_ALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
+                INSERT INTO VARIAVEISALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
                 VALUES (@id, @alt, @codUsuario, @now)",
                 new { id, alt, codUsuario, now = DateTime.Now });
+        }
+
+        await conn.ExecuteAsync("DELETE FROM VARIAVEISNOMESCLINICOS WHERE CODVARIAVEL = @id", new { id });
+
+        foreach (var nomeClinico in DistinctNomesClinicos(req.NomesClinicos))
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO VARIAVEISNOMESCLINICOS (CODVARIAVEL, NOME, CODUSUARIO, DTHRULTMODIFICACAO)
+                VALUES (@id, @nomeClinico, @codUsuario, @now)",
+                new { id, nomeClinico, codUsuario, now = DateTime.Now });
         }
     }
 
@@ -462,13 +487,20 @@ public class VariaveisWebService : IVariaveisWebService
         if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL=@id", new { id }) == 0) return null;
         async Task<int> Count(string table, string column) =>
             await conn.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {table} WHERE {column}=@id", new { id });
+        var formulas = await conn.ExecuteScalarAsync<int>(@"
+            SELECT COUNT(*) FROM (
+                SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL=@id
+                UNION
+                SELECT CODFORMULA FROM FORMULAS WHERE CODVARIAVEL=@id
+            ) X", new { id });
         return new VariavelDependenciasDto(
-            await Count("FORMULA_VARIAVEL", "CODVARIAVEL"),
+            formulas,
             await Count("NORMALIDADE", "CODVARIAVEL"),
             await Count("SCRIPTLAUDO_VARIAVEL", "CODVARIAVEL"),
             await Count("SECAO_VARIAVEL", "CODVARIAVEL"),
             await Count("VARIAVEL_CODIGO_UNIVERSAL", "CODVARIAVEL"),
-            await Count("VARIAVEIS_ALTERNATIVAS", "CODVARIAVEL"),
+            await Count("VARIAVEISALTERNATIVAS", "CODVARIAVEL"),
+            await Count("VARIAVEISNOMESCLINICOS", "CODVARIAVEL"),
             await Count("VARIAVEIS_CLASSIFICACOES", "CODVARIAVEL"),
             await Count("VARIAVEL_ESPECIALIDADE", "CODVARIAVEL"),
             await Count("ANEXO_VARIAVEL_FORMULA", "CODVARIAVEL"));
@@ -484,15 +516,19 @@ public class VariaveisWebService : IVariaveisWebService
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
-            var formulas = (await conn.QueryAsync<int>("SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL=@id", new { id }, tx)).ToList();
+            var formulas = (await conn.QueryAsync<int>(@"
+                SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL=@id
+                UNION
+                SELECT CODFORMULA FROM FORMULAS WHERE CODVARIAVEL=@id", new { id }, tx)).ToList();
             var anexos = (await conn.QueryAsync<int>("SELECT COD_ANEXO FROM ANEXO_VARIAVEL_FORMULA WHERE CODVARIAVEL=@id", new { id }, tx)).ToList();
-            foreach (var table in new[] { "NORMALIDADE", "SCRIPTLAUDO_VARIAVEL", "SECAO_VARIAVEL", "VARIAVEL_CODIGO_UNIVERSAL", "VARIAVEIS_ALTERNATIVAS", "VARIAVEIS_CLASSIFICACOES", "VARIAVEL_ESPECIALIDADE", "ANEXO_VARIAVEL_FORMULA" })
+            foreach (var table in new[] { "NORMALIDADECOMENTARIO", "NORMALIDADE", "SCRIPTLAUDO_VARIAVEL", "SECAO_VARIAVEL", "VARIAVEL_CODIGO_UNIVERSAL", "VARIAVEISALTERNATIVAS", "VARIAVEISNOMESCLINICOS", "VARIAVEIS_CLASSIFICACOES", "VARIAVEL_ESPECIALIDADE", "ANEXO_VARIAVEL_FORMULA" })
                 await conn.ExecuteAsync($"DELETE FROM {table} WHERE CODVARIAVEL=@id", new { id }, tx);
             await conn.ExecuteAsync("DELETE FROM FORMULA_VARIAVEL WHERE CODVARIAVEL=@id", new { id }, tx);
+            await conn.ExecuteAsync("UPDATE FORMULAS SET CODVARIAVEL=NULL WHERE CODVARIAVEL=@id", new { id }, tx);
             foreach (var formula in formulas)
             {
                 if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM FORMULA_VARIAVEL WHERE CODFORMULA=@formula", new { formula }, tx) > 0) continue;
-                await conn.ExecuteAsync("DELETE FROM EQUACOES_LINGUAGEM WHERE CODFORMULA=@formula", new { formula }, tx);
+                await conn.ExecuteAsync("DELETE FROM EQUACOESLINGUAGEM WHERE CODFORMULA=@formula", new { formula }, tx);
                 await conn.ExecuteAsync("DELETE FROM FORMULAS WHERE CODFORMULA=@formula", new { formula }, tx);
             }
             foreach (var anexo in anexos)
@@ -510,7 +546,7 @@ public class VariaveisWebService : IVariaveisWebService
     public async Task AlterarGrupoAsync(int id, int? codGrupo, int codUsuario, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
-        if (codGrupo.HasValue && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM GRUPOS_VARIAVEIS WHERE CODGRUPO=@codGrupo", new { codGrupo }) == 0)
+        if (codGrupo.HasValue && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM GRUPOSVARIAVEIS WHERE CODGRUPO=@codGrupo", new { codGrupo }) == 0)
             throw new InvalidOperationException("Grupo não encontrado.");
         var rows = await conn.ExecuteAsync(@"UPDATE VARIAVEIS SET CODGRUPO=@codGrupo,CODUSUARIO=@codUsuario,DTHRULTMODIFICACAO=@now WHERE CODVARIAVEL=@id",
             new { id, codGrupo, codUsuario, now = DateTime.Now });
@@ -520,19 +556,19 @@ public class VariaveisWebService : IVariaveisWebService
     public async Task<object> ListClassificacoesAsync(CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
-        var groups = (await conn.QueryAsync<ClassificacaoGrupoDto>("SELECT CODGRUPO AS CodGrupo,NOME AS Nome FROM GRUPOS_CLASSIFICACOES ORDER BY NOME")).ToList();
+        var groups = (await conn.QueryAsync<ClassificacaoGrupoDto>("SELECT CODGRUPO AS CodGrupo,NOME AS Nome FROM GRUPOSCLASSIFICACOES ORDER BY NOME")).ToList();
         var classes = (await conn.QueryAsync<ClassificacaoDto>("SELECT CODCLASSIFICACAO AS CodClassificacao,CODGRUPO AS CodGrupo,NOME AS Nome FROM CLASSIFICACOES ORDER BY NOME")).ToList();
         return ApiResponse.Ok(new { grupos = groups, classificacoes = classes });
     }
 
-    public Task<int> CreateGrupoClassificacaoAsync(string nome, int codUsuario, CancellationToken ct) => CreateNamedAsync("GRUPOS_CLASSIFICACOES", "CODGRUPO", nome, null, codUsuario, ct);
-    public Task UpdateGrupoClassificacaoAsync(int id, string nome, int codUsuario, CancellationToken ct) => UpdateNamedAsync("GRUPOS_CLASSIFICACOES", "CODGRUPO", id, nome, null, codUsuario, ct);
+    public Task<int> CreateGrupoClassificacaoAsync(string nome, int codUsuario, CancellationToken ct) => CreateNamedAsync("GRUPOSCLASSIFICACOES", "CODGRUPO", nome, null, codUsuario, ct);
+    public Task UpdateGrupoClassificacaoAsync(int id, string nome, int codUsuario, CancellationToken ct) => UpdateNamedAsync("GRUPOSCLASSIFICACOES", "CODGRUPO", id, nome, null, codUsuario, ct);
     public async Task DeleteGrupoClassificacaoAsync(int id, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM CLASSIFICACOES WHERE CODGRUPO=@id", new { id }) > 0)
             throw new InvalidOperationException("Não é possível excluir o grupo porque ele possui classificações associadas.");
-        if (await conn.ExecuteAsync("DELETE FROM GRUPOS_CLASSIFICACOES WHERE CODGRUPO=@id", new { id }) == 0) throw new KeyNotFoundException("Grupo não encontrado.");
+        if (await conn.ExecuteAsync("DELETE FROM GRUPOSCLASSIFICACOES WHERE CODGRUPO=@id", new { id }) == 0) throw new KeyNotFoundException("Grupo não encontrado.");
     }
     public Task<int> CreateClassificacaoAsync(ClassificacaoRequest req, int codUsuario, CancellationToken ct) => CreateNamedAsync("CLASSIFICACOES", "CODCLASSIFICACAO", req.Nome, req.CodGrupo, codUsuario, ct);
     public Task UpdateClassificacaoAsync(int id, ClassificacaoRequest req, int codUsuario, CancellationToken ct) => UpdateNamedAsync("CLASSIFICACOES", "CODCLASSIFICACAO", id, req.Nome, req.CodGrupo, codUsuario, ct);
@@ -572,7 +608,7 @@ public class VariaveisWebService : IVariaveisWebService
         var name = Required(rawName, "Nome");
         await using var conn = await _db.OpenConnectionAsync(ct);
         if (await conn.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {table} WHERE UPPER(NOME)=UPPER(@name)", new { name }) > 0) throw new InvalidOperationException("Já existe um registro com esse nome.");
-        if (group.HasValue && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM GRUPOS_CLASSIFICACOES WHERE CODGRUPO=@group", new { group }) == 0) throw new InvalidOperationException("Grupo não encontrado.");
+        if (group.HasValue && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM GRUPOSCLASSIFICACOES WHERE CODGRUPO=@group", new { group }) == 0) throw new InvalidOperationException("Grupo não encontrado.");
         var groupColumns = group.HasValue ? ",CODGRUPO" : "";
         var groupValues = group.HasValue ? ",@group" : "";
         return await conn.ExecuteScalarAsync<int>($"INSERT INTO {table} (NOME{groupColumns},CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@name{groupValues},@user,@now) RETURNING {key}", new { name, group, user, now = DateTime.Now });
@@ -592,7 +628,7 @@ public class VariaveisWebService : IVariaveisWebService
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         var q = string.IsNullOrWhiteSpace(search) ? null : $"%{search.Trim()}%";
-        var rows = await conn.QueryAsync<CodigoUniversalComplementoDto>(@"SELECT FIRST 500 COD_UNIVERSAL AS CodUniversal,CODIGO AS Codigo,DESCRICAOPTBR AS DescricaoPtBr FROM CODIGO_UNIVERSAL WHERE @q IS NULL OR UPPER(CODIGO) LIKE UPPER(@q) OR UPPER(DESCRICAOPTBR) LIKE UPPER(@q) ORDER BY CODIGO", new { q });
+        var rows = await conn.QueryAsync<CodigoUniversalComplementoDto>(@"SELECT FIRST 500 COD_UNIVERSAL AS CodUniversal,CODIGO AS Codigo,DESCRICAOPTBR AS DescricaoPtBr FROM CODIGOUNIVERSAL WHERE @q IS NULL OR UPPER(CODIGO) LIKE UPPER(@q) OR UPPER(DESCRICAOPTBR) LIKE UPPER(@q) ORDER BY CODIGO", new { q });
         return ApiResponse.Ok(rows);
     }
 
@@ -603,7 +639,7 @@ public class VariaveisWebService : IVariaveisWebService
         {
             if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL=@id", new { id }, tx) == 0) throw new KeyNotFoundException("Variável não encontrada.");
             var ids = codigos.Distinct().ToList();
-            if (ids.Count > 0 && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM CODIGO_UNIVERSAL WHERE COD_UNIVERSAL IN @ids", new { ids }, tx) != ids.Count) throw new InvalidOperationException("Um ou mais códigos universais são inválidos.");
+            if (ids.Count > 0 && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM CODIGOUNIVERSAL WHERE COD_UNIVERSAL IN @ids", new { ids }, tx) != ids.Count) throw new InvalidOperationException("Um ou mais códigos universais são inválidos.");
             await conn.ExecuteAsync("DELETE FROM VARIAVEL_CODIGO_UNIVERSAL WHERE CODVARIAVEL=@id", new { id }, tx);
             foreach (var code in ids) await conn.ExecuteAsync("INSERT INTO VARIAVEL_CODIGO_UNIVERSAL (CODVARIAVEL,COD_UNIVERSAL,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@id,@code,@codUsuario,@now)", new { id, code, codUsuario, now = DateTime.Now }, tx);
             await tx.CommitAsync(ct);
@@ -637,7 +673,7 @@ public class VariaveisWebService : IVariaveisWebService
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         var anexos = await conn.QueryAsync<AnexoComplementoDto>(@"SELECT a.CODANEXO AS CodAnexo,a.NOME AS Nome,a.DESCRICAO AS Descricao,a.TIPO_ANEXO AS TipoAnexo,a.LINK AS Link,a.CAMINHO AS Caminho,avf.CODFORMULA AS CodFormula,avf.COD_REFERENCIA AS CodReferencia FROM ANEXO_VARIAVEL_FORMULA avf JOIN ANEXOS a ON a.CODANEXO=avf.COD_ANEXO WHERE avf.CODVARIAVEL=@id ORDER BY a.CODANEXO DESC", new { id });
-        var formulas = await conn.QueryAsync<FormulaOpcaoDto>(@"SELECT f.CODFORMULA AS CodFormula,f.FORMULA AS Formula FROM FORMULA_VARIAVEL fv JOIN FORMULAS f ON f.CODFORMULA=fv.CODFORMULA WHERE fv.CODVARIAVEL=@id", new { id });
+        var formulas = await conn.QueryAsync<FormulaOpcaoDto>(@"SELECT f.CODFORMULA AS CodFormula,f.FORMULA AS Formula FROM FORMULAS f LEFT JOIN FORMULA_VARIAVEL fv ON f.CODFORMULA=fv.CODFORMULA AND fv.CODVARIAVEL=@id WHERE f.CODVARIAVEL=@id OR fv.CODVARIAVEL=@id", new { id });
         var referencias = await conn.QueryAsync<ReferenciaOpcaoDto>("SELECT CODREFERENCIA AS CodReferencia,TITULO AS Titulo,ANO AS Ano FROM REFERENCIA ORDER BY ANO DESC,TITULO");
         return ApiResponse.Ok(new { anexos, formulas, referencias });
     }
@@ -650,14 +686,14 @@ public class VariaveisWebService : IVariaveisWebService
         catch { await tx.RollbackAsync(ct); throw; }
     }
     public async Task DeleteAnexoAsync(int id, int codAnexo, CancellationToken ct) { await using var conn = await _db.OpenConnectionAsync(ct); await using var tx = await conn.BeginTransactionAsync(ct); try { await conn.ExecuteAsync("DELETE FROM ANEXO_VARIAVEL_FORMULA WHERE CODVARIAVEL=@id AND COD_ANEXO=@codAnexo", new { id, codAnexo }, tx); if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ANEXO_VARIAVEL_FORMULA WHERE COD_ANEXO=@codAnexo", new { codAnexo }, tx) == 0) await conn.ExecuteAsync("DELETE FROM ANEXOS WHERE CODANEXO=@codAnexo", new { codAnexo }, tx); await tx.CommitAsync(ct); } catch { await tx.RollbackAsync(ct); throw; } }
-    public async Task<object> GetEstudosAsync(int id, CancellationToken ct) { await using var conn = await _db.OpenConnectionAsync(ct); var rows = await conn.QueryAsync<EstudoVariavelDto>(@"SELECT f.CODFORMULA AS CodFormula,f.FORMULA AS Formula,r.TITULO AS TituloReferencia,r.ANO AS AnoReferencia,a2.CODANEXO AS CodAnexo,a2.TIPO_ANEXO AS TipoAnexo,COALESCE(a2.LINK,a2.CAMINHO) AS Caminho,a2.DESCRICAO AS Descricao FROM FORMULA_VARIAVEL fv JOIN FORMULAS f ON f.CODFORMULA=fv.CODFORMULA LEFT JOIN EQUACOES_LINGUAGEM el ON el.CODFORMULA=f.CODFORMULA LEFT JOIN REFERENCIA r ON r.CODREFERENCIA=el.CODREFERENCIA LEFT JOIN ANEXO_VARIAVEL_FORMULA avf ON avf.CODVARIAVEL=fv.CODVARIAVEL AND avf.CODFORMULA=f.CODFORMULA LEFT JOIN ANEXOS a2 ON a2.CODANEXO=avf.COD_ANEXO WHERE fv.CODVARIAVEL=@id", new { id }); return ApiResponse.Ok(rows); }
+    public async Task<object> GetEstudosAsync(int id, CancellationToken ct) { await using var conn = await _db.OpenConnectionAsync(ct); var rows = await conn.QueryAsync<EstudoVariavelDto>(@"SELECT f.CODFORMULA AS CodFormula,f.FORMULA AS Formula,r.TITULO AS TituloReferencia,r.ANO AS AnoReferencia,a2.CODANEXO AS CodAnexo,a2.TIPO_ANEXO AS TipoAnexo,COALESCE(a2.LINK,a2.CAMINHO) AS Caminho,a2.DESCRICAO AS Descricao FROM FORMULAS f LEFT JOIN FORMULA_VARIAVEL fv ON fv.CODFORMULA=f.CODFORMULA AND fv.CODVARIAVEL=@id LEFT JOIN EQUACOESLINGUAGEM el ON el.CODFORMULA=f.CODFORMULA LEFT JOIN REFERENCIA r ON r.CODREFERENCIA=el.CODREFERENCIA LEFT JOIN ANEXO_VARIAVEL_FORMULA avf ON avf.CODVARIAVEL=@id AND avf.CODFORMULA=f.CODFORMULA LEFT JOIN ANEXOS a2 ON a2.CODANEXO=avf.COD_ANEXO WHERE f.CODVARIAVEL=@id OR fv.CODVARIAVEL=@id", new { id }); return ApiResponse.Ok(rows); }
 
-    public async Task<object> ListModelosModoTextoAsync(string? search, int codUsuario, CancellationToken ct) { await using var conn = await _db.OpenConnectionAsync(ct); var q = string.IsNullOrWhiteSpace(search) ? null : $"%{search.Trim()}%"; var rows = await conn.QueryAsync<ModeloModoTextoDto>(@"SELECT CODMODELO AS CodModelo,NOME AS Nome,(SELECT COUNT(*) FROM SECAO_MODO_TEXTO s WHERE s.CODMODELO=m.CODMODELO) AS TotalSecoes FROM MODELO_MODO_TEXTO m WHERE CODUSUARIO=@codUsuario AND (@q IS NULL OR UPPER(NOME) LIKE UPPER(@q)) ORDER BY NOME", new { codUsuario, q }); return ApiResponse.Ok(rows); }
+    public async Task<object> ListModelosModoTextoAsync(string? search, int codUsuario, CancellationToken ct) { await using var conn = await _db.OpenConnectionAsync(ct); var q = string.IsNullOrWhiteSpace(search) ? null : $"%{search.Trim()}%"; var rows = await conn.QueryAsync<ModeloModoTextoDto>(@"SELECT CODMODELO AS CodModelo,NOME AS Nome,(SELECT COUNT(*) FROM SECAOMODOTEXTO s WHERE s.CODMODELO=m.CODMODELO) AS TotalSecoes FROM MODELOMODOTEXTO m WHERE CODUSUARIO=@codUsuario AND (@q IS NULL OR UPPER(NOME) LIKE UPPER(@q)) ORDER BY NOME", new { codUsuario, q }); return ApiResponse.Ok(rows); }
     public async Task<(string Nome, string Conteudo)?> GerarModoTextoAsync(int id, int codUsuario, CancellationToken ct)
     {
-        await using var conn = await _db.OpenConnectionAsync(ct); var name = await conn.QueryFirstOrDefaultAsync<string>("SELECT NOME FROM MODELO_MODO_TEXTO WHERE CODMODELO=@id AND CODUSUARIO=@codUsuario", new { id, codUsuario }); if (name is null) return null;
-        var sections = await conn.QueryAsync<SecaoModoTextoDto>("SELECT CODSECAO AS CodSecao,NOME AS Nome FROM SECAO_MODO_TEXTO WHERE CODMODELO=@id ORDER BY ORDEM,NOME", new { id }); var lines = new List<string>();
-        foreach (var section in sections) { lines.Add($"[{section.Nome}]"); var vars = await conn.QueryAsync<VariavelModoTextoDto>(@"SELECT v.CODVARIAVEL AS CodVariavel,v.SIGLA AS Sigla,u.DESCRICAO AS Unidade,(SELECT FIRST 1 f.FORMULA FROM FORMULA_VARIAVEL fv JOIN FORMULAS f ON f.CODFORMULA=fv.CODFORMULA WHERE fv.CODVARIAVEL=v.CODVARIAVEL) AS Formula FROM SECAO_VARIAVEL sv JOIN VARIAVEIS v ON v.CODVARIAVEL=sv.CODVARIAVEL LEFT JOIN UNIDADEMEDIDA u ON u.CODUNIDADEMEDIDA=v.CODUNIDADEMEDIDA WHERE sv.CODSECAO=@sectionId ORDER BY v.SIGLA", new { sectionId = section.CodSecao }); foreach (var variable in vars) { var norms = await conn.QueryAsync<NormalidadeModoTextoDto>("SELECT SEXO AS Sexo,VALORMIN AS ValorMin,VALORMAX AS ValorMax FROM NORMALIDADE WHERE CODVARIAVEL=@id", new { id = variable.CodVariavel }); var ranges = string.Concat(norms.Select(n => $" ({n.Sexo}: {n.ValorMin} a {n.ValorMax})")); var formula = variable.Formula is null ? "" : $" Código: {variable.Formula}"; lines.Add($"{variable.Sigla}: 0.0 {variable.Unidade ?? "sem unidade"}{ranges}{formula}"); } lines.Add(""); }
+        await using var conn = await _db.OpenConnectionAsync(ct); var name = await conn.QueryFirstOrDefaultAsync<string>("SELECT NOME FROM MODELOMODOTEXTO WHERE CODMODELO=@id AND CODUSUARIO=@codUsuario", new { id, codUsuario }); if (name is null) return null;
+        var sections = await conn.QueryAsync<SecaoModoTextoDto>("SELECT CODSECAO AS CodSecao,NOME AS Nome FROM SECAOMODOTEXTO WHERE CODMODELO=@id ORDER BY ORDEM,NOME", new { id }); var lines = new List<string>();
+        foreach (var section in sections) { lines.Add($"[{section.Nome}]"); var vars = await conn.QueryAsync<VariavelModoTextoDto>(@"SELECT v.CODVARIAVEL AS CodVariavel,v.SIGLA AS Sigla,u.DESCRICAO AS Unidade,(SELECT FIRST 1 f.FORMULA FROM FORMULAS f LEFT JOIN FORMULA_VARIAVEL fv ON f.CODFORMULA=fv.CODFORMULA WHERE f.CODVARIAVEL=v.CODVARIAVEL OR fv.CODVARIAVEL=v.CODVARIAVEL ORDER BY CASE WHEN f.CODVARIAVEL=v.CODVARIAVEL THEN 0 ELSE 1 END) AS Formula FROM SECAO_VARIAVEL sv JOIN VARIAVEIS v ON v.CODVARIAVEL=sv.CODVARIAVEL LEFT JOIN UNIDADEMEDIDA u ON u.CODUNIDADEMEDIDA=v.CODUNIDADEMEDIDA WHERE sv.CODSECAO=@sectionId ORDER BY v.SIGLA", new { sectionId = section.CodSecao }); foreach (var variable in vars) { var norms = await conn.QueryAsync<NormalidadeModoTextoDto>("SELECT SEXO AS Sexo,VALORMIN AS ValorMin,VALORMAX AS ValorMax FROM NORMALIDADE WHERE CODVARIAVEL=@id", new { id = variable.CodVariavel }); var ranges = string.Concat(norms.Select(n => $" ({n.Sexo}: {n.ValorMin} a {n.ValorMax})")); var formula = variable.Formula is null ? "" : $" Código: {variable.Formula}"; lines.Add($"{variable.Sigla}: 0.0 {variable.Unidade ?? "sem unidade"}{ranges}{formula}"); } lines.Add(""); }
         return (name, string.Join(Environment.NewLine, lines));
     }
 
@@ -669,11 +705,18 @@ public class VariaveisWebService : IVariaveisWebService
     {
         var selected = req.VariaveisSelecionadas.ToHashSet(StringComparer.OrdinalIgnoreCase); if (selected.Count == 0) throw new InvalidOperationException("Selecione ao menos uma variável.");
         await using var conn = await _db.OpenConnectionAsync(ct); await using var tx = await conn.BeginTransactionAsync(ct); var inserted = 0; var ignored = 0;
-        try { foreach (var item in req.Variaveis.Where(v => selected.Contains(v.Codigo))) { if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE UPPER(VARIAVEL)=UPPER(@Codigo)", item, tx) > 0) { ignored++; continue; } var unit = await conn.QueryFirstOrDefaultAsync<int?>("SELECT CODUNIDADEMEDIDA FROM UNIDADEMEDIDA WHERE UPPER(DESCRICAO)=UPPER(@Unidade)", item, tx); if (!unit.HasValue) unit = await conn.ExecuteScalarAsync<int>("INSERT INTO UNIDADEMEDIDA (DESCRICAO,STATUS,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@Unidade,-1,@codUsuario,@now) RETURNING CODUNIDADEMEDIDA", new { item.Unidade, codUsuario, now = DateTime.Now }, tx); var varId = await conn.ExecuteScalarAsync<int>("INSERT INTO VARIAVEIS (NOME,VARIAVEL,SIGLA,ABREVIACAO,DESCRICAO,CODUNIDADEMEDIDA,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@Nome,@Codigo,@Sigla,@Abreviacao,'',@unit,@codUsuario,@now) RETURNING CODVARIAVEL", new { item.Nome, item.Codigo, item.Sigla, item.Abreviacao, unit, codUsuario, now = DateTime.Now }, tx); foreach (var norm in req.Normalidades.Where(n => n.Variavel.Equals(item.Codigo, StringComparison.OrdinalIgnoreCase))) { var refId = await conn.QueryFirstOrDefaultAsync<int?>("SELECT CODREFERENCIA FROM REFERENCIA WHERE UPPER(TITULO)=UPPER(@Referencia) AND ANO='Unknown'", norm, tx); if (!refId.HasValue) refId = await conn.ExecuteScalarAsync<int>("INSERT INTO REFERENCIA (TITULO,ANO,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@Referencia,'Unknown',@codUsuario,@now) RETURNING CODREFERENCIA", new { norm.Referencia, codUsuario, now = DateTime.Now }, tx); await conn.ExecuteAsync("INSERT INTO NORMALIDADE (CODVARIAVEL,CODREFERENCIA,VALORMIN,VALORMAX,SEXO,IDADE_MIN,IDADE_MAX,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@varId,@refId,@ValorMin,@ValorMax,@Sexo,@IdadeMin,@IdadeMax,@codUsuario,@now)", new { varId, refId, norm.ValorMin, norm.ValorMax, norm.Sexo, norm.IdadeMin, norm.IdadeMax, codUsuario, now = DateTime.Now }, tx); } foreach (var formula in req.Formulas.Where(f => f.Variavel.Equals(item.Codigo, StringComparison.OrdinalIgnoreCase))) { var formId = await conn.ExecuteScalarAsync<int>("INSERT INTO FORMULAS (NOME,DESCRICAO,FORMULA,CASADECIMAIS,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@Sigla,@description,@Expressao,@CasasDecimais,@codUsuario,@now) RETURNING CODFORMULA", new { item.Sigla, description = $"Fórmula para {item.Sigla}", formula.Expressao, formula.CasasDecimais, codUsuario, now = DateTime.Now }, tx); await conn.ExecuteAsync("INSERT INTO FORMULA_VARIAVEL (CODFORMULA,CODVARIAVEL,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@formId,@varId,@codUsuario,@now)", new { formId, varId, codUsuario, now = DateTime.Now }, tx); } inserted++; } await tx.CommitAsync(ct); return ApiResponse.Ok(new { inseridas = inserted, ignoradas = ignored }); }
+        try { foreach (var item in req.Variaveis.Where(v => selected.Contains(v.Codigo))) { if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE UPPER(VARIAVEL)=UPPER(@Codigo)", item, tx) > 0) { ignored++; continue; } var unit = await conn.QueryFirstOrDefaultAsync<int?>("SELECT CODUNIDADEMEDIDA FROM UNIDADEMEDIDA WHERE UPPER(DESCRICAO)=UPPER(@Unidade)", item, tx); if (!unit.HasValue) unit = await conn.ExecuteScalarAsync<int>("INSERT INTO UNIDADEMEDIDA (DESCRICAO,STATUS,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@Unidade,-1,@codUsuario,@now) RETURNING CODUNIDADEMEDIDA", new { item.Unidade, codUsuario, now = DateTime.Now }, tx); var varId = await conn.ExecuteScalarAsync<int>("INSERT INTO VARIAVEIS (NOME,VARIAVEL,SIGLA,ABREVIACAO,DESCRICAO,CODUNIDADEMEDIDA,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@Nome,@Codigo,@Sigla,@Abreviacao,'',@unit,@codUsuario,@now) RETURNING CODVARIAVEL", new { item.Nome, item.Codigo, item.Sigla, item.Abreviacao, unit, codUsuario, now = DateTime.Now }, tx); foreach (var norm in req.Normalidades.Where(n => n.Variavel.Equals(item.Codigo, StringComparison.OrdinalIgnoreCase))) { var refId = await conn.QueryFirstOrDefaultAsync<int?>("SELECT CODREFERENCIA FROM REFERENCIA WHERE UPPER(TITULO)=UPPER(@Referencia) AND ANO='Unknown'", norm, tx); if (!refId.HasValue) refId = await conn.ExecuteScalarAsync<int>("INSERT INTO REFERENCIA (TITULO,ANO,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@Referencia,'Unknown',@codUsuario,@now) RETURNING CODREFERENCIA", new { norm.Referencia, codUsuario, now = DateTime.Now }, tx); await conn.ExecuteAsync("INSERT INTO NORMALIDADE (CODVARIAVEL,CODREFERENCIA,VALORMIN,VALORMAX,SEXO,IDADE_MIN,IDADE_MAX,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@varId,@refId,@ValorMin,@ValorMax,@Sexo,@IdadeMin,@IdadeMax,@codUsuario,@now)", new { varId, refId, norm.ValorMin, norm.ValorMax, norm.Sexo, norm.IdadeMin, norm.IdadeMax, codUsuario, now = DateTime.Now }, tx); } foreach (var formula in req.Formulas.Where(f => f.Variavel.Equals(item.Codigo, StringComparison.OrdinalIgnoreCase))) { var formId = await conn.ExecuteScalarAsync<int>("INSERT INTO FORMULAS (NOME,DESCRICAO,FORMULA,CASADECIMAIS,CODUSUARIO,DTHRULTMODIFICACAO,CODVARIAVEL) VALUES (@Sigla,@description,@Expressao,@CasasDecimais,@codUsuario,@now,@varId) RETURNING CODFORMULA", new { item.Sigla, description = $"Fórmula para {item.Sigla}", formula.Expressao, formula.CasasDecimais, varId, codUsuario, now = DateTime.Now }, tx); await conn.ExecuteAsync("INSERT INTO FORMULA_VARIAVEL (CODFORMULA,CODVARIAVEL,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@formId,@varId,@codUsuario,@now)", new { formId, varId, codUsuario, now = DateTime.Now }, tx); } inserted++; } await tx.CommitAsync(ct); return ApiResponse.Ok(new { inseridas = inserted, ignoradas = ignored }); }
         catch { await tx.RollbackAsync(ct); throw; }
     }
 
     private static string Required(string? value, string field) => !string.IsNullOrWhiteSpace(value) ? value.Trim() : throw new InvalidOperationException($"{field} é obrigatório.");
+
+    private static IEnumerable<string> DistinctNomesClinicos(IReadOnlyList<string>? nomes) =>
+        (nomes ?? Array.Empty<string>())
+            .Select(n => n?.Trim())
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase);
 
     private sealed class VariavelEdicaoRow
     {

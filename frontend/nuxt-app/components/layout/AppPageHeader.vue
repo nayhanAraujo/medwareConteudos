@@ -8,5 +8,6 @@ defineProps<{
   subtitle?: string
   icon?: string
   showUserInfo?: boolean
+  showClock?: boolean
 }>()
 </script>

@@ -61,7 +61,8 @@ public record VariavelCreateRequest(
     string? Descricao,
     int CodUnidadeMedida,
     int CasasDecimais,
-    IReadOnlyList<string>? Alternativas);
+    IReadOnlyList<string>? Alternativas,
+    IReadOnlyList<string>? NomesClinicos);
 
 public record VariavelEdicaoDto(
     int CodVariavel,
@@ -72,4 +73,5 @@ public record VariavelEdicaoDto(
     string? Descricao,
     int? CodUnidadeMedida,
     int? CasasDecimais,
-    IReadOnlyList<string> Alternativas);
+    IReadOnlyList<string> Alternativas,
+    IReadOnlyList<string> NomesClinicos);

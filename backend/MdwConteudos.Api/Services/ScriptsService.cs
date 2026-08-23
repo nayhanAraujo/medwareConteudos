@@ -23,14 +23,9 @@ public class ScriptsService
         _config = config;
         _connectionString = Infrastructure.EnvFileLoader.GetFirebirdConnectionString(config);
         _logger = logger;
-        var repo = config["LegacyPaths:RepoRoot"];
-        if (string.IsNullOrWhiteSpace(repo))
-        {
-            repo = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", ".."));
-        }
-        _repoRoot = repo;
-        _uploadRoot = Path.Combine(repo, "uploads");
-        _migracaoStaticUploadsRoot = Path.Combine(repo, "mdw-migracao", "static", "uploads");
+        _repoRoot = Infrastructure.StaticContentPaths.ResolveRepoRoot(config);
+        _uploadRoot = Path.Combine(_repoRoot, "uploads");
+        _migracaoStaticUploadsRoot = Infrastructure.StaticContentPaths.UploadsRoot(_repoRoot);
         Directory.CreateDirectory(_uploadRoot);
         Directory.CreateDirectory(_migracaoStaticUploadsRoot);
     }
@@ -107,7 +102,7 @@ public class ScriptsService
                 CASE WHEN s.ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                 s.APROVADO_POR, p.NOME AS NOME_PACOTE, s.CAMINHO_AZURE,
                 CASE WHEN s.DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL,
-                CASE WHEN EXISTS (SELECT 1 FROM SCRIPTLAUDO_MRD m WHERE m.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO) THEN 1 ELSE 0 END AS TEM_MRD,
+                CASE WHEN EXISTS (SELECT 1 FROM SCRIPTLAUDOMRD m WHERE m.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO) THEN 1 ELSE 0 END AS TEM_MRD,
                 s.CRIADO_POR, s.LINK_TESTE
             FROM SCRIPTLAUDO s
             LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE
@@ -129,12 +124,12 @@ public class ScriptsService
 
             var arquivos = (await conn.QueryAsync<ScriptFileDto>(@"
                 SELECT TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
-                FROM SCRIPT_ARQUIVOS WHERE CODSCRIPTLAUDO = @cod ORDER BY NOME_ARQUIVO", new { cod })).ToList();
+                FROM SCRIPTARQUIVOS WHERE CODSCRIPTLAUDO = @cod ORDER BY NOME_ARQUIVO", new { cod })).ToList();
 
             int? codVersao = null;
             string? ultimaVersao = null;
             var versaoRow = await conn.QueryFirstOrDefaultAsync(@"
-                SELECT CODVERSAO, NUMERO_VERSAO FROM SCRIPT_VERSOES
+                SELECT CODVERSAO, NUMERO_VERSAO FROM SCRIPTVERSOES
                 WHERE CODSCRIPTLAUDO = @cod AND ATIVO = 'T'
                 ORDER BY DATA_CRIACAO DESC ROWS 1", new { cod });
             if (versaoRow != null)
@@ -151,7 +146,7 @@ public class ScriptsService
             {
                 var arqVersao = (await conn.QueryAsync<ScriptFileDto>(@"
                     SELECT TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
-                    FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODVERSAO = @cod ORDER BY DATA_UPLOAD DESC",
+                    FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO = @cod ORDER BY DATA_UPLOAD DESC",
                     new { cod = codVersao.Value })).ToList();
                 var iv = arqVersao.Where(a => a.Tipo == "IMAGEM").ToList();
                 var pv = arqVersao.Where(a => a.Tipo == "PDF").ToList();
@@ -194,7 +189,7 @@ public class ScriptsService
     private static async Task<IReadOnlyList<ScriptMrdDto>> ListMrdAsync(FbConnection conn, int cod)
     {
         var rows = await conn.QueryAsync(@"
-            SELECT CODSCRIPTMRD, NOME_ARQUIVO, PADRAO, ORDEM FROM SCRIPTLAUDO_MRD
+            SELECT CODSCRIPTMRD, NOME_ARQUIVO, PADRAO, ORDEM FROM SCRIPTLAUDOMRD
             WHERE CODSCRIPTLAUDO = @cod
             ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODSCRIPTMRD", new { cod });
         return rows.Select(r =>
@@ -225,7 +220,7 @@ public class ScriptsService
             "SELECT CODVARIAVEL FROM SCRIPTLAUDO_VARIAVEL WHERE CODSCRIPTLAUDO = @id", new { id })).ToList();
         var arquivos = (await conn.QueryAsync<ScriptFileDto>(@"
             SELECT TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
-            FROM SCRIPT_ARQUIVOS WHERE CODSCRIPTLAUDO = @id", new { id })).ToList();
+            FROM SCRIPTARQUIVOS WHERE CODSCRIPTLAUDO = @id", new { id })).ToList();
         var mrd = await ListMrdAsync(conn, id);
         return new ScriptDetailDto(
             id,
@@ -346,14 +341,14 @@ public class ScriptsService
         {
             var (path, name) = await SaveDiskFileAsync(img, "interfaces");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPT_ARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO)
+                INSERT INTO SCRIPTARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO)
                 VALUES (@cod, 'IMAGEM', @path, @name)", new { cod, path, name }, tx);
         }
         foreach (var pdf in input.Pdfs ?? [])
         {
             var (path, name) = await SaveDiskFileAsync(pdf, "impressoes");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPT_ARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO)
+                INSERT INTO SCRIPTARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO)
                 VALUES (@cod, 'PDF', @path, @name)", new { cod, path, name }, tx);
         }
     }
@@ -369,7 +364,7 @@ public class ScriptsService
             if (err != null) throw new InvalidOperationException(err);
             var padrao = isFirst && ordem == 0 ? "T" : "F";
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPTLAUDO_MRD (CODSCRIPTLAUDO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO, ORDEM)
+                INSERT INTO SCRIPTLAUDOMRD (CODSCRIPTLAUDO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO, ORDEM)
                 VALUES (@cod, @nome, @blob, @padrao, @ordem)",
                 new { cod, nome = f.FileName, blob = f.Content, padrao, ordem }, tx);
             ordem++;
@@ -477,7 +472,7 @@ public class ScriptsService
         await conn.OpenAsync();
         await using var tx = await conn.BeginTransactionAsync();
         var has = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM SCRIPTLAUDO_MRD WHERE CODSCRIPTLAUDO = @cod", new { cod }, tx);
+            "SELECT COUNT(*) FROM SCRIPTLAUDOMRD WHERE CODSCRIPTLAUDO = @cod", new { cod }, tx);
         await SaveMrdFilesAsync(conn, tx, cod, sistema, files, isFirst: has == 0);
         await tx.CommitAsync();
     }
@@ -486,7 +481,7 @@ public class ScriptsService
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
-        await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDO_MRD WHERE CODSCRIPTMRD = @cod", new { cod = codScriptMrd });
+        await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDOMRD WHERE CODSCRIPTMRD = @cod", new { cod = codScriptMrd });
     }
 
     public async Task<IReadOnlyList<VersaoDto>> ListVersoesAsync(
@@ -513,7 +508,7 @@ public class ScriptsService
         var sql = $@"
             SELECT CODVERSAO, NUMERO_VERSAO, DATA_CRIACAO, ATIVO, APROVADO, OBSERVACOES,
                    USUARIO_RESPONSAVEL, DESCRICAO_ALTERACOES, APROVADO_POR
-            FROM SCRIPT_VERSOES WHERE {string.Join(" AND ", where)} ORDER BY DATA_CRIACAO DESC";
+            FROM SCRIPTVERSOES WHERE {string.Join(" AND ", where)} ORDER BY DATA_CRIACAO DESC";
         var rows = await conn.QueryAsync(sql, p);
         return rows.Select(MapVersaoDto).ToList();
     }
@@ -567,7 +562,7 @@ public class ScriptsService
     private static async Task<string> GerarProximoNumeroVersaoAsync(FbConnection conn, int scriptId)
     {
         var ultima = await conn.ExecuteScalarAsync<string?>(@"
-            SELECT FIRST 1 NUMERO_VERSAO FROM SCRIPT_VERSOES
+            SELECT FIRST 1 NUMERO_VERSAO FROM SCRIPTVERSOES
             WHERE CODSCRIPTLAUDO = @scriptId ORDER BY DATA_CRIACAO DESC", new { scriptId });
         if (string.IsNullOrWhiteSpace(ultima)) return "V1.0";
         if (!ultima.StartsWith("V", StringComparison.OrdinalIgnoreCase)) return "V1.0";
@@ -591,7 +586,7 @@ public class ScriptsService
                    CASE WHEN sv.ARQUIVO_DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL,
                    s.NOME AS SCRIPT_NOME, s.DESCRICAO AS SCRIPT_DESCRICAO, s.SISTEMA,
                    s.LINGUAGEM, p.NOME AS NOME_PACOTE
-            FROM SCRIPT_VERSOES sv
+            FROM SCRIPTVERSOES sv
             JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
             LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE
             WHERE sv.CODSCRIPTLAUDO = @scriptId AND sv.CODVERSAO = @codVersao",
@@ -637,7 +632,7 @@ public class ScriptsService
         {
             var rows = await conn.QueryAsync(@"
                 SELECT CODARQUIVO, TIPO, CAMINHO, NOME_ARQUIVO, DATA_UPLOAD, USUARIO_UPLOAD
-                FROM SCRIPT_VERSAO_ARQUIVOS
+                FROM SCRIPTVERSAOARQUIVOS
                 WHERE CODVERSAO = @codVersao
                 ORDER BY DATA_UPLOAD DESC", new { codVersao });
             return rows.Select(r =>
@@ -664,7 +659,7 @@ public class ScriptsService
     {
         var rows = await conn.QueryAsync(@"
             SELECT CODVERSAOMRD, NOME_ARQUIVO, PADRAO, ORDEM
-            FROM SCRIPT_VERSAO_MRD
+            FROM SCRIPTVERSAOMRD
             WHERE CODVERSAO = @codVersao
             ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODVERSAOMRD", new { codVersao });
         return rows.Select(r =>
@@ -685,7 +680,7 @@ public class ScriptsService
         {
             var rows = await conn.QueryAsync(@"
                 SELECT TIPO_ALTERACAO, DESCRICAO, USUARIO, DATA_ALTERACAO
-                FROM SCRIPT_VERSAO_HISTORICO
+                FROM SCRIPTVERSAOHISTORICO
                 WHERE CODVERSAO_DESTINO = @codVersao
                 ORDER BY DATA_ALTERACAO DESC", new { codVersao });
             return rows.Select(r =>
@@ -720,7 +715,7 @@ public class ScriptsService
             ?? throw new InvalidOperationException("Script não encontrado.");
 
         var exists = await conn.ExecuteScalarAsync<int>(@"
-            SELECT COUNT(*) FROM SCRIPT_VERSOES
+            SELECT COUNT(*) FROM SCRIPTVERSOES
             WHERE CODSCRIPTLAUDO = @scriptId AND NUMERO_VERSAO = @num",
             new { scriptId, num = input.NumeroVersao.Trim() });
         if (exists > 0) throw new InvalidOperationException("Já existe uma versão com este número.");
@@ -741,10 +736,10 @@ public class ScriptsService
 
         await using var tx = await conn.BeginTransactionAsync();
         await conn.ExecuteAsync(
-            "UPDATE SCRIPT_VERSOES SET ATIVO = 'F' WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId }, tx);
+            "UPDATE SCRIPTVERSOES SET ATIVO = 'F' WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId }, tx);
 
         var codVersao = await conn.ExecuteScalarAsync<int>(@"
-            INSERT INTO SCRIPT_VERSOES (
+            INSERT INTO SCRIPTVERSOES (
                 CODSCRIPTLAUDO, NUMERO_VERSAO, DESCRICAO_ALTERACOES,
                 ALTERACOES_INTERFACE, ALTERACOES_CODIGO, USUARIO_RESPONSAVEL,
                 OBSERVACOES, ATIVO, DATA_CRIACAO
@@ -769,7 +764,7 @@ public class ScriptsService
             p.Add("codVersao", codVersao);
             if (arquivoJson != null) { sets.Add("ARQUIVO_JSON = @json"); p.Add("json", arquivoJson); }
             if (arquivoDll != null) { sets.Add("ARQUIVO_DLL = @dll"); p.Add("dll", arquivoDll); }
-            await conn.ExecuteAsync($"UPDATE SCRIPT_VERSOES SET {string.Join(", ", sets)} WHERE CODVERSAO = @codVersao", p, tx);
+            await conn.ExecuteAsync($"UPDATE SCRIPTVERSOES SET {string.Join(", ", sets)} WHERE CODVERSAO = @codVersao", p, tx);
         }
 
         var mrdFiles = input.MrdFiles?.Where(f => !string.IsNullOrWhiteSpace(f.FileName)).ToList();
@@ -793,7 +788,7 @@ public class ScriptsService
         {
             var (path, name) = await SaveVersaoDiskFileAsync(img, "versoes/interfaces", $"versao_{codVersao}_interface");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                INSERT INTO SCRIPTVERSAOARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
                 VALUES (@codVersao, 'IMAGEM', @path, @name, @user)",
                 new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
         }
@@ -801,7 +796,7 @@ public class ScriptsService
         {
             var (path, name) = await SaveVersaoDiskFileAsync(pdf, "versoes/impressoes", $"versao_{codVersao}_impressao");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                INSERT INTO SCRIPTVERSAOARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
                 VALUES (@codVersao, 'PDF', @path, @name, @user)",
                 new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
         }
@@ -821,7 +816,7 @@ public class ScriptsService
         await conn.OpenAsync();
         var meta = await conn.QueryFirstOrDefaultAsync(@"
             SELECT sv.CODSCRIPTLAUDO, sv.NUMERO_VERSAO, s.SISTEMA
-            FROM SCRIPT_VERSOES sv
+            FROM SCRIPTVERSOES sv
             JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
             WHERE sv.CODVERSAO = @codVersao", new { codVersao });
         if (meta == null) throw new InvalidOperationException("Versão não encontrada.");
@@ -832,7 +827,7 @@ public class ScriptsService
 
         await using var tx = await conn.BeginTransactionAsync();
         await conn.ExecuteAsync(@"
-            UPDATE SCRIPT_VERSOES SET
+            UPDATE SCRIPTVERSOES SET
                 DESCRICAO_ALTERACOES = @desc,
                 ALTERACOES_INTERFACE = @iface,
                 ALTERACOES_CODIGO = @cod,
@@ -848,21 +843,21 @@ public class ScriptsService
             }, tx);
 
         if (input.ArquivoJson != null)
-            await conn.ExecuteAsync("UPDATE SCRIPT_VERSOES SET ARQUIVO_JSON = @b WHERE CODVERSAO = @codVersao",
+            await conn.ExecuteAsync("UPDATE SCRIPTVERSOES SET ARQUIVO_JSON = @b WHERE CODVERSAO = @codVersao",
                 new { b = input.ArquivoJson, codVersao }, tx);
         if (input.ArquivoDll != null)
-            await conn.ExecuteAsync("UPDATE SCRIPT_VERSOES SET ARQUIVO_DLL = @b WHERE CODVERSAO = @codVersao",
+            await conn.ExecuteAsync("UPDATE SCRIPTVERSOES SET ARQUIVO_DLL = @b WHERE CODVERSAO = @codVersao",
                 new { b = input.ArquivoDll, codVersao }, tx);
 
         foreach (var codMrd in input.MrdExcluir ?? [])
         {
             await conn.ExecuteAsync(@"
-                DELETE FROM SCRIPT_VERSAO_MRD WHERE CODVERSAOMRD = @id AND CODVERSAO = @codVersao",
+                DELETE FROM SCRIPTVERSAOMRD WHERE CODVERSAOMRD = @id AND CODVERSAO = @codVersao",
                 new { id = codMrd, codVersao }, tx);
         }
 
         var hasMrd = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM SCRIPT_VERSAO_MRD WHERE CODVERSAO = @codVersao", new { codVersao }, tx) > 0;
+            "SELECT COUNT(*) FROM SCRIPTVERSAOMRD WHERE CODVERSAO = @codVersao", new { codVersao }, tx) > 0;
         foreach (var f in input.MrdFiles ?? [])
         {
             if (string.IsNullOrWhiteSpace(f.FileName)) continue;
@@ -884,7 +879,7 @@ public class ScriptsService
         {
             var (path, name) = await SaveVersaoDiskFileAsync(img, "versoes/interfaces", $"versao_{codVersao}_interface");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                INSERT INTO SCRIPTVERSAOARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
                 VALUES (@codVersao, 'IMAGEM', @path, @name, @user)",
                 new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
         }
@@ -892,7 +887,7 @@ public class ScriptsService
         {
             var (path, name) = await SaveVersaoDiskFileAsync(pdf, "versoes/impressoes", $"versao_{codVersao}_impressao");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPT_VERSAO_ARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
+                INSERT INTO SCRIPTVERSAOARQUIVOS (CODVERSAO, TIPO, CAMINHO, NOME_ARQUIVO, USUARIO_UPLOAD)
                 VALUES (@codVersao, 'PDF', @path, @name, @user)",
                 new { codVersao, path, name, user = input.UsuarioResponsavel }, tx);
         }
@@ -908,7 +903,7 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT CODSCRIPTLAUDO, NUMERO_VERSAO FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao",
+            SELECT CODSCRIPTLAUDO, NUMERO_VERSAO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao",
             new { codVersao });
         if (row == null) throw new InvalidOperationException("Versão não encontrada.");
         var d = (IDictionary<string, object>)row;
@@ -916,9 +911,9 @@ public class ScriptsService
         var numero = d["NUMERO_VERSAO"]?.ToString() ?? "";
         await using var tx = await conn.BeginTransactionAsync();
         await conn.ExecuteAsync(
-            "UPDATE SCRIPT_VERSOES SET ATIVO = 'F' WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId }, tx);
+            "UPDATE SCRIPTVERSOES SET ATIVO = 'F' WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId }, tx);
         await conn.ExecuteAsync(
-            "UPDATE SCRIPT_VERSOES SET ATIVO = 'T' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+            "UPDATE SCRIPTVERSOES SET ATIVO = 'T' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
         await InsertVersaoHistoricoAsync(conn, tx, codVersao, "ATIVACAO", $"Versão {numero} ativada", usuario);
         await tx.CommitAsync();
     }
@@ -928,7 +923,7 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT NUMERO_VERSAO, APROVADO FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao", new { codVersao });
+            SELECT NUMERO_VERSAO, APROVADO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao", new { codVersao });
         if (row == null) throw new InvalidOperationException("Versão não encontrada.");
         var d = (IDictionary<string, object>)row;
         if (NormalizeFlag(d["APROVADO"]) == "T")
@@ -936,7 +931,7 @@ public class ScriptsService
         var numero = d["NUMERO_VERSAO"]?.ToString() ?? "";
         await using var tx = await conn.BeginTransactionAsync();
         await conn.ExecuteAsync(@"
-            UPDATE SCRIPT_VERSOES SET APROVADO = 'T', APROVADO_POR = @user, DATA_APROVACAO = CURRENT_TIMESTAMP
+            UPDATE SCRIPTVERSOES SET APROVADO = 'T', APROVADO_POR = @user, DATA_APROVACAO = CURRENT_TIMESTAMP
             WHERE CODVERSAO = @codVersao", new { user = usuario, codVersao }, tx);
         await InsertVersaoHistoricoAsync(conn, tx, codVersao, "APROVACAO",
             $"Versão {numero} aprovada por {usuario}", usuario);
@@ -948,7 +943,7 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT CODSCRIPTLAUDO, NUMERO_VERSAO, ATIVO FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao",
+            SELECT CODSCRIPTLAUDO, NUMERO_VERSAO, ATIVO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao",
             new { codVersao });
         if (row == null) throw new InvalidOperationException("Versão não encontrada.");
         var d = (IDictionary<string, object>)row;
@@ -957,12 +952,12 @@ public class ScriptsService
         if ((d["ATIVO"]?.ToString() ?? "").Trim().ToUpperInvariant() == "T")
             throw new InvalidOperationException("Não é possível excluir a versão ativa. Ative outra versão antes.");
         var total = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM SCRIPT_VERSOES WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId });
+            "SELECT COUNT(*) FROM SCRIPTVERSOES WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId });
         if (total <= 1)
             throw new InvalidOperationException("Não é possível excluir a única versão existente do script.");
 
         var caminhos = (await conn.QueryAsync<string>(
-            "SELECT CAMINHO FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODVERSAO = @codVersao", new { codVersao }))
+            "SELECT CAMINHO FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO = @codVersao", new { codVersao }))
             .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
 
         await using var tx = await conn.BeginTransactionAsync();
@@ -975,9 +970,9 @@ public class ScriptsService
         {
             _logger.LogWarning(ex, "Histórico de exclusão não registrado para versão {CodVersao}", codVersao);
         }
-        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
-        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSAO_MRD WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
-        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSOES WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await conn.ExecuteAsync("DELETE FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await conn.ExecuteAsync("DELETE FROM SCRIPTVERSAOMRD WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await conn.ExecuteAsync("DELETE FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
         await tx.CommitAsync();
 
         foreach (var caminho in caminhos)
@@ -1005,7 +1000,7 @@ public class ScriptsService
         var campo = tipo == "json" ? "ARQUIVO_JSON" : "ARQUIVO_DLL";
         var row = await conn.QueryFirstOrDefaultAsync($@"
             SELECT sv.{campo}, sv.NUMERO_VERSAO, s.NOME
-            FROM SCRIPT_VERSOES sv
+            FROM SCRIPTVERSOES sv
             JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
             WHERE sv.CODVERSAO = @codVersao", new { codVersao });
         if (row == null) return null;
@@ -1028,8 +1023,8 @@ public class ScriptsService
         {
             row = await conn.QueryFirstOrDefaultAsync(@"
                 SELECT vm.NOME_ARQUIVO, vm.ARQUIVO_MRD, sv.NUMERO_VERSAO, s.NOME, s.SISTEMA, s.LINGUAGEM
-                FROM SCRIPT_VERSAO_MRD vm
-                JOIN SCRIPT_VERSOES sv ON vm.CODVERSAO = sv.CODVERSAO
+                FROM SCRIPTVERSAOMRD vm
+                JOIN SCRIPTVERSOES sv ON vm.CODVERSAO = sv.CODVERSAO
                 JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
                 WHERE vm.CODVERSAOMRD = @id AND vm.CODVERSAO = @codVersao",
                 new { id = codVersaoMrd, codVersao });
@@ -1038,8 +1033,8 @@ public class ScriptsService
         {
             row = await conn.QueryFirstOrDefaultAsync(@"
                 SELECT FIRST 1 vm.NOME_ARQUIVO, vm.ARQUIVO_MRD, sv.NUMERO_VERSAO, s.NOME, s.SISTEMA, s.LINGUAGEM
-                FROM SCRIPT_VERSAO_MRD vm
-                JOIN SCRIPT_VERSOES sv ON vm.CODVERSAO = sv.CODVERSAO
+                FROM SCRIPTVERSAOMRD vm
+                JOIN SCRIPTVERSOES sv ON vm.CODVERSAO = sv.CODVERSAO
                 JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
                 WHERE vm.CODVERSAO = @codVersao AND vm.PADRAO = 'T'
                 ORDER BY vm.CODVERSAOMRD", new { codVersao });
@@ -1064,7 +1059,7 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var meta = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT sv.NUMERO_VERSAO, s.NOME FROM SCRIPT_VERSOES sv
+            SELECT sv.NUMERO_VERSAO, s.NOME FROM SCRIPTVERSOES sv
             JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
             WHERE sv.CODVERSAO = @codVersao", new { codVersao });
         if (meta == null) return null;
@@ -1078,7 +1073,7 @@ public class ScriptsService
             foreach (var m in mrdList)
             {
                 var blob = await conn.ExecuteScalarAsync<object>(@"
-                    SELECT ARQUIVO_MRD FROM SCRIPT_VERSAO_MRD
+                    SELECT ARQUIVO_MRD FROM SCRIPTVERSAOMRD
                     WHERE CODVERSAOMRD = @id AND CODVERSAO = @codVersao",
                     new { id = m.CodVersaoMrd, codVersao });
                 var data = BlobToBytes(blob);
@@ -1098,7 +1093,7 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODARQUIVO = @id",
+            SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPTVERSAOARQUIVOS WHERE CODARQUIVO = @id",
             new { id = codArquivo });
         if (row == null) return null;
         var d = (IDictionary<string, object>)row;
@@ -1123,10 +1118,10 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT CAMINHO FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODARQUIVO = @id", new { id = codArquivo });
+            SELECT CAMINHO FROM SCRIPTVERSAOARQUIVOS WHERE CODARQUIVO = @id", new { id = codArquivo });
         if (row == null) throw new InvalidOperationException("Arquivo não encontrado.");
         var caminho = ((IDictionary<string, object>)row)["CAMINHO"]?.ToString();
-        await conn.ExecuteAsync("DELETE FROM SCRIPT_VERSAO_ARQUIVOS WHERE CODARQUIVO = @id", new { id = codArquivo });
+        await conn.ExecuteAsync("DELETE FROM SCRIPTVERSAOARQUIVOS WHERE CODARQUIVO = @id", new { id = codArquivo });
         if (!string.IsNullOrWhiteSpace(caminho))
         {
             var path = ResolveLegacyPath(caminho);
@@ -1143,9 +1138,9 @@ public class ScriptsService
     {
         if (padrao)
             await conn.ExecuteAsync(
-                "UPDATE SCRIPT_VERSAO_MRD SET PADRAO = 'F' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+                "UPDATE SCRIPTVERSAOMRD SET PADRAO = 'F' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
         await conn.ExecuteAsync(@"
-            INSERT INTO SCRIPT_VERSAO_MRD (CODVERSAO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO)
+            INSERT INTO SCRIPTVERSAOMRD (CODVERSAO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO)
             VALUES (@codVersao, @nome, @blob, @padrao)",
             new { codVersao, nome = nomeArquivo, blob = content, padrao = padrao ? "T" : "F" }, tx);
     }
@@ -1153,14 +1148,14 @@ public class ScriptsService
     private static async Task CopyScriptMrdToVersaoAsync(FbConnection conn, FbTransaction tx, int scriptId, int codVersao)
     {
         var rows = await conn.QueryAsync(@"
-            SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPTLAUDO_MRD
+            SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPTLAUDOMRD
             WHERE CODSCRIPTLAUDO = @scriptId
             ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODSCRIPTMRD", new { scriptId });
         foreach (var r in rows)
         {
             var d = (IDictionary<string, object>)r;
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPT_VERSAO_MRD (CODVERSAO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO)
+                INSERT INTO SCRIPTVERSAOMRD (CODVERSAO, NOME_ARQUIVO, ARQUIVO_MRD, PADRAO)
                 VALUES (@codVersao, @nome, @blob, @padrao)",
                 new
                 {
@@ -1175,9 +1170,9 @@ public class ScriptsService
     private static async Task SetVersaoMrdPadraoAsync(FbConnection conn, FbTransaction tx, int codVersao, int codVersaoMrd)
     {
         await conn.ExecuteAsync(
-            "UPDATE SCRIPT_VERSAO_MRD SET PADRAO = 'F' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+            "UPDATE SCRIPTVERSAOMRD SET PADRAO = 'F' WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
         await conn.ExecuteAsync(@"
-            UPDATE SCRIPT_VERSAO_MRD SET PADRAO = 'T'
+            UPDATE SCRIPTVERSAOMRD SET PADRAO = 'T'
             WHERE CODVERSAOMRD = @id AND CODVERSAO = @codVersao",
             new { id = codVersaoMrd, codVersao }, tx);
     }
@@ -1186,7 +1181,7 @@ public class ScriptsService
         string tipo, string descricao, string? usuario)
     {
         await conn.ExecuteAsync(@"
-            INSERT INTO SCRIPT_VERSAO_HISTORICO (CODVERSAO_DESTINO, TIPO_ALTERACAO, DESCRICAO, USUARIO)
+            INSERT INTO SCRIPTVERSAOHISTORICO (CODVERSAO_DESTINO, TIPO_ALTERACAO, DESCRICAO, USUARIO)
             VALUES (@codVersao, @tipo, @desc, @user)",
             new { codVersao, tipo, desc = descricao, user = usuario }, tx);
     }
@@ -1247,14 +1242,14 @@ public class ScriptsService
         if (codScriptMrd.HasValue)
         {
             var row = await conn.QueryFirstOrDefaultAsync(@"
-                SELECT NOME_ARQUIVO, ARQUIVO_MRD FROM SCRIPTLAUDO_MRD
+                SELECT NOME_ARQUIVO, ARQUIVO_MRD FROM SCRIPTLAUDOMRD
                 WHERE CODSCRIPTMRD = @m AND CODSCRIPTLAUDO = @id", new { m = codScriptMrd, id });
             if (row == null) return null;
             var d = (IDictionary<string, object>)row;
             return ((byte[])d["ARQUIVO_MRD"], d["NOME_ARQUIVO"]?.ToString() ?? "arquivo.mrd");
         }
         var padrao = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT NOME_ARQUIVO, ARQUIVO_MRD FROM SCRIPTLAUDO_MRD
+            SELECT NOME_ARQUIVO, ARQUIVO_MRD FROM SCRIPTLAUDOMRD
             WHERE CODSCRIPTLAUDO = @id AND PADRAO = 'T' ROWS 1", new { id });
         if (padrao == null) return null;
         var p = (IDictionary<string, object>)padrao;
@@ -1270,7 +1265,7 @@ public class ScriptsService
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT sat.USADO, sl.APROVADO, sl.NOME, sl.SISTEMA, sl.LINGUAGEM, sl.LINK_TESTE, sat.EXPIRA_EM
-            FROM SCRIPT_APROVACAO_TOKEN sat
+            FROM SCRIPTAPROVACAOTOKEN sat
             JOIN SCRIPTLAUDO sl ON sat.CODSCRIPTLAUDO = sl.CODSCRIPTLAUDO
             WHERE sat.TOKEN = @token AND sat.EXPIRA_EM > CURRENT_TIMESTAMP", new { token });
         if (row == null) return null;
@@ -1291,7 +1286,7 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var cod = await conn.ExecuteScalarAsync<int?>(@"
-            SELECT CODSCRIPTLAUDO FROM SCRIPT_APROVACAO_TOKEN
+            SELECT CODSCRIPTLAUDO FROM SCRIPTAPROVACAOTOKEN
             WHERE TOKEN = @token AND EXPIRA_EM > CURRENT_TIMESTAMP AND USADO = 0", new { token });
         if (!cod.HasValue) throw new InvalidOperationException("Token inválido ou expirado.");
         await using var tx = await conn.BeginTransactionAsync();
@@ -1301,13 +1296,13 @@ public class ScriptsService
                 UPDATE SCRIPTLAUDO SET APROVADO = 1, APROVADO_POR = 'Aprovado via Email', DATA_VERIFICACAO = CURRENT_TIMESTAMP
                 WHERE CODSCRIPTLAUDO = @cod", new { cod }, tx);
             await conn.ExecuteAsync(@"
-                UPDATE SCRIPT_APROVACAO_TOKEN SET USADO = 1, APROVADO_EM = CURRENT_TIMESTAMP WHERE TOKEN = @token",
+                UPDATE SCRIPTAPROVACAOTOKEN SET USADO = 1, APROVADO_EM = CURRENT_TIMESTAMP WHERE TOKEN = @token",
                 new { token }, tx);
         }
         else
         {
             await conn.ExecuteAsync(@"
-                UPDATE SCRIPT_APROVACAO_TOKEN SET USADO = 1, REJEITADO_EM = CURRENT_TIMESTAMP WHERE TOKEN = @token",
+                UPDATE SCRIPTAPROVACAOTOKEN SET USADO = 1, REJEITADO_EM = CURRENT_TIMESTAMP WHERE TOKEN = @token",
                 new { token }, tx);
         }
         await tx.CommitAsync();
@@ -1351,7 +1346,7 @@ public class ScriptsService
         var scriptName = $"{sd["NOME"]?.ToString() ?? "Script"} - {dbSistema}";
         var images = (await conn.QueryAsync<(string Caminho, string NomeArquivo)>(@"
             SELECT CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
-            FROM SCRIPT_ARQUIVOS
+            FROM SCRIPTARQUIVOS
             WHERE CODSCRIPTLAUDO = @cod AND TIPO = 'IMAGEM'", new { cod = codScriptLaudo })).ToList();
         if (images.Count == 0) throw new InvalidOperationException("Nenhuma imagem encontrada para este script.");
 
@@ -1385,7 +1380,7 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         await conn.ExecuteAsync(@"
-            INSERT INTO SCRIPT_APROVACAO_TOKEN (CODSCRIPTLAUDO, TOKEN, CRIADO_EM, EXPIRA_EM)
+            INSERT INTO SCRIPTAPROVACAOTOKEN (CODSCRIPTLAUDO, TOKEN, CRIADO_EM, EXPIRA_EM)
             VALUES (@cod, @token, CURRENT_TIMESTAMP, @exp)",
             new { cod = codScriptLaudo, token, exp = expiraEm });
 

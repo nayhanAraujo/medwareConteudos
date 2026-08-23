@@ -12,7 +12,8 @@ public sealed record FormulaUpsertRequest(
     string Formula,
     int CasasDecimais,
     IReadOnlyList<int>? VariavelIds,
-    IReadOnlyList<EquacaoRequest>? Equacoes);
+    IReadOnlyList<EquacaoRequest>? Equacoes,
+    int? CodVariavel = null);
 
 public sealed record ModeloUpsertRequest(string Nome);
 
@@ -39,6 +40,7 @@ public sealed record SalvarLayoutRequest(IReadOnlyList<LayoutItemRequest>? Layou
 
 public sealed record FormulaListItem(
     int CodFormula,
+    int? CodVariavel,
     string Nome,
     string Formula,
     string? Descricao,
@@ -65,6 +67,7 @@ public sealed record EquacaoDto(
 
 public sealed record FormulaDetalhe(
     int CodFormula,
+    int? CodVariavel,
     string Nome,
     string Formula,
     string? Descricao,

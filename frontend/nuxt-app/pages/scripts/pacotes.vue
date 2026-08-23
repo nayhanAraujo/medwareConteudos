@@ -1,7 +1,7 @@
 <template>
   <div>
     <DsPageHeader title="Pacotes Disponíveis" icon="box-seam" />
-    <ScriptsScriptsBreadcrumb :sistema="sistema" />
+    <ScriptsBreadcrumb :sistema="sistema" />
     <DsPageShell>
       <div class="flex justify-between items-center mb-6">
         <DsSectionTitle title="Escolha o Pacote" />

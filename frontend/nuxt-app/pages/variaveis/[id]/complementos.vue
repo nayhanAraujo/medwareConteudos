@@ -100,7 +100,52 @@ const anexos = ref<AnexoContexto>({ anexos: [], formulas: [], referencias: [] })
 const detalhes = ref<VariavelDetalhesCompletosDto>({ normalidades: [], equacoes: [] })
 const anexo = reactive({ tipoAnexo: 'URL', nome: '', descricao: '', link: '', codFormula: '', codReferencia: '', arquivo: null as File | null })
 async function loadCodigos() { const r = await api.listCodigosUniversais(codigoBusca.value); codigos.value = r.data || [] }
-async function load() { try { const [v, g, linked, esp, ax, es, cats, linkedCats, detail] = await Promise.all([api.getVariavelEdicao(id), api.listGrupos(), api.getCodigosVinculados(id), api.getEspecialidades(id), api.getAnexos(id), api.getEstudos(id), api.getClassificacoes(), api.getVariavelClassificacoes(id), api.getDetalhesCompletos(id)]); grupo.value = v.data.codGrupo ? String(v.data.codGrupo) : ''; grupos.value = g.data || []; especialidades.value = esp.data; anexos.value = ax.data; estudos.value = es.data || []; detalhes.value = detail.data; classificacoesCatalogo.value = cats.data.classificacoes; gruposClassificacao.value = cats.data.grupos; classificacoesSelecionadas.value = linkedCats.data.map(c => c.codClassificacao); await loadCodigos(); const linkedCodes = new Set((linked.data || []).map(x => x.codigo)); codigosSelecionados.value = codigos.value.filter(x => linkedCodes.has(x.codigo)).map(x => x.codUniversal) } catch (e) { error.value = e instanceof Error ? e.message : 'Erro ao carregar complementos.' } }
+async function load() {
+  error.value = ''
+  try {
+    const settled = await Promise.allSettled([
+      api.getVariavelEdicao(id),
+      api.listGrupos(),
+      api.getCodigosVinculados(id),
+      api.getEspecialidades(id),
+      api.getAnexos(id),
+      api.getEstudos(id),
+      api.getClassificacoes(),
+      api.getVariavelClassificacoes(id),
+      api.getDetalhesCompletos(id)
+    ])
+    const value = <T>(i: number) =>
+      settled[i].status === 'fulfilled' ? (settled[i] as PromiseFulfilledResult<{ data: T }>).value.data : null
+    const failures = settled
+      .map((r, i) => (r.status === 'rejected' ? (r.reason instanceof Error ? r.reason.message : `Falha na carga #${i + 1}`) : null))
+      .filter(Boolean) as string[]
+
+    const edicao = value<{ codGrupo?: number | null }>(0)
+    if (edicao) grupo.value = edicao.codGrupo ? String(edicao.codGrupo) : ''
+    grupos.value = value<GrupoVariavelDto[]>(1) || []
+    especialidades.value = value<{ vinculadas: Especialidade[]; disponiveis: Especialidade[] }>(3) || { vinculadas: [], disponiveis: [] }
+    anexos.value = value<AnexoContexto>(4) || { anexos: [], formulas: [], referencias: [] }
+    estudos.value = value<Array<Record<string, unknown>>>(5) || []
+    const cats = value<{ grupos: ClassificacaoGrupo[]; classificacoes: Classificacao[] }>(6)
+    classificacoesCatalogo.value = cats?.classificacoes || []
+    gruposClassificacao.value = cats?.grupos || []
+    classificacoesSelecionadas.value = (value<Classificacao[]>(7) || []).map((c) => c.codClassificacao)
+    detalhes.value = value<VariavelDetalhesCompletosDto>(8) || { normalidades: [], equacoes: [] }
+
+    await loadCodigos()
+    const linked = value<Array<{ codigo: string }>>(2) || []
+    const linkedCodes = new Set(linked.map((x) => x.codigo))
+    codigosSelecionados.value = codigos.value.filter((x) => linkedCodes.has(x.codigo)).map((x) => x.codUniversal)
+
+    if (failures.length && !edicao && !detalhes.value.normalidades.length) {
+      error.value = failures[0]
+    } else if (failures.length) {
+      await swal.toast(`Alguns dados não carregaram: ${failures[0]}`, 'warning')
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Erro ao carregar complementos.'
+  }
+}
 async function run(fn: () => Promise<unknown>, message: string) { saving.value = true; try { await fn(); await swal.toast(message); await load() } catch (e) { await swal.toast(e instanceof Error ? e.message : 'Erro na operação', 'error') } finally { saving.value = false } }
 const salvarGrupo = () => run(() => api.alterarGrupo(id, grupo.value ? Number(grupo.value) : null), 'Grupo atualizado.')
 const salvarClassificacoes = () => run(() => api.setVariavelClassificacoes(id, classificacoesSelecionadas.value), 'Classificações atualizadas.')

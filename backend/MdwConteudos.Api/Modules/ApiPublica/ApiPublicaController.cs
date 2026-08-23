@@ -279,7 +279,7 @@ public class ApiPublicaController : ControllerBase
     [SwaggerOperation(
         Summary = "Download de arquivos do script",
         Description =
-            "Baixa JSON/DLL/MRD conforme sistema. Preferência à versão ATIVA em SCRIPT_VERSOES. " +
+            "Baixa JSON/DLL/MRD conforme sistema. Preferência à versão ATIVA em SCRIPTVERSOES. " +
             "Parâmetro `tipo`: json, dll, mrd, mrd_todos (arquivo único em ZIP). " +
             "Sem `tipo`: pacote padrão (UX=JSON+MRD, Flex=DLL+MRD) em ZIP. " +
             "Headers: X-Script-Download-Suffix, X-Script-Download-Source.",

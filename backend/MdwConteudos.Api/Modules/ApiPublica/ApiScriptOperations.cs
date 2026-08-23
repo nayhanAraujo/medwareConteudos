@@ -281,7 +281,7 @@ public class ApiScriptOperations
         System.Data.IDbConnection conn, int codscriptlaudo, CancellationToken ct)
     {
         var row = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT CODVERSAO, NUMERO_VERSAO FROM SCRIPT_VERSOES
+            SELECT CODVERSAO, NUMERO_VERSAO FROM SCRIPTVERSOES
             WHERE CODSCRIPTLAUDO = @id AND ATIVO = 'T'
             ORDER BY DATA_CRIACAO DESC ROWS 1", new { id = codscriptlaudo });
         return row is null ? (null, null) : ((int?)row.CODVERSAO, (string?)row.NUMERO_VERSAO);
@@ -293,7 +293,7 @@ public class ApiScriptOperations
         var imagensPadrao = new List<Dictionary<string, string>>();
         var pdfsPadrao = new List<Dictionary<string, string>>();
         var rows = await conn.QueryAsync(@"
-            SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPT_ARQUIVOS
+            SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPTARQUIVOS
             WHERE CODSCRIPTLAUDO = @id ORDER BY NOME_ARQUIVO", new { id = codscriptlaudo });
         foreach (var r in rows)
         {
@@ -309,7 +309,7 @@ public class ApiScriptOperations
             var imagensVersao = new List<Dictionary<string, string>>();
             var pdfsVersao = new List<Dictionary<string, string>>();
             var vrows = await conn.QueryAsync(@"
-                SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPT_VERSAO_ARQUIVOS
+                SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPTVERSAOARQUIVOS
                 WHERE CODVERSAO = @id ORDER BY DATA_UPLOAD DESC", new { id = codVersao.Value });
             foreach (var r in vrows)
             {
@@ -329,7 +329,7 @@ public class ApiScriptOperations
         if (codVersao.HasValue)
         {
             var rows = await conn.QueryAsync(@"
-                SELECT CODVERSAOMRD, NOME_ARQUIVO, PADRAO, ORDEM FROM SCRIPT_VERSAO_MRD
+                SELECT CODVERSAOMRD, NOME_ARQUIVO, PADRAO, ORDEM FROM SCRIPTVERSAOMRD
                 WHERE CODVERSAO = @id
                 ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODVERSAOMRD", new { id = codVersao.Value });
             return (rows.Select(r => new Dictionary<string, object?>
@@ -339,11 +339,11 @@ public class ApiScriptOperations
                 ["nome_arquivo"] = (string?)r.NOME_ARQUIVO ?? $"MRD_{r.CODVERSAOMRD}",
                 ["padrao"] = ((string?)r.PADRAO ?? "F").Trim().ToUpperInvariant() == "T",
                 ["ordem"] = r.ORDEM
-            }).ToList(), "SCRIPT_VERSAO_MRD");
+            }).ToList(), "SCRIPTVERSAOMRD");
         }
 
         var srows = await conn.QueryAsync(@"
-            SELECT CODSCRIPTMRD, NOME_ARQUIVO, PADRAO, ORDEM FROM SCRIPTLAUDO_MRD
+            SELECT CODSCRIPTMRD, NOME_ARQUIVO, PADRAO, ORDEM FROM SCRIPTLAUDOMRD
             WHERE CODSCRIPTLAUDO = @id
             ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODSCRIPTMRD", new { id = codscriptlaudo });
         return (srows.Select(r => new Dictionary<string, object?>
@@ -353,7 +353,7 @@ public class ApiScriptOperations
             ["nome_arquivo"] = (string?)r.NOME_ARQUIVO ?? $"MRD_{r.CODSCRIPTMRD}",
             ["padrao"] = ((string?)r.PADRAO ?? "F").Trim().ToUpperInvariant() == "T",
             ["ordem"] = r.ORDEM
-        }).ToList(), "SCRIPTLAUDO_MRD");
+        }).ToList(), "SCRIPTLAUDOMRD");
     }
 
     private string? ResolveArquivoCaminhoDisco(string? caminhoBruto)
@@ -384,7 +384,7 @@ public class ApiScriptOperations
         MergeActiveVersionBlobsAsync(System.Data.IDbConnection conn, int codscriptlaudo, byte[]? jsonBytes, byte[]? mrdBytes, byte[]? dllBytes, CancellationToken ct)
     {
         var v = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT CODVERSAO, NUMERO_VERSAO, ARQUIVO_JSON, ARQUIVO_DLL FROM SCRIPT_VERSOES
+            SELECT CODVERSAO, NUMERO_VERSAO, ARQUIVO_JSON, ARQUIVO_DLL FROM SCRIPTVERSOES
             WHERE CODSCRIPTLAUDO = @id AND ATIVO = 'T' ORDER BY DATA_CRIACAO DESC ROWS 1", new { id = codscriptlaudo });
         if (v is null)
         {
@@ -407,7 +407,7 @@ public class ApiScriptOperations
     private static async Task<byte[]?> GetScriptMrdPadraoBytesAsync(System.Data.IDbConnection conn, int codscriptlaudo, CancellationToken ct)
     {
         var blob = await conn.ExecuteScalarAsync<object?>(@"
-            SELECT ARQUIVO_MRD FROM SCRIPTLAUDO_MRD
+            SELECT ARQUIVO_MRD FROM SCRIPTLAUDOMRD
             WHERE CODSCRIPTLAUDO = @id AND PADRAO = 'T' ORDER BY CODSCRIPTMRD ROWS 1", new { id = codscriptlaudo });
         return BlobHelper.ToBytes(blob);
     }
@@ -415,7 +415,7 @@ public class ApiScriptOperations
     private static async Task<byte[]?> GetVersaoMrdPadraoBytesAsync(System.Data.IDbConnection conn, int codversao, CancellationToken ct)
     {
         var blob = await conn.ExecuteScalarAsync<object?>(@"
-            SELECT ARQUIVO_MRD FROM SCRIPT_VERSAO_MRD
+            SELECT ARQUIVO_MRD FROM SCRIPTVERSAOMRD
             WHERE CODVERSAO = @id AND PADRAO = 'T' ORDER BY CODVERSAOMRD ROWS 1", new { id = codversao });
         return BlobHelper.ToBytes(blob);
     }
@@ -435,13 +435,13 @@ public class ApiScriptOperations
         if (codversao.HasValue)
         {
             rows = await conn.QueryAsync(@"
-                SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPT_VERSAO_MRD
+                SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPTVERSAOMRD
                 WHERE CODVERSAO = @id ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, CODVERSAOMRD", new { id = codversao.Value });
         }
         else
         {
             rows = await conn.QueryAsync(@"
-                SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPTLAUDO_MRD
+                SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPTLAUDOMRD
                 WHERE CODSCRIPTLAUDO = @id ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, CODSCRIPTMRD", new { id = codscriptlaudo });
         }
 
@@ -536,7 +536,7 @@ public class ScriptDownloadFileResult : FileContentResult
     {
         FileDownloadName = HttpHeaderSanitizer.ToAscii(fileName);
         Suffix = BuildSuffix(numeroVersao, activeVersion);
-        Source = activeVersion ? "SCRIPT_VERSOES" : "SCRIPTLAUDO";
+        Source = activeVersion ? "SCRIPTVERSOES" : "SCRIPTLAUDO";
     }
 
     public string Suffix { get; }

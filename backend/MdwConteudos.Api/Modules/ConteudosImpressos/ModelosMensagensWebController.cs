@@ -22,7 +22,7 @@ public class ModelosMensagensWebController : ControllerBase
         var rows = (await conn.QueryAsync<GrupoMensagemDto>(new CommandDefinition($"""
             SELECT CODGRUPOMENSAGEM AS CodGrupoMensagem, NOME AS Nome, DESCRICAO AS Descricao,
                    ATIVO AS Ativo, DTHRULTMODIFICACAO AS DthrUltModificacao
-              FROM GRUPOS_MENSAGENS {where} ORDER BY NOME
+              FROM GRUPOSMENSAGENS {where} ORDER BY NOME
             """, cancellationToken: ct))).AsList();
         return Ok(ApiResponse.Ok(rows, rows.Count));
     }
@@ -34,10 +34,10 @@ public class ModelosMensagensWebController : ControllerBase
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM GRUPOS_MENSAGENS WHERE UPPER(NOME) = UPPER(@Nome)", new { Nome = nome }, tx, cancellationToken: ct)) > 0)
+                "SELECT COUNT(*) FROM GRUPOSMENSAGENS WHERE UPPER(NOME) = UPPER(@Nome)", new { Nome = nome }, tx, cancellationToken: ct)) > 0)
             throw new ConteudosImpressosException("Já existe um grupo com este nome.", 409);
         var id = await conn.ExecuteScalarAsync<int>(new CommandDefinition("""
-            INSERT INTO GRUPOS_MENSAGENS (NOME, DESCRICAO, ATIVO, CODUSUARIO, DTHRULTMODIFICACAO)
+            INSERT INTO GRUPOSMENSAGENS (NOME, DESCRICAO, ATIVO, CODUSUARIO, DTHRULTMODIFICACAO)
             VALUES (@Nome, @Descricao, @Ativo, @CodUsuario, @Agora) RETURNING CODGRUPOMENSAGEM
             """, new { Nome = nome, Descricao = ConteudoTextCodec.Clean(request.Descricao), Ativo = Flag(request.Ativo), CodUsuario = User.GetCodUsuario(), Agora = DateTime.UtcNow }, tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
@@ -51,11 +51,11 @@ public class ModelosMensagensWebController : ControllerBase
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM GRUPOS_MENSAGENS WHERE UPPER(NOME) = UPPER(@Nome) AND CODGRUPOMENSAGEM <> @Id",
+                "SELECT COUNT(*) FROM GRUPOSMENSAGENS WHERE UPPER(NOME) = UPPER(@Nome) AND CODGRUPOMENSAGEM <> @Id",
                 new { Nome = nome, Id = id }, tx, cancellationToken: ct)) > 0)
             throw new ConteudosImpressosException("Já existe outro grupo com este nome.", 409);
         var count = await conn.ExecuteAsync(new CommandDefinition("""
-            UPDATE GRUPOS_MENSAGENS SET NOME = @Nome, DESCRICAO = @Descricao, ATIVO = @Ativo,
+            UPDATE GRUPOSMENSAGENS SET NOME = @Nome, DESCRICAO = @Descricao, ATIVO = @Ativo,
                    CODUSUARIO = @CodUsuario, DTHRULTMODIFICACAO = @Agora WHERE CODGRUPOMENSAGEM = @Id
             """, new { Nome = nome, Descricao = ConteudoTextCodec.Clean(request.Descricao), Ativo = Flag(request.Ativo), CodUsuario = User.GetCodUsuario(), Agora = DateTime.UtcNow, Id = id }, tx, cancellationToken: ct));
         if (count == 0) throw new ConteudosImpressosException("Grupo não encontrado.", 404);
@@ -69,9 +69,9 @@ public class ModelosMensagensWebController : ControllerBase
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         var associated = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-            "SELECT COUNT(*) FROM MODELOS_MENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
+            "SELECT COUNT(*) FROM MODELOSMENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
         if (associated > 0) throw new ConteudosImpressosException($"Não é possível excluir o grupo. Existem {associated} mensagem(ns) associada(s).", 409);
-        var count = await conn.ExecuteAsync(new CommandDefinition("DELETE FROM GRUPOS_MENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
+        var count = await conn.ExecuteAsync(new CommandDefinition("DELETE FROM GRUPOSMENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
         if (count == 0) throw new ConteudosImpressosException("Grupo não encontrado.", 404);
         await tx.CommitAsync(ct);
         return ApiResponse.OkMessage("Grupo excluído com sucesso.");
@@ -86,7 +86,7 @@ public class ModelosMensagensWebController : ControllerBase
             SELECT CODMODELOMENSAGEM AS CodModeloMensagem, CODGRUPOMENSAGEM AS CodGrupoMensagem,
                    TITULO AS Titulo, CONTEUDO AS Conteudo, TIPO_MENSAGEM AS TipoMensagem,
                    ATIVO AS Ativo, DTHRULTMODIFICACAO AS DthrUltModificacao
-              FROM MODELOS_MENSAGENS WHERE CODGRUPOMENSAGEM = @CodGrupo {where} ORDER BY TITULO
+              FROM MODELOSMENSAGENS WHERE CODGRUPOMENSAGEM = @CodGrupo {where} ORDER BY TITULO
             """, new { CodGrupo = codGrupo }, cancellationToken: ct))).AsList();
         return Ok(ApiResponse.Ok(rows, rows.Count));
     }
@@ -99,7 +99,7 @@ public class ModelosMensagensWebController : ControllerBase
             SELECT CODMODELOMENSAGEM AS CodModeloMensagem, CODGRUPOMENSAGEM AS CodGrupoMensagem,
                    TITULO AS Titulo, CONTEUDO AS Conteudo, TIPO_MENSAGEM AS TipoMensagem,
                    ATIVO AS Ativo, DTHRULTMODIFICACAO AS DthrUltModificacao
-              FROM MODELOS_MENSAGENS WHERE CODMODELOMENSAGEM = @Id
+              FROM MODELOSMENSAGENS WHERE CODMODELOMENSAGEM = @Id
             """, new { Id = id }, cancellationToken: ct));
         return row is null ? NotFound(ApiResponse.Fail("Não encontrado", "Mensagem não encontrada.")) : Ok(ApiResponse.Ok(row));
     }
@@ -112,14 +112,14 @@ public class ModelosMensagensWebController : ControllerBase
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM GRUPOS_MENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = request.CodGrupoMensagem }, tx, cancellationToken: ct)) == 0)
+                "SELECT COUNT(*) FROM GRUPOSMENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = request.CodGrupoMensagem }, tx, cancellationToken: ct)) == 0)
             throw new ConteudosImpressosException("Grupo não encontrado.", 404);
         if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM MODELOS_MENSAGENS WHERE UPPER(TITULO) = UPPER(@Titulo) AND CODGRUPOMENSAGEM = @Grupo",
+                "SELECT COUNT(*) FROM MODELOSMENSAGENS WHERE UPPER(TITULO) = UPPER(@Titulo) AND CODGRUPOMENSAGEM = @Grupo",
                 new { Titulo = titulo, Grupo = request.CodGrupoMensagem }, tx, cancellationToken: ct)) > 0)
             throw new ConteudosImpressosException("Já existe uma mensagem com este título neste grupo.", 409);
         var id = await conn.ExecuteScalarAsync<int>(new CommandDefinition("""
-            INSERT INTO MODELOS_MENSAGENS (CODGRUPOMENSAGEM, TITULO, CONTEUDO, TIPO_MENSAGEM, ATIVO, CODUSUARIO, DTHRULTMODIFICACAO)
+            INSERT INTO MODELOSMENSAGENS (CODGRUPOMENSAGEM, TITULO, CONTEUDO, TIPO_MENSAGEM, ATIVO, CODUSUARIO, DTHRULTMODIFICACAO)
             VALUES (@Grupo, @Titulo, @Conteudo, @Tipo, @Ativo, @Usuario, @Agora) RETURNING CODMODELOMENSAGEM
             """, new { Grupo = request.CodGrupoMensagem, Titulo = titulo, Conteudo = conteudo, Tipo = NormalizeTipo(request.TipoMensagem), Ativo = Flag(request.Ativo), Usuario = User.GetCodUsuario(), Agora = DateTime.UtcNow }, tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
@@ -134,17 +134,17 @@ public class ModelosMensagensWebController : ControllerBase
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         var grupoAtual = await conn.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
-            "SELECT CODGRUPOMENSAGEM FROM MODELOS_MENSAGENS WHERE CODMODELOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
+            "SELECT CODGRUPOMENSAGEM FROM MODELOSMENSAGENS WHERE CODMODELOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
         if (grupoAtual is null) throw new ConteudosImpressosException("Mensagem não encontrada.", 404);
         if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM GRUPOS_MENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = request.CodGrupoMensagem }, tx, cancellationToken: ct)) == 0)
+                "SELECT COUNT(*) FROM GRUPOSMENSAGENS WHERE CODGRUPOMENSAGEM = @Id", new { Id = request.CodGrupoMensagem }, tx, cancellationToken: ct)) == 0)
             throw new ConteudosImpressosException("Grupo não encontrado.", 404);
         if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM MODELOS_MENSAGENS WHERE UPPER(TITULO) = UPPER(@Titulo) AND CODGRUPOMENSAGEM = @Grupo AND CODMODELOMENSAGEM <> @Id",
+                "SELECT COUNT(*) FROM MODELOSMENSAGENS WHERE UPPER(TITULO) = UPPER(@Titulo) AND CODGRUPOMENSAGEM = @Grupo AND CODMODELOMENSAGEM <> @Id",
                 new { Titulo = titulo, Grupo = request.CodGrupoMensagem, Id = id }, tx, cancellationToken: ct)) > 0)
             throw new ConteudosImpressosException("Já existe outra mensagem com este título neste grupo.", 409);
         await conn.ExecuteAsync(new CommandDefinition("""
-            UPDATE MODELOS_MENSAGENS SET CODGRUPOMENSAGEM = @Grupo, TITULO = @Titulo, CONTEUDO = @Conteudo,
+            UPDATE MODELOSMENSAGENS SET CODGRUPOMENSAGEM = @Grupo, TITULO = @Titulo, CONTEUDO = @Conteudo,
                    TIPO_MENSAGEM = @Tipo, ATIVO = @Ativo, CODUSUARIO = @Usuario, DTHRULTMODIFICACAO = @Agora
              WHERE CODMODELOMENSAGEM = @Id
             """, new { Grupo = request.CodGrupoMensagem, Titulo = titulo, Conteudo = conteudo, Tipo = NormalizeTipo(request.TipoMensagem), Ativo = Flag(request.Ativo), Usuario = User.GetCodUsuario(), Agora = DateTime.UtcNow, Id = id }, tx, cancellationToken: ct));
@@ -157,7 +157,7 @@ public class ModelosMensagensWebController : ControllerBase
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
-        var count = await conn.ExecuteAsync(new CommandDefinition("DELETE FROM MODELOS_MENSAGENS WHERE CODMODELOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
+        var count = await conn.ExecuteAsync(new CommandDefinition("DELETE FROM MODELOSMENSAGENS WHERE CODMODELOMENSAGEM = @Id", new { Id = id }, tx, cancellationToken: ct));
         if (count == 0) throw new ConteudosImpressosException("Mensagem não encontrada.", 404);
         await tx.CommitAsync(ct);
         return ApiResponse.OkMessage("Mensagem excluída com sucesso.");

@@ -7,9 +7,9 @@ export interface AppMenuItem {
 
 export function useAppMenu(): AppMenuItem[] {
   return [
-    { label: 'Dashboards', path: '/', icon: 'speedometer', exact: true },
-    { label: 'Visualizar Conteúdos', path: '/conteudos', icon: 'box-seam' },
-    { label: 'Biblioteca', path: '/biblioteca', icon: 'bookshelf' }
+    { label: 'Dashboards', path: '/', icon: 'speedometer2', exact: true },
+    { label: 'Visualizar Conteúdos', path: '/conteudos', icon: 'boxes' },
+    { label: 'Biblioteca', path: '/biblioteca', icon: 'journal-bookmark' }
   ]
 }
 

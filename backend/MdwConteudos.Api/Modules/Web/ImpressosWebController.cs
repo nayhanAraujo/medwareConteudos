@@ -24,7 +24,7 @@ public class ImpressosWebController : ControllerBase
             SELECT i.CODIMPRESSO AS CodImpresso, i.TITULO AS Titulo, i.USOGERAL AS UsoGeral,
                    i.IMPRIMIRCABECALHO AS ImprimirCabecalho, i.DTHRULTMODIFICACAO AS DthrUltModificacao,
                    u.NOME AS UsuarioNome,
-                   CASE WHEN EXISTS (SELECT 1 FROM IMPRESSO_VBS v WHERE v.CODIMPRESSO = i.CODIMPRESSO) THEN 1 ELSE 0 END AS TemVbs
+                   CASE WHEN EXISTS (SELECT 1 FROM IMPRESSOVBS v WHERE v.CODIMPRESSO = i.CODIMPRESSO) THEN 1 ELSE 0 END AS TemVbs
               FROM IMPRESSO i LEFT JOIN USUARIO u ON u.CODUSUARIO = i.CODUSUARIO
              ORDER BY i.DTHRULTMODIFICACAO DESC
             """, cancellationToken: ct))).Select(x => new ImpressoListDto(x.CodImpresso, x.Titulo ?? string.Empty, x.UsoGeral,
@@ -44,7 +44,7 @@ public class ImpressosWebController : ControllerBase
         if (row is null) return NotFound(ApiResponse.Fail("Não encontrado", "Impresso não encontrado."));
         var vbs = await conn.QuerySingleOrDefaultAsync<VbsRow>(new CommandDefinition("""
             SELECT SCRIPT_VBS AS ScriptVbs, DTHRULTMODIFICACAO AS DthrUltModificacao
-              FROM IMPRESSO_VBS WHERE CODIMPRESSO = @Id ROWS 1
+              FROM IMPRESSOVBS WHERE CODIMPRESSO = @Id ROWS 1
             """, new { Id = id }, cancellationToken: ct));
         return Ok(ApiResponse.Ok(new ImpressoDto(row.CodImpresso, row.Titulo ?? string.Empty, ConteudoTextCodec.Decode(row.Conteudo),
             row.UsoGeral, row.ImprimirCabecalho, row.CodUsuario, row.DthrUltModificacao, ConteudoTextCodec.Decode(vbs?.ScriptVbs), vbs?.DthrUltModificacao)));
@@ -86,7 +86,7 @@ public class ImpressosWebController : ControllerBase
         if (vbs is not null)
         {
             var updated = await conn.ExecuteAsync(new CommandDefinition("""
-                UPDATE IMPRESSO_VBS SET SCRIPT_VBS = @Vbs, CODUSUARIO = @Usuario, DTHRULTMODIFICACAO = @Agora WHERE CODIMPRESSO = @Id
+                UPDATE IMPRESSOVBS SET SCRIPT_VBS = @Vbs, CODUSUARIO = @Usuario, DTHRULTMODIFICACAO = @Agora WHERE CODIMPRESSO = @Id
                 """, new { Vbs = vbs, Usuario = User.GetCodUsuario(), Agora = DateTime.UtcNow, Id = id }, tx, cancellationToken: ct));
             if (updated == 0) await InsertVbs(conn, tx, id, vbs, User.GetCodUsuario(), ct);
         }
@@ -99,7 +99,7 @@ public class ImpressosWebController : ControllerBase
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
-        await conn.ExecuteAsync(new CommandDefinition("DELETE FROM IMPRESSO_VBS WHERE CODIMPRESSO = @Id", new { Id = id }, tx, cancellationToken: ct));
+        await conn.ExecuteAsync(new CommandDefinition("DELETE FROM IMPRESSOVBS WHERE CODIMPRESSO = @Id", new { Id = id }, tx, cancellationToken: ct));
         var count = await conn.ExecuteAsync(new CommandDefinition("DELETE FROM IMPRESSO WHERE CODIMPRESSO = @Id", new { Id = id }, tx, cancellationToken: ct));
         if (count == 0) throw new ConteudosImpressosException("Impresso não encontrado.", 404);
         await tx.CommitAsync(ct);
@@ -111,7 +111,7 @@ public class ImpressosWebController : ControllerBase
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
-        var count = await conn.ExecuteAsync(new CommandDefinition("DELETE FROM IMPRESSO_VBS WHERE CODIMPRESSO = @Id", new { Id = id }, tx, cancellationToken: ct));
+        var count = await conn.ExecuteAsync(new CommandDefinition("DELETE FROM IMPRESSOVBS WHERE CODIMPRESSO = @Id", new { Id = id }, tx, cancellationToken: ct));
         if (count == 0) throw new ConteudosImpressosException("Arquivo VBS não encontrado.", 404);
         await tx.CommitAsync(ct);
         return ApiResponse.OkMessage("Arquivo VBS removido com sucesso.");
@@ -153,7 +153,7 @@ public class ImpressosWebController : ControllerBase
             "SELECT TITULO FROM IMPRESSO WHERE CODIMPRESSO = @Id", new { Id = id }, cancellationToken: ct));
         if (title is null) return NotFound(ApiResponse.Fail("Não encontrado", "Impresso não encontrado."));
         var content = vbs
-            ? await conn.QuerySingleOrDefaultAsync<object>(new CommandDefinition("SELECT SCRIPT_VBS FROM IMPRESSO_VBS WHERE CODIMPRESSO = @Id ROWS 1", new { Id = id }, cancellationToken: ct))
+            ? await conn.QuerySingleOrDefaultAsync<object>(new CommandDefinition("SELECT SCRIPT_VBS FROM IMPRESSOVBS WHERE CODIMPRESSO = @Id ROWS 1", new { Id = id }, cancellationToken: ct))
             : await conn.QuerySingleOrDefaultAsync<object>(new CommandDefinition("SELECT IMPRESSO FROM IMPRESSO WHERE CODIMPRESSO = @Id", new { Id = id }, cancellationToken: ct));
         if (content is null) return NotFound(ApiResponse.Fail("Não encontrado", vbs ? "Arquivo VBS não encontrado." : "Conteúdo MRD não encontrado."));
         var suffix = vbs ? "_script.vbs" : ".mrd";
@@ -210,7 +210,7 @@ public class ImpressosWebController : ControllerBase
 
     private static Task<int> InsertVbs(System.Data.IDbConnection conn, System.Data.IDbTransaction tx, int id, string vbs, int userId, CancellationToken ct) =>
         conn.ExecuteAsync(new CommandDefinition("""
-            INSERT INTO IMPRESSO_VBS (CODIMPRESSO, SCRIPT_VBS, CODUSUARIO, DTHRULTMODIFICACAO)
+            INSERT INTO IMPRESSOVBS (CODIMPRESSO, SCRIPT_VBS, CODUSUARIO, DTHRULTMODIFICACAO)
             VALUES (@Id, @Vbs, @Usuario, @Agora)
             """, new { Id = id, Vbs = vbs, Usuario = userId, Agora = DateTime.UtcNow }, tx, cancellationToken: ct));
 

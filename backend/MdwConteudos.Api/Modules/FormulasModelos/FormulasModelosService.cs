@@ -61,8 +61,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
         var total = await connection.ExecuteScalarAsync<int>(Cmd($@"
             SELECT COUNT(DISTINCT F.CODFORMULA)
             FROM FORMULAS F
-            JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
-            JOIN VARIAVEIS V ON V.CODVARIAVEL = FV.CODVARIAVEL
+            LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
+            LEFT JOIN VARIAVEIS V ON V.CODVARIAVEL = COALESCE(FV.CODVARIAVEL, F.CODVARIAVEL)
             WHERE {whereSql}", parameters, ct: ct));
 
         parameters.Add("first", pageSize);
@@ -70,17 +70,18 @@ public sealed class FormulasModelosService : IFormulasModelosService
         var rows = await connection.QueryAsync<FormulaListItem>(Cmd($@"
             SELECT FIRST @first SKIP @skip
                 F.CODFORMULA AS CodFormula,
+                F.CODVARIAVEL AS CodVariavel,
                 COALESCE(F.NOME, '') AS Nome,
                 COALESCE(F.FORMULA, '') AS Formula,
                 F.DESCRICAO AS Descricao,
                 COALESCE(F.CASADECIMAIS, 2) AS CasasDecimais,
-                LIST(V.NOME, ', ') AS Variaveis,
-                LIST(V.SIGLA, ', ') AS Siglas
+                COALESCE(LIST(V.NOME, ', '), '') AS Variaveis,
+                COALESCE(LIST(V.SIGLA, ', '), '') AS Siglas
             FROM FORMULAS F
-            JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
-            JOIN VARIAVEIS V ON V.CODVARIAVEL = FV.CODVARIAVEL
+            LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
+            LEFT JOIN VARIAVEIS V ON V.CODVARIAVEL = COALESCE(FV.CODVARIAVEL, F.CODVARIAVEL)
             WHERE {whereSql}
-            GROUP BY F.CODFORMULA, F.NOME, F.FORMULA, F.DESCRICAO, F.CASADECIMAIS
+            GROUP BY F.CODFORMULA, F.CODVARIAVEL, F.NOME, F.FORMULA, F.DESCRICAO, F.CASADECIMAIS
             ORDER BY F.NOME, F.CODFORMULA", parameters, ct: ct));
 
         return Page(rows.AsList(), page, pageSize, total);
@@ -97,9 +98,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 U.DESCRICAO AS Unidade,
                 V.ABREVIACAO AS Abreviacao,
                 (SELECT FIRST 1 F.FORMULA
-                   FROM FORMULA_VARIAVEL FV
-                   JOIN FORMULAS F ON F.CODFORMULA = FV.CODFORMULA
-                  WHERE FV.CODVARIAVEL = V.CODVARIAVEL) AS Formula,
+                   FROM FORMULAS F
+                   LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
+                  WHERE F.CODVARIAVEL = V.CODVARIAVEL OR FV.CODVARIAVEL = V.CODVARIAVEL
+                  ORDER BY CASE WHEN F.CODVARIAVEL = V.CODVARIAVEL THEN 0 ELSE 1 END) AS Formula,
                 (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '-') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '-'), '; ')
                    FROM NORMALIDADE N
                   WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade
@@ -131,6 +133,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
         await using var connection = await _connections.OpenConnectionAsync(ct);
         var formula = await connection.QueryFirstOrDefaultAsync<FormulaRow>(Cmd(@"
             SELECT CODFORMULA AS CodFormula,
+                   CODVARIAVEL AS CodVariavel,
                    COALESCE(NOME, '') AS Nome,
                    COALESCE(FORMULA, '') AS Formula,
                    DESCRICAO AS Descricao,
@@ -144,6 +147,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
             FROM FORMULA_VARIAVEL
             WHERE CODFORMULA = @id
             ORDER BY CODVARIAVEL", new { id }, ct: ct))).AsList();
+        if (formula.CodVariavel is > 0 && !variavelIds.Contains(formula.CodVariavel.Value))
+            variavelIds.Insert(0, formula.CodVariavel.Value);
 
         var equacoes = (await connection.QueryAsync<EquacaoDto>(Cmd(@"
             SELECT EL.CODLINGUAGEM AS CodLinguagem,
@@ -154,7 +159,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
                    END AS Referencia,
                    COALESCE(EL.EQUACAO, '') AS Equacao,
                    EL.NOME_FUNCAO AS NomeFuncao
-            FROM EQUACOES_LINGUAGEM EL
+            FROM EQUACOESLINGUAGEM EL
             JOIN TIPOLINGUAGEM L ON L.CODLINGUAGEM = EL.CODLINGUAGEM
             LEFT JOIN REFERENCIA R ON R.CODREFERENCIA = EL.CODREFERENCIA
             WHERE EL.CODFORMULA = @id
@@ -162,6 +167,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
 
         return new FormulaDetalhe(
             formula.CodFormula,
+            formula.CodVariavel,
             formula.Nome,
             formula.Formula,
             formula.Descricao,
@@ -179,14 +185,16 @@ public sealed class FormulasModelosService : IFormulasModelosService
         try
         {
             var variables = await LoadAndValidateVariables(connection, transaction, variableIds, null, ct);
-            var name = string.IsNullOrWhiteSpace(request.Nome) ? variables[0].Sigla : request.Nome.Trim();
+            var ownerId = ResolveOwnerVariableId(request, variableIds);
+            var owner = variables.First(x => x.CodVariavel == ownerId);
+            var name = string.IsNullOrWhiteSpace(request.Nome) ? owner.Sigla : request.Nome.Trim();
             var description = string.IsNullOrWhiteSpace(request.Descricao)
-                ? $"Fórmula para {variables[0].Nome}"
+                ? $"Fórmula para {owner.Nome}"
                 : request.Descricao.Trim();
 
             var id = await connection.ExecuteScalarAsync<int>(Cmd(@"
-                INSERT INTO FORMULAS (NOME, DESCRICAO, FORMULA, CASADECIMAIS, DTHRULTMODIFICACAO, CODUSUARIO)
-                VALUES (@name, @description, @formula, @decimalPlaces, @now, @codUsuario)
+                INSERT INTO FORMULAS (NOME, DESCRICAO, FORMULA, CASADECIMAIS, DTHRULTMODIFICACAO, CODUSUARIO, CODVARIAVEL)
+                VALUES (@name, @description, @formula, @decimalPlaces, @now, @codUsuario, @ownerId)
                 RETURNING CODFORMULA", new
             {
                 name,
@@ -194,7 +202,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 formula = request.Formula.Trim(),
                 decimalPlaces = request.CasasDecimais,
                 now = DateTime.Now,
-                codUsuario
+                codUsuario,
+                ownerId
             }, transaction, ct));
 
             await ReplaceFormulaLinks(connection, transaction, id, variableIds, request.Equacoes ?? [], codUsuario, ct);
@@ -222,7 +231,9 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 throw new InvalidOperationException("Fórmula não encontrada.");
 
             var variables = await LoadAndValidateVariables(connection, transaction, variableIds, id, ct);
-            var name = string.IsNullOrWhiteSpace(request.Nome) ? variables[0].Sigla : request.Nome.Trim();
+            var ownerId = ResolveOwnerVariableId(request, variableIds);
+            var owner = variables.First(x => x.CodVariavel == ownerId);
+            var name = string.IsNullOrWhiteSpace(request.Nome) ? owner.Sigla : request.Nome.Trim();
             await connection.ExecuteAsync(Cmd(@"
                 UPDATE FORMULAS
                    SET NOME = @name,
@@ -230,7 +241,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
                        FORMULA = @formula,
                        CASADECIMAIS = @decimalPlaces,
                        DTHRULTMODIFICACAO = @now,
-                       CODUSUARIO = @codUsuario
+                       CODUSUARIO = @codUsuario,
+                       CODVARIAVEL = @ownerId
                  WHERE CODFORMULA = @id", new
             {
                 id,
@@ -239,7 +251,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 formula = request.Formula.Trim(),
                 decimalPlaces = request.CasasDecimais,
                 now = DateTime.Now,
-                codUsuario
+                codUsuario,
+                ownerId
             }, transaction, ct));
 
             await ReplaceFormulaLinks(connection, transaction, id, variableIds, request.Equacoes ?? [], codUsuario, ct);
@@ -263,7 +276,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
                     new { id }, transaction, ct)) == 0)
                 throw new InvalidOperationException("Fórmula não encontrada.");
 
-            await connection.ExecuteAsync(Cmd("DELETE FROM EQUACOES_LINGUAGEM WHERE CODFORMULA = @id", new { id }, transaction, ct));
+            await connection.ExecuteAsync(Cmd("DELETE FROM EQUACOESLINGUAGEM WHERE CODFORMULA = @id", new { id }, transaction, ct));
             await connection.ExecuteAsync(Cmd("DELETE FROM FORMULA_VARIAVEL WHERE CODFORMULA = @id", new { id }, transaction, ct));
             await connection.ExecuteAsync(Cmd("DELETE FROM FORMULAS WHERE CODFORMULA = @id", new { id }, transaction, ct));
             transaction.Commit();
@@ -294,7 +307,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
 
         await using var connection = await _connections.OpenConnectionAsync(ct);
         var total = await connection.ExecuteScalarAsync<int>(Cmd($@"
-            SELECT COUNT(*) FROM MODELO_MODO_TEXTO M
+            SELECT COUNT(*) FROM MODELOMODOTEXTO M
             WHERE M.CODUSUARIO = @codUsuario {filter}", parameters, ct: ct));
 
         parameters.Add("first", pageSize);
@@ -303,8 +316,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
             SELECT FIRST @first SKIP @skip
                    M.CODMODELO AS CodModelo,
                    COALESCE(M.NOME, '') AS Nome,
-                   (SELECT COUNT(*) FROM SECAO_MODO_TEXTO S WHERE S.CODMODELO = M.CODMODELO) AS TotalSecoes
-            FROM MODELO_MODO_TEXTO M
+                   (SELECT COUNT(*) FROM SECAOMODOTEXTO S WHERE S.CODMODELO = M.CODMODELO) AS TotalSecoes
+            FROM MODELOMODOTEXTO M
             WHERE M.CODUSUARIO = @codUsuario {filter}
             ORDER BY M.NOME, M.CODMODELO", parameters, ct: ct))).AsList();
 
@@ -316,7 +329,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
         await using var connection = await _connections.OpenConnectionAsync(ct);
         var model = await connection.QueryFirstOrDefaultAsync<ModeloRow>(Cmd(@"
             SELECT CODMODELO AS CodModelo, COALESCE(NOME, '') AS Nome
-            FROM MODELO_MODO_TEXTO
+            FROM MODELOMODOTEXTO
             WHERE CODMODELO = @id AND CODUSUARIO = @codUsuario",
             new { id, codUsuario }, ct: ct));
         if (model is null) return null;
@@ -329,7 +342,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
                    COALESCE(POSICAO_Y, 0) AS Y,
                    COALESCE(LARGURA, 6) AS Largura,
                    COALESCE(ALTURA, 4) AS Altura
-            FROM SECAO_MODO_TEXTO
+            FROM SECAOMODOTEXTO
             WHERE CODMODELO = @id
             ORDER BY ORDEM, POSICAO_Y, POSICAO_X, NOME", new { id }, ct: ct))).AsList();
 
@@ -374,13 +387,13 @@ public sealed class FormulasModelosService : IFormulasModelosService
         var name = RequiredName(request.Nome, "O nome do modelo é obrigatório.");
         await using var connection = await _connections.OpenConnectionAsync(ct);
         if (await connection.ExecuteScalarAsync<int>(Cmd(@"
-                SELECT COUNT(*) FROM MODELO_MODO_TEXTO
+                SELECT COUNT(*) FROM MODELOMODOTEXTO
                 WHERE UPPER(NOME) = UPPER(@name) AND CODUSUARIO = @codUsuario",
                 new { name, codUsuario }, ct: ct)) > 0)
             throw new InvalidOperationException("Já existe um modelo com esse nome.");
 
         return await connection.ExecuteScalarAsync<int>(Cmd(@"
-            INSERT INTO MODELO_MODO_TEXTO (NOME, CODUSUARIO)
+            INSERT INTO MODELOMODOTEXTO (NOME, CODUSUARIO)
             VALUES (@name, @codUsuario)
             RETURNING CODMODELO", new { name, codUsuario }, ct: ct));
     }
@@ -394,13 +407,13 @@ public sealed class FormulasModelosService : IFormulasModelosService
         {
             await EnsureModelOwnership(connection, transaction, id, codUsuario, ct);
             if (await connection.ExecuteScalarAsync<int>(Cmd(@"
-                    SELECT COUNT(*) FROM MODELO_MODO_TEXTO
+                    SELECT COUNT(*) FROM MODELOMODOTEXTO
                     WHERE UPPER(NOME) = UPPER(@name) AND CODUSUARIO = @codUsuario AND CODMODELO <> @id",
                     new { name, codUsuario, id }, transaction, ct)) > 0)
                 throw new InvalidOperationException("Já existe um modelo com esse nome.");
 
             await connection.ExecuteAsync(Cmd(@"
-                UPDATE MODELO_MODO_TEXTO
+                UPDATE MODELOMODOTEXTO
                 SET NOME = @name, DTHRULTMODIFICACAO = @now
                 WHERE CODMODELO = @id AND CODUSUARIO = @codUsuario",
                 new { name, now = DateTime.Now, id, codUsuario }, transaction, ct));
@@ -422,11 +435,11 @@ public sealed class FormulasModelosService : IFormulasModelosService
             await EnsureModelOwnership(connection, transaction, id, codUsuario, ct);
             await connection.ExecuteAsync(Cmd(@"
                 DELETE FROM SECAO_VARIAVEL
-                WHERE CODSECAO IN (SELECT CODSECAO FROM SECAO_MODO_TEXTO WHERE CODMODELO = @id)",
+                WHERE CODSECAO IN (SELECT CODSECAO FROM SECAOMODOTEXTO WHERE CODMODELO = @id)",
                 new { id }, transaction, ct));
-            await connection.ExecuteAsync(Cmd("DELETE FROM SECAO_MODO_TEXTO WHERE CODMODELO = @id", new { id }, transaction, ct));
+            await connection.ExecuteAsync(Cmd("DELETE FROM SECAOMODOTEXTO WHERE CODMODELO = @id", new { id }, transaction, ct));
             await connection.ExecuteAsync(Cmd(
-                "DELETE FROM MODELO_MODO_TEXTO WHERE CODMODELO = @id AND CODUSUARIO = @codUsuario",
+                "DELETE FROM MODELOMODOTEXTO WHERE CODMODELO = @id AND CODUSUARIO = @codUsuario",
                 new { id, codUsuario }, transaction, ct));
             transaction.Commit();
         }
@@ -449,10 +462,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
             var variables = NormalizeSectionVariables(request.Variaveis);
             await ValidateVariableIds(connection, transaction, variables.Select(x => x.CodVariavel).ToArray(), ct);
             var order = await connection.ExecuteScalarAsync<int>(Cmd(@"
-                SELECT COALESCE(MAX(ORDEM), 0) + 1 FROM SECAO_MODO_TEXTO WHERE CODMODELO = @modeloId",
+                SELECT COALESCE(MAX(ORDEM), 0) + 1 FROM SECAOMODOTEXTO WHERE CODMODELO = @modeloId",
                 new { modeloId }, transaction, ct));
             var sectionId = await connection.ExecuteScalarAsync<int>(Cmd(@"
-                INSERT INTO SECAO_MODO_TEXTO (NOME, CODMODELO, ORDEM)
+                INSERT INTO SECAOMODOTEXTO (NOME, CODMODELO, ORDEM)
                 VALUES (@name, @modeloId, @order)
                 RETURNING CODSECAO", new { name, modeloId, order }, transaction, ct));
             await InsertSectionVariables(connection, transaction, sectionId, variables, ct);
@@ -478,7 +491,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             var variables = NormalizeSectionVariables(request.Variaveis);
             await ValidateVariableIds(connection, transaction, variables.Select(x => x.CodVariavel).ToArray(), ct);
             await connection.ExecuteAsync(Cmd(@"
-                UPDATE SECAO_MODO_TEXTO SET NOME = @name
+                UPDATE SECAOMODOTEXTO SET NOME = @name
                 WHERE CODSECAO = @secaoId AND CODMODELO = @modeloId",
                 new { name, secaoId, modeloId }, transaction, ct));
             await connection.ExecuteAsync(Cmd("DELETE FROM SECAO_VARIAVEL WHERE CODSECAO = @secaoId", new { secaoId }, transaction, ct));
@@ -501,7 +514,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             await EnsureSectionOwnership(connection, transaction, modeloId, secaoId, codUsuario, ct);
             await connection.ExecuteAsync(Cmd("DELETE FROM SECAO_VARIAVEL WHERE CODSECAO = @secaoId", new { secaoId }, transaction, ct));
             await connection.ExecuteAsync(Cmd(@"
-                DELETE FROM SECAO_MODO_TEXTO WHERE CODSECAO = @secaoId AND CODMODELO = @modeloId",
+                DELETE FROM SECAOMODOTEXTO WHERE CODSECAO = @secaoId AND CODMODELO = @modeloId",
                 new { secaoId, modeloId }, transaction, ct));
             await ReindexSections(connection, transaction, modeloId, ct);
             transaction.Commit();
@@ -522,14 +535,14 @@ public sealed class FormulasModelosService : IFormulasModelosService
         {
             await EnsureModelOwnership(connection, transaction, modeloId, codUsuario, ct);
             var existing = (await connection.QueryAsync<int>(Cmd(
-                "SELECT CODSECAO FROM SECAO_MODO_TEXTO WHERE CODMODELO = @modeloId",
+                "SELECT CODSECAO FROM SECAOMODOTEXTO WHERE CODMODELO = @modeloId",
                 new { modeloId }, transaction, ct))).OrderBy(x => x).ToArray();
             if (!existing.SequenceEqual(ids.OrderBy(x => x)))
                 throw new InvalidOperationException("A ordenação deve conter todas as seções do modelo, sem repetições.");
 
             for (var i = 0; i < ids.Count; i++)
                 await connection.ExecuteAsync(Cmd(@"
-                    UPDATE SECAO_MODO_TEXTO SET ORDEM = @order
+                    UPDATE SECAOMODOTEXTO SET ORDEM = @order
                     WHERE CODSECAO = @sectionId AND CODMODELO = @modeloId",
                     new { order = i + 1, sectionId = ids[i], modeloId }, transaction, ct));
             transaction.Commit();
@@ -582,14 +595,14 @@ public sealed class FormulasModelosService : IFormulasModelosService
         {
             await EnsureModelOwnership(connection, transaction, modeloId, codUsuario, ct);
             var existing = (await connection.QueryAsync<int>(Cmd(
-                "SELECT CODSECAO FROM SECAO_MODO_TEXTO WHERE CODMODELO = @modeloId",
+                "SELECT CODSECAO FROM SECAOMODOTEXTO WHERE CODMODELO = @modeloId",
                 new { modeloId }, transaction, ct))).OrderBy(x => x).ToArray();
             if (!existing.SequenceEqual(layout.Select(x => x.CodSecao).OrderBy(x => x)))
                 throw new InvalidOperationException("O layout deve conter todas as seções do modelo.");
 
             foreach (var item in layout)
                 await connection.ExecuteAsync(Cmd(@"
-                    UPDATE SECAO_MODO_TEXTO
+                    UPDATE SECAOMODOTEXTO
                     SET POSICAO_X = @X, POSICAO_Y = @Y, LARGURA = @Largura, ALTURA = @Altura
                     WHERE CODSECAO = @CodSecao AND CODMODELO = @modeloId",
                     new { item.X, item.Y, item.Largura, item.Altura, item.CodSecao, modeloId }, transaction, ct));
@@ -625,6 +638,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             "text/html");
     }
 
+    // Uma variável só pode pertencer a uma fórmula (FORMULAS.CODVARIAVEL é único).
     private static async Task<IReadOnlyList<VariableRow>> LoadAndValidateVariables(
         FbConnection connection,
         IDbTransaction transaction,
@@ -639,8 +653,16 @@ public sealed class FormulasModelosService : IFormulasModelosService
         if (variables.Count != ids.Count) throw new InvalidOperationException("Uma ou mais variáveis não existem.");
 
         var conflictSql = currentFormulaId.HasValue
-            ? "SELECT COUNT(*) FROM FORMULA_VARIAVEL WHERE CODVARIAVEL IN @ids AND CODFORMULA <> @currentFormulaId"
-            : "SELECT COUNT(*) FROM FORMULA_VARIAVEL WHERE CODVARIAVEL IN @ids";
+            ? @"SELECT COUNT(*) FROM (
+                    SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL IN @ids AND CODFORMULA <> @currentFormulaId
+                    UNION
+                    SELECT CODFORMULA FROM FORMULAS WHERE CODVARIAVEL IN @ids AND CODFORMULA <> @currentFormulaId
+                ) X"
+            : @"SELECT COUNT(*) FROM (
+                    SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL IN @ids
+                    UNION
+                    SELECT CODFORMULA FROM FORMULAS WHERE CODVARIAVEL IN @ids
+                ) X";
         var conflicts = await connection.ExecuteScalarAsync<int>(Cmd(
             conflictSql,
             new { ids, currentFormulaId },
@@ -662,7 +684,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
         if (equations.Any(x => x.CodLinguagem <= 0 || string.IsNullOrWhiteSpace(x.Equacao)))
             throw new InvalidOperationException("Toda equação deve ter linguagem e conteúdo.");
 
-        await connection.ExecuteAsync(Cmd("DELETE FROM EQUACOES_LINGUAGEM WHERE CODFORMULA = @formulaId", new { formulaId }, transaction, ct));
+        await connection.ExecuteAsync(Cmd("DELETE FROM EQUACOESLINGUAGEM WHERE CODFORMULA = @formulaId", new { formulaId }, transaction, ct));
         await connection.ExecuteAsync(Cmd("DELETE FROM FORMULA_VARIAVEL WHERE CODFORMULA = @formulaId", new { formulaId }, transaction, ct));
         foreach (var variableId in variableIds)
             await connection.ExecuteAsync(Cmd(@"
@@ -672,7 +694,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
 
         foreach (var equation in equations)
             await connection.ExecuteAsync(Cmd(@"
-                INSERT INTO EQUACOES_LINGUAGEM (CODFORMULA, CODLINGUAGEM, CODREFERENCIA, EQUACAO, NOME_FUNCAO)
+                INSERT INTO EQUACOESLINGUAGEM (CODFORMULA, CODLINGUAGEM, CODREFERENCIA, EQUACAO, NOME_FUNCAO)
                 VALUES (@formulaId, @languageId, @referenceId, @equation, @functionName)", new
             {
                 formulaId,
@@ -686,7 +708,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
     private static async Task EnsureModelOwnership(FbConnection connection, IDbTransaction transaction, int modelId, int userId, CancellationToken ct)
     {
         if (await connection.ExecuteScalarAsync<int>(Cmd(@"
-                SELECT COUNT(*) FROM MODELO_MODO_TEXTO
+                SELECT COUNT(*) FROM MODELOMODOTEXTO
                 WHERE CODMODELO = @modelId AND CODUSUARIO = @userId",
                 new { modelId, userId }, transaction, ct)) == 0)
             throw new InvalidOperationException("Modelo não encontrado ou sem permissão de acesso.");
@@ -696,8 +718,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
     {
         if (await connection.ExecuteScalarAsync<int>(Cmd(@"
                 SELECT COUNT(*)
-                FROM SECAO_MODO_TEXTO S
-                JOIN MODELO_MODO_TEXTO M ON M.CODMODELO = S.CODMODELO
+                FROM SECAOMODOTEXTO S
+                JOIN MODELOMODOTEXTO M ON M.CODMODELO = S.CODMODELO
                 WHERE S.CODSECAO = @sectionId AND S.CODMODELO = @modelId AND M.CODUSUARIO = @userId",
                 new { sectionId, modelId, userId }, transaction, ct)) == 0)
             throw new InvalidOperationException("Seção não encontrada ou sem permissão de acesso.");
@@ -706,9 +728,9 @@ public sealed class FormulasModelosService : IFormulasModelosService
     private static async Task EnsureSectionNameAvailable(FbConnection connection, IDbTransaction transaction, int modelId, int? sectionId, string name, CancellationToken ct)
     {
         var sql = sectionId.HasValue
-            ? @"SELECT COUNT(*) FROM SECAO_MODO_TEXTO
+            ? @"SELECT COUNT(*) FROM SECAOMODOTEXTO
                 WHERE CODMODELO = @modelId AND UPPER(NOME) = UPPER(@name) AND CODSECAO <> @sectionId"
-            : @"SELECT COUNT(*) FROM SECAO_MODO_TEXTO
+            : @"SELECT COUNT(*) FROM SECAOMODOTEXTO
                 WHERE CODMODELO = @modelId AND UPPER(NOME) = UPPER(@name)";
         if (await connection.ExecuteScalarAsync<int>(Cmd(
                 sql,
@@ -747,12 +769,12 @@ public sealed class FormulasModelosService : IFormulasModelosService
     private static async Task ReindexSections(FbConnection connection, IDbTransaction transaction, int modelId, CancellationToken ct)
     {
         var ids = (await connection.QueryAsync<int>(Cmd(@"
-            SELECT CODSECAO FROM SECAO_MODO_TEXTO
+            SELECT CODSECAO FROM SECAOMODOTEXTO
             WHERE CODMODELO = @modelId ORDER BY ORDEM, NOME",
             new { modelId }, transaction, ct))).AsList();
         for (var i = 0; i < ids.Count; i++)
             await connection.ExecuteAsync(Cmd(
-                "UPDATE SECAO_MODO_TEXTO SET ORDEM = @order WHERE CODSECAO = @id",
+                "UPDATE SECAOMODOTEXTO SET ORDEM = @order WHERE CODSECAO = @id",
                 new { order = i + 1, id = ids[i] }, transaction, ct));
     }
 
@@ -828,6 +850,18 @@ public sealed class FormulasModelosService : IFormulasModelosService
             """;
     }
 
+    private static int ResolveOwnerVariableId(FormulaUpsertRequest request, IReadOnlyList<int> variableIds)
+    {
+        if (request.CodVariavel is > 0)
+        {
+            if (!variableIds.Contains(request.CodVariavel.Value))
+                throw new InvalidOperationException("CODVARIAVEL deve estar entre as variáveis vinculadas.");
+            return request.CodVariavel.Value;
+        }
+
+        return variableIds[0];
+    }
+
     private static void ValidateFormula(FormulaUpsertRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Formula))
@@ -858,7 +892,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
     private static CommandDefinition Cmd(string sql, object? parameters = null, IDbTransaction? transaction = null, CancellationToken ct = default)
         => new(sql, parameters, transaction, cancellationToken: ct);
 
-    private sealed record FormulaRow(int CodFormula, string Nome, string Formula, string? Descricao, int CasasDecimais);
+    private sealed record FormulaRow(int CodFormula, int? CodVariavel, string Nome, string Formula, string? Descricao, int CasasDecimais);
     private sealed record VariableRow(int CodVariavel, string Nome, string Sigla);
     private sealed record ModeloRow(int CodModelo, string Nome);
     private sealed record SectionRow(int CodSecao, string Nome, int Ordem, int X, int Y, int Largura, int Altura);

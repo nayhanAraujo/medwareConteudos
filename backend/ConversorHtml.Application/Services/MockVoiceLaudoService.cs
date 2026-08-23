@@ -569,8 +569,8 @@ public partial class MockVoiceLaudoService : IVoiceLaudoService
                     foreach (var r in refs)
                     {
                         var sexo = r?["sexo"]?.GetValue<string>();
-                        var min = r?["valorMin"]?.GetValue<string>() ?? "";
-                        var max = r?["valorMax"]?.GetValue<string>() ?? "";
+                        var min = ModoTextoCodigoFormatter.FormatDecimalText(r?["valorMin"]?.GetValue<string>());
+                        var max = ModoTextoCodigoFormatter.FormatDecimalText(r?["valorMax"]?.GetValue<string>());
                         if (sexo == "M") mRef = $"{min} a {max}";
                         if (sexo == "F") fRef = $"{min} a {max}";
                     }

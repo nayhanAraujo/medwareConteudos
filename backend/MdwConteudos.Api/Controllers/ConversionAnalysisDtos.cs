@@ -40,6 +40,8 @@ public sealed class ReviewedMeasureDto
     public string? Unit { get; set; }
     public string? OriginalText { get; set; }
     public int? CodVariavel { get; set; }
+    public int? CodReferencia { get; set; }
+    public string? NormalityMode { get; set; }
     public string Decision { get; set; } = "keep";
 }
 

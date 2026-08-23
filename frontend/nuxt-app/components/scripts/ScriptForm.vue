@@ -172,10 +172,4 @@ function cleanupPreviewUrls() {
 }
 
 onBeforeUnmount(() => cleanupPreviewUrls())
-
-function mediaUrl(path?: string) {
-  if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
-  return `http://localhost:5080${path.startsWith('/') ? '' : '/'}${path}`
-}
 </script>

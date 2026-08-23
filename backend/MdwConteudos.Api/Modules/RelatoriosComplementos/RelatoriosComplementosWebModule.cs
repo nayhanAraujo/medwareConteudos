@@ -39,10 +39,10 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
         await EnsureResource(conn, "RELATORIOS", "CODRELATORIO", relatorioId, "Relatório não encontrado");
-        if (!await TableExists(conn, "RELATORIO_VALIDACOES")) return new { data = Array.Empty<object>(), total = 0, tabelaExiste = false };
+        if (!await TableExists(conn, "RELATORIOVALIDACOES")) return new { data = Array.Empty<object>(), total = 0, tabelaExiste = false };
         var raw = (await conn.QueryAsync(@"SELECT v.CODVALIDACAO, v.STATUS_VALIDACAO, v.METODO_VALIDACAO,
                    v.CRITERIOS_VALIDACAO, v.OBSERVACOES, v.DTHRVALIDACAO, v.DTHRPROXIMA_VALIDACAO,
-                   u.NOME AS VALIDADOR FROM RELATORIO_VALIDACOES v
+                   u.NOME AS VALIDADOR FROM RELATORIOVALIDACOES v
                    LEFT JOIN USUARIO u ON u.CODUSUARIO = v.CODUSUARIO_VALIDADOR
                    WHERE v.CODRELATORIO=@relatorioId ORDER BY v.DTHRVALIDACAO DESC", new { relatorioId })).ToList();
         var rows = raw.Select(v => new
@@ -66,8 +66,8 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
         if (string.IsNullOrWhiteSpace(req.MetodoValidacao)) throw new InvalidOperationException("Método de validação é obrigatório.");
         await using var conn = await db.OpenConnectionAsync(ct);
         await EnsureResource(conn, "RELATORIOS", "CODRELATORIO", relatorioId, "Relatório não encontrado");
-        if (!await TableExists(conn, "RELATORIO_VALIDACOES")) throw new InvalidOperationException("Tabela RELATORIO_VALIDACOES não existe.");
-        await conn.ExecuteAsync(@"INSERT INTO RELATORIO_VALIDACOES
+        if (!await TableExists(conn, "RELATORIOVALIDACOES")) throw new InvalidOperationException("Tabela RELATORIOVALIDACOES não existe.");
+        await conn.ExecuteAsync(@"INSERT INTO RELATORIOVALIDACOES
             (CODRELATORIO,CODUSUARIO_VALIDADOR,STATUS_VALIDACAO,METODO_VALIDACAO,CRITERIOS_VALIDACAO,OBSERVACOES,DTHRPROXIMA_VALIDACAO)
             VALUES (@relatorioId,@usuarioId,@status,@metodo,@criterios,@observacoes,@proxima)",
             new { relatorioId, usuarioId, status, metodo = req.MetodoValidacao.Trim(), criterios = req.CriteriosValidacao, observacoes = req.Observacoes, proxima = req.DthrProximaValidacao });
@@ -76,9 +76,9 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     public async Task<object> ListFiltros(CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        if (!await TableExists(conn, "RELATORIO_FILTROS")) return new { data = Array.Empty<object>(), total = 0, tabelaExiste = false };
+        if (!await TableExists(conn, "RELATORIOFILTROS")) return new { data = Array.Empty<object>(), total = 0, tabelaExiste = false };
         var raw = (await conn.QueryAsync(@"SELECT CODFILTRO,NOME,DESCRICAO,TIPO,SQL_FILTRO,SQL_QUERY,ATIVO,DTHRCRIACAO,DTHRATUALIZACAO
-            FROM RELATORIO_FILTROS ORDER BY NOME")).ToList();
+            FROM RELATORIOFILTROS ORDER BY NOME")).ToList();
         var rows = raw.Select(f => new
         {
             codfiltro = Convert.ToInt32(f.CODFILTRO), nome = Convert.ToString(f.NOME) ?? string.Empty,
@@ -93,10 +93,10 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     {
         ValidateFiltro(req);
         await using var conn = await db.OpenConnectionAsync(ct);
-        if (!await TableExists(conn, "RELATORIO_FILTROS")) throw new InvalidOperationException("Tabela RELATORIO_FILTROS não existe.");
-        if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RELATORIO_FILTROS WHERE UPPER(NOME)=UPPER(@nome)", new { req.Nome }) > 0)
+        if (!await TableExists(conn, "RELATORIOFILTROS")) throw new InvalidOperationException("Tabela RELATORIOFILTROS não existe.");
+        if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RELATORIOFILTROS WHERE UPPER(NOME)=UPPER(@nome)", new { req.Nome }) > 0)
             throw new InvalidOperationException("Já existe um filtro com este nome.");
-        return await conn.ExecuteScalarAsync<int>(@"INSERT INTO RELATORIO_FILTROS
+        return await conn.ExecuteScalarAsync<int>(@"INSERT INTO RELATORIOFILTROS
             (NOME,DESCRICAO,TIPO,SQL_FILTRO,SQL_QUERY,ATIVO,USUARIOCRIACAO)
             VALUES (@Nome,@Descricao,@Tipo,@SqlFiltro,@SqlQuery,@Ativo,@usuarioId) RETURNING CODFILTRO", new { req.Nome, req.Descricao, Tipo = req.Tipo.ToUpperInvariant(), req.SqlFiltro, req.SqlQuery, req.Ativo, usuarioId });
     }
@@ -105,10 +105,10 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     {
         ValidateFiltro(req);
         await using var conn = await db.OpenConnectionAsync(ct);
-        await EnsureResource(conn, "RELATORIO_FILTROS", "CODFILTRO", id, "Filtro não encontrado");
-        if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RELATORIO_FILTROS WHERE UPPER(NOME)=UPPER(@nome) AND CODFILTRO<>@id", new { req.Nome, id }) > 0)
+        await EnsureResource(conn, "RELATORIOFILTROS", "CODFILTRO", id, "Filtro não encontrado");
+        if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RELATORIOFILTROS WHERE UPPER(NOME)=UPPER(@nome) AND CODFILTRO<>@id", new { req.Nome, id }) > 0)
             throw new InvalidOperationException("Já existe um filtro com este nome.");
-        await conn.ExecuteAsync(@"UPDATE RELATORIO_FILTROS SET NOME=@Nome,DESCRICAO=@Descricao,TIPO=@Tipo,
+        await conn.ExecuteAsync(@"UPDATE RELATORIOFILTROS SET NOME=@Nome,DESCRICAO=@Descricao,TIPO=@Tipo,
             SQL_FILTRO=@SqlFiltro,SQL_QUERY=@SqlQuery,ATIVO=@Ativo,USUARIOATUALIZACAO=@usuarioId WHERE CODFILTRO=@id",
             new { req.Nome, req.Descricao, Tipo = req.Tipo.ToUpperInvariant(), req.SqlFiltro, req.SqlQuery, req.Ativo, usuarioId, id });
     }
@@ -116,7 +116,7 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     public async Task DeleteFiltro(int id, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        if (await conn.ExecuteAsync("DELETE FROM RELATORIO_FILTROS WHERE CODFILTRO=@id", new { id }) == 0)
+        if (await conn.ExecuteAsync("DELETE FROM RELATORIOFILTROS WHERE CODFILTRO=@id", new { id }) == 0)
             throw new KeyNotFoundException("Filtro não encontrado.");
     }
 
@@ -124,9 +124,9 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
         await EnsureResource(conn, "RELATORIOS", "CODRELATORIO", relatorioId, "Relatório não encontrado");
-        if (!await TableExists(conn, "RELATORIO_COLUNAS")) return new { data = Array.Empty<object>(), total = 0, tabelaExiste = false };
+        if (!await TableExists(conn, "RELATORIOCOLUNAS")) return new { data = Array.Empty<object>(), total = 0, tabelaExiste = false };
         var raw = (await conn.QueryAsync(@"SELECT NOME_COLUNA,POSICAO_COLUNA,TIPO_COLUNA,DTHRCRIACAO
-            FROM RELATORIO_COLUNAS WHERE CODRELATORIO=@relatorioId AND ATIVO=1 ORDER BY POSICAO_COLUNA", new { relatorioId })).ToList();
+            FROM RELATORIOCOLUNAS WHERE CODRELATORIO=@relatorioId AND ATIVO=1 ORDER BY POSICAO_COLUNA", new { relatorioId })).ToList();
         var rows = raw.Select(c => new
         {
             nome_coluna = Convert.ToString(c.NOME_COLUNA) ?? string.Empty,
@@ -142,11 +142,11 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
         var terms = query.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (terms.Length == 0) throw new InvalidOperationException("Informe ao menos uma coluna.");
         await using var conn = await db.OpenConnectionAsync(ct);
-        if (!await TableExists(conn, "RELATORIO_COLUNAS")) throw new InvalidOperationException("Tabela RELATORIO_COLUNAS não existe.");
+        if (!await TableExists(conn, "RELATORIOCOLUNAS")) throw new InvalidOperationException("Tabela RELATORIOCOLUNAS não existe.");
         var p = new DynamicParameters(); var clauses = new List<string>();
         for (var i = 0; i < terms.Length; i++) { clauses.Add($"UPPER(rc.NOME_COLUNA) LIKE UPPER(@term{i})"); p.Add($"term{i}", $"%{terms[i]}%"); }
         var rows = (await conn.QueryAsync($@"SELECT r.CODRELATORIO,r.NOME,r.MODULO,r.FORMATO,r.DTHRCRIACAO,r.ATIVO,rc.NOME_COLUNA,rc.POSICAO_COLUNA
-            FROM RELATORIOS r JOIN RELATORIO_COLUNAS rc ON rc.CODRELATORIO=r.CODRELATORIO
+            FROM RELATORIOS r JOIN RELATORIOCOLUNAS rc ON rc.CODRELATORIO=r.CODRELATORIO
             WHERE ({string.Join(" OR ", clauses)}) AND r.ATIVO=1 AND rc.ATIVO=1 ORDER BY r.NOME,rc.POSICAO_COLUNA", p)).ToList();
         var grouped = rows.GroupBy(r => Convert.ToInt32(r.CODRELATORIO)).Where(g => terms.All(t => g.Any(r => Convert.ToString(r.NOME_COLUNA)?.Contains(t, StringComparison.OrdinalIgnoreCase) == true))).Select(g => new
         {
@@ -160,7 +160,7 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     public async Task<object> Reindexar(int usuarioId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        if (!await TableExists(conn, "RELATORIO_COLUNAS")) throw new InvalidOperationException("Tabela RELATORIO_COLUNAS não existe.");
+        if (!await TableExists(conn, "RELATORIOCOLUNAS")) throw new InvalidOperationException("Tabela RELATORIOCOLUNAS não existe.");
         var relatorios = (await conn.QueryAsync("SELECT CODRELATORIO,NOME,CONTEUDO FROM RELATORIOS WHERE FORMATO='XML' AND ATIVO=1")).ToList();
         var resultados = new List<object>(); var sucessos = 0;
         foreach (var rel in relatorios)
@@ -170,8 +170,8 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
                 var conteudo = DecodeContent(rel.CONTEUDO); var cols = ExtractColumns(conteudo);
                 using var tx = conn.BeginTransaction();
                 var relatorioId = Convert.ToInt32(rel.CODRELATORIO);
-                await conn.ExecuteAsync("DELETE FROM RELATORIO_COLUNAS WHERE CODRELATORIO=@id", new { id = relatorioId }, tx);
-                foreach (var col in cols) await conn.ExecuteAsync(@"INSERT INTO RELATORIO_COLUNAS
+                await conn.ExecuteAsync("DELETE FROM RELATORIOCOLUNAS WHERE CODRELATORIO=@id", new { id = relatorioId }, tx);
+                foreach (var col in cols) await conn.ExecuteAsync(@"INSERT INTO RELATORIOCOLUNAS
                     (CODRELATORIO,NOME_COLUNA,POSICAO_COLUNA,TIPO_COLUNA,ATIVO,USUARIOCRIACAO)
                     VALUES (@id,@nome,@posicao,'TEXTO',1,@usuarioId)", new { id = relatorioId, nome = col.Name, posicao = col.Position, usuarioId }, tx);
                 tx.Commit(); sucessos++; resultados.Add(new { codRelatorio = relatorioId, nome = Convert.ToString(rel.NOME) ?? string.Empty, sucesso = true, colunas = cols.Count });
@@ -184,12 +184,12 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
     public async Task<object> StatusColunas(CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        if (!await TableExists(conn, "RELATORIO_COLUNAS")) return new { tabelaExiste = false, message = "Tabela RELATORIO_COLUNAS não existe. Execute o script SQL primeiro." };
+        if (!await TableExists(conn, "RELATORIOCOLUNAS")) return new { tabelaExiste = false, message = "Tabela RELATORIOCOLUNAS não existe. Execute o script SQL primeiro." };
         var stats = await conn.QuerySingleAsync(@"SELECT COUNT(DISTINCT r.CODRELATORIO) TOTAL_RELATORIOS_XML,
             COUNT(rc.CODCOLUNA) TOTAL_COLUNAS_INDEXADAS,COUNT(DISTINCT rc.CODRELATORIO) RELATORIOS_COM_COLUNAS
-            FROM RELATORIOS r LEFT JOIN RELATORIO_COLUNAS rc ON rc.CODRELATORIO=r.CODRELATORIO WHERE r.FORMATO='XML' AND r.ATIVO=1");
+            FROM RELATORIOS r LEFT JOIN RELATORIOCOLUNAS rc ON rc.CODRELATORIO=r.CODRELATORIO WHERE r.FORMATO='XML' AND r.ATIVO=1");
         var missingRaw = (await conn.QueryAsync(@"SELECT r.CODRELATORIO,r.NOME,r.DTHRCRIACAO FROM RELATORIOS r
-            LEFT JOIN RELATORIO_COLUNAS rc ON rc.CODRELATORIO=r.CODRELATORIO
+            LEFT JOIN RELATORIOCOLUNAS rc ON rc.CODRELATORIO=r.CODRELATORIO
             WHERE r.FORMATO='XML' AND r.ATIVO=1 AND rc.CODRELATORIO IS NULL ORDER BY r.DTHRCRIACAO DESC")).ToList();
         var missing = missingRaw.Select(r => new { codrelatorio = Convert.ToInt32(r.CODRELATORIO), nome = Convert.ToString(r.NOME) ?? string.Empty, dthrcriacao = r.DTHRCRIACAO }).ToList();
         return new

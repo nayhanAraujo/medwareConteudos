@@ -13,8 +13,8 @@ public record CodigoUniversalComplementoDto(int CodUniversal, string Codigo, str
 public record EspecialidadeComplementoDto(int CodEspecialidade, string Nome, string? Descricao = null);
 public record AnexoComplementoDto(int CodAnexo, string? Nome, string? Descricao, string? TipoAnexo, string? Link, string? Caminho, int? CodFormula, int? CodReferencia);
 public record FormulaOpcaoDto(int CodFormula, string? Formula);
-public record ReferenciaOpcaoDto(int CodReferencia, string? Titulo, string? Ano);
-public record EstudoVariavelDto(int CodFormula, string? Formula, string? TituloReferencia, string? AnoReferencia, int? CodAnexo, string? TipoAnexo, string? Caminho, string? Descricao);
+public record ReferenciaOpcaoDto(int CodReferencia, string? Titulo, int? Ano);
+public record EstudoVariavelDto(int CodFormula, string? Formula, string? TituloReferencia, int? AnoReferencia, int? CodAnexo, string? TipoAnexo, string? Caminho, string? Descricao);
 public record ModeloModoTextoDto(int CodModelo, string Nome, int TotalSecoes);
 public record SecaoModoTextoDto(int CodSecao, string Nome);
 public record VariavelModoTextoDto(int CodVariavel, string? Sigla, string? Unidade, string? Formula);
@@ -27,12 +27,13 @@ public record VariavelDependenciasDto(
     int Secoes,
     int CodigosUniversais,
     int Alternativas,
+    int NomesClinicos,
     int Classificacoes,
     int Especialidades,
     int Anexos)
 {
     public bool PossuiVinculos => Formulas + Normalidades + Scripts + Secoes + CodigosUniversais +
-                                  Alternativas + Classificacoes + Especialidades + Anexos > 0;
+                                  Alternativas + NomesClinicos + Classificacoes + Especialidades + Anexos > 0;
 }
 
 public record ImportacaoCsVariavel(

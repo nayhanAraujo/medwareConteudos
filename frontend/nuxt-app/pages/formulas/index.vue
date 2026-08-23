@@ -93,6 +93,7 @@
       <div v-if="detail" class="space-y-3 text-sm">
         <p><strong>{{ detail.nome }}</strong> — {{ detail.descricao || 'Sem descrição' }}</p>
         <pre class="bg-gray-100 rounded-xl p-3 overflow-x-auto"><code>{{ detail.formula }}</code></pre>
+        <p><strong>CODVARIAVEL:</strong> {{ detail.codVariavel ?? '-' }}</p>
         <p><strong>Casas decimais:</strong> {{ detail.casasDecimais }}</p>
         <h3 class="font-semibold">Equações</h3>
         <DsAlert v-if="!detail.equacoes.length" variant="info">Nenhuma equação cadastrada.</DsAlert>
@@ -109,12 +110,12 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-interface FormulaListItem { codFormula: number; nome: string; formula: string; descricao?: string; casasDecimais: number; variaveis: string; siglas: string }
+interface FormulaListItem { codFormula: number; codVariavel?: number | null; nome: string; formula: string; descricao?: string; casasDecimais: number; variaveis: string; siglas: string }
 interface VariableOption { codVariavel: number; nome: string; sigla: string; formula?: string; normalidade?: string }
 interface LanguageOption { codLinguagem: number; nome: string }
 interface ReferenceOption { codReferencia: number; titulo: string; ano?: number; autores?: string }
 interface Equation { codLinguagem: number | string; codReferencia: number | string; equacao: string; nomeFuncao: string }
-interface FormulaDetail { codFormula: number; nome: string; formula: string; descricao?: string; casasDecimais: number; variavelIds: number[]; equacoes: Array<Equation & { linguagem: string; referencia?: string }> }
+interface FormulaDetail { codFormula: number; codVariavel?: number | null; nome: string; formula: string; descricao?: string; casasDecimais: number; variavelIds: number[]; equacoes: Array<Equation & { linguagem: string; referencia?: string }> }
 
 const api = useApi()
 const auth = useAuthStore()
@@ -174,7 +175,8 @@ function addEquation() { form.equacoes.push({ codLinguagem: '', codReferencia: '
 async function save() {
   if (!form.formula.trim() || !form.variavelIds.length) { await swal.warning('Dados incompletos', 'Informe a fórmula e selecione ao menos uma variável.'); return }
   saving.value = true
-  const payload = { nome: form.nome || null, descricao: form.descricao || null, formula: form.formula, casasDecimais: Number(form.casasDecimais), variavelIds: form.variavelIds.map(Number), equacoes: form.equacoes.map(e => ({ codLinguagem: Number(e.codLinguagem), codReferencia: e.codReferencia ? Number(e.codReferencia) : null, equacao: e.equacao, nomeFuncao: e.nomeFuncao || null })) }
+  const variavelIds = form.variavelIds.map(Number)
+  const payload = { nome: form.nome || null, descricao: form.descricao || null, formula: form.formula, casasDecimais: Number(form.casasDecimais), variavelIds, codVariavel: variavelIds[0] ?? null, equacoes: form.equacoes.map(e => ({ codLinguagem: Number(e.codLinguagem), codReferencia: e.codReferencia ? Number(e.codReferencia) : null, equacao: e.equacao, nomeFuncao: e.nomeFuncao || null })) }
   try {
     if (editingId.value) await api.put(`/api/web/formulas/${editingId.value}`, payload); else await api.post('/api/web/formulas', payload)
     editorOpen.value = false; await swal.toast('Fórmula salva com sucesso.'); await load(page.value)

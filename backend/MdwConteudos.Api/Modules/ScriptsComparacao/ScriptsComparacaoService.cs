@@ -15,7 +15,7 @@ public sealed class ScriptsComparacaoService(IFirebirdConnectionFactory db)
             SELECT CODVERSAO, NUMERO_VERSAO, DESCRICAO_ALTERACOES,
                    ALTERACOES_INTERFACE, ALTERACOES_CODIGO, DATA_CRIACAO,
                    USUARIO_RESPONSAVEL, ATIVO, APROVADO, APROVADO_POR
-            FROM SCRIPT_VERSOES
+            FROM SCRIPTVERSOES
             WHERE CODSCRIPTLAUDO = @scriptId
             ORDER BY DATA_CRIACAO DESC, CODVERSAO DESC",
             new { scriptId }, cancellationToken: ct);
@@ -40,7 +40,7 @@ public sealed class ScriptsComparacaoService(IFirebirdConnectionFactory db)
             SELECT CODVERSAO, NUMERO_VERSAO, DESCRICAO_ALTERACOES,
                    ALTERACOES_INTERFACE, ALTERACOES_CODIGO, DATA_CRIACAO,
                    USUARIO_RESPONSAVEL, ATIVO, APROVADO, APROVADO_POR
-            FROM SCRIPT_VERSOES
+            FROM SCRIPTVERSOES
             WHERE CODSCRIPTLAUDO = @scriptId
               AND CODVERSAO IN (@versao1Id, @versao2Id)",
             new { scriptId, versao1Id, versao2Id }, cancellationToken: ct);

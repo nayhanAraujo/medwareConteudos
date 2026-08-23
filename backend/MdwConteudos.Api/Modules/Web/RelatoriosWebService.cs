@@ -89,10 +89,10 @@ public class RelatoriosWebService : IRelatoriosWebService
         var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
 
         await using var conn = await _db.OpenConnectionAsync(ct);
-        var temValidacoes = await TableExistsAsync(conn, "RELATORIO_VALIDACOES");
+        var temValidacoes = await TableExistsAsync(conn, "RELATORIOVALIDACOES");
         var validacaoSelect = temValidacoes
             ? @", CASE WHEN EXISTS (
-                    SELECT 1 FROM RELATORIO_VALIDACOES rv WHERE rv.CODRELATORIO = RELATORIOS.CODRELATORIO
+                    SELECT 1 FROM RELATORIOVALIDACOES rv WHERE rv.CODRELATORIO = RELATORIOS.CODRELATORIO
                   ) THEN 1 ELSE 0 END AS TEM_VALIDACAO"
             : ", 0 AS TEM_VALIDACAO";
 
@@ -252,10 +252,10 @@ public class RelatoriosWebService : IRelatoriosWebService
         if (exists == 0)
             throw new InvalidOperationException("Relatório não encontrado");
 
-        if (await TableExistsAsync(conn, "RELATORIO_COLUNAS"))
-            await conn.ExecuteAsync("DELETE FROM RELATORIO_COLUNAS WHERE CODRELATORIO = @id", new { id });
-        if (await TableExistsAsync(conn, "RELATORIO_VALIDACOES"))
-            await conn.ExecuteAsync("DELETE FROM RELATORIO_VALIDACOES WHERE CODRELATORIO = @id", new { id });
+        if (await TableExistsAsync(conn, "RELATORIOCOLUNAS"))
+            await conn.ExecuteAsync("DELETE FROM RELATORIOCOLUNAS WHERE CODRELATORIO = @id", new { id });
+        if (await TableExistsAsync(conn, "RELATORIOVALIDACOES"))
+            await conn.ExecuteAsync("DELETE FROM RELATORIOVALIDACOES WHERE CODRELATORIO = @id", new { id });
 
         await conn.ExecuteAsync("DELETE FROM RELATORIOS WHERE CODRELATORIO = @id", new { id });
     }
@@ -362,7 +362,7 @@ public class RelatoriosWebService : IRelatoriosWebService
             SELECT S.CODSISTEMA, S.NOME, S.DESCRICAO,
                    (SELECT COUNT(DISTINCT SM.CODMODULO)
                     FROM SISTEMA_MODULO SM
-                    JOIN MODULO_RELATORIO MR ON MR.CODMODULO = SM.CODMODULO
+                    JOIN MODULORELATORIO MR ON MR.CODMODULO = SM.CODMODULO
                     WHERE SM.CODSISTEMA = S.CODSISTEMA AND MR.ATIVO = 1) AS QTD_MODULOS
             FROM SISTEMA S
             WHERE S.ATIVO = 1
@@ -382,7 +382,7 @@ public class RelatoriosWebService : IRelatoriosWebService
     public async Task<object> ListModulosAsync(int? codSistema, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
-        var tabelaExiste = await TableExistsAsync(conn, "MODULO_RELATORIO");
+        var tabelaExiste = await TableExistsAsync(conn, "MODULORELATORIO");
 
         var modulos = new List<Dictionary<string, object?>>();
         if (!tabelaExiste)
@@ -410,7 +410,7 @@ public class RelatoriosWebService : IRelatoriosWebService
             {
                 rows = await conn.QueryAsync(@"
                     SELECT DISTINCT MR.CODMODULO, MR.NOME, MR.DESCRICAO, MR.ATIVO, MR.DTHRCRIACAO, MR.DTHRATUALIZACAO
-                    FROM MODULO_RELATORIO MR
+                    FROM MODULORELATORIO MR
                     JOIN SISTEMA_MODULO SM ON SM.CODMODULO = MR.CODMODULO
                     WHERE MR.ATIVO = 1 AND SM.CODSISTEMA = @cs
                     ORDER BY MR.NOME", new { cs = codSistema.Value });
@@ -419,7 +419,7 @@ public class RelatoriosWebService : IRelatoriosWebService
             {
                 rows = await conn.QueryAsync(@"
                     SELECT CODMODULO, NOME, DESCRICAO, ATIVO, DTHRCRIACAO, DTHRATUALIZACAO
-                    FROM MODULO_RELATORIO
+                    FROM MODULORELATORIO
                     WHERE ATIVO = 1
                     ORDER BY NOME");
             }
@@ -497,7 +497,7 @@ public class RelatoriosWebService : IRelatoriosWebService
     public async Task<object> ListModulosSimplesAsync(int? codSistema, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
-        var tabelaExiste = await TableExistsAsync(conn, "MODULO_RELATORIO");
+        var tabelaExiste = await TableExistsAsync(conn, "MODULORELATORIO");
         List<object> modulos;
 
         if (!tabelaExiste)
@@ -508,7 +508,7 @@ public class RelatoriosWebService : IRelatoriosWebService
         {
             var rows = await conn.QueryAsync(@"
                 SELECT DISTINCT MR.NOME, MR.DESCRICAO
-                FROM MODULO_RELATORIO MR
+                FROM MODULORELATORIO MR
                 JOIN SISTEMA_MODULO SM ON SM.CODMODULO = MR.CODMODULO
                 WHERE MR.ATIVO = 1 AND SM.CODSISTEMA = @cs
                 ORDER BY MR.NOME", new { cs = codSistema.Value });
@@ -517,7 +517,7 @@ public class RelatoriosWebService : IRelatoriosWebService
         else
         {
             var rows = await conn.QueryAsync(@"
-                SELECT NOME, DESCRICAO FROM MODULO_RELATORIO WHERE ATIVO = 1 ORDER BY NOME");
+                SELECT NOME, DESCRICAO FROM MODULORELATORIO WHERE ATIVO = 1 ORDER BY NOME");
             modulos = rows.Select(r => (object)new { nome = (string?)r.NOME, descricao = (string?)r.DESCRICAO ?? "" }).ToList();
         }
 
@@ -533,16 +533,16 @@ public class RelatoriosWebService : IRelatoriosWebService
             throw new InvalidOperationException("Selecione pelo menos um sistema");
 
         await using var conn = await _db.OpenConnectionAsync(ct);
-        if (!await TableExistsAsync(conn, "MODULO_RELATORIO"))
-            throw new InvalidOperationException("Tabela MODULO_RELATORIO não existe. Execute o script SQL primeiro.");
+        if (!await TableExistsAsync(conn, "MODULORELATORIO"))
+            throw new InvalidOperationException("Tabela MODULORELATORIO não existe. Execute o script SQL primeiro.");
 
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM MODULO_RELATORIO WHERE UPPER(NOME) = UPPER(@nome)", new { nome });
+            "SELECT COUNT(*) FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@nome)", new { nome });
         if (exists > 0)
             throw new InvalidOperationException("Já existe um módulo com este nome");
 
         var cod = await conn.ExecuteScalarAsync<int>(@"
-            INSERT INTO MODULO_RELATORIO (NOME, DESCRICAO, USUARIOCRIACAO)
+            INSERT INTO MODULORELATORIO (NOME, DESCRICAO, USUARIOCRIACAO)
             VALUES (@nome, @descricao, @user)
             RETURNING CODMODULO",
             new { nome, descricao = req.Descricao?.Trim() ?? "", user = codUsuario });
@@ -577,23 +577,23 @@ public class RelatoriosWebService : IRelatoriosWebService
             throw new InvalidOperationException("Novo nome do módulo é obrigatório");
 
         await using var conn = await _db.OpenConnectionAsync(ct);
-        if (!await TableExistsAsync(conn, "MODULO_RELATORIO"))
-            throw new InvalidOperationException("Tabela MODULO_RELATORIO não existe. Execute o script SQL primeiro.");
+        if (!await TableExistsAsync(conn, "MODULORELATORIO"))
+            throw new InvalidOperationException("Tabela MODULORELATORIO não existe. Execute o script SQL primeiro.");
 
         var cod = await conn.ExecuteScalarAsync<int?>(
-            "SELECT CODMODULO FROM MODULO_RELATORIO WHERE UPPER(NOME) = UPPER(@nome)",
+            "SELECT CODMODULO FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@nome)",
             new { nome = nomeModulo });
         if (cod is null)
             throw new InvalidOperationException("Módulo não encontrado");
 
         var dup = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM MODULO_RELATORIO WHERE UPPER(NOME) = UPPER(@novo) AND CODMODULO <> @cod",
+            "SELECT COUNT(*) FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@novo) AND CODMODULO <> @cod",
             new { novo = novoNome, cod });
         if (dup > 0)
             throw new InvalidOperationException("Já existe um módulo com este nome");
 
         await conn.ExecuteAsync(@"
-            UPDATE MODULO_RELATORIO
+            UPDATE MODULORELATORIO
             SET NOME = @novo, DESCRICAO = @descricao, USUARIOATUALIZACAO = @user
             WHERE CODMODULO = @cod",
             new { novo = novoNome, descricao = req.Descricao, user = codUsuario, cod });
@@ -613,11 +613,11 @@ public class RelatoriosWebService : IRelatoriosWebService
     public async Task DeleteModuloAsync(string nomeModulo, int codUsuario, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
-        if (!await TableExistsAsync(conn, "MODULO_RELATORIO"))
-            throw new InvalidOperationException("Tabela MODULO_RELATORIO não existe. Execute o script SQL primeiro.");
+        if (!await TableExistsAsync(conn, "MODULORELATORIO"))
+            throw new InvalidOperationException("Tabela MODULORELATORIO não existe. Execute o script SQL primeiro.");
 
         var cod = await conn.ExecuteScalarAsync<int?>(
-            "SELECT CODMODULO FROM MODULO_RELATORIO WHERE UPPER(NOME) = UPPER(@nome)",
+            "SELECT CODMODULO FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@nome)",
             new { nome = nomeModulo });
         if (cod is null)
             throw new InvalidOperationException("Módulo não encontrado");
@@ -633,7 +633,7 @@ public class RelatoriosWebService : IRelatoriosWebService
                 $"Não é possível excluir o módulo \"{nomeModulo}\" pois existem {count} relatório(s) vinculado(s) a ele");
 
         await conn.ExecuteAsync(
-            "UPDATE MODULO_RELATORIO SET ATIVO = 0, USUARIOATUALIZACAO = @user WHERE CODMODULO = @cod",
+            "UPDATE MODULORELATORIO SET ATIVO = 0, USUARIOATUALIZACAO = @user WHERE CODMODULO = @cod",
             new { user = codUsuario, cod });
     }
 
@@ -772,7 +772,7 @@ public class RelatoriosWebService : IRelatoriosWebService
     private static async Task IndexarColunasAsync(
         System.Data.Common.DbConnection conn, int codRelatorio, string conteudoXml, int? usuario)
     {
-        if (!await TableExistsAsync(conn, "RELATORIO_COLUNAS")) return;
+        if (!await TableExistsAsync(conn, "RELATORIOCOLUNAS")) return;
 
         List<(string Nome, int Posicao)> colunas;
         try
@@ -795,11 +795,11 @@ public class RelatoriosWebService : IRelatoriosWebService
             return;
         }
 
-        await conn.ExecuteAsync("DELETE FROM RELATORIO_COLUNAS WHERE CODRELATORIO = @id", new { id = codRelatorio });
+        await conn.ExecuteAsync("DELETE FROM RELATORIOCOLUNAS WHERE CODRELATORIO = @id", new { id = codRelatorio });
         foreach (var col in colunas)
         {
             await conn.ExecuteAsync(@"
-                INSERT INTO RELATORIO_COLUNAS
+                INSERT INTO RELATORIOCOLUNAS
                 (CODRELATORIO, NOME_COLUNA, POSICAO_COLUNA, TIPO_COLUNA, ATIVO, USUARIOCRIACAO)
                 VALUES (@id, @nome, @pos, 'TEXTO', 1, @user)",
                 new { id = codRelatorio, nome = col.Nome, pos = col.Posicao, user = usuario });

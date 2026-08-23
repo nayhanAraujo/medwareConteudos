@@ -12,7 +12,15 @@ export default defineNuxtConfig({
     '~/assets/css/studio-swal.css'
   ],
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    server: {
+      proxy: {
+        '/static': {
+          target: 'http://localhost:5080',
+          changeOrigin: true
+        }
+      }
+    }
   },
   runtimeConfig: {
     public: {
@@ -30,6 +38,8 @@ export default defineNuxtConfig({
         baseURL: '/uploads'
       }
     ],
+    // Em `nuxt dev` o Vite não usa nitro.publicAssets — proxy /static → API.
+    // Em produção, publicAssets acima cobre a pasta static/ do repositório.
     devProxy: {
       '/api-dotnet': {
         target: 'http://localhost:5080',
@@ -38,7 +48,7 @@ export default defineNuxtConfig({
         rewrite: (path: string) => path.replace(/^\/api-dotnet/, '')
       },
       '/static': {
-        target: 'http://localhost:5080',
+        target: 'http://localhost:5080/static',
         changeOrigin: true
       }
     }

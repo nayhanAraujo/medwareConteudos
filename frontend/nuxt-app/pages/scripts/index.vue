@@ -6,7 +6,7 @@
       <DsButton size="sm" to="/scripts/sistema" class="ml-2">Seleção de Sistema</DsButton>
     </DsAlert>
     <template v-else>
-      <ScriptsScriptsBreadcrumb :sistema="sistema" :pacote="pacote" :pacote-nome="pacoteNome" />
+      <ScriptsBreadcrumb :sistema="sistema" :pacote="pacote" :pacote-nome="pacoteNome" />
       <DsPageShell>
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-6 items-end">
           <div class="lg:col-span-4">
@@ -273,12 +273,6 @@ const selectedCountLabel = computed(() => {
 const hasJsonSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos UX' && x.temArquivoJson))
 const hasDllSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos Flex' && x.temArquivoDll))
 const hasMrdSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos Flex' && x.temArquivoMrd))
-
-function mediaUrl(path?: string) {
-  if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
-  return `http://localhost:5080${path.startsWith('/') ? '' : '/'}${path}`
-}
 
 function formatDateTime(value?: string | null) {
   if (!value) return '—'

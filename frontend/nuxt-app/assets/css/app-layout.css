@@ -4,4 +4,40 @@ body {
   margin: 0;
 }
 
+/* Fundo glass da área principal: degradê + iluminação de estúdio + textura fosca */
+.app-main-glass {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(160deg, #cfddea 0%, #dce6f4 42%, #e8e0f2 100%);
+}
+
+.app-main-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 55% 42% at 12% 8%, rgba(255, 255, 255, 0.62), transparent 58%),
+    radial-gradient(ellipse 42% 36% at 92% 16%, rgba(167, 139, 250, 0.2), transparent 55%),
+    radial-gradient(ellipse 48% 40% at 72% 92%, rgba(59, 130, 246, 0.14), transparent 58%);
+}
+
+.app-main-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.app-main-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* Legado: mantido para compatibilidade mínima durante transição Tailwind DS */
