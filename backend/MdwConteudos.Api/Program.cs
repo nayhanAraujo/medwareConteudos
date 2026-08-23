@@ -102,6 +102,7 @@ builder.Services.AddScoped<IPaineisWebService, PaineisWebService>();
 builder.Services.AddScoped<IRelatoriosWebService, RelatoriosWebService>();
 builder.Services.AddScoped<IVariaveisWebService, VariaveisWebService>();
 builder.Services.AddScoped<IReferenciasService, ReferenciasService>();
+builder.Services.AddScoped<INormalidadesJsonImportService, NormalidadesJsonImportService>();
 builder.Services.AddScoped<IConversionAnalysisService, ConversionAnalysisService>();
 builder.Services.AddScoped<ScriptsService>();
 builder.Services.AddCadastrosModules();
@@ -214,14 +215,25 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 var app = builder.Build();
 app.UseCors();
 app.UseRequestTimeouts();
-var repoRoot = FindRepoRoot(builder.Environment.ContentRootPath) ?? Directory.GetCurrentDirectory();
-var migracaoStaticDir = Path.Combine(repoRoot, "mdw-migracao", "static");
-if (Directory.Exists(migracaoStaticDir))
+var repoRoot = MdwConteudos.Api.Infrastructure.StaticContentPaths.ResolveRepoRoot(builder.Configuration, builder.Environment.ContentRootPath);
+var staticDir = MdwConteudos.Api.Infrastructure.StaticContentPaths.StaticRoot(repoRoot);
+if (Directory.Exists(staticDir))
 {
     app.UseStaticFiles(new StaticFileOptions
     {
-        FileProvider = new PhysicalFileProvider(migracaoStaticDir),
+        FileProvider = new PhysicalFileProvider(staticDir),
         RequestPath = "/static"
+    });
+}
+// Compat: se ainda existir a pasta legada mdw-migracao/static, também monta (não sobrescreve a principal).
+var legacyStaticDir = Path.Combine(repoRoot, "mdw-migracao", "static");
+if (Directory.Exists(legacyStaticDir) &&
+    !string.Equals(Path.GetFullPath(legacyStaticDir), Path.GetFullPath(staticDir), StringComparison.OrdinalIgnoreCase))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(legacyStaticDir),
+        RequestPath = "/static-legacy"
     });
 }
 app.UseMiddleware<ApiPartnerJwtMiddleware>();

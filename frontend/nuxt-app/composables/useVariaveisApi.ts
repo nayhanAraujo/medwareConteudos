@@ -12,6 +12,7 @@ export interface VariavelCreatePayload {
   codUnidadeMedida: number
   casasDecimais: number
   alternativas?: string[]
+  nomesClinicos?: string[]
 }
 
 export interface VariavelEdicaoDto {
@@ -25,6 +26,7 @@ export interface VariavelEdicaoDto {
   casasDecimais?: number | null
   codGrupo?: number | null
   alternativas: string[]
+  nomesClinicos: string[]
 }
 
 export interface GrupoVariavelDto {
@@ -107,7 +109,7 @@ export interface VariavelCodigoDicomDto {
 
 export interface VariavelDependencias {
   formulas: number; normalidades: number; scripts: number; secoes: number
-  codigosUniversais: number; alternativas: number; classificacoes: number
+  codigosUniversais: number; alternativas: number; nomesClinicos: number; classificacoes: number
   especialidades: number; anexos: number; possuiVinculos: boolean
 }
 export interface ClassificacaoGrupo { codGrupo: number; nome: string }
@@ -117,7 +119,7 @@ export interface Especialidade { codEspecialidade: number; nome: string; descric
 export interface AnexoContexto {
   anexos: Array<{ codAnexo: number; nome?: string; descricao?: string; tipoAnexo?: string; link?: string; caminho?: string; codFormula?: number; codReferencia?: number }>
   formulas: Array<{ codFormula: number; formula: string }>
-  referencias: Array<{ codReferencia: number; titulo: string; ano?: string }>
+  referencias: Array<{ codReferencia: number; titulo: string; ano?: number | null }>
 }
 export interface ImportacaoCsPreview {
   variaveis: Array<{ codigo: string; nome: string; sigla: string; abreviacao: string; unidade: string; existeNoBanco: boolean }>
@@ -152,7 +154,9 @@ export interface ReferenciasNormalidadesPainel {
     variavel?: string
     sigla?: string
     totalNormalidades: number
+    comentarioTexto?: string | null
   }>
+  comentariosPorVariavel?: Record<string, { codNormalidadeComentario: number; texto: string }>
   normalidadesPorVariavel: Record<
     string,
     Array<{
@@ -265,6 +269,21 @@ export function useVariaveisApi() {
       body
     )
 
+  const salvarComentarioNormalidade = (body: { codVariavel: number; codReferencia: number; texto: string }) =>
+    api.post<{ success: boolean; message: string }>(`/api/web/variaveis/referencias-normalidades/comentario`, body)
+
+  const importarNormalidadesJson = (body: { codReferencia: number }) =>
+    api.post<{
+      success: boolean
+      data: {
+        message: string
+        variaveisAtualizadas: number
+        faixasInseridas: number
+        comentariosGravados: number
+        naoEncontradas: string[]
+      }
+    }>(`/api/web/variaveis/referencias-normalidades/importar-json`, body)
+
   const getDependencias = (id: number) => api.get<{ success: boolean; data: VariavelDependencias }>(`/api/web/variaveis/${id}/dependencias`)
   const deleteVariavel = (id: number, force = false) => api.del<{ success: boolean }>(`/api/web/variaveis/${id}?force=${force}`)
   const alterarGrupo = (id: number, codGrupo: number | null) => api.request<{ success: boolean }>(`/api/web/variaveis/${id}/grupo`, { method: 'PATCH', body: JSON.stringify({ codGrupo }) })
@@ -306,6 +325,8 @@ export function useVariaveisApi() {
     atualizarNormalidadeReferencia,
     desvincularNormalidadeReferencia,
     importarNormalidadesReferencia,
+    salvarComentarioNormalidade,
+    importarNormalidadesJson,
     getDependencias, deleteVariavel, alterarGrupo,
     getClassificacoes, createGrupoClassificacao, updateGrupoClassificacao, deleteGrupoClassificacao,
     createClassificacao, updateClassificacao, deleteClassificacao, getVariavelClassificacoes, setVariavelClassificacoes,

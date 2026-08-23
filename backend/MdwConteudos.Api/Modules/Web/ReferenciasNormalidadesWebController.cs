@@ -10,10 +10,12 @@ namespace MdwConteudos.Api.Modules.Web;
 public class ReferenciasNormalidadesWebController : ControllerBase
 {
     private readonly IReferenciasService _svc;
+    private readonly INormalidadesJsonImportService _jsonImport;
 
-    public ReferenciasNormalidadesWebController(IReferenciasService svc)
+    public ReferenciasNormalidadesWebController(IReferenciasService svc, INormalidadesJsonImportService jsonImport)
     {
         _svc = svc;
+        _jsonImport = jsonImport;
     }
 
     [HttpGet]
@@ -107,6 +109,51 @@ public class ReferenciasNormalidadesWebController : ControllerBase
                 User.GetCodUsuario(),
                 ct
             );
+            return Ok(new { success = true, data });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("comentario")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> UpsertComentario([FromBody] UpsertNormalidadeComentarioRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            await _svc.UpsertNormalidadeComentarioAsync(req.CodVariavel, req.CodReferencia, req.Texto, User.GetCodUsuario(), ct);
+            return Ok(new { success = true, message = string.IsNullOrWhiteSpace(req.Texto) ? "Comentário removido." : "Comentário salvo." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpDelete("comentario")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteComentario([FromQuery] int codVariavel, [FromQuery] int codReferencia, CancellationToken ct = default)
+    {
+        try
+        {
+            await _svc.DeleteNormalidadeComentarioAsync(codVariavel, codReferencia, ct);
+            return Ok(new { success = true, message = "Comentário removido." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("importar-json")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ImportarJson([FromBody] ImportarNormalidadesJsonRequest? req, CancellationToken ct = default)
+    {
+        try
+        {
+            var data = await _jsonImport.ImportarAseChamberAsync(req?.CodReferencia > 0 ? req.CodReferencia : 1, User.GetCodUsuario(), ct);
             return Ok(new { success = true, data });
         }
         catch (InvalidOperationException ex)

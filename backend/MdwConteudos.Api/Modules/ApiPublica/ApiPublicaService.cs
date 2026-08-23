@@ -151,42 +151,54 @@ public class ApiPublicaService : IApiPublicaService
                 ["especialidades"] = ((string?)v.ESPECIALIDADES)?.Split(", ", StringSplitOptions.RemoveEmptyEntries) ?? Array.Empty<string>()
             };
 
+            var comentarios = new Dictionary<int, string?>();
+            foreach (var row in await conn.QueryAsync(
+                         @"SELECT CODREFERENCIA, TEXTO FROM NORMALIDADECOMENTARIO WHERE CODVARIAVEL = @codvariavel",
+                         new { codvariavel }))
+            {
+                if (row.CODREFERENCIA is null) continue;
+                comentarios[(int)row.CODREFERENCIA] = (string?)row.TEXTO;
+            }
+
             var normalidades = (await conn.QueryAsync(@"
                 SELECT n.CODNORMALIDADE, n.SEXO, n.VALORMIN, n.VALORMAX, n.IDADE_MIN, n.IDADE_MAX,
                        r.CODREFERENCIA, r.TITULO, r.ANO, r.DESCRICAO,
-                       LIST(a.NOME || ' (' || COALESCE(a.ABREVIACAO, '') || ')', ', ') AS AUTORES
+                       LIST(a.NOME || ' (' || COALESCE(a.ABREVIACAO, '') || ')', ', ') AS AUTORES,
+                       c.NOME AS CLASSIFICACAO
                 FROM NORMALIDADE n
                 LEFT JOIN REFERENCIA r ON n.CODREFERENCIA = r.CODREFERENCIA
                 LEFT JOIN REFERENCIA_AUTORES ra ON r.CODREFERENCIA = ra.CODREFERENCIA
                 LEFT JOIN AUTORES a ON ra.CODAUTOR = a.CODAUTOR
+                LEFT JOIN CLASSIFICACOES c ON n.CODCLASSIFICACAO = c.CODCLASSIFICACAO
                 WHERE n.CODVARIAVEL = @codvariavel
                 GROUP BY n.CODNORMALIDADE, n.SEXO, n.VALORMIN, n.VALORMAX, n.IDADE_MIN, n.IDADE_MAX,
-                         r.CODREFERENCIA, r.TITULO, r.ANO, r.DESCRICAO ORDER BY r.ANO DESC NULLS LAST",
-                new { codvariavel })).Select(MapNormalidadeRow).ToList();
+                         r.CODREFERENCIA, r.TITULO, r.ANO, r.DESCRICAO, c.NOME ORDER BY r.ANO DESC NULLS LAST",
+                new { codvariavel })).Select(r => MapNormalidadeRow(r, comentarios)).ToList();
 
             var alternativas = (await conn.QueryAsync<string>(
-                "SELECT ALTERNATIVA FROM VARIAVEIS_ALTERNATIVAS WHERE CODVARIAVEL = @codvariavel ORDER BY ALTERNATIVA",
+                "SELECT ALTERNATIVA FROM VARIAVEISALTERNATIVAS WHERE CODVARIAVEL = @codvariavel ORDER BY ALTERNATIVA",
                 new { codvariavel })).ToList();
 
             var formulasRaw = await conn.QueryAsync(@"
-                SELECT f.CODFORMULA, f.FORMULA, f.CASADECIMAIS, el.CODEQUACAO, el.EQUACAO, tl.NOME AS LINGUAGEM,
+                SELECT f.CODFORMULA, f.CODVARIAVEL, f.FORMULA, f.CASADECIMAIS, el.CODEQUACAO, el.EQUACAO, tl.NOME AS LINGUAGEM,
                        r.CODREFERENCIA, r.TITULO, r.ANO, r.DESCRICAO,
                        LIST(a.NOME || ' (' || COALESCE(a.ABREVIACAO, '') || ')', ', ') AS AUTORES
-                FROM FORMULA_VARIAVEL fv
-                JOIN FORMULAS f ON fv.CODFORMULA = f.CODFORMULA
-                LEFT JOIN EQUACOES_LINGUAGEM el ON f.CODFORMULA = el.CODFORMULA
+                FROM FORMULAS f
+                LEFT JOIN FORMULA_VARIAVEL fv ON fv.CODFORMULA = f.CODFORMULA AND fv.CODVARIAVEL = @codvariavel
+                LEFT JOIN EQUACOESLINGUAGEM el ON f.CODFORMULA = el.CODFORMULA
                 LEFT JOIN TIPOLINGUAGEM tl ON el.CODLINGUAGEM = tl.CODLINGUAGEM
                 LEFT JOIN REFERENCIA r ON el.CODREFERENCIA = r.CODREFERENCIA
                 LEFT JOIN REFERENCIA_AUTORES ra ON r.CODREFERENCIA = ra.CODREFERENCIA
                 LEFT JOIN AUTORES a ON ra.CODAUTOR = a.CODAUTOR
-                WHERE fv.CODVARIAVEL = @codvariavel
-                GROUP BY f.CODFORMULA, f.FORMULA, f.CASADECIMAIS, el.CODEQUACAO, el.EQUACAO,
+                WHERE f.CODVARIAVEL = @codvariavel OR fv.CODVARIAVEL = @codvariavel
+                GROUP BY f.CODFORMULA, f.CODVARIAVEL, f.FORMULA, f.CASADECIMAIS, el.CODEQUACAO, el.EQUACAO,
                          tl.NOME, r.CODREFERENCIA, r.TITULO, r.ANO, r.DESCRICAO
                 ORDER BY r.ANO DESC NULLS LAST", new { codvariavel });
 
             var formulas = formulasRaw.Select(r => new
             {
                 codformula = (int)r.CODFORMULA,
+                codvariavel = r.CODVARIAVEL is int cv ? cv : r.CODVARIAVEL is long cl ? (int)cl : (int?)null,
                 formula = (string?)r.FORMULA,
                 casas_decimais = r.CASADECIMAIS,
                 equacoes = r.CODEQUACAO is null ? Array.Empty<object>() : new object[]
@@ -211,7 +223,14 @@ public class ApiPublicaService : IApiPublicaService
             return new OkObjectResult(new
             {
                 success = true,
-                data = new { variavel, normalidades, formulas, alternativas },
+                data = new
+                {
+                    variavel,
+                    normalidades,
+                    formulas,
+                    alternativas,
+                    comentarios = comentarios.Select(kv => new { codigo = kv.Key, texto = kv.Value })
+                },
                 timestamp = DateTime.Now.ToString("o")
             });
         }
@@ -285,9 +304,10 @@ public class ApiPublicaService : IApiPublicaService
             await using var conn = await _db.OpenConnectionAsync(ct);
             var rows = await conn.QueryAsync(@"
                 SELECT v.VARIAVEL, el.NOME_FUNCAO, el.EQUACAO, tl.NOME AS LINGUAGEM
-                FROM FORMULA_VARIAVEL fv
-                JOIN VARIAVEIS v ON v.CODVARIAVEL = fv.CODVARIAVEL
-                JOIN EQUACOES_LINGUAGEM el ON el.CODFORMULA = fv.CODFORMULA
+                FROM FORMULAS f
+                LEFT JOIN FORMULA_VARIAVEL fv ON fv.CODFORMULA = f.CODFORMULA
+                JOIN VARIAVEIS v ON v.CODVARIAVEL = COALESCE(fv.CODVARIAVEL, f.CODVARIAVEL)
+                JOIN EQUACOESLINGUAGEM el ON el.CODFORMULA = f.CODFORMULA
                 LEFT JOIN TIPOLINGUAGEM tl ON tl.CODLINGUAGEM = el.CODLINGUAGEM ORDER BY v.VARIAVEL");
             var dict = new Dictionary<string, List<object>>();
             foreach (var row in rows)
@@ -341,7 +361,12 @@ public class ApiPublicaService : IApiPublicaService
                     total_autores = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM AUTORES"),
                     total_especialidades = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ESPECIALIDADE"),
                     variaveis_com_normalidade = await conn.ExecuteScalarAsync<int>("SELECT COUNT(DISTINCT CODVARIAVEL) FROM NORMALIDADE"),
-                    variaveis_com_formula = await conn.ExecuteScalarAsync<int>("SELECT COUNT(DISTINCT CODVARIAVEL) FROM FORMULA_VARIAVEL")
+                    variaveis_com_formula = await conn.ExecuteScalarAsync<int>(@"
+                        SELECT COUNT(*) FROM (
+                            SELECT CODVARIAVEL FROM FORMULA_VARIAVEL
+                            UNION
+                            SELECT CODVARIAVEL FROM FORMULAS WHERE CODVARIAVEL IS NOT NULL
+                        ) X")
                 },
                 variaveis_por_especialidade = await conn.QueryAsync(@"
                     SELECT e.NOME as especialidade, COUNT(DISTINCT v.CODVARIAVEL) as total
@@ -581,23 +606,32 @@ public class ApiPublicaService : IApiPublicaService
         catch (Exception ex) { return Err500(ex); }
     }
 
-    private static object MapNormalidadeRow(dynamic row) => new
+    private static object MapNormalidadeRow(dynamic row, IReadOnlyDictionary<int, string?>? comentarios = null)
     {
-        codnormalidade = (int)row.CODNORMALIDADE,
-        sexo = (string?)row.SEXO,
-        valor_min = row.VALORMIN,
-        valor_max = row.VALORMAX,
-        idade_min = row.IDADE_MIN,
-        idade_max = row.IDADE_MAX,
-        referencia = row.CODREFERENCIA is null ? null : new
+        string? comentarioTexto = null;
+        if (row.CODREFERENCIA is not null && comentarios is not null)
+            comentarios.TryGetValue((int)row.CODREFERENCIA, out comentarioTexto);
+
+        return new
         {
-            codigo = (int?)row.CODREFERENCIA,
-            titulo = (string?)row.TITULO,
-            ano = row.ANO,
-            descricao = (string?)row.DESCRICAO,
-            autores = (string?)row.AUTORES
-        }
-    };
+            codnormalidade = (int)row.CODNORMALIDADE,
+            sexo = (string?)row.SEXO,
+            valor_min = row.VALORMIN,
+            valor_max = row.VALORMAX,
+            idade_min = row.IDADE_MIN,
+            idade_max = row.IDADE_MAX,
+            classificacao = (string?)row.CLASSIFICACAO,
+            comentario_texto = comentarioTexto,
+            referencia = row.CODREFERENCIA is null ? null : new
+            {
+                codigo = (int?)row.CODREFERENCIA,
+                titulo = (string?)row.TITULO,
+                ano = row.ANO,
+                descricao = (string?)row.DESCRICAO,
+                autores = (string?)row.AUTORES
+            }
+        };
+    }
 
     private static object MapNormalidadeListRow(dynamic row) => new
     {
@@ -667,7 +701,7 @@ public static class EcodopplerBuilder
             if (!resultado.ContainsKey(variavel)) resultado[variavel] = new();
             if (!resultado[variavel].ContainsKey(sexo)) resultado[variavel][sexo] = new();
 
-            var zona = MapZona((string?)row.CLASSIFICACAO);
+            var zona = NormalidadeZonas.MapZona((string?)row.CLASSIFICACAO);
             var meta = new Dictionary<string, object?>();
             if (row.PAGINA_REFERENCIA != null) meta["Pagina"] = Convert.ToDouble(row.PAGINA_REFERENCIA);
             if (row.REFERENCIA_TITULO != null) meta["Fonte"] = (string)row.REFERENCIA_TITULO;
@@ -695,17 +729,6 @@ public static class EcodopplerBuilder
             }
         }
         return resultado;
-    }
-
-    private static string MapZona(string? classificacao)
-    {
-        if (string.IsNullOrEmpty(classificacao)) return "default";
-        var u = classificacao.ToUpperInvariant();
-        if (u.Contains("BAIXO") || u.Contains("LOW")) return "low";
-        if (u.Contains("MODERADO") || u.Contains("MODERATED")) return "moderated";
-        if (u.Contains("ELEVADO") || u.Contains("ELEVATED")) return "elevated";
-        if (u.Contains("ALTO") || u.Contains("HIGH")) return "high";
-        return "default";
     }
 
     private static Dictionary<string, Dictionary<string, object>> CalcZonas(double vmin, double vmax, Dictionary<string, object?>? meta)

@@ -1,0 +1,2280 @@
+{
+  "VR_ANELAORTICO": {
+    "F": {
+      "normal": {
+        "min": 17.4,
+        "max": 21.6
+      },
+      "leve": {
+        "min": 21.7,
+        "max": 23.0
+      },
+      "moderado": {
+        "min": 23.1,
+        "max": 25.0
+      },
+      "grave": {
+        "min": 25.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 19.0,
+        "max": 23.4
+      },
+      "leve": {
+        "min": 23.5,
+        "max": 25.0
+      },
+      "moderado": {
+        "min": 25.1,
+        "max": 27.0
+      },
+      "grave": {
+        "min": 27.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_ANELAORTICO_INDEX": {
+    "F": {
+      "normal": {
+        "min": 10.5,
+        "max": 13.3
+      },
+      "leve": {
+        "min": 13.4,
+        "max": 15.0
+      },
+      "moderado": {
+        "min": 15.1,
+        "max": 17.0
+      },
+      "grave": {
+        "min": 17.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 10.0,
+        "max": 12.6
+      },
+      "leve": {
+        "min": 12.7,
+        "max": 14.0
+      },
+      "moderado": {
+        "min": 14.1,
+        "max": 16.0
+      },
+      "grave": {
+        "min": 16.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_ANELAORTICO_INDEX"
+    ]
+  },
+  "VR_AO_SEIOS_VALSALVA": {
+    "F": {
+      "normal": {
+        "min": 25.7,
+        "max": 32.9
+      },
+      "leve": {
+        "min": 33.0,
+        "max": 36.0
+      },
+      "moderado": {
+        "min": 36.1,
+        "max": 39.0
+      },
+      "grave": {
+        "min": 39.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 28.5,
+        "max": 35.9
+      },
+      "leve": {
+        "min": 36.0,
+        "max": 39.0
+      },
+      "moderado": {
+        "min": 39.1,
+        "max": 42.0
+      },
+      "grave": {
+        "min": 42.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_AO"
+    ]
+  },
+  "VR_AO_ASCENDENTE": {
+    "F": {
+      "normal": {
+        "min": 22.0,
+        "max": 30.0
+      },
+      "leve": {
+        "min": 31.0,
+        "max": 34.0
+      },
+      "moderado": {
+        "min": 35.0,
+        "max": 38.0
+      },
+      "grave": {
+        "min": 39.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 25.0,
+        "max": 35.0
+      },
+      "leve": {
+        "min": 36.0,
+        "max": 39.0
+      },
+      "moderado": {
+        "min": 40.0,
+        "max": 43.0
+      },
+      "grave": {
+        "min": 44.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_AO_SEIO_VALSALVA_INDEX": {
+    "F": {
+      "normal": {
+        "min": 15.4,
+        "max": 20.6
+      },
+      "leve": {
+        "min": 20.7,
+        "max": 23.0
+      },
+      "moderado": {
+        "min": 23.1,
+        "max": 25.0
+      },
+      "grave": {
+        "min": 25.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 14.7,
+        "max": 19.7
+      },
+      "leve": {
+        "min": 19.8,
+        "max": 22.0
+      },
+      "moderado": {
+        "min": 22.1,
+        "max": 24.0
+      },
+      "grave": {
+        "min": 24.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_AO_INDEX"
+    ]
+  },
+  "VR_AO_JUNCAO": {
+    "F": {
+      "normal": {
+        "min": 22.2,
+        "max": 28.8
+      },
+      "leve": {
+        "min": 28.9,
+        "max": 31.0
+      },
+      "moderado": {
+        "min": 31.1,
+        "max": 34.0
+      },
+      "grave": {
+        "min": 34.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 24.0,
+        "max": 31.4
+      },
+      "leve": {
+        "min": 31.5,
+        "max": 34.0
+      },
+      "moderado": {
+        "min": 34.1,
+        "max": 37.0
+      },
+      "grave": {
+        "min": 37.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_AO_JUNCAO_SINO_TUBULAR"
+    ]
+  },
+  "VR_AO_JUNCAO_INDEX": {
+    "F": {
+      "normal": {
+        "min": 13.2,
+        "max": 18.0
+      },
+      "leve": {
+        "min": 18.1,
+        "max": 20.0
+      },
+      "moderado": {
+        "min": 20.1,
+        "max": 22.0
+      },
+      "grave": {
+        "min": 22.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 12.5,
+        "max": 17.1
+      },
+      "leve": {
+        "min": 17.2,
+        "max": 19.0
+      },
+      "moderado": {
+        "min": 19.1,
+        "max": 21.0
+      },
+      "grave": {
+        "min": 21.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_AO_JUNCAO_SINO_TUBULAR_INDEX"
+    ]
+  },
+  "VR_AE": {
+    "F": {
+      "normal": {
+        "min": 27.0,
+        "max": 38.0
+      },
+      "leve": {
+        "min": 39.0,
+        "max": 42.0
+      },
+      "moderado": {
+        "min": 43.0,
+        "max": 46.0
+      },
+      "grave": {
+        "min": 47.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 30.0,
+        "max": 40.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 44.0
+      },
+      "moderado": {
+        "min": 45.0,
+        "max": 48.0
+      },
+      "grave": {
+        "min": 49.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_DDFVE": {
+    "F": {
+      "normal": {
+        "min": 38.0,
+        "max": 52.0
+      },
+      "leve": {
+        "min": 53.0,
+        "max": 56.0
+      },
+      "moderado": {
+        "min": 57.0,
+        "max": 60.0
+      },
+      "grave": {
+        "min": 61.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 42.0,
+        "max": 58.0
+      },
+      "leve": {
+        "min": 59.0,
+        "max": 62.0
+      },
+      "moderado": {
+        "min": 63.0,
+        "max": 66.0
+      },
+      "grave": {
+        "min": 67.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_DSFVE": {
+    "F": {
+      "normal": {
+        "min": 22.0,
+        "max": 35.0
+      },
+      "leve": {
+        "min": 36.0,
+        "max": 39.0
+      },
+      "moderado": {
+        "min": 40.0,
+        "max": 43.0
+      },
+      "grave": {
+        "min": 44.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 25.0,
+        "max": 40.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 44.0
+      },
+      "moderado": {
+        "min": 45.0,
+        "max": 48.0
+      },
+      "grave": {
+        "min": 49.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_DVD": {
+    "U": {
+      "normal": {
+        "min": 25.0,
+        "max": 41.0
+      },
+      "leve": {
+        "min": 41.1,
+        "max": 44.0
+      },
+      "moderado": {
+        "min": 44.1,
+        "max": 49.0
+      },
+      "grave": {
+        "min": 49.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_ESPESSURA_PAREDE_LIVRE_VD": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 5.0
+      },
+      "leve": {
+        "min": 5.1,
+        "max": 7.0
+      },
+      "moderado": {
+        "min": 7.1,
+        "max": 9.0
+      },
+      "grave": {
+        "min": 9.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_FACVD": {
+    "U": {
+      "normal": {
+        "min": 35.0,
+        "max": 999.0
+      },
+      "leve": {
+        "min": 29.1,
+        "max": 34.9
+      },
+      "moderado": {
+        "min": 22.1,
+        "max": 29.0
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 22.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 35"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_FESIMPSON": {
+    "F": {
+      "normal": {
+        "min": 54.0,
+        "max": 74.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 53.9
+      },
+      "moderado": {
+        "min": 30.0,
+        "max": 40.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 29.9
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 52.0,
+        "max": 72.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 51.9
+      },
+      "moderado": {
+        "min": 30.0,
+        "max": 40.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 29.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_FETEICHOLZ": {
+    "F": {
+      "normal": {
+        "min": 54.0,
+        "max": 74.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 53.9
+      },
+      "moderado": {
+        "min": 30.0,
+        "max": 40.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 29.9
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 52.0,
+        "max": 72.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 51.9
+      },
+      "moderado": {
+        "min": 30.0,
+        "max": 40.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 29.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_IPM": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 0.43
+      },
+      "leve": {
+        "min": 0.44,
+        "max": 0.54
+      },
+      "moderado": {
+        "min": 0.55,
+        "max": 0.65
+      },
+      "grave": {
+        "min": 0.66,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_MVE": {
+    "F": {
+      "normal": {
+        "min": 67.0,
+        "max": 162.0
+      },
+      "leve": {
+        "min": 163.0,
+        "max": 185.0
+      },
+      "moderado": {
+        "min": 186.0,
+        "max": 210.0
+      },
+      "grave": {
+        "min": 211.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 88.0,
+        "max": 224.0
+      },
+      "leve": {
+        "min": 225.0,
+        "max": 250.0
+      },
+      "moderado": {
+        "min": 251.0,
+        "max": 280.0
+      },
+      "grave": {
+        "min": 281.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_MVE_INDEX": {
+    "F": {
+      "normal": {
+        "min": 43.0,
+        "max": 95.0
+      },
+      "leve": {
+        "min": 96.0,
+        "max": 108.0
+      },
+      "moderado": {
+        "min": 109.0,
+        "max": 121.0
+      },
+      "grave": {
+        "min": 122.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 49.0,
+        "max": 115.0
+      },
+      "leve": {
+        "min": 116.0,
+        "max": 130.0
+      },
+      "moderado": {
+        "min": 131.0,
+        "max": 145.0
+      },
+      "grave": {
+        "min": 146.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_ONDA_A_MITRAL": {
+    "M": {
+      "normal": {
+        "min": 0.2,
+        "max": 0.5
+      },
+      "leve": {
+        "min": 0.1,
+        "max": 0.19
+      },
+      "moderado": {
+        "min": 0.0,
+        "max": 0.09
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 0.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function",
+      "Pagina": 23
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_ONDA_E_MITRAL": {
+    "U": {
+      "normal": {
+        "min": 0.6,
+        "max": 1.0
+      },
+      "leve": {
+        "min": 1.1,
+        "max": 1.3
+      },
+      "moderado": {
+        "min": 1.4,
+        "max": 1.6
+      },
+      "grave": {
+        "min": 1.7,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function",
+      "Pagina": 23
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_PPVE": {
+    "F": {
+      "normal": {
+        "min": 6.0,
+        "max": 9.0
+      },
+      "leve": {
+        "min": 10.0,
+        "max": 11.0
+      },
+      "moderado": {
+        "min": 12.0,
+        "max": 13.0
+      },
+      "grave": {
+        "min": 14.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 6.0,
+        "max": 10.0
+      },
+      "leve": {
+        "min": 11.0,
+        "max": 12.0
+      },
+      "moderado": {
+        "min": 13.0,
+        "max": 14.0
+      },
+      "grave": {
+        "min": 15.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_EDPPVE"
+    ]
+  },
+  "VR_PEC": {
+    "F": {
+      "normal": {
+        "min": 27.0,
+        "max": 45.0
+      },
+      "leve": {
+        "min": 46.0,
+        "max": 50.0
+      },
+      "moderado": {
+        "min": 51.0,
+        "max": 55.0
+      },
+      "grave": {
+        "min": 56.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 25.0,
+        "max": 43.0
+      },
+      "leve": {
+        "min": 44.0,
+        "max": 48.0
+      },
+      "moderado": {
+        "min": 49.0,
+        "max": 53.0
+      },
+      "grave": {
+        "min": 54.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_RELACAO_E_ELINHA": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 14.0
+      },
+      "leve": {
+        "min": 14.1,
+        "max": 16.0
+      },
+      "moderado": {
+        "min": 16.1,
+        "max": 20.0
+      },
+      "grave": {
+        "min": 20.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "N<8: Alt.> 15"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function",
+      "Pagina": 23
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_SEPTO": {
+    "F": {
+      "normal": {
+        "min": 6.0,
+        "max": 9.0
+      },
+      "leve": {
+        "min": 10.0,
+        "max": 11.0
+      },
+      "moderado": {
+        "min": 12.0,
+        "max": 13.0
+      },
+      "grave": {
+        "min": 14.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 6.0,
+        "max": 10.0
+      },
+      "leve": {
+        "min": 11.0,
+        "max": 12.0
+      },
+      "moderado": {
+        "min": 13.0,
+        "max": 14.0
+      },
+      "grave": {
+        "min": 15.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_EDS",
+      "VR_SEPTO_IVS",
+      "VR_ESPESSURA_SEPTAL"
+    ]
+  },
+  "VR_ONDA_S_ANEL_TRICUSPIDE": {
+    "U": {
+      "normal": {
+        "min": 9.6,
+        "max": 999.0
+      },
+      "leve": {
+        "min": 7.2,
+        "max": 9.5
+      },
+      "moderado": {
+        "min": 5.0,
+        "max": 7.1
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 4.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_S_ANEL_TRICUSPIDE"
+    ]
+  },
+  "VR_TAPSE_VD": {
+    "U": {
+      "normal": {
+        "min": 17.0,
+        "max": 999.0
+      },
+      "leve": {
+        "min": 13.0,
+        "max": 16.9
+      },
+      "moderado": {
+        "min": 10.0,
+        "max": 12.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 9.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 17"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_TAPSE_VD"
+    ]
+  },
+  "VR_TEMPO_DESACELERACAO_E_MITRAL": {
+    "U": {
+      "normal": {
+        "min": 150.0,
+        "max": 240.0
+      },
+      "leve": {
+        "min": 201.0,
+        "max": 240.0
+      },
+      "moderado": {
+        "min": 160.0,
+        "max": 200.0
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 159.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "160-240"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function",
+      "Pagina": 23
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_VDF": {
+    "F": {
+      "normal": {
+        "min": 46.0,
+        "max": 106.0
+      },
+      "leve": {
+        "min": 107.0,
+        "max": 120.0
+      },
+      "moderado": {
+        "min": 121.0,
+        "max": 140.0
+      },
+      "grave": {
+        "min": 141.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 62.0,
+        "max": 150.0
+      },
+      "leve": {
+        "min": 151.0,
+        "max": 170.0
+      },
+      "moderado": {
+        "min": 171.0,
+        "max": 190.0
+      },
+      "grave": {
+        "min": 191.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_VDF_MANUAL"
+    ]
+  },
+  "VR_VOLUME_AD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 0.0,
+        "max": 27.0
+      },
+      "leve": {
+        "min": 28.0,
+        "max": 32.0
+      },
+      "moderado": {
+        "min": 33.0,
+        "max": 37.0
+      },
+      "grave": {
+        "min": 38.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 0.0,
+        "max": 32.0
+      },
+      "leve": {
+        "min": 33.0,
+        "max": 37.0
+      },
+      "moderado": {
+        "min": 38.0,
+        "max": 42.0
+      },
+      "grave": {
+        "min": 43.0,
+        "max": 999.0
+      }
+    },
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 34.0
+      },
+      "leve": {
+        "min": 35.0,
+        "max": 40.0
+      },
+      "moderado": {
+        "min": 41.0,
+        "max": 45.0
+      },
+      "grave": {
+        "min": 46.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 27"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 33
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_VDF_INDEX": {
+    "F": {
+      "normal": {
+        "min": 29.0,
+        "max": 61.0
+      },
+      "leve": {
+        "min": 62.0,
+        "max": 70.0
+      },
+      "moderado": {
+        "min": 71.0,
+        "max": 80.0
+      },
+      "grave": {
+        "min": 81.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 34.0,
+        "max": 74.0
+      },
+      "leve": {
+        "min": 75.0,
+        "max": 85.0
+      },
+      "moderado": {
+        "min": 86.0,
+        "max": 96.0
+      },
+      "grave": {
+        "min": 97.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_VSF_INDEX": {
+    "F": {
+      "normal": {
+        "min": 8.0,
+        "max": 24.0
+      },
+      "leve": {
+        "min": 25.0,
+        "max": 30.0
+      },
+      "moderado": {
+        "min": 31.0,
+        "max": 36.0
+      },
+      "grave": {
+        "min": 37.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 11.0,
+        "max": 31.0
+      },
+      "leve": {
+        "min": 32.0,
+        "max": 38.0
+      },
+      "moderado": {
+        "min": 39.0,
+        "max": 45.0
+      },
+      "grave": {
+        "min": 46.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_VSF": {
+    "F": {
+      "normal": {
+        "min": 14.0,
+        "max": 42.0
+      },
+      "leve": {
+        "min": 43.0,
+        "max": 50.0
+      },
+      "moderado": {
+        "min": 51.0,
+        "max": 60.0
+      },
+      "grave": {
+        "min": 61.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 21.0,
+        "max": 61.0
+      },
+      "leve": {
+        "min": 62.0,
+        "max": 70.0
+      },
+      "moderado": {
+        "min": 71.0,
+        "max": 80.0
+      },
+      "grave": {
+        "min": 81.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 7
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_VSF_MANUAL"
+    ]
+  },
+  "VR_VOL_AE_INDEX": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 34.0
+      },
+      "leve": {
+        "min": 35.0,
+        "max": 40.0
+      },
+      "moderado": {
+        "min": 41.0,
+        "max": 45.0
+      },
+      "grave": {
+        "min": 46.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 33
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_DVD_MEDIO": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 42.0
+      },
+      "leve": {
+        "min": 42.1,
+        "max": 44.0
+      },
+      "moderado": {
+        "min": 44.1,
+        "max": 49.0
+      },
+      "grave": {
+        "min": 49.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_AREA_DVD_INDEX": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 11.5
+      },
+      "leve": {
+        "min": 11.6,
+        "max": 14.0
+      },
+      "moderado": {
+        "min": 14.1,
+        "max": 16.0
+      },
+      "grave": {
+        "min": 16.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_GLS": {
+    "U": {
+      "normal": {
+        "min": -999.0,
+        "max": -18.0
+      },
+      "leve": {
+        "min": -17.9,
+        "max": -16.0
+      },
+      "moderado": {
+        "min": -15.9,
+        "max": -14.0
+      },
+      "grave": {
+        "min": -13.9,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 17
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_TRONCO_PULMONAR": {
+    "F": {
+      "normal": {
+        "min": 0.0,
+        "max": 21.0
+      },
+      "leve": {
+        "min": 22.0,
+        "max": 25.0
+      },
+      "moderado": {
+        "min": 26.0,
+        "max": 29.0
+      },
+      "grave": {
+        "min": 30.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 0.0,
+        "max": 22.0
+      },
+      "leve": {
+        "min": 23.0,
+        "max": 26.0
+      },
+      "moderado": {
+        "min": 27.0,
+        "max": 30.0
+      },
+      "grave": {
+        "min": 31.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 27"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 35
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_DP_DT": {
+    "U": {
+      "normal": {
+        "min": 1000.0,
+        "max": 9999.0
+      },
+      "leve": {
+        "min": 900.0,
+        "max": 999.0
+      },
+      "moderado": {
+        "min": 800.0,
+        "max": 899.0
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 799.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≥ 1200"
+    },
+    "_meta": {
+      "Ano": 2017,
+      "Fonte": "Recommendations for Noninvasive Evaluation of Native Valvular Regurgitation",
+      "Pagina": 23
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_DP_DT"
+    ]
+  },
+  "VR_RELACAO_E_A": {
+    "U": {
+      "normal": {
+        "min": 0.8,
+        "max": 1.5
+      },
+      "leve": {
+        "min": 0.0,
+        "max": 0.79
+      },
+      "moderado": {
+        "min": 1.51,
+        "max": 2.0
+      },
+      "grave": {
+        "min": 2.01,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function",
+      "Pagina": 23
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_DVD_LONGITUDINAL": {
+    "U": {
+      "normal": {
+        "min": 59.0,
+        "max": 83.0
+      },
+      "leve": {
+        "min": 84.0,
+        "max": 90.0
+      },
+      "moderado": {
+        "min": 91.0,
+        "max": 97.0
+      },
+      "grave": {
+        "min": 98.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_TSVD_PARASTERNAL": {
+    "U": {
+      "normal": {
+        "min": 20.0,
+        "max": 30.0
+      },
+      "leve": {
+        "min": 31.0,
+        "max": 35.0
+      },
+      "moderado": {
+        "min": 36.0,
+        "max": 40.0
+      },
+      "grave": {
+        "min": 41.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_TSVD_PROXIMAL": {
+    "U": {
+      "normal": {
+        "min": 21.0,
+        "max": 35.0
+      },
+      "leve": {
+        "min": 36.0,
+        "max": 40.0
+      },
+      "moderado": {
+        "min": 41.0,
+        "max": 45.0
+      },
+      "grave": {
+        "min": 46.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_TSVD_DISTAL": {
+    "U": {
+      "normal": {
+        "min": 17.0,
+        "max": 27.0
+      },
+      "leve": {
+        "min": 28.0,
+        "max": 32.0
+      },
+      "moderado": {
+        "min": 33.0,
+        "max": 37.0
+      },
+      "grave": {
+        "min": 38.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_AREA_DIASTOLICA_VD": {
+    "F": {
+      "normal": {
+        "min": 8.0,
+        "max": 20.0
+      },
+      "leve": {
+        "min": 21.0,
+        "max": 24.0
+      },
+      "moderado": {
+        "min": 25.0,
+        "max": 28.0
+      },
+      "grave": {
+        "min": 29.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 10.0,
+        "max": 24.0
+      },
+      "leve": {
+        "min": 25.0,
+        "max": 28.0
+      },
+      "moderado": {
+        "min": 29.0,
+        "max": 32.0
+      },
+      "grave": {
+        "min": 33.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_AREA_DIASTOLICA_VD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 4.5,
+        "max": 11.5
+      },
+      "leve": {
+        "min": 11.6,
+        "max": 13.5
+      },
+      "moderado": {
+        "min": 13.6,
+        "max": 15.5
+      },
+      "grave": {
+        "min": 15.6,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 5.0,
+        "max": 12.6
+      },
+      "leve": {
+        "min": 12.7,
+        "max": 14.5
+      },
+      "moderado": {
+        "min": 14.6,
+        "max": 16.5
+      },
+      "grave": {
+        "min": 16.6,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_AREA_SISTOLICA_VD": {
+    "F": {
+      "normal": {
+        "min": 3.0,
+        "max": 11.0
+      },
+      "leve": {
+        "min": 11.1,
+        "max": 14.0
+      },
+      "moderado": {
+        "min": 14.1,
+        "max": 17.0
+      },
+      "grave": {
+        "min": 17.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 3.0,
+        "max": 15.0
+      },
+      "leve": {
+        "min": 15.1,
+        "max": 18.0
+      },
+      "moderado": {
+        "min": 18.1,
+        "max": 21.0
+      },
+      "grave": {
+        "min": 21.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_AREA_SISTOLICA_VD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 1.6,
+        "max": 6.4
+      },
+      "leve": {
+        "min": 6.5,
+        "max": 8.0
+      },
+      "moderado": {
+        "min": 8.1,
+        "max": 9.5
+      },
+      "grave": {
+        "min": 9.6,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 2.0,
+        "max": 7.4
+      },
+      "leve": {
+        "min": 7.5,
+        "max": 9.0
+      },
+      "moderado": {
+        "min": 9.1,
+        "max": 10.5
+      },
+      "grave": {
+        "min": 10.6,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_VDF_VD_INDEX_3D": {
+    "F": {
+      "normal": {
+        "min": 32.0,
+        "max": 74.0
+      },
+      "leve": {
+        "min": 75.0,
+        "max": 85.0
+      },
+      "moderado": {
+        "min": 86.0,
+        "max": 96.0
+      },
+      "grave": {
+        "min": 97.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 35.0,
+        "max": 87.0
+      },
+      "leve": {
+        "min": 88.0,
+        "max": 98.0
+      },
+      "moderado": {
+        "min": 99.0,
+        "max": 109.0
+      },
+      "grave": {
+        "min": 110.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_VSF_VD_INDEX_3D": {
+    "F": {
+      "normal": {
+        "min": 8.0,
+        "max": 36.0
+      },
+      "leve": {
+        "min": 37.0,
+        "max": 45.0
+      },
+      "moderado": {
+        "min": 46.0,
+        "max": 54.0
+      },
+      "grave": {
+        "min": 55.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 10.0,
+        "max": 44.0
+      },
+      "leve": {
+        "min": 45.0,
+        "max": 53.0
+      },
+      "moderado": {
+        "min": 54.0,
+        "max": 62.0
+      },
+      "grave": {
+        "min": 63.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 21
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_ONDA_S_DOPPLER_COLORIDO": {
+    "U": {
+      "normal": {
+        "min": 6.0,
+        "max": 999.0
+      },
+      "leve": {
+        "min": 4.0,
+        "max": 5.9
+      },
+      "moderado": {
+        "min": 2.0,
+        "max": 3.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 1.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_STRAIN_PAREDE_LIVRE_VD": {
+    "U": {
+      "normal": {
+        "min": -999.0,
+        "max": -20.0
+      },
+      "leve": {
+        "min": -19.9,
+        "max": -17.0
+      },
+      "moderado": {
+        "min": -16.9,
+        "max": -14.0
+      },
+      "grave": {
+        "min": -13.9,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_FE_3D_VD": {
+    "U": {
+      "normal": {
+        "min": 45.0,
+        "max": 999.0
+      },
+      "leve": {
+        "min": 40.0,
+        "max": 44.9
+      },
+      "moderado": {
+        "min": 35.0,
+        "max": 39.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 34.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_RELACAO_ELINHA_ALINHA": {
+    "U": {
+      "normal": {
+        "min": 0.52,
+        "max": 0.99
+      },
+      "leve": {
+        "min": 1.0,
+        "max": 1.5
+      },
+      "moderado": {
+        "min": 1.6,
+        "max": 2.0
+      },
+      "grave": {
+        "min": 2.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_E_LINHA": {
+    "U": {
+      "normal": {
+        "min": 7.8,
+        "max": 9.9
+      },
+      "leve": {
+        "min": 5.0,
+        "max": 7.7
+      },
+      "moderado": {
+        "min": 3.0,
+        "max": 4.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 2.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults",
+      "Pagina": 24
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_EIXO_CURTO_AD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 1.6,
+        "max": 2.2
+      },
+      "leve": {
+        "min": 2.3,
+        "max": 2.5
+      },
+      "moderado": {
+        "min": 2.6,
+        "max": 2.8
+      },
+      "grave": {
+        "min": 2.9,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 1.6,
+        "max": 2.2
+      },
+      "leve": {
+        "min": 2.3,
+        "max": 2.5
+      },
+      "moderado": {
+        "min": 2.6,
+        "max": 2.8
+      },
+      "grave": {
+        "min": 2.9,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 33
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_EIXO_LONGO_AD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 2.2,
+        "max": 2.8
+      },
+      "leve": {
+        "min": 2.9,
+        "max": 3.2
+      },
+      "moderado": {
+        "min": 3.3,
+        "max": 3.6
+      },
+      "grave": {
+        "min": 3.7,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 2.1,
+        "max": 2.7
+      },
+      "leve": {
+        "min": 2.8,
+        "max": 3.1
+      },
+      "moderado": {
+        "min": 3.2,
+        "max": 3.5
+      },
+      "grave": {
+        "min": 3.6,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults",
+      "Pagina": 33
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_DIFERENCA_AR_A": {
+    "U": {
+      "normal": {
+        "min": -999.0,
+        "max": 0.0
+      },
+      "leve": {
+        "min": 0.1,
+        "max": 15.0
+      },
+      "moderado": {
+        "min": 15.1,
+        "max": 30.0
+      },
+      "grave": {
+        "min": 30.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function",
+      "Pagina": 23
+    },
+    "VARIAVEISALTERNATIVAS": []
+  },
+  "VR_VIA_SAIDA_VE": {
+    "F": {
+      "normal": {
+        "min": 18.0,
+        "max": 23.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 20.0,
+        "max": 25.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "_meta": {
+      "Ano": 2026,
+      "Fonte": "Editado pelo usuário",
+      "Pagina": ""
+    }
+  }
+}

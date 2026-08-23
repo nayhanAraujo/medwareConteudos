@@ -35,6 +35,8 @@ public sealed record AtualizarNormalidadeReferenciaRequest(
 );
 public sealed record DesvincularNormalidadeReferenciaRequest(int CodNormalidade, int? CodReferencia);
 public sealed record ImportarNormalidadesRequest(int CodReferenciaDestino, int CodReferenciaOrigem);
+public sealed record UpsertNormalidadeComentarioRequest(int CodVariavel, int CodReferencia, string Texto);
+public sealed record DeleteNormalidadeComentarioRequest(int CodVariavel, int CodReferencia);
 
 public interface IReferenciasService
 {
@@ -72,6 +74,8 @@ public interface IReferenciasService
     Task AtualizarNormalidadeReferenciaAsync(AtualizarNormalidadeReferenciaRequest req, int codUsuario, CancellationToken ct);
     Task DesvincularNormalidadeAsync(int codNormalidade, int codUsuario, CancellationToken ct);
     Task<object> ImportarNormalidadesAsync(int codReferenciaDestino, int codReferenciaOrigem, int codUsuario, CancellationToken ct);
+    Task UpsertNormalidadeComentarioAsync(int codVariavel, int codReferencia, string texto, int codUsuario, CancellationToken ct);
+    Task DeleteNormalidadeComentarioAsync(int codVariavel, int codReferencia, CancellationToken ct);
 }
 
 public class ReferenciasService : IReferenciasService
@@ -83,12 +87,8 @@ public class ReferenciasService : IReferenciasService
     public ReferenciasService(IConfiguration config)
     {
         _connectionString = EnvFileLoader.GetFirebirdConnectionString(config);
-        var repo = config["LegacyPaths:RepoRoot"];
-        if (string.IsNullOrWhiteSpace(repo))
-            repo = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", ".."));
-        _repoRoot = repo;
-        _staticUploadsRoot = Path.Combine(_repoRoot, "mdw-migracao", "static", "uploads");
-        Directory.CreateDirectory(_staticUploadsRoot);
+        _repoRoot = StaticContentPaths.ResolveRepoRoot(config);
+        _staticUploadsRoot = StaticContentPaths.UploadsRoot(_repoRoot);
     }
 
     private IDbConnection CreateConnection() => new FbConnection(_connectionString);
@@ -209,7 +209,7 @@ public class ReferenciasService : IReferenciasService
                 r.CODESPECIALIDADE,
                 r.CODTIPOREF,
                 e.NOME AS ESPECIALIDADE,
-                tr.DESCRICAO AS TIPO_REFERENCIA,
+                tr.DESCRICAO AS TIPOREFERENCIA,
                 COALESCE((
                     SELECT LIST(a.NOME || COALESCE(' (' || a.ABREVIACAO || ')', ''), ', ')
                     FROM REFERENCIA_AUTORES ra
@@ -218,7 +218,7 @@ public class ReferenciasService : IReferenciasService
                 ), '') AS AUTORES
             FROM REFERENCIA r
             LEFT JOIN ESPECIALIDADE e ON r.CODESPECIALIDADE = e.CODESPECIALIDADE
-            LEFT JOIN TIPO_REFERENCIA tr ON r.CODTIPOREF = tr.CODTIPOREF
+            LEFT JOIN TIPOREFERENCIA tr ON r.CODTIPOREF = tr.CODTIPOREF
             WHERE r.CODREFERENCIA = @cod",
             new { cod = codReferencia }
         );
@@ -238,7 +238,7 @@ public class ReferenciasService : IReferenciasService
             codEspecialidade = ToNullableInt(d, "CODESPECIALIDADE"),
             codTipoRef = ToNullableInt(d, "CODTIPOREF"),
             especialidade = ToStr(d, "ESPECIALIDADE"),
-            tipoReferencia = ToStr(d, "TIPO_REFERENCIA"),
+            tipoReferencia = ToStr(d, "TIPOREFERENCIA"),
             autores = ToStr(d, "AUTORES")
         };
     }
@@ -365,7 +365,7 @@ public class ReferenciasService : IReferenciasService
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync(ct);
-        var rows = await conn.QueryAsync("SELECT CODTIPOREF, DESCRICAO FROM TIPO_REFERENCIA ORDER BY DESCRICAO");
+        var rows = await conn.QueryAsync("SELECT CODTIPOREF, DESCRICAO FROM TIPOREFERENCIA ORDER BY DESCRICAO");
         return rows.Select(r =>
         {
             var d = AsDict(r);
@@ -423,15 +423,15 @@ public class ReferenciasService : IReferenciasService
         return rows.Select(r =>
         {
             var d = AsDict(r);
-            var link = NormalizeAnexoUrl(ToStr(d, "LINK"), ToStr(d, "CAMINHO"), ToStr(d, "TIPO_ANEXO"));
+            var url = NormalizeAnexoUrl(ToStr(d, "LINK"), ToStr(d, "CAMINHO"), ToStr(d, "TIPO_ANEXO"));
             return (object)new
             {
                 codAnexo = ToInt(d, "CODANEXO"),
                 codReferencia = ToInt(d, "CODREFERENCIA"),
                 descricao = ToStr(d, "DESCRICAO"),
                 nome = ToStr(d, "NOME"),
-                link,
-                caminho = ToStr(d, "CAMINHO"),
+                link = url,
+                caminho = url,
                 tipoAnexo = ToStr(d, "TIPO_ANEXO")
             };
         }).ToList();
@@ -676,6 +676,7 @@ public class ReferenciasService : IReferenciasService
         Dictionary<int, List<object>> normalidadesPorVariavel = new();
         IReadOnlyList<object> anexosReferencia = [];
         IReadOnlyList<object> normalidadesDisponiveis = [];
+        Dictionary<string, object> comentariosPorVariavel = new();
         var totalSemReferencia = 0;
 
         if (refSelecionadaId.HasValue)
@@ -716,16 +717,40 @@ public class ReferenciasService : IReferenciasService
                     ORDER BY v.NOME",
                     new { cod = refSelecionadaId.Value }
                 );
+                var comentariosRows = await conn.QueryAsync(
+                    @"
+                    SELECT CODVARIAVEL, CODNORMALIDADECOMENTARIO, TEXTO
+                    FROM NORMALIDADECOMENTARIO
+                    WHERE CODREFERENCIA = @cod",
+                    new { cod = refSelecionadaId.Value }
+                );
+                var comentarioTextoPorVariavel = new Dictionary<int, string>();
+                foreach (var row in comentariosRows)
+                {
+                    var d = AsDict(row);
+                    var codVariavel = ToInt(d, "CODVARIAVEL");
+                    var texto = ToStr(d, "TEXTO") ?? "";
+                    comentarioTextoPorVariavel[codVariavel] = texto;
+                    comentariosPorVariavel[codVariavel.ToString()] = new
+                    {
+                        codNormalidadeComentario = ToInt(d, "CODNORMALIDADECOMENTARIO"),
+                        texto
+                    };
+                }
+
                 variaveisVinculadas = varsRows.Select(r =>
                 {
                     var d = AsDict(r);
+                    var codVariavel = ToInt(d, "CODVARIAVEL");
+                    comentarioTextoPorVariavel.TryGetValue(codVariavel, out string? comentarioTexto);
                     return (object)new
                     {
-                        codVariavel = ToInt(d, "CODVARIAVEL"),
+                        codVariavel,
                         nomeVariavel = ToStr(d, "NOME") ?? "",
                         variavel = ToStr(d, "VARIAVEL"),
                         sigla = ToStr(d, "SIGLA"),
-                        totalNormalidades = ToNullableInt(d, "TOTAL_NORMALIDADES") ?? 0
+                        totalNormalidades = ToNullableInt(d, "TOTAL_NORMALIDADES") ?? 0,
+                        comentarioTexto
                     };
                 }).ToList();
 
@@ -836,6 +861,7 @@ public class ReferenciasService : IReferenciasService
             ),
             normalidadesDisponiveis,
             anexosReferencia,
+            comentariosPorVariavel,
             totalSemReferencia,
             limiteDisponiveis = limite,
             filtros = new { referenciaBusca = referenciaBusca ?? "", variavelBusca = variavelBusca ?? "" }
@@ -1044,6 +1070,47 @@ public class ReferenciasService : IReferenciasService
         };
     }
 
+    public async Task UpsertNormalidadeComentarioAsync(int codVariavel, int codReferencia, string texto, int codUsuario, CancellationToken ct)
+    {
+        if (codVariavel <= 0 || codReferencia <= 0)
+            throw new InvalidOperationException("Informe variável e referência válidas.");
+        var value = (texto ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            await DeleteNormalidadeComentarioAsync(codVariavel, codReferencia, ct);
+            return;
+        }
+
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync(ct);
+        await conn.ExecuteAsync(
+            @"
+            UPDATE OR INSERT INTO NORMALIDADECOMENTARIO
+                (CODVARIAVEL, CODREFERENCIA, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
+            VALUES
+                (@CodVariavel, @CodReferencia, @Texto, @CodUsuario, @Now)
+            MATCHING (CODVARIAVEL, CODREFERENCIA)",
+            new
+            {
+                CodVariavel = codVariavel,
+                CodReferencia = codReferencia,
+                Texto = value.Length > 500 ? value[..500] : value,
+                CodUsuario = codUsuario,
+                Now = DateTime.Now
+            });
+    }
+
+    public async Task DeleteNormalidadeComentarioAsync(int codVariavel, int codReferencia, CancellationToken ct)
+    {
+        if (codVariavel <= 0 || codReferencia <= 0)
+            throw new InvalidOperationException("Informe variável e referência válidas.");
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync(ct);
+        await conn.ExecuteAsync(
+            "DELETE FROM NORMALIDADECOMENTARIO WHERE CODVARIAVEL = @codVariavel AND CODREFERENCIA = @codReferencia",
+            new { codVariavel, codReferencia });
+    }
+
     private async Task<(string tipoAnexo, string? link, string? caminho)> ResolveAnexoFileAndTypeAsync(
         string? linkInput,
         UploadedFileContent? file,
@@ -1107,19 +1174,7 @@ public class ReferenciasService : IReferenciasService
     }
 
     private static string? NormalizeAnexoUrl(string? link, string? caminho, string? tipo)
-    {
-        if (!string.IsNullOrWhiteSpace(link)) return link;
-        if (string.IsNullOrWhiteSpace(caminho)) return null;
-        if (tipo == "PDF" && !caminho.StartsWith("/static/", StringComparison.OrdinalIgnoreCase))
-        {
-            if (caminho.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
-                return $"/static/{caminho}";
-            if (!caminho.StartsWith('/'))
-                return $"/static/uploads/{caminho}";
-            return $"/static{caminho}";
-        }
-        return caminho;
-    }
+        => Infrastructure.StaticContentPaths.ToWebUrl(link, caminho);
 
     private static void ValidateReferencia(ReferenciaUpsertRequest req)
     {

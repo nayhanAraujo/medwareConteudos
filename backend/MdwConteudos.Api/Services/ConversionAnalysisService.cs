@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Dapper;
 using ConversorHtml.Application.Dtos;
+using ConversorHtml.Application.Services;
 using MdwConteudos.Api.Controllers;
 using MdwConteudos.Api.Infrastructure;
 
@@ -27,10 +28,10 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         {
             var candidates = variables
                 .Select(v => Score(m, v))
-                .Where(x => x.Score >= 45)
+                .Where(x => x.Score >= 40)
                 .OrderByDescending(x => x.Score)
                 .ThenBy(x => x.Nome)
-                .Take(5)
+                .Take(25)
                 .ToList();
 
             var selected = candidates.FirstOrDefault(x => x.Score >= AutoSelectScore);
@@ -68,6 +69,18 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         var variables = ids.Length == 0
             ? new Dictionary<int, VariableIndex>()
             : (await LoadVariablesAsync(ct, ids)).ToDictionary(x => x.CodVariavel);
+        var rangesByVariable = ids.Length == 0
+            ? new Dictionary<int, List<NormalityRow>>()
+            : (await LoadNormalityRowsAsync(ct, ids)).GroupBy(x => x.CodVariavel).ToDictionary(g => g.Key, g => g.ToList());
+        var commentsByVariable = ids.Length == 0
+            ? new Dictionary<(int, int), string>()
+            : await LoadNormalityCommentsAsync(ct, ids);
+        var formulasByVariable = ids.Length == 0
+            ? new Dictionary<int, List<FormulaRow>>()
+            : (await LoadFormulaRowsAsync(ct, ids)).GroupBy(x => x.CodVariavel).ToDictionary(g => g.Key, g => g.ToList());
+        var knownTokens = formulasByVariable.Count == 0
+            ? Array.Empty<string>()
+            : await LoadFormulaTokensAsync(ct);
 
         var builder = new StringBuilder();
         foreach (var group in kept.GroupBy(m => NormalizeSection(m.Section)))
@@ -77,13 +90,24 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
             {
                 if (measure.CodVariavel.HasValue && variables.TryGetValue(measure.CodVariavel.Value, out var variable))
                 {
-                    builder.AppendLine(BuildLine(variable.Nome, variable.Sigla, variable.Unidade ?? measure.Unit, variable.Normalidade));
+                    rangesByVariable.TryGetValue(variable.CodVariavel, out var rows);
+                    formulasByVariable.TryGetValue(variable.CodVariavel, out var formulas);
+                    builder.AppendLine(BuildLine(
+                        variable.Nome,
+                        variable.Sigla,
+                        variable.Unidade ?? measure.Unit,
+                        rows,
+                        measure.CodReferencia,
+                        measure.NormalityMode,
+                        PickComment(commentsByVariable, variable.CodVariavel, measure.CodReferencia, rows),
+                        PickFormulaExpression(formulas, measure.CodReferencia),
+                        knownTokens));
                     continue;
                 }
 
                 var label = string.IsNullOrWhiteSpace(measure.Label) ? "Campo" : measure.Label.Trim();
                 var sigla = ToVariableToken(measure.Label);
-                builder.AppendLine(BuildLine(label, sigla, measure.Unit, null));
+                builder.AppendLine(BuildLine(label, sigla, measure.Unit, null, null, null, null, null, knownTokens));
             }
             builder.AppendLine();
         }
@@ -104,10 +128,7 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
                 V.ABREVIACAO AS Abreviacao,
                 V.DESCRICAO AS Descricao,
                 U.DESCRICAO AS Unidade,
-                (SELECT LIST(A.ALTERNATIVA, '|') FROM VARIAVEIS_ALTERNATIVAS A WHERE A.CODVARIAVEL = V.CODVARIAVEL) AS Alternativas,
-                (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), ''), '; ')
-                   FROM NORMALIDADE N
-                  WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade
+                (SELECT LIST(A.ALTERNATIVA, '|') FROM VARIAVEISALTERNATIVAS A WHERE A.CODVARIAVEL = V.CODVARIAVEL) AS Alternativas
             FROM VARIAVEIS V
             LEFT JOIN UNIDADEMEDIDA U ON U.CODUNIDADEMEDIDA = V.CODUNIDADEMEDIDA
             {where}
@@ -155,12 +176,258 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         };
     }
 
-    private static string BuildLine(string label, string sigla, string? unit, string? normality)
+    private async Task<IReadOnlyList<NormalityRow>> LoadNormalityRowsAsync(CancellationToken ct, IReadOnlyList<int> ids)
     {
-        var ranges = string.IsNullOrWhiteSpace(normality)
-            ? ""
-            : " " + string.Join(" ", normality.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => $"({x})"));
-        return $"{label.Trim()} ({ToVariableToken(sigla)}): 0.0  {unit?.Trim() ?? "sem unidade"}{ranges}";
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        var rows = await conn.QueryAsync<NormalityRow>(@"
+            SELECT
+                N.CODVARIAVEL AS CodVariavel,
+                N.CODREFERENCIA AS CodReferencia,
+                N.SEXO AS Sexo,
+                N.VALORMIN AS ValorMin,
+                N.VALORMAX AS ValorMax,
+                N.IDADE_MIN AS IdadeMin,
+                N.IDADE_MAX AS IdadeMax,
+                C.NOME AS Classificacao,
+                R.TITULO AS ReferenciaTitulo
+            FROM NORMALIDADE N
+            LEFT JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = N.CODCLASSIFICACAO
+            LEFT JOIN REFERENCIA R ON R.CODREFERENCIA = N.CODREFERENCIA
+            WHERE N.CODVARIAVEL IN @ids
+            ORDER BY N.CODVARIAVEL, N.CODREFERENCIA, N.SEXO, N.IDADE_MIN", new { ids });
+        return rows.AsList();
+    }
+
+    private async Task<IReadOnlyList<FormulaRow>> LoadFormulaRowsAsync(CancellationToken ct, IReadOnlyList<int> ids)
+    {
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        var rows = await conn.QueryAsync<FormulaRow>(@"
+            SELECT
+                COALESCE(FV.CODVARIAVEL, F.CODVARIAVEL) AS CodVariavel,
+                F.FORMULA AS Formula,
+                EL.EQUACAO AS Equacao,
+                TL.NOME AS Linguagem,
+                EL.CODREFERENCIA AS CodReferencia
+            FROM FORMULAS F
+            LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
+                AND FV.CODVARIAVEL IN @ids
+            LEFT JOIN EQUACOESLINGUAGEM EL ON EL.CODFORMULA = F.CODFORMULA
+            LEFT JOIN TIPOLINGUAGEM TL ON TL.CODLINGUAGEM = EL.CODLINGUAGEM
+            WHERE F.CODVARIAVEL IN @ids OR FV.CODVARIAVEL IN @ids", new { ids });
+        return rows.AsList();
+    }
+
+    private async Task<IReadOnlyList<string>> LoadFormulaTokensAsync(CancellationToken ct)
+    {
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        var rows = await conn.QueryAsync<VariableTokenRow>(@"
+            SELECT SIGLA AS Sigla, VARIAVEL AS Variavel FROM VARIAVEIS
+            WHERE SIGLA IS NOT NULL OR VARIAVEL IS NOT NULL");
+        return rows
+            .SelectMany(r => new[] { r.Sigla, r.Variavel })
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string? PickFormulaExpression(IReadOnlyList<FormulaRow>? rows, int? codReferencia)
+    {
+        if (rows is null || rows.Count == 0) return null;
+
+        IEnumerable<FormulaRow> pool = rows;
+        if (codReferencia.HasValue)
+        {
+            var matched = rows.Where(r => r.CodReferencia == codReferencia.Value).ToList();
+            if (matched.Count > 0) pool = matched;
+        }
+
+        return pool
+            .Select(r => new
+            {
+                Expression = !string.IsNullOrWhiteSpace(r.Equacao) ? r.Equacao : r.Formula,
+                JsScore = IsJavaScript(r.Linguagem) ? 2 : 0,
+                HasEquation = string.IsNullOrWhiteSpace(r.Equacao) ? 0 : 1
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.Expression))
+            .OrderByDescending(x => x.JsScore)
+            .ThenByDescending(x => x.HasEquation)
+            .Select(x => x.Expression)
+            .FirstOrDefault();
+    }
+
+    private static bool IsJavaScript(string? linguagem)
+    {
+        var value = (linguagem ?? "").Trim();
+        return value.Contains("javascript", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "js", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string BuildLine(
+        string label,
+        string sigla,
+        string? unit,
+        IReadOnlyList<NormalityRow>? rows,
+        int? codReferencia,
+        string? normalityMode,
+        string? storedComment,
+        string? formula,
+        IReadOnlyList<string>? knownTokens)
+    {
+        var selected = SelectRows(rows, codReferencia);
+        var mode = ResolveMode(selected, normalityMode, storedComment);
+        var simple = mode == "simple" || mode == "classificacao" ? BuildSimpleRanges(selected) : "";
+        var comment = mode switch
+        {
+            "texto" => BuildTextoComment(storedComment),
+            "classificacao" => BuildClassificationComment(selected),
+            _ => ""
+        };
+        var codigo = ModoTextoCodigoFormatter.ToCodigoSuffix(formula, knownTokens);
+        return $"{label.Trim()} ({ToVariableToken(sigla)}): 0.0  {unit?.Trim() ?? "sem unidade"}{simple}{comment}{codigo}";
+    }
+
+    private static IReadOnlyList<NormalityRow> SelectRows(IReadOnlyList<NormalityRow>? rows, int? codReferencia)
+    {
+        if (rows is null || rows.Count == 0) return [];
+        if (codReferencia.HasValue)
+        {
+            var filtered = rows.Where(r => r.CodReferencia == codReferencia.Value).ToList();
+            if (filtered.Count > 0) return filtered;
+        }
+
+        var firstRef = rows.Select(r => r.CodReferencia).FirstOrDefault(x => x.HasValue);
+        if (firstRef.HasValue)
+        {
+            var filtered = rows.Where(r => r.CodReferencia == firstRef.Value).ToList();
+            if (filtered.Count > 0) return filtered;
+        }
+
+        return rows;
+    }
+
+    private static string ResolveMode(IReadOnlyList<NormalityRow> rows, string? requested, string? storedComment)
+    {
+        if (string.Equals(requested, "simple", StringComparison.OrdinalIgnoreCase)) return "simple";
+        if (string.Equals(requested, "texto", StringComparison.OrdinalIgnoreCase))
+            return string.IsNullOrWhiteSpace(storedComment) ? "simple" : "texto";
+        if (string.Equals(requested, "classificacao", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, "comment", StringComparison.OrdinalIgnoreCase))
+            return "classificacao";
+
+        var perSex = rows.GroupBy(r => NormalizeSex(r.Sexo)).Select(g => g.Count());
+        return rows.Count > 2 || perSex.Any(c => c > 1) || rows.Any(r => r.IdadeMin.HasValue || r.IdadeMax.HasValue)
+            ? "classificacao"
+            : "simple";
+    }
+
+    private static string? PickComment(
+        IReadOnlyDictionary<(int CodVariavel, int CodReferencia), string> comments,
+        int codVariavel,
+        int? requestedRef,
+        IReadOnlyList<NormalityRow>? rows)
+    {
+        if (requestedRef.HasValue && comments.TryGetValue((codVariavel, requestedRef.Value), out var exact))
+            return exact;
+
+        var firstRef = rows?.Select(r => r.CodReferencia).FirstOrDefault(x => x.HasValue);
+        if (firstRef.HasValue && comments.TryGetValue((codVariavel, firstRef.Value), out var fallback))
+            return fallback;
+        return null;
+    }
+
+    private static string BuildSimpleRanges(IReadOnlyList<NormalityRow> rows)
+    {
+        if (rows.Count == 0) return "";
+        var parts = new List<string>();
+        foreach (var sexo in new[] { "M", "F" })
+        {
+            var ofSex = rows.Where(r => NormalizeSex(r.Sexo) == sexo).ToList();
+            if (ofSex.Count == 0) continue;
+            var min = ofSex.Select(r => r.ValorMin).Where(v => v.HasValue).DefaultIfEmpty().Min();
+            var max = ofSex.Select(r => r.ValorMax).Where(v => v.HasValue).DefaultIfEmpty().Max();
+            if (!min.HasValue && !max.HasValue) continue;
+            parts.Add($"({sexo}: {FormatDecimal(min)} a {FormatDecimal(max)})");
+        }
+
+        return parts.Count == 0 ? "" : " " + string.Join(" ", parts);
+    }
+
+    private static string BuildClassificationComment(IReadOnlyList<NormalityRow> rows)
+    {
+        if (rows.Count == 0) return "";
+        var bands = rows.Select(r =>
+        {
+            var sexo = NormalizeSex(r.Sexo);
+            var cor = NormalidadeZonas.MapColor(r.Classificacao);
+            var zona = string.IsNullOrWhiteSpace(r.Classificacao) ? "" : $" {r.Classificacao.Trim()}";
+            return $"({sexo}:{zona} {{{FormatDecimalComma(r.ValorMin)}, {FormatDecimalComma(r.ValorMax)},  {cor} }})";
+        });
+        return "  Comentário: " + string.Join(",", bands);
+    }
+
+    private static string BuildTextoComment(string? storedComment)
+        => string.IsNullOrWhiteSpace(storedComment) ? "" : $"  Comentário: {storedComment.Trim()}";
+
+    private static string NormalizeSex(string? sexo)
+    {
+        var s = (sexo ?? "").Trim().ToUpperInvariant();
+        if (s.StartsWith('F')) return "F";
+        if (s.StartsWith('M')) return "M";
+        return s.Length == 0 ? "-" : s[..1];
+    }
+
+    private async Task<Dictionary<(int, int), string>> LoadNormalityCommentsAsync(CancellationToken ct, IReadOnlyList<int> ids)
+    {
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        var rows = await conn.QueryAsync<CommentRow>(@"
+            SELECT CODVARIAVEL AS CodVariavel, CODREFERENCIA AS CodReferencia, TEXTO AS Texto
+            FROM NORMALIDADECOMENTARIO
+            WHERE CODVARIAVEL IN @ids", new { ids });
+        return rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Texto))
+            .ToDictionary(r => (r.CodVariavel, r.CodReferencia), r => r.Texto!.Trim());
+    }
+
+    internal static string FormatDecimal(decimal? value) =>
+        ModoTextoCodigoFormatter.FormatDecimal(value);
+
+    private static string FormatDecimalComma(decimal? value) =>
+        ModoTextoCodigoFormatter.FormatDecimal(value, useComma: true);
+
+    private sealed class FormulaRow
+    {
+        public int CodVariavel { get; set; }
+        public string? Formula { get; set; }
+        public string? Equacao { get; set; }
+        public string? Linguagem { get; set; }
+        public int? CodReferencia { get; set; }
+    }
+
+    private sealed class VariableTokenRow
+    {
+        public string? Sigla { get; set; }
+        public string? Variavel { get; set; }
+    }
+
+    private sealed class NormalityRow
+    {
+        public int CodVariavel { get; set; }
+        public int? CodReferencia { get; set; }
+        public string? Sexo { get; set; }
+        public decimal? ValorMin { get; set; }
+        public decimal? ValorMax { get; set; }
+        public decimal? IdadeMin { get; set; }
+        public decimal? IdadeMax { get; set; }
+        public string? Classificacao { get; set; }
+        public string? ReferenciaTitulo { get; set; }
+    }
+
+    private sealed class CommentRow
+    {
+        public int CodVariavel { get; set; }
+        public int CodReferencia { get; set; }
+        public string? Texto { get; set; }
     }
 
     private static string NormalizeSection(string? value) =>
@@ -227,7 +494,6 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         public string? Descricao { get; set; }
         public string? Unidade { get; set; }
         public string? Alternativas { get; set; }
-        public string? Normalidade { get; set; }
 
         public IEnumerable<(string Name, string? Value)> SearchFields()
         {

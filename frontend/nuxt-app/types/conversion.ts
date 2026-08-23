@@ -52,7 +52,25 @@ export interface ReviewedMeasure {
   unit?: string | null
   originalText?: string | null
   codVariavel?: number | null
+  codReferencia?: number | null
+  normalityMode?: 'simple' | 'comment' | 'classificacao' | 'texto' | null
   decision: 'keep' | 'ignore'
+}
+
+export interface VariableReferenceOption {
+  codigo: number
+  titulo?: string | null
+  ano?: number | string | null
+  multiRange: boolean
+}
+
+export interface VariableNormalidade {
+  sexo?: string | null
+  valor_min?: number | string | null
+  valor_max?: number | string | null
+  classificacao?: string | null
+  comentario_texto?: string | null
+  referencia?: { codigo?: number | null; titulo?: string | null; ano?: number | string | null } | null
 }
 
 export interface ConversionRecord {

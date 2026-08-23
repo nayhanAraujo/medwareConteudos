@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnalyzedMeasure, ConversionFormat, ConversionRecord, ReviewedMeasure } from '~/types/conversion'
+import type { AnalyzedMeasure, ConversionFormat, ConversionRecord, ReviewedMeasure, VariableNormalidade } from '~/types/conversion'
 import { looksLikeHtml, resolveConversionContent } from '~/utils/conversionFormat'
 
 definePageMeta({ layout: 'studio' })
@@ -23,7 +23,13 @@ const analyzing = ref(false)
 const generatingReviewedText = ref(false)
 const variableSearch = ref('')
 const variableOptions = ref<Array<{ codvariavel: number; nome?: string; sigla?: string; variavel?: string; unidade_medida?: string }>>([])
-const reviewState = ref<Record<string, { codVariavel: number | null; decision: 'keep' | 'ignore' | 'pending' }>>({})
+const reviewState = ref<Record<string, {
+  codVariavel: number | null
+  decision: 'keep' | 'ignore' | 'pending'
+  codReferencia: number | null
+  normalityMode: 'simple' | 'comment' | 'classificacao' | 'texto'
+}>>({})
+const variableDetails = ref<Record<number, VariableNormalidade[]>>({})
 
 const hasOutput = computed(() =>
   outputFormat.value === 'modoTexto' ? generatedText.value.length > 0 : generatedHtml.value.length > 0
@@ -207,10 +213,10 @@ const handleConvert = async () => {
 const filteredVariableOptions = computed(() => {
   const term = variableSearch.value.trim().toLocaleLowerCase()
   const rows = variableOptions.value
-  if (!term) return rows.slice(0, 80)
-  return rows
-    .filter(v => `${v.nome ?? ''} ${v.sigla ?? ''} ${v.variavel ?? ''}`.toLocaleLowerCase().includes(term))
-    .slice(0, 80)
+  if (!term) return rows
+  return rows.filter(v =>
+    `${v.nome ?? ''} ${v.sigla ?? ''} ${v.variavel ?? ''}`.toLocaleLowerCase().includes(term)
+  )
 })
 
 const hasPendingReview = computed(() =>
@@ -239,9 +245,21 @@ const handleAnalyzeModoTexto = async () => {
       m.id,
       {
         codVariavel: m.selectedCandidate?.codVariavel ?? null,
-        decision: m.selectedCandidate ? 'keep' : 'pending'
+        decision: m.selectedCandidate ? 'keep' : 'pending',
+        codReferencia: null,
+        normalityMode: 'simple' as const
       }
     ]))
+    await Promise.all(
+      analysis.value
+        .map(m => m.selectedCandidate?.codVariavel)
+        .filter((id): id is number => !!id)
+        .map(id => loadVariableDetails(id))
+    )
+    for (const measure of analysis.value) {
+      const state = reviewState.value[measure.id]
+      if (state?.codVariavel) applyReferenceDefaults(measure.id, state.codVariavel)
+    }
 
     if (!analysis.value.length) {
       await alert('Nenhuma medida encontrada', 'O agente não retornou medidas estruturadas para revisar.', 'warning')
@@ -258,17 +276,121 @@ const handleAnalyzeModoTexto = async () => {
   }
 }
 
-const selectCandidate = (measureId: string, codVariavel: number | null) => {
-  reviewState.value[measureId] = { codVariavel, decision: codVariavel ? 'keep' : 'pending' }
+const loadVariableDetails = async (codVariavel: number) => {
+  if (variableDetails.value[codVariavel]) return
+  const config = useRuntimeConfig()
+  const apiBase = config.public.apiBase as string
+  const res = await $fetch<{ success: boolean; data?: { normalidades?: VariableNormalidade[] } }>(
+    `${apiBase}/api/v1/variaveis/${codVariavel}`
+  )
+  variableDetails.value[codVariavel] = res.data?.normalidades ?? []
+}
+
+const referencesFor = (codVariavel: number | null) => {
+  if (!codVariavel) return []
+  const rows = variableDetails.value[codVariavel] ?? []
+  const map = new Map<number, { codigo: number; titulo: string; ano: string; count: number }>()
+  for (const row of rows) {
+    const codigo = row.referencia?.codigo
+    if (!codigo) continue
+    const current = map.get(codigo) ?? {
+      codigo,
+      titulo: row.referencia?.titulo ?? `Referência ${codigo}`,
+      ano: row.referencia?.ano != null ? String(row.referencia.ano) : '',
+      count: 0
+    }
+    current.count += 1
+    map.set(codigo, current)
+  }
+  return [...map.values()]
+}
+
+const isMultiRange = (codVariavel: number | null, codReferencia: number | null) => {
+  if (!codVariavel) return false
+  const rows = (variableDetails.value[codVariavel] ?? []).filter(r =>
+    !codReferencia || r.referencia?.codigo === codReferencia
+  )
+  const bySex = new Map<string, number>()
+  for (const row of rows) {
+    const sexo = (row.sexo ?? '-').toUpperCase()
+    bySex.set(sexo, (bySex.get(sexo) ?? 0) + 1)
+  }
+  return rows.length > 2 || [...bySex.values()].some(n => n > 1)
+}
+
+const applyReferenceDefaults = (measureId: string, codVariavel: number) => {
+  const refs = referencesFor(codVariavel)
+  const current = reviewState.value[measureId]
+  if (!current) return
+  const codReferencia = current.codReferencia && refs.some(r => r.codigo === current.codReferencia)
+    ? current.codReferencia
+    : (refs[0]?.codigo ?? null)
+  const multi = isMultiRange(codVariavel, codReferencia)
+  reviewState.value[measureId] = {
+    ...current,
+    codReferencia,
+    normalityMode: multi ? 'classificacao' : 'simple'
+  }
+}
+
+const selectCandidate = async (measureId: string, codVariavel: number | null) => {
+  const current = reviewState.value[measureId] ?? {
+    codVariavel: null,
+    decision: 'pending' as const,
+    codReferencia: null,
+    normalityMode: 'simple' as const
+  }
+  reviewState.value[measureId] = {
+    ...current,
+    codVariavel,
+    decision: codVariavel ? 'keep' : 'pending',
+    codReferencia: null,
+    normalityMode: 'simple'
+  }
+  if (codVariavel) {
+    await loadVariableDetails(codVariavel)
+    applyReferenceDefaults(measureId, codVariavel)
+  }
 }
 
 const onCandidateChange = (measureId: string, event: Event) => {
   const value = event.target instanceof HTMLSelectElement ? event.target.value : ''
-  selectCandidate(measureId, value ? Number(value) : null)
+  void selectCandidate(measureId, value ? Number(value) : null)
+}
+
+const onReferenceChange = (measureId: string, event: Event) => {
+  const value = event.target instanceof HTMLSelectElement ? event.target.value : ''
+  const current = reviewState.value[measureId]
+  if (!current) return
+  const codReferencia = value ? Number(value) : null
+  reviewState.value[measureId] = {
+    ...current,
+    codReferencia,
+    normalityMode: isMultiRange(current.codVariavel, codReferencia) ? 'classificacao' : 'simple'
+  }
+}
+
+const hasComment = (codVariavel: number | null, codReferencia: number | null) => {
+  if (!codVariavel) return false
+  return (variableDetails.value[codVariavel] ?? []).some(row => {
+    const sameRef = !codReferencia || row.referencia?.codigo === codReferencia
+    return sameRef && !!row.comentario_texto?.trim()
+  })
+}
+
+const setNormalityMode = (measureId: string, mode: 'simple' | 'classificacao' | 'texto') => {
+  const current = reviewState.value[measureId]
+  if (!current) return
+  reviewState.value[measureId] = { ...current, normalityMode: mode }
 }
 
 const setMeasureDecision = (measureId: string, decision: 'keep' | 'ignore') => {
-  const current = reviewState.value[measureId] ?? { codVariavel: null, decision: 'pending' }
+  const current = reviewState.value[measureId] ?? {
+    codVariavel: null,
+    decision: 'pending' as const,
+    codReferencia: null,
+    normalityMode: 'simple' as const
+  }
   reviewState.value[measureId] = { ...current, decision, codVariavel: decision === 'ignore' ? null : current.codVariavel }
 }
 
@@ -281,7 +403,12 @@ const handleGenerateReviewedModoTexto = async () => {
   generatingReviewedText.value = true
   try {
     const measures: ReviewedMeasure[] = analysis.value.map(m => {
-      const state = reviewState.value[m.id] ?? { codVariavel: null, decision: 'keep' as const }
+      const state = reviewState.value[m.id] ?? {
+        codVariavel: null,
+        decision: 'keep' as const,
+        codReferencia: null,
+        normalityMode: 'simple' as const
+      }
       return {
         id: m.id,
         label: m.label,
@@ -289,6 +416,8 @@ const handleGenerateReviewedModoTexto = async () => {
         unit: m.unit,
         originalText: m.originalText,
         codVariavel: state.codVariavel,
+        codReferencia: state.codReferencia,
+        normalityMode: state.normalityMode,
         decision: state.decision === 'ignore' ? 'ignore' : 'keep'
       }
     })
@@ -469,7 +598,8 @@ const handleDownload = () => {
               Confira as medidas encontradas na imagem. Itens sem correlação precisam ser associados, ignorados ou mantidos como campo novo antes de gerar o TXT.
             </p>
             <p class="mt-1 text-xs text-ds-muted">
-              Pendentes: {{ analysis.filter(m => (reviewState[m.id]?.decision ?? 'pending') === 'pending').length }}
+              {{ filteredVariableOptions.length }} de {{ variableOptions.length }} variáveis no combo
+              (use a busca para filtrar). Pendentes: {{ analysis.filter(m => (reviewState[m.id]?.decision ?? 'pending') === 'pending').length }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -535,16 +665,65 @@ const handleDownload = () => {
                   >
                     <option value="">Selecionar variável...</option>
                     <optgroup v-if="measure.candidates.length" label="Sugestões">
-                      <option v-for="candidate in measure.candidates" :key="candidate.codVariavel" :value="candidate.codVariavel">
+                      <option v-for="candidate in measure.candidates" :key="`s-${candidate.codVariavel}`" :value="candidate.codVariavel">
                         {{ candidate.nome }} ({{ candidate.sigla }}) - {{ candidate.score }}%
                       </option>
                     </optgroup>
                     <optgroup label="Banco de variáveis">
-                      <option v-for="variable in filteredVariableOptions" :key="variable.codvariavel" :value="variable.codvariavel">
+                      <option v-for="variable in filteredVariableOptions" :key="`b-${variable.codvariavel}`" :value="variable.codvariavel">
                         {{ variable.nome }} ({{ variable.sigla || variable.variavel }})
                       </option>
                     </optgroup>
                   </select>
+                  <div v-if="reviewState[measure.id]?.codVariavel" class="mt-2 space-y-2">
+                    <select
+                      class="h-9 w-full rounded-ds-sm border border-ds-field-border bg-ds-surface px-2 text-xs text-ds-text"
+                      :value="reviewState[measure.id]?.codReferencia ?? ''"
+                      @change="onReferenceChange(measure.id, $event)"
+                    >
+                      <option value="">Sem referência específica</option>
+                      <option
+                        v-for="ref in referencesFor(reviewState[measure.id]?.codVariavel ?? null)"
+                        :key="ref.codigo"
+                        :value="ref.codigo"
+                      >
+                        {{ ref.titulo }}{{ ref.ano ? ` (${ref.ano})` : '' }} — {{ ref.count }} faixa(s)
+                      </option>
+                    </select>
+                    <div class="flex flex-wrap gap-3 text-xs text-ds-text-secondary">
+                      <label class="inline-flex items-center gap-1">
+                        <input
+                          type="radio"
+                          :name="`normality-mode-${measure.id}`"
+                          :checked="reviewState[measure.id]?.normalityMode === 'simple'"
+                          @change="setNormalityMode(measure.id, 'simple')"
+                        >
+                        Faixa simples
+                      </label>
+                      <label class="inline-flex items-center gap-1">
+                        <input
+                          type="radio"
+                          :name="`normality-mode-${measure.id}`"
+                          :checked="reviewState[measure.id]?.normalityMode === 'classificacao' || reviewState[measure.id]?.normalityMode === 'comment'"
+                          @change="setNormalityMode(measure.id, 'classificacao')"
+                        >
+                        Por classificação
+                      </label>
+                      <label
+                        class="inline-flex items-center gap-1"
+                        :class="!hasComment(reviewState[measure.id]?.codVariavel ?? null, reviewState[measure.id]?.codReferencia ?? null) ? 'opacity-50' : ''"
+                      >
+                        <input
+                          type="radio"
+                          :name="`normality-mode-${measure.id}`"
+                          :disabled="!hasComment(reviewState[measure.id]?.codVariavel ?? null, reviewState[measure.id]?.codReferencia ?? null)"
+                          :checked="reviewState[measure.id]?.normalityMode === 'texto'"
+                          @change="setNormalityMode(measure.id, 'texto')"
+                        >
+                        Somente comentário
+                      </label>
+                    </div>
+                  </div>
                 </td>
                 <td class="py-3 pr-3">
                   <div class="flex flex-wrap gap-2">

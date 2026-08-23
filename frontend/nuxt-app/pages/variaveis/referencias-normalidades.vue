@@ -51,7 +51,13 @@
                 <p class="font-medium mb-1">Anexos:</p>
                 <ul class="space-y-1">
                   <li v-for="(a, i) in painel.anexosReferencia" :key="`${i}-${a.caminho || ''}`">
-                    <a v-if="a.caminho" :href="a.caminho" target="_blank" rel="noopener" class="text-blue-600 hover:underline">
+                    <a
+                      v-if="a.caminho"
+                      :href="mediaUrl(a.caminho)"
+                      target="_blank"
+                      rel="noopener"
+                      class="text-blue-600 hover:underline"
+                    >
                       {{ a.descricao || a.tipo || 'Anexo' }}
                     </a>
                     <span v-else>{{ a.descricao || a.tipo || 'Anexo' }}</span>
@@ -71,6 +77,9 @@
                     </option>
                   </DsSelect>
                   <DsButton variant="secondary" size="sm" icon="box-arrow-in-down" @click="importar">Importar</DsButton>
+                  <DsButton variant="secondary" size="sm" icon="file-earmark-arrow-up" @click="importarJson">
+                    Importar JSON ASE
+                  </DsButton>
                 </div>
               </div>
               <DsTable v-if="painel.variaveisVinculadas?.length">
@@ -78,6 +87,7 @@
                   <tr>
                     <th>Variável</th>
                     <th>Total Normalidades</th>
+                    <th>Comentário</th>
                     <th />
                   </tr>
                 </template>
@@ -87,6 +97,7 @@
                     <small class="text-gray-500">{{ v.variavel }} · {{ v.sigla || 's/sigla' }}</small>
                   </td>
                   <td>{{ v.totalNormalidades }}</td>
+                  <td class="text-xs text-gray-600">{{ v.comentarioTexto || '—' }}</td>
                   <td>
                     <div class="flex justify-end">
                       <DsButton size="sm" variant="secondary" icon="eye" @click="abrirNormalidades(v.codVariavel, v.nomeVariavel)">
@@ -199,8 +210,20 @@
           </tbody>
         </table>
       </div>
-      <DsAlert v-else variant="info">Nenhuma normalidade encontrada para esta variável.</DsAlert>
+      <div class="mt-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Comentário de normalidade (texto livre)</label>
+        <input
+          v-model="modalComentario"
+          type="text"
+          maxlength="500"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+          placeholder="Ex.: ≤ 5"
+        />
+        <p class="text-xs text-gray-500 mt-1">Usado no Studio no modo “somente comentário”. As faixas numéricas continuam obrigatórias.</p>
+      </div>
+      <DsAlert v-if="!modalNormalidades.length" variant="info">Nenhuma normalidade encontrada para esta variável.</DsAlert>
       <template #footer>
+        <DsButton variant="secondary" @click="salvarComentarioModal">Salvar comentário</DsButton>
         <DsButton variant="secondary" @click="normalidadesModalOpen = false">Fechar</DsButton>
       </template>
     </DsModal>
@@ -228,6 +251,8 @@ const importOrigem = ref('')
 
 const normalidadesModalOpen = ref(false)
 const modalVariavelNome = ref('')
+const modalCodVariavel = ref<number | null>(null)
+const modalComentario = ref('')
 const modalNormalidades = ref<
   Array<{
     codNormalidade: number
@@ -299,7 +324,28 @@ function abrirNormalidades(codVariavel: number, nomeVariavel: string) {
   const regs = painel.value?.normalidadesPorVariavel?.[String(codVariavel)] || []
   modalNormalidades.value = regs.map((n) => ({ ...n }))
   modalVariavelNome.value = nomeVariavel
+  modalCodVariavel.value = codVariavel
+  modalComentario.value =
+    painel.value?.variaveisVinculadas?.find((v) => v.codVariavel === codVariavel)?.comentarioTexto
+    || painel.value?.comentariosPorVariavel?.[String(codVariavel)]?.texto
+    || ''
   normalidadesModalOpen.value = true
+}
+
+async function salvarComentarioModal() {
+  if (!selectedRefId.value || !modalCodVariavel.value) return
+  try {
+    await variaveisApi.salvarComentarioNormalidade({
+      codVariavel: modalCodVariavel.value,
+      codReferencia: selectedRefId.value,
+      texto: modalComentario.value
+    })
+    await swal.toast('Comentário salvo.')
+    await load()
+    if (modalCodVariavel.value) abrirNormalidades(modalCodVariavel.value, modalVariavelNome.value)
+  } catch (err) {
+    await swal.toast(err instanceof Error ? err.message : 'Erro ao salvar comentário', 'error')
+  }
 }
 
 async function salvarNormalidade(n: {
@@ -347,6 +393,28 @@ async function desvincularNormalidade(codNormalidade: number) {
     normalidadesModalOpen.value = false
   } catch (err) {
     await swal.toast(err instanceof Error ? err.message : 'Erro ao desvincular normalidade', 'error')
+  }
+}
+
+async function importarJson() {
+  if (!selectedRefId.value) {
+    await swal.toast('Selecione uma referência de destino.', 'warning')
+    return
+  }
+  const confirm = await swal.confirm(
+    'Importar JSON ASE',
+    'Substitui as normalidades desta referência pelas faixas da fonte Chamber Quantification no JSON. Continuar?'
+  )
+  if (!confirm?.isConfirmed) return
+  try {
+    const res = await variaveisApi.importarNormalidadesJson({ codReferencia: selectedRefId.value })
+    const extras = res.data.naoEncontradas?.length
+      ? ` Não encontradas: ${res.data.naoEncontradas.slice(0, 8).join(', ')}.`
+      : ''
+    await swal.toast((res.data.message || 'Importação concluída.') + extras)
+    await load()
+  } catch (err) {
+    await swal.toast(err instanceof Error ? err.message : 'Erro ao importar JSON', 'error')
   }
 }
 
