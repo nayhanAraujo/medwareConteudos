@@ -9,10 +9,10 @@ public sealed class PaineisCadastrosService(IFirebirdConnectionFactory connectio
     {
         var definition = Definition(tipo);
         await using var connection = await connections.OpenConnectionAsync(ct);
-        var rows = await connection.QueryAsync<PainelCadastroRow>(new CommandDefinition($"""
+            var rows = await connection.QueryAsync<PainelCadastroRow>(new CommandDefinition($"""
             SELECT c.{definition.IdColumn} AS Id,
                    c.NOME AS Nome,
-                   (SELECT COUNT(*) FROM {definition.LinkTable} p WHERE p.{definition.LinkColumn} = c.{definition.IdColumn}) AS QuantidadeVinculos
+                   CAST((SELECT COUNT(*) FROM {definition.LinkTable} p WHERE p.{definition.LinkColumn} = c.{definition.IdColumn}) AS INTEGER) AS QuantidadeVinculos
               FROM {definition.Table} c
              ORDER BY c.NOME
             """, cancellationToken: ct));

@@ -176,7 +176,7 @@
       </div>
     </DsPageShell>
 
-    <DsModal v-model="normalidadesModalOpen" :title="`Normalidades: ${modalVariavelNome}`" size="xl">
+    <DsModal v-model="normalidadesModalOpen" :title="`Normalidades: ${modalVariavelNome}`" size="2xl">
       <div v-if="modalNormalidades.length" class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-gray-50">
@@ -200,7 +200,7 @@
               <td class="px-2 py-2"><input v-model.number="n.idadeMax" type="number" class="w-20 px-2 py-1 border rounded" /></td>
               <td class="px-2 py-2"><input v-model.number="n.pagina" type="number" class="w-20 px-2 py-1 border rounded" /></td>
               <td class="px-2 py-2 text-gray-500">{{ n.classificacao || '-' }}</td>
-              <td class="px-2 py-2">
+              <td class="px-2 py-2 whitespace-nowrap">
                 <div class="flex gap-1">
                   <DsButton size="sm" variant="secondary" icon="check2" @click="salvarNormalidade(n)">Salvar</DsButton>
                   <DsButton size="sm" variant="danger" icon="x-circle" @click="desvincularNormalidade(n.codNormalidade)">Desvincular</DsButton>

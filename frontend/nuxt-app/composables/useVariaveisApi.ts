@@ -193,6 +193,57 @@ export interface ReferenciasNormalidadesPainel {
   filtros: { referenciaBusca: string; variavelBusca: string }
 }
 
+export interface PadroesClientePainel {
+  codCliente: number
+  padroes: Array<{
+    codPadrao: number
+    nome: string
+    codigo: string
+    codReferencia?: number | null
+    referenciaTitulo?: string | null
+    padraoVigente: number
+    ativo: number
+    descricao?: string | null
+    totalFaixas: number
+  }>
+  padraoSelecionado?: {
+    codPadrao: number
+    nome: string
+    codigo: string
+    codReferencia?: number | null
+    referenciaTitulo?: string | null
+    padraoVigente: number
+    ativo: number
+    descricao?: string | null
+    totalFaixas: number
+  } | null
+  variaveis: Array<{
+    codVariavel: number
+    nomeVariavel: string
+    variavel?: string
+    sigla?: string
+    totalFaixas: number
+    comentarioTexto?: string | null
+  }>
+  faixasPorVariavel: Record<
+    string,
+    Array<{
+      codFaixa: number
+      sexo?: string | null
+      valorMin?: number | null
+      valorMax?: number | null
+      idadeMin?: number | null
+      idadeMax?: number | null
+      pagina?: number | null
+      codClassificacao?: number | null
+      classificacao?: string | null
+    }>
+  >
+  comentariosPorVariavel?: Record<string, { codPadraoComentario: number; texto: string }>
+  referencias: Array<{ codigo: number; titulo: string; ano?: number | null }>
+  filtros: { variavelBusca: string }
+}
+
 export function useVariaveisApi() {
   const api = useApi()
 
@@ -284,6 +335,61 @@ export function useVariaveisApi() {
       }
     }>(`/api/web/variaveis/referencias-normalidades/importar-json`, body)
 
+  const getPadroesCliente = (q: { codCliente: number; codPadrao?: number; variavelBusca?: string }) => {
+    const params = new URLSearchParams()
+    params.set('codCliente', String(q.codCliente))
+    if (q.codPadrao) params.set('codPadrao', String(q.codPadrao))
+    if (q.variavelBusca) params.set('variavelBusca', q.variavelBusca)
+    return api.get<{ success: boolean; data: PadroesClientePainel }>(
+      `/api/web/variaveis/padroes-cliente?${params.toString()}`
+    )
+  }
+
+  const createPadraoCliente = (body: {
+    codCliente: number
+    nome: string
+    codigo: string
+    codReferencia?: number | null
+    padraoVigente?: boolean
+    ativo?: boolean
+    descricao?: string
+  }) => api.post<{ success: boolean; codPadrao: number; message: string }>(`/api/web/variaveis/padroes-cliente`, body)
+
+  const updatePadraoCliente = (codPadrao: number, body: {
+    nome?: string
+    codigo?: string
+    codReferencia?: number | null
+    padraoVigente?: boolean
+    ativo?: boolean
+    descricao?: string
+  }) => api.put<{ success: boolean; message: string }>(`/api/web/variaveis/padroes-cliente/${codPadrao}`, body)
+
+  const deletePadraoCliente = (codPadrao: number) =>
+    api.del<{ success: boolean; message: string }>(`/api/web/variaveis/padroes-cliente/${codPadrao}`)
+
+  const setPadraoVigente = (codPadrao: number) =>
+    api.put<{ success: boolean; message: string }>(`/api/web/variaveis/padroes-cliente/${codPadrao}/vigente`, {})
+
+  const importarReferenciaPadrao = (codPadrao: number, codReferencia: number) =>
+    api.post<{ success: boolean; data: { faixasImportadas: number; comentariosImportados: number; message: string } }>(
+      `/api/web/variaveis/padroes-cliente/${codPadrao}/importar-referencia`,
+      { codReferencia }
+    )
+
+  const atualizarFaixaPadrao = (codFaixa: number, body: {
+    codVariavel?: number
+    sexo?: string
+    valorMin?: number | null
+    valorMax?: number | null
+    idadeMin?: number | null
+    idadeMax?: number | null
+    pagina?: number | null
+    codClassificacao?: number | null
+  }) => api.put<{ success: boolean; message: string }>(`/api/web/variaveis/padroes-cliente/faixas/${codFaixa}`, body)
+
+  const salvarComentarioPadrao = (codPadrao: number, body: { codVariavel: number; texto: string }) =>
+    api.post<{ success: boolean; message: string }>(`/api/web/variaveis/padroes-cliente/${codPadrao}/comentario`, body)
+
   const getDependencias = (id: number) => api.get<{ success: boolean; data: VariavelDependencias }>(`/api/web/variaveis/${id}/dependencias`)
   const deleteVariavel = (id: number, force = false) => api.del<{ success: boolean }>(`/api/web/variaveis/${id}?force=${force}`)
   const alterarGrupo = (id: number, codGrupo: number | null) => api.request<{ success: boolean }>(`/api/web/variaveis/${id}/grupo`, { method: 'PATCH', body: JSON.stringify({ codGrupo }) })
@@ -327,6 +433,14 @@ export function useVariaveisApi() {
     importarNormalidadesReferencia,
     salvarComentarioNormalidade,
     importarNormalidadesJson,
+    getPadroesCliente,
+    createPadraoCliente,
+    updatePadraoCliente,
+    deletePadraoCliente,
+    setPadraoVigente,
+    importarReferenciaPadrao,
+    atualizarFaixaPadrao,
+    salvarComentarioPadrao,
     getDependencias, deleteVariavel, alterarGrupo,
     getClassificacoes, createGrupoClassificacao, updateGrupoClassificacao, deleteGrupoClassificacao,
     createClassificacao, updateClassificacao, deleteClassificacao, getVariavelClassificacoes, setVariavelClassificacoes,

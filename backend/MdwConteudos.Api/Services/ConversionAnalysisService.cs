@@ -11,7 +11,7 @@ namespace MdwConteudos.Api.Services;
 public interface IConversionAnalysisService
 {
     Task<ConversionAnalysisResponseDto> MatchAsync(MeasureExtractionResultDto extraction, CancellationToken ct);
-    Task<string> GenerateModoTextoAsync(IReadOnlyList<ReviewedMeasureDto> measures, CancellationToken ct);
+    Task<string> GenerateModoTextoAsync(IReadOnlyList<ReviewedMeasureDto> measures, int? codPadraoCliente, CancellationToken ct);
 }
 
 public sealed class ConversionAnalysisService : IConversionAnalysisService
@@ -58,23 +58,45 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         };
     }
 
-    public async Task<string> GenerateModoTextoAsync(IReadOnlyList<ReviewedMeasureDto> measures, CancellationToken ct)
+    public async Task<string> GenerateModoTextoAsync(IReadOnlyList<ReviewedMeasureDto> measures, int? codPadraoCliente, CancellationToken ct)
     {
         var kept = measures
             .Where(m => !string.Equals(m.Decision, "ignore", StringComparison.OrdinalIgnoreCase))
             .ToList();
         if (kept.Count == 0) throw new InvalidOperationException("Nenhuma medida selecionada para gerar o modo texto.");
 
+        var effectivePadrao = codPadraoCliente ?? kept.Select(m => m.CodPadraoCliente).FirstOrDefault(p => p.HasValue);
+
         var ids = kept.Where(m => m.CodVariavel.HasValue).Select(m => m.CodVariavel!.Value).Distinct().ToArray();
         var variables = ids.Length == 0
             ? new Dictionary<int, VariableIndex>()
             : (await LoadVariablesAsync(ct, ids)).ToDictionary(x => x.CodVariavel);
-        var rangesByVariable = ids.Length == 0
-            ? new Dictionary<int, List<NormalityRow>>()
-            : (await LoadNormalityRowsAsync(ct, ids)).GroupBy(x => x.CodVariavel).ToDictionary(g => g.Key, g => g.ToList());
-        var commentsByVariable = ids.Length == 0
+
+        Dictionary<int, List<NormalityRow>> rangesByVariable;
+        Dictionary<int, string> padraoCommentsByVariable = new();
+
+        if (effectivePadrao.HasValue && effectivePadrao > 0)
+        {
+            rangesByVariable = ids.Length == 0
+                ? new Dictionary<int, List<NormalityRow>>()
+                : (await LoadPadraoNormalityRowsAsync(ct, effectivePadrao.Value, ids))
+                    .GroupBy(x => x.CodVariavel).ToDictionary(g => g.Key, g => g.ToList());
+            padraoCommentsByVariable = ids.Length == 0
+                ? new Dictionary<int, string>()
+                : await LoadPadraoCommentsAsync(ct, effectivePadrao.Value, ids);
+        }
+        else
+        {
+            rangesByVariable = ids.Length == 0
+                ? new Dictionary<int, List<NormalityRow>>()
+                : (await LoadNormalityRowsAsync(ct, ids)).GroupBy(x => x.CodVariavel).ToDictionary(g => g.Key, g => g.ToList());
+        }
+
+        var commentsByVariable = effectivePadrao.HasValue
             ? new Dictionary<(int, int), string>()
-            : await LoadNormalityCommentsAsync(ct, ids);
+            : ids.Length == 0
+                ? new Dictionary<(int, int), string>()
+                : await LoadNormalityCommentsAsync(ct, ids);
         var formulasByVariable = ids.Length == 0
             ? new Dictionary<int, List<FormulaRow>>()
             : (await LoadFormulaRowsAsync(ct, ids)).GroupBy(x => x.CodVariavel).ToDictionary(g => g.Key, g => g.ToList());
@@ -97,9 +119,11 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
                         variable.Sigla,
                         variable.Unidade ?? measure.Unit,
                         rows,
-                        measure.CodReferencia,
+                        effectivePadrao.HasValue ? null : measure.CodReferencia,
                         measure.NormalityMode,
-                        PickComment(commentsByVariable, variable.CodVariavel, measure.CodReferencia, rows),
+                        effectivePadrao.HasValue
+                            ? padraoCommentsByVariable.GetValueOrDefault(variable.CodVariavel)
+                            : PickComment(commentsByVariable, variable.CodVariavel, measure.CodReferencia, rows),
                         PickFormulaExpression(formulas, measure.CodReferencia),
                         knownTokens));
                     continue;
@@ -174,6 +198,40 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
             Score = best,
             Motivo = reason
         };
+    }
+
+    private async Task<IReadOnlyList<NormalityRow>> LoadPadraoNormalityRowsAsync(CancellationToken ct, int codPadrao, IReadOnlyList<int> ids)
+    {
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        var rows = await conn.QueryAsync<NormalityRow>(@"
+            SELECT
+                F.CODVARIAVEL AS CodVariavel,
+                CAST(NULL AS INTEGER) AS CodReferencia,
+                F.SEXO AS Sexo,
+                F.VALORMIN AS ValorMin,
+                F.VALORMAX AS ValorMax,
+                F.IDADE_MIN AS IdadeMin,
+                F.IDADE_MAX AS IdadeMax,
+                C.NOME AS Classificacao,
+                P.NOME AS ReferenciaTitulo
+            FROM PADRAONORMALIDADEFAIXA F
+            LEFT JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = F.CODCLASSIFICACAO
+            JOIN CLIENTESPADRAONORMALIDADE P ON P.CODPADRAO = F.CODPADRAO
+            WHERE F.CODPADRAO = @codPadrao AND F.CODVARIAVEL IN @ids
+            ORDER BY F.CODVARIAVEL, F.SEXO, F.IDADE_MIN", new { codPadrao, ids });
+        return rows.AsList();
+    }
+
+    private async Task<Dictionary<int, string>> LoadPadraoCommentsAsync(CancellationToken ct, int codPadrao, IReadOnlyList<int> ids)
+    {
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        var rows = await conn.QueryAsync<PadraoCommentRow>(@"
+            SELECT CODVARIAVEL AS CodVariavel, TEXTO AS Texto
+            FROM PADRAONORMALIDADECOMENTARIO
+            WHERE CODPADRAO = @codPadrao AND CODVARIAVEL IN @ids", new { codPadrao, ids });
+        return rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Texto))
+            .ToDictionary(r => r.CodVariavel, r => r.Texto!.Trim());
     }
 
     private async Task<IReadOnlyList<NormalityRow>> LoadNormalityRowsAsync(CancellationToken ct, IReadOnlyList<int> ids)
@@ -340,7 +398,7 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         if (rows.Count == 0) return "";
         var parts = new List<string>();
-        foreach (var sexo in new[] { "M", "F" })
+        foreach (var sexo in new[] { "M", "F", "A" })
         {
             var ofSex = rows.Where(r => NormalizeSex(r.Sexo) == sexo).ToList();
             if (ofSex.Count == 0) continue;
@@ -374,6 +432,7 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         var s = (sexo ?? "").Trim().ToUpperInvariant();
         if (s.StartsWith('F')) return "F";
         if (s.StartsWith('M')) return "M";
+        if (s.StartsWith('A') || s.StartsWith('U')) return "A";
         return s.Length == 0 ? "-" : s[..1];
     }
 
@@ -427,6 +486,12 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         public int CodVariavel { get; set; }
         public int CodReferencia { get; set; }
+        public string? Texto { get; set; }
+    }
+
+    private sealed class PadraoCommentRow
+    {
+        public int CodVariavel { get; set; }
         public string? Texto { get; set; }
     }
 

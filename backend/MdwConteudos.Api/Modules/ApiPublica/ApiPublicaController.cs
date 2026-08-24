@@ -342,6 +342,37 @@ public class ApiPublicaController : ControllerBase
         [FromBody] UpdateNormalidadeRequest body,
         CancellationToken ct) =>
         _api.UpdateNormalidadeAsync(codnormalidade, body, ct);
+
+    [HttpGet("apiconteudos/v1/clientes/{clienteKey}/normalidades")]
+    [HttpGet("api/v1/clientes/{clienteKey}/normalidades")]
+    [Produces("application/json")]
+    [SwaggerOperation(
+        Summary = "Normalidades do padrão do cliente",
+        Description = "Retorna mapa de normalidades do padrão vigente ou do código informado em `padrao`.",
+        Tags = new[] { "Normalidades" })]
+    [SwaggerResponse(200, "Mapa de normalidades do cliente")]
+    [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
+    [SwaggerResponse(404, "Cliente ou padrão não encontrado", typeof(ApiErrorDoc))]
+    public Task<IActionResult> ClienteNormalidades(
+        [SwaggerParameter(Description = "CODCLIENTE (numérico)", Required = true)] string clienteKey,
+        [FromQuery, SwaggerParameter(Description = "Código do padrão (ex.: ECO_ADULTO); omitir = vigente")] string? padrao,
+        CancellationToken ct) =>
+        _api.GetClienteNormalidadesAsync(clienteKey, padrao, ct);
+
+    [HttpGet("apiconteudos/v1/clientes/{clienteKey}/padroes-normalidade")]
+    [HttpGet("api/v1/clientes/{clienteKey}/padroes-normalidade")]
+    [Produces("application/json")]
+    [SwaggerOperation(
+        Summary = "Listar padrões de normalidade do cliente",
+        Description = "Metadados dos padrões ativos do cliente.",
+        Tags = new[] { "Normalidades" })]
+    [SwaggerResponse(200, "Lista de padrões")]
+    [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
+    [SwaggerResponse(404, "Cliente não encontrado", typeof(ApiErrorDoc))]
+    public Task<IActionResult> ClientePadroesNormalidade(
+        [SwaggerParameter(Description = "CODCLIENTE (numérico)", Required = true)] string clienteKey,
+        CancellationToken ct) =>
+        _api.GetClientePadroesNormalidadeAsync(clienteKey, ct);
 }
 
 [SwaggerSchema(Description = "Corpo para POST /token")]

@@ -160,5 +160,9 @@ public class ReferenciasNormalidadesWebController : ControllerBase
         {
             return BadRequest(new { success = false, message = ex.Message });
         }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.InnerException?.Message ?? ex.Message });
+        }
     }
 }

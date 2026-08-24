@@ -41,11 +41,12 @@ export function useConversionApi() {
 
   const generateModoTextoFromAnalysis = async (
     sourceFileName: string,
-    measures: ReviewedMeasure[]
+    measures: ReviewedMeasure[],
+    codPadraoCliente?: number | null
   ): Promise<ConversionResponse> => {
     return await $fetch<ConversionResponse>(`${apiBase}/api/conversions/generate-modo-texto-from-analysis`, {
       method: 'POST',
-      body: { sourceFileName, measures }
+      body: { sourceFileName, measures, codPadraoCliente: codPadraoCliente ?? undefined }
     })
   }
 

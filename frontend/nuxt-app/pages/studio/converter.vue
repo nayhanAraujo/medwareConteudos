@@ -31,6 +31,13 @@ const reviewState = ref<Record<string, {
 }>>({})
 const variableDetails = ref<Record<number, VariableNormalidade[]>>({})
 
+const studioCodCliente = ref('')
+const studioCodPadrao = ref<number | null>(null)
+const studioClientes = ref<{ codCliente: number; nome: string }[]>([])
+const studioPadroes = ref<Array<{ codPadrao: number; nome: string; codigo: string; padraoVigente: number }>>([])
+const padraoPainelCache = ref<import('~/composables/useVariaveisApi').PadroesClientePainel | null>(null)
+const usingPadraoCliente = computed(() => studioCodPadrao.value != null && studioCodPadrao.value > 0)
+
 const hasOutput = computed(() =>
   outputFormat.value === 'modoTexto' ? generatedText.value.length > 0 : generatedHtml.value.length > 0
 )
@@ -92,6 +99,7 @@ const verifyApi = async (notify = false) => {
 }
 
 onMounted(() => {
+  void loadStudioClientes()
   void verifyApi()
 
   const pendingData = sessionStorage.getItem('pendingImageData')
@@ -277,6 +285,10 @@ const handleAnalyzeModoTexto = async () => {
 }
 
 const loadVariableDetails = async (codVariavel: number) => {
+  if (usingPadraoCliente.value && padraoPainelCache.value) {
+    variableDetails.value[codVariavel] = mapPadraoVariableDetails(codVariavel)
+    return
+  }
   if (variableDetails.value[codVariavel]) return
   const config = useRuntimeConfig()
   const apiBase = config.public.apiBase as string
@@ -284,6 +296,71 @@ const loadVariableDetails = async (codVariavel: number) => {
     `${apiBase}/api/v1/variaveis/${codVariavel}`
   )
   variableDetails.value[codVariavel] = res.data?.normalidades ?? []
+}
+
+const mapPadraoVariableDetails = (codVariavel: number): VariableNormalidade[] => {
+  const painel = padraoPainelCache.value
+  if (!painel) return []
+  const faixas = painel.faixasPorVariavel?.[String(codVariavel)] ?? []
+  const comentario = painel.variaveis?.find(v => v.codVariavel === codVariavel)?.comentarioTexto ?? null
+  return faixas.map(f => ({
+    sexo: f.sexo,
+    valor_min: f.valorMin,
+    valor_max: f.valorMax,
+    classificacao: f.classificacao,
+    comentario_texto: comentario,
+    referencia: null
+  }))
+}
+
+const loadStudioClientes = async () => {
+  if (studioClientes.value.length) return
+  try {
+    const res = await usePaineisApi().listClientes()
+    studioClientes.value = res.data || []
+  } catch {
+    studioClientes.value = []
+  }
+}
+
+const onStudioClienteChange = async () => {
+  studioCodPadrao.value = null
+  studioPadroes.value = []
+  padraoPainelCache.value = null
+  variableDetails.value = {}
+  if (!studioCodCliente.value) return
+  try {
+    const res = await useVariaveisApi().getPadroesCliente({ codCliente: Number(studioCodCliente.value) })
+    studioPadroes.value = (res.data?.padroes || []).filter(p => p.ativo === 1)
+    const vigente = studioPadroes.value.find(p => p.padraoVigente === 1)
+    if (vigente) await onStudioPadraoChange(vigente.codPadrao)
+  } catch {
+    studioPadroes.value = []
+  }
+}
+
+const onStudioPadraoChange = async (codPadrao: number | null) => {
+  studioCodPadrao.value = codPadrao
+  padraoPainelCache.value = null
+  variableDetails.value = {}
+  if (!codPadrao || !studioCodCliente.value) return
+  try {
+    const res = await useVariaveisApi().getPadroesCliente({
+      codCliente: Number(studioCodCliente.value),
+      codPadrao
+    })
+    padraoPainelCache.value = res.data
+    const ids = analysis.value
+      .map(m => reviewState.value[m.id]?.codVariavel)
+      .filter((id): id is number => !!id)
+    await Promise.all(ids.map(id => loadVariableDetails(id)))
+    for (const measure of analysis.value) {
+      const state = reviewState.value[measure.id]
+      if (state?.codVariavel) applyReferenceDefaults(measure.id, state.codVariavel)
+    }
+  } catch {
+    padraoPainelCache.value = null
+  }
 }
 
 const referencesFor = (codVariavel: number | null) => {
@@ -308,7 +385,7 @@ const referencesFor = (codVariavel: number | null) => {
 const isMultiRange = (codVariavel: number | null, codReferencia: number | null) => {
   if (!codVariavel) return false
   const rows = (variableDetails.value[codVariavel] ?? []).filter(r =>
-    !codReferencia || r.referencia?.codigo === codReferencia
+    usingPadraoCliente.value || !codReferencia || r.referencia?.codigo === codReferencia
   )
   const bySex = new Map<string, number>()
   for (const row of rows) {
@@ -372,6 +449,9 @@ const onReferenceChange = (measureId: string, event: Event) => {
 
 const hasComment = (codVariavel: number | null, codReferencia: number | null) => {
   if (!codVariavel) return false
+  if (usingPadraoCliente.value) {
+    return (variableDetails.value[codVariavel] ?? []).some(row => !!row.comentario_texto?.trim())
+  }
   return (variableDetails.value[codVariavel] ?? []).some(row => {
     const sameRef = !codReferencia || row.referencia?.codigo === codReferencia
     return sameRef && !!row.comentario_texto?.trim()
@@ -421,7 +501,11 @@ const handleGenerateReviewedModoTexto = async () => {
         decision: state.decision === 'ignore' ? 'ignore' : 'keep'
       }
     })
-    const result = await generateModoTextoFromAnalysis(analysisSourceFileName.value, measures)
+    const result = await generateModoTextoFromAnalysis(
+      analysisSourceFileName.value,
+      measures,
+      studioCodPadrao.value
+    )
     const resolved = resolveConversionContent('modoTexto', result)
     outputFormat.value = 'modoTexto'
     generatedText.value = resolved.text
@@ -592,6 +676,35 @@ const handleDownload = () => {
       />
 
       <StudioDsCard v-if="analysis.length" class="mb-6" title="Revisão das correlações">
+        <div class="mb-4 rounded-ds-sm border border-ds-border bg-ds-surface p-3">
+          <p class="text-xs font-medium text-ds-muted mb-2">Padrão de normalidade do cliente (opcional)</p>
+          <div class="flex flex-wrap gap-3">
+            <select
+              v-model="studioCodCliente"
+              class="h-10 min-w-48 rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated px-2 text-sm text-ds-text"
+              @change="onStudioClienteChange"
+            >
+              <option value="">Catálogo global</option>
+              <option v-for="c in studioClientes" :key="c.codCliente" :value="String(c.codCliente)">
+                {{ c.nome }}
+              </option>
+            </select>
+            <select
+              v-if="studioCodCliente"
+              class="h-10 min-w-56 rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated px-2 text-sm text-ds-text"
+              :value="studioCodPadrao ?? ''"
+              @change="onStudioPadraoChange(($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null)"
+            >
+              <option value="">Selecione o padrão...</option>
+              <option v-for="p in studioPadroes" :key="p.codPadrao" :value="p.codPadrao">
+                {{ p.nome }}{{ p.padraoVigente === 1 ? ' (vigente)' : '' }}
+              </option>
+            </select>
+          </div>
+          <p v-if="usingPadraoCliente" class="mt-2 mb-0 text-xs text-ds-primary-accent">
+            Usando faixas do padrão do cliente — referências do catálogo global são ignoradas.
+          </p>
+        </div>
         <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p class="text-sm text-ds-muted">
@@ -677,6 +790,7 @@ const handleDownload = () => {
                   </select>
                   <div v-if="reviewState[measure.id]?.codVariavel" class="mt-2 space-y-2">
                     <select
+                      v-if="!usingPadraoCliente"
                       class="h-9 w-full rounded-ds-sm border border-ds-field-border bg-ds-surface px-2 text-xs text-ds-text"
                       :value="reviewState[measure.id]?.codReferencia ?? ''"
                       @change="onReferenceChange(measure.id, $event)"

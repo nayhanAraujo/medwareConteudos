@@ -133,7 +133,7 @@ const quickRef: BibAction[] = [
   { label: 'Grupos de Variáveis', icon: 'bi bi-collection', nuxtPath: '/grupos' },
   { label: 'Vincular Autores', icon: 'bi bi-person-lines-fill', nuxtPath: '/referencias' },
   { label: 'Tipos de Autores', icon: 'bi bi-tags', nuxtPath: '/autores' },
-  { label: 'Gerenciar Classificações', icon: 'bi bi-tags-fill', nuxtPath: '/classificacoes' }
+  { label: 'Gerenciar Classificações', icon: 'bi bi-tags-fill', nuxtPath: '/variaveis/classificacoes' }
 ]
 
 const modulosRef = [
@@ -201,6 +201,7 @@ const placeholderTabs = [
     sectionTitle: 'Configurações do Sistema',
     cards: [
       { title: 'Usuários', desc: 'Gerencie usuários do sistema.', icon: 'bi bi-people', color: '#0d6efd', nuxtPath: '/usuarios' },
+      { title: 'Clientes', desc: 'Gerencie clientes cadastrados no sistema.', icon: 'bi bi-building', color: '#198754', nuxtPath: '/configuracoes/clientes' },
       { title: 'Permissões', desc: 'Controle de acesso.', icon: 'bi bi-shield-lock', color: '#dc3545' },
       { title: 'Unidades', desc: 'Unidades de medida.', icon: 'bi bi-rulers', color: '#6c757d', nuxtPath: '/configuracoes' }
     ]

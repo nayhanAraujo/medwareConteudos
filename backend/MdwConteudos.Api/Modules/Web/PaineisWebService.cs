@@ -374,9 +374,11 @@ public class PaineisWebService : IPaineisWebService
     public async Task<object> ListClientesAsync(CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
-        var rows = await conn.QueryAsync(@"
+        var rows = await conn.QueryAsync<ClienteLookupRow>(@"
             SELECT CODCLIENTE AS CodCliente, NOME AS Nome
-            FROM Clientes WHERE STATUS = 1 ORDER BY NOME");
+            FROM Clientes
+            WHERE COALESCE(STATUS, 1) = 1
+            ORDER BY NOME");
         return new { success = true, data = rows };
     }
 
@@ -517,4 +519,10 @@ public class PaineisWebService : IPaineisWebService
         if (!sane.EndsWith(".pbix", StringComparison.OrdinalIgnoreCase)) sane += ".pbix";
         return sane;
     }
+}
+
+internal sealed class ClienteLookupRow
+{
+    public int CodCliente { get; set; }
+    public string Nome { get; set; } = "";
 }

@@ -43,7 +43,7 @@ const props = withDefaults(
   defineProps<{
     modelValue: boolean
     title?: string
-    size?: 'sm' | 'md' | 'lg' | 'xl'
+    size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
     closeOnBackdrop?: boolean
   }>(),
   { size: 'md', closeOnBackdrop: true }
@@ -54,7 +54,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const titleId = `ds-modal-title-${Math.random().toString(36).slice(2, 9)}`
 
 const sizeClass = computed(() => {
-  const map = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
+  const map = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', '2xl': 'max-w-6xl' }
   return map[props.size]
 })
 

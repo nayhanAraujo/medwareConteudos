@@ -41,6 +41,7 @@ public sealed class ReviewedMeasureDto
     public string? OriginalText { get; set; }
     public int? CodVariavel { get; set; }
     public int? CodReferencia { get; set; }
+    public int? CodPadraoCliente { get; set; }
     public string? NormalityMode { get; set; }
     public string Decision { get; set; } = "keep";
 }
@@ -48,5 +49,6 @@ public sealed class ReviewedMeasureDto
 public sealed class GenerateModoTextoFromAnalysisRequestDto
 {
     public string? SourceFileName { get; set; }
+    public int? CodPadraoCliente { get; set; }
     public IReadOnlyList<ReviewedMeasureDto> Measures { get; set; } = [];
 }

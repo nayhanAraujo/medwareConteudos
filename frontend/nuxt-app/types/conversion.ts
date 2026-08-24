@@ -53,6 +53,7 @@ export interface ReviewedMeasure {
   originalText?: string | null
   codVariavel?: number | null
   codReferencia?: number | null
+  codPadraoCliente?: number | null
   normalityMode?: 'simple' | 'comment' | 'classificacao' | 'texto' | null
   decision: 'keep' | 'ignore'
 }

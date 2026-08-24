@@ -6,11 +6,12 @@
       </template>
     </DsPageHeader>
     <DsPageShell>
+      <DsAlert v-if="errorMsg" variant="error" class="mb-4">{{ errorMsg }}</DsAlert>
       <DsTable>
         <template #head>
           <tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th><th v-if="auth.isAdmin">Ações</th></tr>
         </template>
-        <tr v-for="u in users" :key="u.codusuario">
+        <tr v-for="u in users" :key="u.codUsuario">
           <td>{{ u.nome }}</td><td>{{ u.identificacao }}</td><td>{{ u.perfil }}</td>
           <td><DsBadge :variant="u.status === -1 ? 'success' : 'default'">{{ u.status === -1 ? 'Ativo' : 'Inativo' }}</DsBadge></td>
           <td v-if="auth.isAdmin" class="flex gap-2">
@@ -37,15 +38,23 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
-interface UserItem { codusuario: number; nome: string; identificacao: string; perfil: string; status: number }
+interface UserItem { codUsuario: number; nome: string; identificacao: string; perfil: string; status: number }
 const api = useApi(); const auth = useAuthStore(); const swal = useSwal()
-const users = ref<UserItem[]>([]); const modalOpen = ref(false); const editingId = ref<number | null>(null); const saving = ref(false)
+const users = ref<UserItem[]>([]); const modalOpen = ref(false); const editingId = ref<number | null>(null); const saving = ref(false); const errorMsg = ref('')
 const emptyForm = () => ({ nome: '', identificacao: '', perfil: 'usuario', status: -1, senha: '', confirmarSenha: '' })
 const form = reactive(emptyForm())
-async function load() { const res = await api.get<{ data: UserItem[] }>('/api/web/users'); users.value = res.data || [] }
+async function load() {
+  errorMsg.value = ''
+  try {
+    const res = await api.get<{ data: UserItem[] }>('/api/web/users')
+    users.value = res.data || []
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Erro ao carregar usuários.'
+  }
+}
 function resetForm() { Object.assign(form, emptyForm()) }
 function openCreate() { editingId.value = null; resetForm(); modalOpen.value = true }
-function openEdit(u: UserItem) { editingId.value = u.codusuario; Object.assign(form, { nome: u.nome, identificacao: u.identificacao, perfil: u.perfil, status: u.status, senha: '', confirmarSenha: '' }); modalOpen.value = true }
+function openEdit(u: UserItem) { editingId.value = u.codUsuario; Object.assign(form, { nome: u.nome, identificacao: u.identificacao, perfil: u.perfil, status: u.status, senha: '', confirmarSenha: '' }); modalOpen.value = true }
 async function save() {
   saving.value = true
   try {
@@ -57,7 +66,7 @@ async function save() {
 }
 async function remove(u: UserItem) {
   const result = await swal.confirm('Excluir usuário?', `O usuário ${u.nome} será removido.`); if (!result?.isConfirmed) return
-  try { await api.del(`/api/web/users/${u.codusuario}`); await load(); await swal.toast('Usuário excluído.') } catch (e) { await swal.error('Erro ao excluir', e instanceof Error ? e.message : String(e)) }
+  try { await api.del(`/api/web/users/${u.codUsuario}`); await load(); await swal.toast('Usuário excluído.') } catch (e) { await swal.error('Erro ao excluir', e instanceof Error ? e.message : String(e)) }
 }
 onMounted(load)
 </script>

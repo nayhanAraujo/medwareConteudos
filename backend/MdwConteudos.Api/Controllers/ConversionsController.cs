@@ -98,7 +98,7 @@ public class ConversionsController : ControllerBase
 
         try
         {
-            var text = await _analysisService.GenerateModoTextoAsync(request.Measures, cancellationToken);
+            var text = await _analysisService.GenerateModoTextoAsync(request.Measures, request.CodPadraoCliente, cancellationToken);
             var validation = _modoTextoValidator.Validate(text);
             return Ok(new ConversionResponseDto
             {

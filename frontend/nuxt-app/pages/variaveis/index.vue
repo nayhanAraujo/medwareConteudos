@@ -14,6 +14,9 @@
         <DsButton variant="secondary" size="sm" icon="journal-medical" to="/variaveis/referencias-normalidades">
           Normalidades x Referências
         </DsButton>
+        <DsButton variant="secondary" size="sm" icon="people" to="/variaveis/padroes-cliente">
+          Padrões por cliente
+        </DsButton>
         <DsButton
           v-if="auth.isAdmin"
           variant="secondary"

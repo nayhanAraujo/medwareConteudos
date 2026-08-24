@@ -20,7 +20,7 @@ public sealed class NormalidadesJsonImportService : INormalidadesJsonImportServi
     public const string FonteAseChamber = "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults";
 
     private static readonly string[] ZonasPt = ["normal", "leve", "moderado", "grave"];
-    private static readonly string[] Sexos = ["F", "M", "U"];
+    private static readonly string[] SexosJson = ["F", "M", "U", "A"];
 
     private readonly IFirebirdConnectionFactory _db;
     private readonly IConfiguration _config;
@@ -87,10 +87,12 @@ public sealed class NormalidadesJsonImportService : INormalidadesJsonImportServi
                 "DELETE FROM NORMALIDADE WHERE CODVARIAVEL = @codVariavel AND CODREFERENCIA = @codReferencia",
                 new { codVariavel = codVariavel.Value, codReferencia }, tx);
 
-            foreach (var sexo in Sexos)
+            foreach (var sexoJson in SexosJson)
             {
-                if (!prop.Value.TryGetProperty(sexo, out var sexoNode) || sexoNode.ValueKind != JsonValueKind.Object)
+                if (!prop.Value.TryGetProperty(sexoJson, out var sexoNode) || sexoNode.ValueKind != JsonValueKind.Object)
                     continue;
+                var sexo = MapSexo(sexoJson);
+                if (sexo is null) continue;
 
                 foreach (var zona in ZonasPt)
                 {
@@ -281,6 +283,19 @@ public sealed class NormalidadesJsonImportService : INormalidadesJsonImportServi
                   VALUES (@codVariavel, @code, @codUsuario, @now)",
                 new { codVariavel, code, codUsuario, now = DateTime.Now }, tx);
         }
+    }
+
+    /// <summary>CHK_NORMALIDADE_SEXO aceita só M, F e A (ambos). O JSON usa U para unissex.</summary>
+    private static string? MapSexo(string? raw)
+    {
+        var s = (raw ?? "").Trim().ToUpperInvariant();
+        return s switch
+        {
+            "M" or "MASCULINO" => "M",
+            "F" or "FEMININO" => "F",
+            "A" or "U" or "AMBOS" or "UNISSEX" or "UNISEX" => "A",
+            _ => null
+        };
     }
 
     private static bool IsAseChamber(string? fonte) =>

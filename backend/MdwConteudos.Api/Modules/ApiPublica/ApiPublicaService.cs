@@ -31,6 +31,8 @@ public interface IApiPublicaService
     Task<IActionResult> GetPaineisAsync(string? tipo, string? ativo, int? codpacote, CancellationToken ct);
     Task<IActionResult> DownloadPainelAsync(int codpainel, CancellationToken ct);
     Task<IActionResult> UpdateNormalidadeAsync(int codnormalidade, UpdateNormalidadeRequest body, CancellationToken ct);
+    Task<IActionResult> GetClienteNormalidadesAsync(string clienteKey, string? padrao, CancellationToken ct);
+    Task<IActionResult> GetClientePadroesNormalidadeAsync(string clienteKey, CancellationToken ct);
 }
 
 public class ApiPublicaService : IApiPublicaService
@@ -606,6 +608,124 @@ public class ApiPublicaService : IApiPublicaService
         catch (Exception ex) { return Err500(ex); }
     }
 
+    public async Task<IActionResult> GetClienteNormalidadesAsync(string clienteKey, string? padrao, CancellationToken ct)
+    {
+        try
+        {
+            await using var conn = await _db.OpenConnectionAsync(ct);
+            var codCliente = await ResolveClienteKeyAsync(conn, clienteKey);
+            if (!codCliente.HasValue)
+                return new NotFoundObjectResult(new { success = false, error = "Cliente não encontrado", message = $"Não existe cliente com identificador '{clienteKey}'." });
+
+            var padraoRow = await ResolvePadraoAsync(conn, codCliente.Value, padrao);
+            if (padraoRow is null)
+                return new NotFoundObjectResult(new { success = false, error = "Padrão não encontrado", message = "Nenhum padrão vigente ou código informado." });
+
+            var rows = await conn.QueryAsync(@"
+                SELECT v.VARIAVEL, f.SEXO, f.VALORMIN, f.VALORMAX, f.IDADE_MIN, f.IDADE_MAX, f.PAGINA_REFERENCIA,
+                       c.NOME AS CLASSIFICACAO, p.NOME AS PADRAO_NOME, p.CODIGO AS PADRAO_CODIGO
+                FROM PADRAONORMALIDADEFAIXA f
+                JOIN VARIAVEIS v ON f.CODVARIAVEL = v.CODVARIAVEL
+                JOIN CLIENTESPADRAONORMALIDADE p ON p.CODPADRAO = f.CODPADRAO
+                LEFT JOIN CLASSIFICACOES c ON f.CODCLASSIFICACAO = c.CODCLASSIFICACAO
+                WHERE f.CODPADRAO = @codPadrao
+                ORDER BY v.VARIAVEL, f.SEXO, f.VALORMIN",
+                new { codPadrao = padraoRow.CodPadrao });
+
+            var comentarios = (await conn.QueryAsync<(string Variavel, string Texto)>(@"
+                SELECT v.VARIAVEL, pc.TEXTO
+                FROM PADRAONORMALIDADECOMENTARIO pc
+                JOIN VARIAVEIS v ON v.CODVARIAVEL = pc.CODVARIAVEL
+                WHERE pc.CODPADRAO = @codPadrao",
+                new { codPadrao = padraoRow.CodPadrao })).ToDictionary(x => x.Variavel, x => x.Texto);
+
+            var resultado = ClienteNormalidadesBuilder.Build(rows, comentarios);
+            return new OkObjectResult(new
+            {
+                success = true,
+                cliente = new { codigo = codCliente.Value },
+                padrao = new
+                {
+                    codigo = padraoRow.CodPadrao,
+                    codigo_api = padraoRow.Codigo,
+                    nome = padraoRow.Nome,
+                    vigente = padraoRow.PadraoVigente == 1
+                },
+                data = resultado
+            });
+        }
+        catch (Exception ex) { return Err500(ex); }
+    }
+
+    public async Task<IActionResult> GetClientePadroesNormalidadeAsync(string clienteKey, CancellationToken ct)
+    {
+        try
+        {
+            await using var conn = await _db.OpenConnectionAsync(ct);
+            var codCliente = await ResolveClienteKeyAsync(conn, clienteKey);
+            if (!codCliente.HasValue)
+                return new NotFoundObjectResult(new { success = false, error = "Cliente não encontrado" });
+
+            var rows = await conn.QueryAsync(@"
+                SELECT CODPADRAO, NOME, CODIGO, CODREFERENCIA, PADRAOVIGENTE, ATIVO, DESCRICAO
+                FROM CLIENTESPADRAONORMALIDADE
+                WHERE CODCLIENTE = @codCliente AND ATIVO = 1
+                ORDER BY PADRAOVIGENTE DESC, NOME",
+                new { codCliente });
+
+            var list = rows.Select(r => new
+            {
+                codigo = (int)r.CODPADRAO,
+                codigo_api = (string)r.CODIGO,
+                nome = (string)r.NOME,
+                cod_referencia_origem = (int?)r.CODREFERENCIA,
+                padrao_vigente = (short)r.PADRAOVIGENTE == 1,
+                descricao = (string?)r.DESCRICAO
+            }).ToList();
+
+            return new OkObjectResult(ApiResponse.Ok(list, list.Count));
+        }
+        catch (Exception ex) { return Err500(ex); }
+    }
+
+    private static async Task<int?> ResolveClienteKeyAsync(System.Data.Common.DbConnection conn, string clienteKey)
+    {
+        if (int.TryParse(clienteKey, out var cod))
+        {
+            var exists = await conn.ExecuteScalarAsync<int?>(
+                "SELECT 1 FROM Clientes WHERE CODCLIENTE = @cod", new { cod });
+            return exists == 1 ? cod : null;
+        }
+        return null;
+    }
+
+    private static async Task<PadraoResolveRow?> ResolvePadraoAsync(
+        System.Data.Common.DbConnection conn, int codCliente, string? padraoCodigo)
+    {
+        if (!string.IsNullOrWhiteSpace(padraoCodigo))
+        {
+            return await conn.QueryFirstOrDefaultAsync<PadraoResolveRow>(@"
+                SELECT CODPADRAO AS CodPadrao, CODIGO AS Codigo, NOME AS Nome, PADRAOVIGENTE AS PadraoVigente
+                FROM CLIENTESPADRAONORMALIDADE
+                WHERE CODCLIENTE = @codCliente AND ATIVO = 1 AND UPPER(CODIGO) = @codigo",
+                new { codCliente, codigo = padraoCodigo.Trim().ToUpperInvariant() });
+        }
+
+        return await conn.QueryFirstOrDefaultAsync<PadraoResolveRow>(@"
+            SELECT CODPADRAO AS CodPadrao, CODIGO AS Codigo, NOME AS Nome, PADRAOVIGENTE AS PadraoVigente
+            FROM CLIENTESPADRAONORMALIDADE
+            WHERE CODCLIENTE = @codCliente AND ATIVO = 1 AND PADRAOVIGENTE = 1",
+            new { codCliente });
+    }
+
+    private sealed class PadraoResolveRow
+    {
+        public int CodPadrao { get; set; }
+        public string Codigo { get; set; } = "";
+        public string Nome { get; set; } = "";
+        public int PadraoVigente { get; set; }
+    }
+
     private static object MapNormalidadeRow(dynamic row, IReadOnlyDictionary<int, string?>? comentarios = null)
     {
         string? comentarioTexto = null;
@@ -746,5 +866,31 @@ public static class EcodopplerBuilder
             ["elevated"] = Z(q2, q3),
             ["high"] = Z(q3, vmax)
         };
+    }
+}
+
+public static class ClienteNormalidadesBuilder
+{
+    public static Dictionary<string, Dictionary<string, Dictionary<string, object>>> Build(
+        IEnumerable<dynamic> rows,
+        IReadOnlyDictionary<string, string>? comentariosPorVariavel = null)
+    {
+        var resultado = EcodopplerBuilder.Build(rows);
+
+        if (comentariosPorVariavel is null || comentariosPorVariavel.Count == 0)
+            return resultado;
+
+        foreach (var (variavel, texto) in comentariosPorVariavel)
+        {
+            if (string.IsNullOrWhiteSpace(texto)) continue;
+            if (!resultado.ContainsKey(variavel))
+                resultado[variavel] = new Dictionary<string, Dictionary<string, object>>();
+            resultado[variavel]["_comentario_texto"] = new Dictionary<string, object>
+            {
+                ["texto"] = texto.Trim()
+            };
+        }
+
+        return resultado;
     }
 }

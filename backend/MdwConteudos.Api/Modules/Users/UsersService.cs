@@ -23,7 +23,7 @@ public class UsersService : IUsersService
         await using var conn = await _db.OpenConnectionAsync(ct);
         return await conn.QueryAsync<UserListItem>(@"
             SELECT CODUSUARIO AS CodUsuario, NOME AS Nome, IDENTIFICACAO AS Identificacao,
-                   PERFIL AS Perfil, STATUS AS Status FROM USUARIO ORDER BY NOME");
+                   PERFIL AS Perfil, CAST(STATUS AS INTEGER) AS Status FROM USUARIO ORDER BY NOME");
     }
 
     public async Task<UserListItem?> GetAsync(int codUsuario, CancellationToken ct = default)
@@ -31,7 +31,7 @@ public class UsersService : IUsersService
         await using var conn = await _db.OpenConnectionAsync(ct);
         return await conn.QueryFirstOrDefaultAsync<UserListItem>(@"
             SELECT CODUSUARIO AS CodUsuario, NOME AS Nome, IDENTIFICACAO AS Identificacao,
-                   PERFIL AS Perfil, STATUS AS Status FROM USUARIO WHERE CODUSUARIO = @codUsuario",
+                   PERFIL AS Perfil, CAST(STATUS AS INTEGER) AS Status FROM USUARIO WHERE CODUSUARIO = @codUsuario",
             new { codUsuario });
     }
 
