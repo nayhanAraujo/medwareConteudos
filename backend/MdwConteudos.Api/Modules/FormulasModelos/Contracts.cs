@@ -38,6 +38,22 @@ public sealed record LayoutItemRequest(
 
 public sealed record SalvarLayoutRequest(IReadOnlyList<LayoutItemRequest>? Layout);
 
+public sealed record ComposicaoVariavelRequest(
+    int CodVariavel,
+    bool ExibirGrafico,
+    int Ordem);
+
+public sealed record ComposicaoSecaoRequest(
+    int? CodSecao,
+    string Nome,
+    int Coluna,
+    int Ordem,
+    IReadOnlyList<ComposicaoVariavelRequest>? Variaveis);
+
+public sealed record SalvarComposicaoRequest(
+    string Nome,
+    IReadOnlyList<ComposicaoSecaoRequest>? Secoes);
+
 public sealed record FormulaListItem(
     int CodFormula,
     int? CodVariavel,
@@ -55,7 +71,13 @@ public sealed record VariavelOpcao(
     string? Formula,
     string? Normalidade,
     string? Unidade = null,
-    string? Abreviacao = null);
+    string? Abreviacao = null,
+    int? CodGrupo = null,
+    string? Grupo = null,
+    int CasasDecimais = 2,
+    string? Classificacoes = null,
+    IReadOnlyList<int>? Dependencias = null,
+    IReadOnlyList<string>? DependenciasNaoEncontradas = null);
 
 public sealed record EquacaoDto(
     int CodLinguagem,
@@ -87,7 +109,9 @@ public sealed record SecaoVariavelDto(
     bool ExibirGrafico,
     int Ordem,
     string? Unidade = null,
-    string? Normalidade = null);
+    string? Normalidade = null,
+    string? Formula = null,
+    string? NormalidadeDetalhes = null);
 
 public sealed record SecaoDto(
     int CodSecao,

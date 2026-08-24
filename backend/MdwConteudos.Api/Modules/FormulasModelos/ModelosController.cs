@@ -112,6 +112,36 @@ public sealed class ModelosController : ControllerBase
     public async Task<IActionResult> SalvarLayout(int modeloId, [FromBody] SalvarLayoutRequest request, CancellationToken ct)
         => await Write(() => _service.SaveLayoutAsync(modeloId, request.Layout ?? [], User.GetCodUsuario(), ct), "Layout atualizado com sucesso.");
 
+    [HttpPut("{modeloId:int}/composicao")]
+    [Authorize]
+    public async Task<IActionResult> SalvarComposicao(int modeloId, [FromBody] SalvarComposicaoRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.SaveComposicaoAsync(modeloId, request, User.GetCodUsuario(), ct);
+            return Ok(ApiResponse.Ok(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse.Fail("validation_error", ex.Message));
+        }
+    }
+
+    [HttpPost("{modeloId:int}/preview")]
+    [Authorize]
+    public async Task<IActionResult> Preview(int modeloId, [FromBody] SalvarComposicaoRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var text = await _service.PreviewComposicaoAsync(modeloId, request, User.GetCodUsuario(), ct);
+            return Ok(ApiResponse.Ok(new { conteudo = text }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse.Fail("validation_error", ex.Message));
+        }
+    }
+
     [HttpGet("{modeloId:int}/gerar")]
     public async Task<IActionResult> Gerar(int modeloId, [FromQuery] string formato = "html", [FromQuery] bool download = false, CancellationToken ct = default)
     {

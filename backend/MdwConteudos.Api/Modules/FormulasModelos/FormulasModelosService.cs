@@ -2,6 +2,7 @@ using System.Data;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using ConversorHtml.Application.Services;
 using Dapper;
 using FirebirdSql.Data.FirebirdClient;
 using MdwConteudos.Api.Infrastructure;
@@ -29,6 +30,8 @@ public interface IFormulasModelosService
     Task OrderSecoesAsync(int modeloId, IReadOnlyList<int> secaoIds, int codUsuario, CancellationToken ct);
     Task OrderVariaveisAsync(int modeloId, int secaoId, IReadOnlyList<int> variavelIds, int codUsuario, CancellationToken ct);
     Task SaveLayoutAsync(int modeloId, IReadOnlyList<LayoutItemRequest> layout, int codUsuario, CancellationToken ct);
+    Task<ModeloDetalhe> SaveComposicaoAsync(int modeloId, SalvarComposicaoRequest request, int codUsuario, CancellationToken ct);
+    Task<string> PreviewComposicaoAsync(int modeloId, SalvarComposicaoRequest request, int codUsuario, CancellationToken ct);
     Task<GeneratedModel> GenerateModeloAsync(int modeloId, int codUsuario, string formato, CancellationToken ct);
 }
 
@@ -100,7 +103,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 (SELECT FIRST 1 F.FORMULA
                    FROM FORMULAS F
                    LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
-                  WHERE F.CODVARIAVEL = V.CODVARIAVEL OR FV.CODVARIAVEL = V.CODVARIAVEL
+                  WHERE F.CODVARIAVEL = V.CODVARIAVEL
+                     OR (F.CODVARIAVEL IS NULL AND FV.CODVARIAVEL = V.CODVARIAVEL)
                   ORDER BY CASE WHEN F.CODVARIAVEL = V.CODVARIAVEL THEN 0 ELSE 1 END) AS Formula,
                 (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '-') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '-'), '; ')
                    FROM NORMALIDADE N
@@ -316,7 +320,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             SELECT FIRST @first SKIP @skip
                    M.CODMODELO AS CodModelo,
                    COALESCE(M.NOME, '') AS Nome,
-                   (SELECT COUNT(*) FROM SECAOMODOTEXTO S WHERE S.CODMODELO = M.CODMODELO) AS TotalSecoes
+                   CAST((SELECT COUNT(*) FROM SECAOMODOTEXTO S WHERE S.CODMODELO = M.CODMODELO) AS INTEGER) AS TotalSecoes
             FROM MODELOMODOTEXTO M
             WHERE M.CODUSUARIO = @codUsuario {filter}
             ORDER BY M.NOME, M.CODMODELO", parameters, ct: ct))).AsList();
@@ -358,7 +362,24 @@ public sealed class FormulasModelosService : IFormulasModelosService
                        U.DESCRICAO AS Unidade,
                        (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), ''), '; ')
                           FROM NORMALIDADE N
-                         WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade
+                         WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade,
+                       (SELECT FIRST 1 COALESCE(EL.EQUACAO, F.FORMULA)
+                          FROM FORMULAS F
+                          LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
+                          LEFT JOIN EQUACOESLINGUAGEM EL ON EL.CODFORMULA = F.CODFORMULA
+                          LEFT JOIN TIPOLINGUAGEM TL ON TL.CODLINGUAGEM = EL.CODLINGUAGEM
+                         WHERE F.CODVARIAVEL = V.CODVARIAVEL
+                            OR (F.CODVARIAVEL IS NULL AND FV.CODVARIAVEL = V.CODVARIAVEL)
+                         ORDER BY CASE WHEN F.CODVARIAVEL = V.CODVARIAVEL THEN 0 ELSE 1 END,
+                                  CASE WHEN COALESCE(TL.NOME, '') CONTAINING 'javascript' THEN 0 ELSE 1 END,
+                                  CASE WHEN EL.EQUACAO IS NULL THEN 1 ELSE 0 END) AS Formula,
+                       (SELECT LIST(COALESCE(N.SEXO, '-') || '|' ||
+                                           COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || '|' ||
+                                           COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '') || '|' ||
+                                           COALESCE(C.NOME, ''), ';')
+                          FROM NORMALIDADE N
+                          LEFT JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = N.CODCLASSIFICACAO
+                         WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS NormalidadeDetalhes
                 FROM SECAO_VARIAVEL SV
                 JOIN VARIAVEIS V ON V.CODVARIAVEL = SV.CODVARIAVEL
                 LEFT JOIN UNIDADEMEDIDA U ON U.CODUNIDADEMEDIDA = V.CODUNIDADEMEDIDA
@@ -380,22 +401,48 @@ public sealed class FormulasModelosService : IFormulasModelosService
     }
 
     public async Task<IReadOnlyList<VariavelOpcao>> ListVariaveisAsync(CancellationToken ct)
-        => (await GetFormulaMetaAsync(ct)).Variaveis;
+    {
+        await using var connection = await _connections.OpenConnectionAsync(ct);
+        var rows = await LoadCatalogRowsAsync(connection, null, ct);
+
+        var tokenMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+        {
+            AddVariableToken(tokenMap, row.Sigla, row.CodVariavel);
+            AddVariableToken(tokenMap, row.Codigo, row.CodVariavel);
+        }
+        var knownTokens = tokenMap.Keys.ToArray();
+
+        return rows.Select(row =>
+        {
+            var dependencies = ModeloModoTextoRules.ExtractDependencyTokens(row.Formula, knownTokens);
+            var ids = dependencies.Where(tokenMap.ContainsKey).Select(x => tokenMap[x]).Where(x => x != row.CodVariavel).Distinct().ToArray();
+            var missing = dependencies.Where(x => !tokenMap.ContainsKey(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            return new VariavelOpcao(row.CodVariavel, row.Nome, row.Sigla, row.Formula, row.Normalidade,
+                row.Unidade, row.Abreviacao, row.CodGrupo, row.Grupo, row.CasasDecimais,
+                row.Classificacoes, ids, missing);
+        }).ToList();
+    }
 
     public async Task<int> CreateModeloAsync(ModeloUpsertRequest request, int codUsuario, CancellationToken ct)
     {
         var name = RequiredName(request.Nome, "O nome do modelo é obrigatório.");
         await using var connection = await _connections.OpenConnectionAsync(ct);
+        using var transaction = connection.BeginTransaction(IsolationLevel.Serializable);
         if (await connection.ExecuteScalarAsync<int>(Cmd(@"
                 SELECT COUNT(*) FROM MODELOMODOTEXTO
                 WHERE UPPER(NOME) = UPPER(@name) AND CODUSUARIO = @codUsuario",
-                new { name, codUsuario }, ct: ct)) > 0)
+                new { name, codUsuario }, transaction, ct)) > 0)
             throw new InvalidOperationException("Já existe um modelo com esse nome.");
 
-        return await connection.ExecuteScalarAsync<int>(Cmd(@"
-            INSERT INTO MODELOMODOTEXTO (NOME, CODUSUARIO)
-            VALUES (@name, @codUsuario)
-            RETURNING CODMODELO", new { name, codUsuario }, ct: ct));
+        var id = await connection.ExecuteScalarAsync<int>(Cmd(
+            "SELECT COALESCE(MAX(CODMODELO), 0) + 1 FROM MODELOMODOTEXTO",
+            transaction: transaction, ct: ct));
+        await connection.ExecuteAsync(Cmd(@"
+            INSERT INTO MODELOMODOTEXTO (CODMODELO, NOME, CODUSUARIO)
+            VALUES (@id, @name, @codUsuario)", new { id, name, codUsuario }, transaction, ct));
+        transaction.Commit();
+        return id;
     }
 
     public async Task UpdateModeloAsync(int id, ModeloUpsertRequest request, int codUsuario, CancellationToken ct)
@@ -464,10 +511,12 @@ public sealed class FormulasModelosService : IFormulasModelosService
             var order = await connection.ExecuteScalarAsync<int>(Cmd(@"
                 SELECT COALESCE(MAX(ORDEM), 0) + 1 FROM SECAOMODOTEXTO WHERE CODMODELO = @modeloId",
                 new { modeloId }, transaction, ct));
-            var sectionId = await connection.ExecuteScalarAsync<int>(Cmd(@"
-                INSERT INTO SECAOMODOTEXTO (NOME, CODMODELO, ORDEM)
-                VALUES (@name, @modeloId, @order)
-                RETURNING CODSECAO", new { name, modeloId, order }, transaction, ct));
+            var sectionId = await connection.ExecuteScalarAsync<int>(Cmd(
+                "SELECT COALESCE(MAX(CODSECAO), 0) + 1 FROM SECAOMODOTEXTO",
+                transaction: transaction, ct: ct));
+            await connection.ExecuteAsync(Cmd(@"
+                INSERT INTO SECAOMODOTEXTO (CODSECAO, NOME, CODMODELO, ORDEM)
+                VALUES (@sectionId, @name, @modeloId, @order)", new { sectionId, name, modeloId, order }, transaction, ct));
             await InsertSectionVariables(connection, transaction, sectionId, variables, ct);
             transaction.Commit();
             return sectionId;
@@ -613,6 +662,112 @@ public sealed class FormulasModelosService : IFormulasModelosService
             transaction.Rollback();
             throw;
         }
+    }
+
+    public async Task<ModeloDetalhe> SaveComposicaoAsync(
+        int modeloId,
+        SalvarComposicaoRequest request,
+        int codUsuario,
+        CancellationToken ct)
+    {
+        var name = RequiredName(request.Nome, "O nome do modelo é obrigatório.");
+        var sections = NormalizeComposition(request.Secoes);
+        await using var connection = await _connections.OpenConnectionAsync(ct);
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            await EnsureModelOwnership(connection, transaction, modeloId, codUsuario, ct);
+            var existingIds = (await connection.QueryAsync<int>(Cmd(
+                "SELECT CODSECAO FROM SECAOMODOTEXTO WHERE CODMODELO = @modeloId",
+                new { modeloId }, transaction, ct))).ToHashSet();
+            var requestedIds = sections.Where(x => x.CodSecao is > 0).Select(x => x.CodSecao!.Value).ToArray();
+            if (requestedIds.Distinct().Count() != requestedIds.Length || requestedIds.Any(x => !existingIds.Contains(x)))
+                throw new InvalidOperationException("A composição contém uma seção inválida ou repetida.");
+
+            var catalog = await LoadCatalogRowsAsync(connection, transaction, ct);
+            ValidateCompositionDependencies(sections, catalog);
+
+            if (await connection.ExecuteScalarAsync<int>(Cmd(@"
+                    SELECT COUNT(*) FROM MODELOMODOTEXTO
+                    WHERE UPPER(NOME) = UPPER(@name) AND CODUSUARIO = @codUsuario AND CODMODELO <> @modeloId",
+                    new { name, codUsuario, modeloId }, transaction, ct)) > 0)
+                throw new InvalidOperationException("Já existe um modelo com esse nome.");
+
+            await connection.ExecuteAsync(Cmd(@"
+                UPDATE MODELOMODOTEXTO SET NOME = @name, DTHRULTMODIFICACAO = @now
+                WHERE CODMODELO = @modeloId AND CODUSUARIO = @codUsuario",
+                new { name, now = DateTime.Now, modeloId, codUsuario }, transaction, ct));
+
+            var removedIds = existingIds.Except(requestedIds).ToArray();
+            if (removedIds.Length > 0)
+            {
+                await connection.ExecuteAsync(Cmd("DELETE FROM SECAO_VARIAVEL WHERE CODSECAO IN @removedIds", new { removedIds }, transaction, ct));
+                await connection.ExecuteAsync(Cmd("DELETE FROM SECAOMODOTEXTO WHERE CODSECAO IN @removedIds AND CODMODELO = @modeloId", new { removedIds, modeloId }, transaction, ct));
+            }
+
+            var globalOrder = 0;
+            var nextSectionId = await connection.ExecuteScalarAsync<int>(Cmd(
+                "SELECT COALESCE(MAX(CODSECAO), 0) + 1 FROM SECAOMODOTEXTO",
+                transaction: transaction, ct: ct));
+            foreach (var section in sections.OrderBy(x => x.Coluna).ThenBy(x => x.Ordem))
+            {
+                globalOrder++;
+                var x = section.Coluna == 1 ? 0 : 6;
+                var y = Math.Max(0, section.Ordem - 1);
+                int sectionId;
+                if (section.CodSecao is > 0)
+                {
+                    sectionId = section.CodSecao.Value;
+                    await connection.ExecuteAsync(Cmd(@"
+                        UPDATE SECAOMODOTEXTO
+                           SET NOME = @sectionName, ORDEM = @globalOrder, POSICAO_X = @x,
+                               POSICAO_Y = @y, LARGURA = 6, ALTURA = 4
+                         WHERE CODSECAO = @sectionId AND CODMODELO = @modeloId",
+                        new { sectionName = section.Nome, globalOrder, x, y, sectionId, modeloId }, transaction, ct));
+                    await connection.ExecuteAsync(Cmd("DELETE FROM SECAO_VARIAVEL WHERE CODSECAO = @sectionId", new { sectionId }, transaction, ct));
+                }
+                else
+                {
+                    sectionId = nextSectionId++;
+                    await connection.ExecuteAsync(Cmd(@"
+                        INSERT INTO SECAOMODOTEXTO
+                            (CODSECAO, NOME, CODMODELO, ORDEM, POSICAO_X, POSICAO_Y, LARGURA, ALTURA)
+                        VALUES (@sectionId, @sectionName, @modeloId, @globalOrder, @x, @y, 6, 4)",
+                        new { sectionId, sectionName = section.Nome, modeloId, globalOrder, x, y }, transaction, ct));
+                }
+
+                var variables = section.Variaveis.Select((v, index) =>
+                    new SecaoVariavelRequest(v.CodVariavel, v.ExibirGrafico, index + 1)).ToArray();
+                await InsertSectionVariables(connection, transaction, sectionId, variables, ct);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
+
+        return await GetModeloAsync(modeloId, codUsuario, ct)
+            ?? throw new InvalidOperationException("Modelo não encontrado após salvar a composição.");
+    }
+
+    public async Task<string> PreviewComposicaoAsync(
+        int modeloId,
+        SalvarComposicaoRequest request,
+        int codUsuario,
+        CancellationToken ct)
+    {
+        var name = RequiredName(request.Nome, "O nome do modelo é obrigatório.");
+        var sections = NormalizeComposition(request.Secoes);
+        await using var connection = await _connections.OpenConnectionAsync(ct);
+        using var transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
+        await EnsureModelOwnership(connection, transaction, modeloId, codUsuario, ct);
+        var catalog = await LoadCatalogRowsAsync(connection, transaction, ct);
+        ValidateCompositionDependencies(sections, catalog);
+        transaction.Commit();
+        return GenerateText(BuildDraftModel(modeloId, name, sections, catalog));
     }
 
     public async Task<GeneratedModel> GenerateModeloAsync(int modeloId, int codUsuario, string formato, CancellationToken ct)
@@ -789,22 +944,168 @@ public sealed class FormulasModelosService : IFormulasModelosService
         return items;
     }
 
+    private static IReadOnlyList<NormalizedCompositionSection> NormalizeComposition(IReadOnlyList<ComposicaoSecaoRequest>? sections)
+    {
+        var result = (sections ?? []).Select(section =>
+        {
+            var name = RequiredName(section.Nome, "Toda seção deve possuir um nome.");
+            if (section.Coluna is not (1 or 2))
+                throw new InvalidOperationException("A coluna da seção deve ser 1 ou 2.");
+            if (section.Ordem <= 0)
+                throw new InvalidOperationException("A ordem da seção deve ser maior que zero.");
+            var variables = (section.Variaveis ?? [])
+                .OrderBy(x => x.Ordem)
+                .ToArray();
+            if (variables.Any(x => x.CodVariavel <= 0) || variables.Select(x => x.CodVariavel).Distinct().Count() != variables.Length)
+                throw new InvalidOperationException($"A seção '{name}' contém medidas inválidas ou repetidas.");
+            return new NormalizedCompositionSection(section.CodSecao, name, section.Coluna, section.Ordem, variables);
+        }).ToArray();
+
+        if (result.GroupBy(x => x.Nome, StringComparer.OrdinalIgnoreCase).Any(x => x.Count() > 1))
+            throw new InvalidOperationException("Não é permitido repetir o nome de uma seção.");
+        if (result.GroupBy(x => new { x.Coluna, x.Ordem }).Any(x => x.Count() > 1))
+            throw new InvalidOperationException("Duas seções não podem ocupar a mesma posição.");
+        if (result.SelectMany(x => x.Variaveis).GroupBy(x => x.CodVariavel).Any(x => x.Count() > 1))
+            throw new InvalidOperationException("Uma medida só pode aparecer uma vez no modelo.");
+        return result;
+    }
+
+    private static async Task<IReadOnlyList<CatalogVariableRow>> LoadCatalogRowsAsync(
+        FbConnection connection,
+        IDbTransaction? transaction,
+        CancellationToken ct)
+        => (await connection.QueryAsync<CatalogVariableRow>(Cmd(@"
+            SELECT V.CODVARIAVEL AS CodVariavel,
+                   COALESCE(V.NOME, '') AS Nome,
+                   COALESCE(V.SIGLA, '') AS Sigla,
+                   V.VARIAVEL AS Codigo,
+                   V.ABREVIACAO AS Abreviacao,
+                   V.CODGRUPO AS CodGrupo,
+                   G.NOME AS Grupo,
+                   U.DESCRICAO AS Unidade,
+                   COALESCE(V.CASASDECIMAIS, 2) AS CasasDecimais,
+                   (SELECT FIRST 1 COALESCE(EL.EQUACAO, F.FORMULA)
+                      FROM FORMULAS F
+                      LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
+                      LEFT JOIN EQUACOESLINGUAGEM EL ON EL.CODFORMULA = F.CODFORMULA
+                      LEFT JOIN TIPOLINGUAGEM TL ON TL.CODLINGUAGEM = EL.CODLINGUAGEM
+                     WHERE F.CODVARIAVEL = V.CODVARIAVEL
+                        OR (F.CODVARIAVEL IS NULL AND FV.CODVARIAVEL = V.CODVARIAVEL)
+                     ORDER BY CASE WHEN F.CODVARIAVEL = V.CODVARIAVEL THEN 0 ELSE 1 END,
+                              CASE WHEN COALESCE(TL.NOME, '') CONTAINING 'javascript' THEN 0 ELSE 1 END,
+                              CASE WHEN EL.EQUACAO IS NULL THEN 1 ELSE 0 END) AS Formula,
+                   (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '-') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '-'), '; ')
+                      FROM NORMALIDADE N WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade,
+                   (SELECT LIST(DISTINCT C.NOME, ', ')
+                      FROM NORMALIDADE N
+                      JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = N.CODCLASSIFICACAO
+                     WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Classificacoes,
+                   (SELECT LIST(COALESCE(N.SEXO, '-') || '|' ||
+                                       COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || '|' ||
+                                       COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '') || '|' ||
+                                       COALESCE(C.NOME, ''), ';')
+                      FROM NORMALIDADE N
+                      LEFT JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = N.CODCLASSIFICACAO
+                     WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS NormalidadeDetalhes
+              FROM VARIAVEIS V
+              LEFT JOIN GRUPOSVARIAVEIS G ON G.CODGRUPO = V.CODGRUPO
+              LEFT JOIN UNIDADEMEDIDA U ON U.CODUNIDADEMEDIDA = V.CODUNIDADEMEDIDA
+             ORDER BY COALESCE(G.NOME, ''), V.NOME, V.SIGLA", null, transaction, ct))).AsList();
+
+    private static void ValidateCompositionDependencies(
+        IReadOnlyList<NormalizedCompositionSection> sections,
+        IReadOnlyList<CatalogVariableRow> catalog)
+    {
+        var byId = catalog.ToDictionary(x => x.CodVariavel);
+        var selected = sections.SelectMany(x => x.Variaveis).Select(x => x.CodVariavel).ToHashSet();
+        if (selected.Any(x => !byId.ContainsKey(x)))
+            throw new InvalidOperationException("Uma ou mais medidas selecionadas não existem.");
+
+        var tokenMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var variable in catalog)
+        {
+            AddVariableToken(tokenMap, variable.Sigla, variable.CodVariavel);
+            AddVariableToken(tokenMap, variable.Codigo, variable.CodVariavel);
+        }
+        var knownTokens = tokenMap.Keys.ToArray();
+        var graph = new Dictionary<int, IReadOnlyList<int>>();
+        foreach (var variableId in selected)
+        {
+            var variable = byId[variableId];
+            var tokens = ModeloModoTextoRules.ExtractDependencyTokens(variable.Formula, knownTokens);
+            var missing = tokens.Where(x => !tokenMap.ContainsKey(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (missing.Length > 0)
+                throw new InvalidOperationException($"A fórmula de '{variable.Nome}' referencia medidas inexistentes: {string.Join(", ", missing)}.");
+            var dependencies = tokens.Select(x => tokenMap[x]).Where(x => x != variableId).Distinct().ToArray();
+            var absent = dependencies.Where(x => !selected.Contains(x)).Select(x => byId[x].Nome).ToArray();
+            if (absent.Length > 0)
+                throw new InvalidOperationException($"Inclua as dependências de '{variable.Nome}': {string.Join(", ", absent)}.");
+            graph[variableId] = dependencies.Where(selected.Contains).ToArray();
+        }
+
+        _ = ModeloModoTextoRules.ResolveDependencyOrder(graph.Keys, graph);
+    }
+
+    private static ModeloDetalhe BuildDraftModel(
+        int modelId,
+        string name,
+        IReadOnlyList<NormalizedCompositionSection> sections,
+        IReadOnlyList<CatalogVariableRow> catalog)
+    {
+        var byId = catalog.ToDictionary(x => x.CodVariavel);
+        var sectionDtos = sections.OrderBy(x => x.Coluna).ThenBy(x => x.Ordem).Select((section, index) =>
+            new SecaoDto(
+                section.CodSecao ?? -(index + 1), section.Nome, index + 1,
+                section.Coluna == 1 ? 0 : 6, section.Ordem - 1, 6, 4,
+                section.Variaveis.Select((item, itemIndex) =>
+                {
+                    var variable = byId[item.CodVariavel];
+                    return new SecaoVariavelDto(variable.CodVariavel, variable.Nome, variable.Sigla,
+                        item.ExibirGrafico, itemIndex + 1, variable.Unidade, variable.Normalidade,
+                        variable.Formula, variable.NormalidadeDetalhes);
+                }).ToArray())).ToArray();
+        return new ModeloDetalhe(modelId, name, sectionDtos);
+    }
+
+    private static void AddVariableToken(IDictionary<string, int> map, string? value, int id)
+    {
+        var token = NormalizeVariableToken(value ?? "");
+        if (!string.Equals(token, "CAMPO", StringComparison.OrdinalIgnoreCase)) map.TryAdd(token, id);
+    }
+
     private static string GenerateText(ModeloDetalhe model)
     {
-        var builder = new StringBuilder();
-        foreach (var section in model.Secoes.OrderBy(x => x.Ordem))
+        static List<string> SectionLines(SecaoDto section, IReadOnlyList<string> knownTokens)
         {
-            builder.AppendLine($"[{section.Nome.ToUpperInvariant()}]");
+            var lines = new List<string> { $"[{section.Nome.ToUpperInvariant()}]" };
             foreach (var variable in section.Variaveis.OrderBy(x => x.Ordem))
             {
-                var normality = string.IsNullOrWhiteSpace(variable.Normalidade)
-                    ? ""
-                    : " " + string.Join(" ", variable.Normalidade.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => $"({x})"));
-                builder.AppendLine($"{variable.Nome} ({NormalizeVariableToken(variable.Sigla)}): 0.0  {variable.Unidade ?? "sem unidade"}{normality}");
+                var normality = BuildNormalitySuffix(variable.NormalidadeDetalhes, variable.Normalidade);
+                var code = ModoTextoCodigoFormatter.ToCodigoSuffix(variable.Formula, knownTokens);
+                lines.Add($"{variable.Nome} ({NormalizeVariableToken(variable.Sigla)}): 0.0  {variable.Unidade ?? "sem unidade"}{normality}{code}");
             }
-            builder.AppendLine();
+            lines.Add("");
+            return lines;
         }
-        return builder.ToString();
+
+        var knownTokens = model.Secoes.SelectMany(x => x.Variaveis).Select(x => NormalizeVariableToken(x.Sigla)).ToArray();
+        var left = model.Secoes.Where(x => x.X < 6).OrderBy(x => x.Y).ThenBy(x => x.Ordem).SelectMany(x => SectionLines(x, knownTokens)).ToList();
+        var right = model.Secoes.Where(x => x.X >= 6).OrderBy(x => x.Y).ThenBy(x => x.Ordem).SelectMany(x => SectionLines(x, knownTokens)).ToList();
+        return ModeloModoTextoRules.ComposeTwoColumns(left, right);
+    }
+
+    private static string BuildNormalitySuffix(string? details, string? fallback)
+    {
+        if (string.IsNullOrWhiteSpace(details))
+            return string.IsNullOrWhiteSpace(fallback) ? "" : " " + string.Join(" ", fallback.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => $"({x})"));
+        var rows = details.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => x.Split('|')).Where(x => x.Length >= 4).ToArray();
+        var simple = rows.Where(x => string.IsNullOrWhiteSpace(x[3])).Select(x => $"({x[0]}: {x[1]} a {x[2]})").ToArray();
+        var classified = rows.Where(x => !string.IsNullOrWhiteSpace(x[3]))
+            .Select(x => $"({x[0]}: " + "{" + $"{x[1]}, {x[2]}, {MdwConteudos.Api.Infrastructure.NormalidadeZonas.MapColor(x[3])} " + "})").ToArray();
+        var result = simple.Length == 0 ? "" : " " + string.Join(" ", simple);
+        if (classified.Length > 0) result += "  Comentário: " + string.Join(',', classified);
+        return result;
     }
 
     private static string NormalizeVariableToken(string value)
@@ -896,4 +1197,24 @@ public sealed class FormulasModelosService : IFormulasModelosService
     private sealed record VariableRow(int CodVariavel, string Nome, string Sigla);
     private sealed record ModeloRow(int CodModelo, string Nome);
     private sealed record SectionRow(int CodSecao, string Nome, int Ordem, int X, int Y, int Largura, int Altura);
+    private sealed record CatalogVariableRow(
+        int CodVariavel,
+        string Nome,
+        string Sigla,
+        string? Codigo,
+        string? Abreviacao,
+        int? CodGrupo,
+        string? Grupo,
+        string? Unidade,
+        int CasasDecimais,
+        string? Formula,
+        string? Normalidade,
+        string? Classificacoes,
+        string? NormalidadeDetalhes);
+    private sealed record NormalizedCompositionSection(
+        int? CodSecao,
+        string Nome,
+        int Coluna,
+        int Ordem,
+        IReadOnlyList<ComposicaoVariavelRequest> Variaveis);
 }
