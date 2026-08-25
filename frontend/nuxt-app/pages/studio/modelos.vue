@@ -36,6 +36,11 @@ const sectionNameMode = ref<'create' | 'rename'>('create')
 const sectionNameValue = ref('')
 const sectionNameColumn = ref<1 | 2>(1)
 const sectionNameTarget = ref<DraftSection | null>(null)
+const measureBankOpen = ref(true)
+const measureBankSide = ref<'left' | 'right'>('right')
+const measureBankRef = ref<HTMLElement | null>(null)
+const measureBankPosition = reactive<{ x: number | null; y: number | null }>({ x: null, y: null })
+const measureBankMoveOffset = { x: 0, y: 0 }
 let sectionSequence = 0
 
 const variableById = computed(() => new Map(variables.value.map(variable => [variable.codVariavel, variable])))
@@ -54,6 +59,7 @@ const visibleGroups = computed(() => {
 })
 const selectedSet = computed(() => new Set(selectedIds.value))
 const usedIds = computed(() => new Set(sections.value.flatMap(section => section.variaveis.map(variable => variable.codVariavel))))
+const measureBankStyle = computed(() => measureBankPosition.x == null || measureBankPosition.y == null ? undefined : ({ left: `${measureBankPosition.x}px`, top: `${measureBankPosition.y}px`, right: 'auto', bottom: 'auto' }))
 const dirty = computed(() => modelId.value != null && serializeDraft() !== savedSnapshot.value)
 const validationErrors = computed(() => {
   const errors: string[] = []
@@ -91,10 +97,16 @@ async function createModel() {
   const name = newModelName.value.trim(); if (!name) return; saving.value = true
   try { const response = await api.post<{ data: { codModelo: number } }>('/api/web/modelos', { nome: name }); newModelName.value = ''; await loadModels(); await loadModel(response.data.codModelo, true); await toast('Modelo criado.', 'success') } catch (error) { await toast(message(error), 'error') } finally { saving.value = false }
 }
-async function deleteCurrentModel() {
-  if (!modelId.value) return; const result = await confirm('Excluir modelo', `Todas as seções de "${modelName.value}" serão excluídas.`); if (!result.isConfirmed) return
-  try { await api.del(`/api/web/modelos/${modelId.value}`); modelId.value = null; modelName.value = ''; sections.value = []; savedSnapshot.value = ''; await loadModels(); if (models.value[0]) await loadModel(models.value[0].codModelo, true); await toast('Modelo excluído.', 'success') } catch (error) { await toast(message(error), 'error') }
+async function deleteModel(model: ModelItem | { codModelo: number; nome: string }) {
+  const result = await confirm('Excluir modelo', `Todas as seções de "${model.nome}" serão excluídas.`); if (!result.isConfirmed) return
+  try {
+    await api.del(`/api/web/modelos/${model.codModelo}`)
+    if (modelId.value === model.codModelo) { modelId.value = null; modelName.value = ''; sections.value = []; savedSnapshot.value = ''; previewText.value = '' }
+    await loadModels()
+    await toast('Modelo excluído.', 'success')
+  } catch (error) { await toast(message(error), 'error') }
 }
+async function deleteCurrentModel() { if (modelId.value) await deleteModel({ codModelo: modelId.value, nome: modelName.value }) }
 function toggleGroup(groupKey: string) { expandedGroups.value = expandedGroups.value.includes(groupKey) ? expandedGroups.value.filter(key => key !== groupKey) : [...expandedGroups.value, groupKey] }
 function groupSelection(groupKey: string) { const group = groupOptions.value.find(item => item.key === groupKey); return selectedIds.value.filter(id => group?.variables.some(variable => variable.codVariavel === id)) }
 function toggleGroupSelection(groupKey: string) {
@@ -149,6 +161,32 @@ function removeVariable(section: DraftSection, id: number) { section.variaveis =
 
 function startDrag(payload: DragPayload, event?: DragEvent) { dragPayload.value = payload; event?.dataTransfer?.setData('text/plain', JSON.stringify(payload)); if (event?.dataTransfer) event.dataTransfer.effectAllowed = payload.type === 'bank-variable' || payload.type === 'group' ? 'copy' : 'move' }
 function endDrag() { dragPayload.value = null }
+function dockMeasureBank(side: 'left' | 'right') { measureBankSide.value = side; measureBankPosition.x = null; measureBankPosition.y = null }
+function startMeasureBankMove(event: PointerEvent) {
+  if (event.button !== 0 || !measureBankRef.value) return
+  const rect = measureBankRef.value.getBoundingClientRect()
+  measureBankMoveOffset.x = event.clientX - rect.left
+  measureBankMoveOffset.y = event.clientY - rect.top
+  measureBankPosition.x = rect.left
+  measureBankPosition.y = rect.top
+  window.addEventListener('pointermove', moveMeasureBank)
+  window.addEventListener('pointerup', stopMeasureBankMove, { once: true })
+  document.body.style.userSelect = 'none'
+  event.preventDefault()
+}
+function moveMeasureBank(event: PointerEvent) {
+  const panel = measureBankRef.value
+  if (!panel) return
+  const margin = 8
+  const maxX = Math.max(margin, window.innerWidth - panel.offsetWidth - margin)
+  const maxY = Math.max(margin, window.innerHeight - panel.offsetHeight - margin)
+  measureBankPosition.x = Math.min(maxX, Math.max(margin, event.clientX - measureBankMoveOffset.x))
+  measureBankPosition.y = Math.min(maxY, Math.max(margin, event.clientY - measureBankMoveOffset.y))
+}
+function stopMeasureBankMove() {
+  window.removeEventListener('pointermove', moveMeasureBank)
+  document.body.style.userSelect = ''
+}
 function dropSectionOnColumn(column: 1 | 2) { const payload = dragPayload.value; if (!payload) return; if (payload.type === 'group') void createSectionFromGroup(payload.groupKey, column); if (payload.type === 'section') { const section = sections.value.find(item => item.key === payload.sectionKey); if (section) section.coluna = column } endDrag() }
 function dropSectionBefore(target: DraftSection) { const payload = dragPayload.value; if (payload?.type !== 'section') return; const moving = sections.value.find(item => item.key === payload.sectionKey); if (!moving || moving.key === target.key) return; sections.value = sections.value.filter(item => item.key !== moving.key); moving.coluna = target.coluna; sections.value.splice(sections.value.findIndex(item => item.key === target.key), 0, moving); endDrag() }
 async function dropVariable(section: DraftSection, targetIndex?: number) {
@@ -174,7 +212,7 @@ function message(error: unknown) { return error instanceof Error ? error.message
 function beforeUnload(event: BeforeUnloadEvent) { if (dirty.value) { event.preventDefault(); event.returnValue = '' } }
 onBeforeRouteLeave(async () => { if (!dirty.value) return true; const result = await confirm('Sair sem salvar?', 'As alterações realizadas neste modelo serão perdidas.'); return result.isConfirmed })
 onMounted(async () => { window.addEventListener('beforeunload', beforeUnload); loading.value = true; try { await Promise.all([loadVariables(), loadModels()]); expandedGroups.value = groupOptions.value.slice(0, 2).map(group => group.key); if (models.value[0]) await loadModel(models.value[0].codModelo, true) } catch (error) { await alert('Erro ao carregar o montador', message(error), 'error') } finally { loading.value = false } })
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload); stopMeasureBankMove() })
 </script>
 
 <template>
@@ -188,6 +226,9 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
           <span v-if="validationErrors.length" class="text-ds-danger">· {{ validationErrors.length }} pendência(s)</span>
         </div>
         <div class="flex flex-wrap gap-2">
+          <StudioDsButton variant="secondary" icon="bi-rulers" @click="measureBankOpen = !measureBankOpen">
+            Banco de medidas<span v-if="selectedIds.length"> ({{ selectedIds.length }})</span>
+          </StudioDsButton>
           <StudioDsButton variant="ghost" icon="bi-arrow-counterclockwise" :disabled="!dirty" @click="discardChanges">Descartar</StudioDsButton>
           <StudioDsButton variant="secondary" icon="bi-eye" :loading="previewing" :disabled="!modelId" @click="generatePreview">Atualizar preview</StudioDsButton>
           <StudioDsButton icon="bi-check2" :loading="saving" :disabled="!dirty || !modelId" @click="saveComposition">Salvar alterações</StudioDsButton>
@@ -195,7 +236,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         </div>
       </div>
 
-      <div class="grid gap-5 xl:grid-cols-[240px_300px_minmax(0,1fr)]">
+      <div class="grid gap-5 xl:grid-cols-[240px_minmax(0,1fr)]">
         <StudioDsCard title="1. Modelo">
           <div class="space-y-3">
             <input v-model="modelSearch" class="studio-builder-input" placeholder="Buscar modelo" @keyup.enter="loadModels">
@@ -204,10 +245,13 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
               <StudioDsButton icon="bi-plus-lg" :loading="saving" aria-label="Criar modelo" @click="createModel" />
             </div>
             <div class="max-h-64 space-y-2 overflow-auto pr-1">
-              <button v-for="model in models" :key="model.codModelo" type="button" class="w-full rounded-ds-sm border px-3 py-2 text-left text-sm transition-colors" :class="modelId === model.codModelo ? 'border-ds-primary-accent bg-ds-primary/10 text-ds-primary-accent' : 'border-ds-border text-ds-text hover:bg-ds-surface-elevated'" @click="loadModel(model.codModelo)">
-                <strong class="block truncate">{{ model.nome }}</strong>
-                <span class="text-xs text-ds-muted">{{ model.totalSecoes }} seção(ões)</span>
-              </button>
+              <div v-for="model in models" :key="model.codModelo" class="flex items-start gap-2 rounded-ds-sm border px-3 py-2 text-sm transition-colors" :class="modelId === model.codModelo ? 'border-ds-primary-accent bg-ds-primary/10 text-ds-primary-accent' : 'border-ds-border text-ds-text hover:bg-ds-surface-elevated'">
+                <button type="button" class="min-w-0 flex-1 text-left" @click="loadModel(model.codModelo)">
+                  <strong class="block truncate">{{ model.nome }}</strong>
+                  <span class="text-xs text-ds-muted">{{ model.totalSecoes }} seção(ões)</span>
+                </button>
+                <button type="button" class="studio-icon-button text-ds-danger" title="Excluir modelo" @click.stop="deleteModel(model)"><i class="bi bi-trash" /></button>
+              </div>
             </div>
             <div v-if="modelId" class="space-y-2 border-t border-ds-border pt-3">
               <label class="block text-xs font-semibold text-ds-muted" for="studio-model-name">Nome do modelo</label>
@@ -217,34 +261,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
           </div>
         </StudioDsCard>
 
-        <StudioDsCard title="2. Banco de medidas">
-          <div class="space-y-3">
-            <input v-model="variableSearch" class="studio-builder-input" placeholder="Buscar nome, sigla ou abreviação">
-            <select v-model="groupFilter" class="studio-builder-input"><option value="all">Todos os grupos</option><option v-for="group in groupOptions" :key="group.key" :value="group.key">{{ group.nome }}</option></select>
-            <p class="text-xs text-ds-muted">Marque medidas e arraste o cabeçalho do grupo para uma coluna, ou arraste uma medida para uma seção.</p>
-            <div class="max-h-[68vh] space-y-2 overflow-auto pr-1">
-              <section v-for="group in visibleGroups" :key="group.key" class="rounded-ds-sm border border-ds-border bg-ds-surface-elevated">
-                <div draggable="true" class="flex cursor-grab items-center gap-2 px-3 py-2" @dragstart="startDrag({ type: 'group', groupKey: group.key }, $event)" @dragend="endDrag">
-                  <button type="button" class="text-ds-muted" :aria-label="`Expandir ${group.nome}`" @click="toggleGroup(group.key)"><i class="bi" :class="expandedGroups.includes(group.key) ? 'bi-chevron-down' : 'bi-chevron-right'" /></button>
-                  <input type="checkbox" :checked="group.variables.filter(v => !usedIds.has(v.codVariavel)).length > 0 && group.variables.filter(v => !usedIds.has(v.codVariavel)).every(v => selectedSet.has(v.codVariavel))" :aria-label="`Selecionar medidas de ${group.nome}`" @click.stop @change="toggleGroupSelection(group.key)">
-                  <strong class="min-w-0 flex-1 truncate text-sm text-ds-text">{{ group.nome }}</strong>
-                  <span class="text-xs text-ds-muted">{{ groupSelection(group.key).length }}/{{ group.variables.length }}</span>
-                  <button type="button" class="text-ds-primary-accent" title="Criar seção na coluna esquerda" @click.stop="createSectionFromGroup(group.key, 1)"><i class="bi bi-plus-square" /></button>
-                </div>
-                <div v-if="expandedGroups.includes(group.key)" class="space-y-1 border-t border-ds-border p-2">
-                  <div v-for="variable in group.variables" :key="variable.codVariavel" draggable="true" class="flex cursor-grab items-center gap-2 rounded px-2 py-1.5 text-sm" :class="usedIds.has(variable.codVariavel) ? 'opacity-45' : 'hover:bg-ds-surface'" @dragstart="startDrag({ type: 'bank-variable', variableId: variable.codVariavel }, $event)" @dragend="endDrag">
-                    <input v-model="selectedIds" type="checkbox" :value="variable.codVariavel" :disabled="usedIds.has(variable.codVariavel)" @click.stop>
-                    <span class="min-w-0 flex-1"><strong class="block truncate text-ds-text">{{ variable.nome }}</strong><small class="text-ds-muted">{{ variable.sigla }}{{ variable.unidade ? ` · ${variable.unidade}` : '' }}</small></span>
-                    <span v-if="variable.formula" title="Possui fórmula" class="text-ds-primary-accent">ƒ</span>
-                    <button type="button" class="text-ds-muted hover:text-ds-primary-accent" title="Ver detalhes" @click.stop="details = variable"><i class="bi bi-info-circle" /></button>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-        </StudioDsCard>
-
-        <StudioDsCard title="3. Composição em duas colunas">
+        <StudioDsCard title="2. Composição em duas colunas">
           <div v-if="loading" class="py-16 text-center text-sm text-ds-muted">Carregando composição...</div>
           <div v-else-if="!modelId" class="py-16 text-center text-sm text-ds-muted">Crie ou selecione um modelo.</div>
           <div v-else class="grid gap-4 lg:grid-cols-2">
@@ -283,6 +300,61 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
       <StudioDsCard v-if="validationErrors.length" title="Pendências da composição" class="mt-5 border border-ds-danger/50"><ul class="list-disc space-y-1 pl-5 text-sm text-ds-danger"><li v-for="error in validationErrors" :key="error">{{ error }}</li></ul></StudioDsCard>
       <StudioDsCard title="Preview TXT do rascunho" class="mt-5"><StudioModoTextoPreview :text="previewText" /></StudioDsCard>
+
+      <aside
+        v-if="measureBankOpen"
+        ref="measureBankRef"
+        class="fixed top-24 z-40 flex h-[min(46rem,calc(100vh-7.25rem))] w-[min(32rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-ds border border-ds-border bg-ds-surface shadow-2xl"
+        :class="measureBankPosition.x == null ? (measureBankSide === 'right' ? 'right-4 xl:right-6' : 'left-4 xl:left-6') : ''"
+        :style="measureBankStyle"
+        aria-label="Banco de medidas"
+      >
+        <header class="flex cursor-move select-none items-start gap-3 border-b border-ds-border bg-ds-surface-elevated px-4 py-3" title="Arraste para mover o painel" @pointerdown="startMeasureBankMove">
+          <i class="bi bi-grip-vertical mt-0.5 text-ds-muted" aria-hidden="true" />
+          <div class="min-w-0 flex-1">
+            <h2 class="font-semibold text-ds-text">Banco de medidas</h2>
+            <p class="mt-0.5 text-xs text-ds-muted">Arraste uma medida para uma seção ou um grupo selecionado para uma coluna.</p>
+          </div>
+          <button type="button" class="studio-icon-button" :title="measureBankSide === 'right' ? 'Mover painel para a esquerda' : 'Mover painel para a direita'" @pointerdown.stop @click="dockMeasureBank(measureBankSide === 'right' ? 'left' : 'right')">
+            <i class="bi bi-arrow-left-right" />
+          </button>
+          <button type="button" class="studio-icon-button" title="Fechar banco de medidas" aria-label="Fechar banco de medidas" @pointerdown.stop @click="measureBankOpen = false"><i class="bi bi-x-lg" /></button>
+        </header>
+
+        <div class="grid gap-3 border-b border-ds-border p-4 sm:grid-cols-[minmax(0,1fr)_13rem]">
+          <input v-model="variableSearch" class="studio-builder-input" placeholder="Buscar nome, sigla ou abreviação">
+          <select v-model="groupFilter" class="studio-builder-input"><option value="all">Todos os grupos</option><option v-for="group in groupOptions" :key="group.key" :value="group.key">{{ group.nome }}</option></select>
+        </div>
+
+        <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+          <section v-for="group in visibleGroups" :key="group.key" class="rounded-ds-sm border border-ds-border bg-ds-surface-elevated">
+            <div draggable="true" class="flex cursor-grab items-center gap-2 px-3 py-2.5" @dragstart="startDrag({ type: 'group', groupKey: group.key }, $event)" @dragend="endDrag">
+              <button type="button" class="text-ds-muted" :aria-label="`Expandir ${group.nome}`" @click="toggleGroup(group.key)"><i class="bi" :class="expandedGroups.includes(group.key) ? 'bi-chevron-down' : 'bi-chevron-right'" /></button>
+              <input type="checkbox" :checked="group.variables.filter(v => !usedIds.has(v.codVariavel)).length > 0 && group.variables.filter(v => !usedIds.has(v.codVariavel)).every(v => selectedSet.has(v.codVariavel))" :aria-label="`Selecionar medidas de ${group.nome}`" @click.stop @change="toggleGroupSelection(group.key)">
+              <strong class="min-w-0 flex-1 whitespace-normal break-words text-sm leading-5 text-ds-text">{{ group.nome }}</strong>
+              <span class="shrink-0 text-xs text-ds-muted">{{ groupSelection(group.key).length }}/{{ group.variables.length }}</span>
+              <button type="button" class="studio-icon-button text-ds-primary-accent" title="Criar seção na coluna esquerda" @click.stop="createSectionFromGroup(group.key, 1)"><i class="bi bi-plus-square" /></button>
+            </div>
+            <div v-if="expandedGroups.includes(group.key)" class="space-y-1 border-t border-ds-border p-2">
+              <div v-for="variable in group.variables" :key="variable.codVariavel" draggable="true" class="flex cursor-grab items-start gap-3 rounded-ds-sm border border-transparent px-3 py-2.5 text-sm" :class="usedIds.has(variable.codVariavel) ? 'opacity-45' : 'hover:border-ds-border hover:bg-ds-surface'" @dragstart="startDrag({ type: 'bank-variable', variableId: variable.codVariavel }, $event)" @dragend="endDrag">
+                <input v-model="selectedIds" class="mt-1" type="checkbox" :value="variable.codVariavel" :disabled="usedIds.has(variable.codVariavel)" @click.stop>
+                <span class="min-w-0 flex-1">
+                  <strong class="block whitespace-normal break-words leading-5 text-ds-text">{{ variable.nome }}</strong>
+                  <small class="mt-0.5 block text-ds-muted">{{ variable.sigla }}{{ variable.unidade ? ` · ${variable.unidade}` : '' }}</small>
+                </span>
+                <span v-if="variable.formula" title="Possui fórmula" class="mt-0.5 text-ds-primary-accent">ƒ</span>
+                <button type="button" class="studio-icon-button" title="Ver detalhes" @click.stop="details = variable"><i class="bi bi-info-circle" /></button>
+              </div>
+            </div>
+          </section>
+          <p v-if="!visibleGroups.length" class="py-10 text-center text-sm text-ds-muted">Nenhuma medida encontrada.</p>
+        </div>
+
+        <footer class="flex items-center justify-between gap-3 border-t border-ds-border bg-ds-surface-elevated px-4 py-2 text-xs text-ds-muted">
+          <span>{{ variables.length }} medida(s)</span>
+          <span>{{ selectedIds.length }} selecionada(s)</span>
+        </footer>
+      </aside>
 
       <DsModal v-model="sectionNameModalOpen" :title="sectionNameMode === 'rename' ? 'Renomear seção' : 'Nova seção'" size="sm">
         <form class="space-y-4" @submit.prevent="saveSectionName">

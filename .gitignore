@@ -37,6 +37,7 @@ uploads/
 # Artefatos locais de build / cache (não versionar)
 # -----------------------------------------------------------------------------
 .dotnet/
+.codex-build/
 backend/MdwConteudos.Api/bin-check/
 
 # -----------------------------------------------------------------------------

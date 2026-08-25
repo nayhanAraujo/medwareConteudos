@@ -62,7 +62,8 @@ public sealed record FormulaListItem(
     string? Descricao,
     int CasasDecimais,
     string Variaveis,
-    string Siglas);
+    string Siglas,
+    string VariavelIds);
 
 public sealed record VariavelOpcao(
     int CodVariavel,
@@ -77,7 +78,8 @@ public sealed record VariavelOpcao(
     int CasasDecimais = 2,
     string? Classificacoes = null,
     IReadOnlyList<int>? Dependencias = null,
-    IReadOnlyList<string>? DependenciasNaoEncontradas = null);
+    IReadOnlyList<string>? DependenciasNaoEncontradas = null,
+    string? Codigo = null);
 
 public sealed record EquacaoDto(
     int CodLinguagem,

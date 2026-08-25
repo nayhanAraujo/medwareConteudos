@@ -79,7 +79,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 F.DESCRICAO AS Descricao,
                 COALESCE(F.CASADECIMAIS, 2) AS CasasDecimais,
                 COALESCE(LIST(V.NOME, ', '), '') AS Variaveis,
-                COALESCE(LIST(V.SIGLA, ', '), '') AS Siglas
+                COALESCE(LIST(V.SIGLA, ', '), '') AS Siglas,
+                COALESCE(LIST(CAST(V.CODVARIAVEL AS VARCHAR(20)), ','), '') AS VariavelIds
             FROM FORMULAS F
             LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
             LEFT JOIN VARIAVEIS V ON V.CODVARIAVEL = COALESCE(FV.CODVARIAVEL, F.CODVARIAVEL)
@@ -93,13 +94,12 @@ public sealed class FormulasModelosService : IFormulasModelosService
     public async Task<FormulaMeta> GetFormulaMetaAsync(CancellationToken ct)
     {
         await using var connection = await _connections.OpenConnectionAsync(ct);
-        var variaveis = (await connection.QueryAsync<VariavelOpcao>(Cmd(@"
+        var variavelRows = (await connection.QueryAsync<FormulaMetaVariavelRow>(Cmd(@"
             SELECT
                 V.CODVARIAVEL AS CodVariavel,
                 COALESCE(V.NOME, '') AS Nome,
                 COALESCE(V.SIGLA, '') AS Sigla,
-                U.DESCRICAO AS Unidade,
-                V.ABREVIACAO AS Abreviacao,
+                V.VARIAVEL AS Codigo,
                 (SELECT FIRST 1 F.FORMULA
                    FROM FORMULAS F
                    LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
@@ -108,10 +108,23 @@ public sealed class FormulasModelosService : IFormulasModelosService
                   ORDER BY CASE WHEN F.CODVARIAVEL = V.CODVARIAVEL THEN 0 ELSE 1 END) AS Formula,
                 (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '-') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '-'), '; ')
                    FROM NORMALIDADE N
-                  WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade
+                  WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade,
+                U.DESCRICAO AS Unidade,
+                V.ABREVIACAO AS Abreviacao
             FROM VARIAVEIS V
             LEFT JOIN UNIDADEMEDIDA U ON U.CODUNIDADEMEDIDA = V.CODUNIDADEMEDIDA
             ORDER BY V.NOME, V.SIGLA", ct: ct))).AsList();
+        var variaveis = variavelRows
+            .Select(row => new VariavelOpcao(
+                row.CodVariavel,
+                row.Nome,
+                row.Sigla,
+                row.Formula,
+                row.Normalidade,
+                row.Unidade,
+                row.Abreviacao,
+                Codigo: row.Codigo))
+            .ToList();
 
         var linguagens = (await connection.QueryAsync<LinguagemOpcao>(Cmd(@"
             SELECT CODLINGUAGEM AS CodLinguagem, COALESCE(NOME, '') AS Nome
@@ -161,7 +174,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
                    CASE WHEN R.CODREFERENCIA IS NULL THEN NULL
                         ELSE R.TITULO || COALESCE(' (' || CAST(R.ANO AS VARCHAR(10)) || ')', '')
                    END AS Referencia,
-                   COALESCE(EL.EQUACAO, '') AS Equacao,
+                   COALESCE(CAST(EL.EQUACAO AS VARCHAR(8191)), '') AS Equacao,
                    EL.NOME_FUNCAO AS NomeFuncao
             FROM EQUACOESLINGUAGEM EL
             JOIN TIPOLINGUAGEM L ON L.CODLINGUAGEM = EL.CODLINGUAGEM
@@ -188,8 +201,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
         using var transaction = connection.BeginTransaction();
         try
         {
-            var variables = await LoadAndValidateVariables(connection, transaction, variableIds, null, ct);
             var ownerId = ResolveOwnerVariableId(request, variableIds);
+            var validationIds = DistinctPositive(variableIds.Concat([ownerId]));
+            var variables = await LoadAndValidateVariables(connection, transaction, validationIds, null, ct);
+            ValidateFormulaVariableReferences(request, variables.Where(x => variableIds.Contains(x.CodVariavel)).ToArray(), await LoadVariableReferenceTokens(connection, transaction, ct), variables.First(x => x.CodVariavel == ownerId));
             var owner = variables.First(x => x.CodVariavel == ownerId);
             var name = string.IsNullOrWhiteSpace(request.Nome) ? owner.Sigla : request.Nome.Trim();
             var description = string.IsNullOrWhiteSpace(request.Descricao)
@@ -234,8 +249,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
                     new { id }, transaction, ct)) == 0)
                 throw new InvalidOperationException("Fórmula não encontrada.");
 
-            var variables = await LoadAndValidateVariables(connection, transaction, variableIds, id, ct);
             var ownerId = ResolveOwnerVariableId(request, variableIds);
+            var validationIds = DistinctPositive(variableIds.Concat([ownerId]));
+            var variables = await LoadAndValidateVariables(connection, transaction, validationIds, id, ct);
+            ValidateFormulaVariableReferences(request, variables.Where(x => variableIds.Contains(x.CodVariavel)).ToArray(), await LoadVariableReferenceTokens(connection, transaction, ct), variables.First(x => x.CodVariavel == ownerId));
             var owner = variables.First(x => x.CodVariavel == ownerId);
             var name = string.IsNullOrWhiteSpace(request.Nome) ? owner.Sigla : request.Nome.Trim();
             await connection.ExecuteAsync(Cmd(@"
@@ -355,28 +372,25 @@ public sealed class FormulasModelosService : IFormulasModelosService
         {
             var variables = (await connection.QueryAsync<SecaoVariavelDto>(Cmd(@"
                 SELECT V.CODVARIAVEL AS CodVariavel,
-                       COALESCE(V.NOME, '') AS Nome,
-                       COALESCE(V.SIGLA, '') AS Sigla,
-                       COALESCE(SV.EXIBIR_GRAFICO, 0) AS ExibirGrafico,
+                       COALESCE(CAST(V.NOME AS VARCHAR(8191)), '') AS Nome,
+                       COALESCE(CAST(V.SIGLA AS VARCHAR(8191)), '') AS Sigla,
+                       COALESCE(SV.EXIBIR_GRAFICO, FALSE) AS ExibirGrafico,
                        COALESCE(SV.ORDEM, 0) AS Ordem,
                        U.DESCRICAO AS Unidade,
-                       (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), ''), '; ')
+                       (SELECT LIST(COALESCE(CAST(N.SEXO AS VARCHAR(30)), '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), ''), '; ')
                           FROM NORMALIDADE N
                          WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade,
-                       (SELECT FIRST 1 COALESCE(EL.EQUACAO, F.FORMULA)
+                       (SELECT FIRST 1 CAST(F.FORMULA AS VARCHAR(8191))
                           FROM FORMULAS F
                           LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
-                          LEFT JOIN EQUACOESLINGUAGEM EL ON EL.CODFORMULA = F.CODFORMULA
-                          LEFT JOIN TIPOLINGUAGEM TL ON TL.CODLINGUAGEM = EL.CODLINGUAGEM
                          WHERE F.CODVARIAVEL = V.CODVARIAVEL
                             OR (F.CODVARIAVEL IS NULL AND FV.CODVARIAVEL = V.CODVARIAVEL)
                          ORDER BY CASE WHEN F.CODVARIAVEL = V.CODVARIAVEL THEN 0 ELSE 1 END,
-                                  CASE WHEN COALESCE(TL.NOME, '') CONTAINING 'javascript' THEN 0 ELSE 1 END,
-                                  CASE WHEN EL.EQUACAO IS NULL THEN 1 ELSE 0 END) AS Formula,
-                       (SELECT LIST(COALESCE(N.SEXO, '-') || '|' ||
+                                  F.CODFORMULA) AS Formula,
+                       (SELECT LIST(COALESCE(CAST(N.SEXO AS VARCHAR(30)), '-') || '|' ||
                                            COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || '|' ||
                                            COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '') || '|' ||
-                                           COALESCE(C.NOME, ''), ';')
+                                           COALESCE(CAST(C.NOME AS VARCHAR(8191)), ''), ';')
                           FROM NORMALIDADE N
                           LEFT JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = N.CODCLASSIFICACAO
                          WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS NormalidadeDetalhes
@@ -420,7 +434,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             var missing = dependencies.Where(x => !tokenMap.ContainsKey(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             return new VariavelOpcao(row.CodVariavel, row.Nome, row.Sigla, row.Formula, row.Normalidade,
                 row.Unidade, row.Abreviacao, row.CodGrupo, row.Grupo, row.CasasDecimais,
-                row.Classificacoes, ids, missing);
+                row.Classificacoes, ids, missing, row.Codigo);
         }).ToList();
     }
 
@@ -803,7 +817,11 @@ public sealed class FormulasModelosService : IFormulasModelosService
     {
         if (ids.Count == 0) throw new InvalidOperationException("Selecione ao menos uma variável.");
         var variables = (await connection.QueryAsync<VariableRow>(Cmd(@"
-            SELECT CODVARIAVEL AS CodVariavel, COALESCE(NOME, '') AS Nome, COALESCE(SIGLA, '') AS Sigla
+            SELECT CODVARIAVEL AS CodVariavel,
+                   COALESCE(NOME, '') AS Nome,
+                   COALESCE(SIGLA, '') AS Sigla,
+                   VARIAVEL AS Codigo,
+                   ABREVIACAO AS Abreviacao
             FROM VARIAVEIS WHERE CODVARIAVEL IN @ids ORDER BY NOME", new { ids }, transaction, ct))).AsList();
         if (variables.Count != ids.Count) throw new InvalidOperationException("Uma ou mais variáveis não existem.");
 
@@ -847,16 +865,25 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 VALUES (@formulaId, @variableId, @codUsuario, @now)",
                 new { formulaId, variableId, codUsuario, now = DateTime.Now }, transaction, ct));
 
+        var nextEquationId = await connection.ExecuteScalarAsync<int>(Cmd(
+            "SELECT COALESCE(MAX(CODEQUACAO), 0) + 1 FROM EQUACOESLINGUAGEM",
+            transaction: transaction,
+            ct: ct));
+        var now = DateTime.Now;
+
         foreach (var equation in equations)
             await connection.ExecuteAsync(Cmd(@"
-                INSERT INTO EQUACOESLINGUAGEM (CODFORMULA, CODLINGUAGEM, CODREFERENCIA, EQUACAO, NOME_FUNCAO)
-                VALUES (@formulaId, @languageId, @referenceId, @equation, @functionName)", new
+                INSERT INTO EQUACOESLINGUAGEM (CODEQUACAO, CODFORMULA, CODLINGUAGEM, CODREFERENCIA, EQUACAO, NOME_FUNCAO, CODUSUARIO, DTHRULTMODIFICACAO)
+                VALUES (@equationId, @formulaId, @languageId, @referenceId, @equation, @functionName, @codUsuario, @now)", new
             {
+                equationId = nextEquationId++,
                 formulaId,
                 languageId = equation.CodLinguagem,
                 referenceId = equation.CodReferencia,
                 equation = equation.Equacao.Trim(),
-                functionName = NullIfWhiteSpace(equation.NomeFuncao)
+                functionName = NullIfWhiteSpace(equation.NomeFuncao),
+                codUsuario,
+                now
             }, transaction, ct));
     }
 
@@ -915,7 +942,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             {
                 sectionId,
                 variableId = variable.CodVariavel,
-                showChart = variable.ExibirGrafico ? 1 : 0,
+                showChart = variable.ExibirGrafico,
                 order = i + 1
             }, transaction, ct));
         }
@@ -976,41 +1003,38 @@ public sealed class FormulasModelosService : IFormulasModelosService
         CancellationToken ct)
         => (await connection.QueryAsync<CatalogVariableRow>(Cmd(@"
             SELECT V.CODVARIAVEL AS CodVariavel,
-                   COALESCE(V.NOME, '') AS Nome,
-                   COALESCE(V.SIGLA, '') AS Sigla,
+                   COALESCE(CAST(V.NOME AS VARCHAR(8191)), '') AS Nome,
+                   COALESCE(CAST(V.SIGLA AS VARCHAR(8191)), '') AS Sigla,
                    V.VARIAVEL AS Codigo,
                    V.ABREVIACAO AS Abreviacao,
                    V.CODGRUPO AS CodGrupo,
                    G.NOME AS Grupo,
                    U.DESCRICAO AS Unidade,
                    COALESCE(V.CASASDECIMAIS, 2) AS CasasDecimais,
-                   (SELECT FIRST 1 COALESCE(EL.EQUACAO, F.FORMULA)
+                   (SELECT FIRST 1 CAST(F.FORMULA AS VARCHAR(8191))
                       FROM FORMULAS F
                       LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
-                      LEFT JOIN EQUACOESLINGUAGEM EL ON EL.CODFORMULA = F.CODFORMULA
-                      LEFT JOIN TIPOLINGUAGEM TL ON TL.CODLINGUAGEM = EL.CODLINGUAGEM
                      WHERE F.CODVARIAVEL = V.CODVARIAVEL
                         OR (F.CODVARIAVEL IS NULL AND FV.CODVARIAVEL = V.CODVARIAVEL)
                      ORDER BY CASE WHEN F.CODVARIAVEL = V.CODVARIAVEL THEN 0 ELSE 1 END,
-                              CASE WHEN COALESCE(TL.NOME, '') CONTAINING 'javascript' THEN 0 ELSE 1 END,
-                              CASE WHEN EL.EQUACAO IS NULL THEN 1 ELSE 0 END) AS Formula,
-                   (SELECT LIST(COALESCE(N.SEXO, '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '-') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '-'), '; ')
+                              F.CODFORMULA) AS Formula,
+                   (SELECT LIST(COALESCE(CAST(N.SEXO AS VARCHAR(30)), '-') || ': ' || COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '-') || ' a ' || COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '-'), '; ')
                       FROM NORMALIDADE N WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Normalidade,
-                   (SELECT LIST(DISTINCT C.NOME, ', ')
+                   (SELECT LIST(DISTINCT CAST(C.NOME AS VARCHAR(8191)), ', ')
                       FROM NORMALIDADE N
                       JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = N.CODCLASSIFICACAO
                      WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS Classificacoes,
-                   (SELECT LIST(COALESCE(N.SEXO, '-') || '|' ||
+                   (SELECT LIST(COALESCE(CAST(N.SEXO AS VARCHAR(30)), '-') || '|' ||
                                        COALESCE(CAST(N.VALORMIN AS VARCHAR(30)), '') || '|' ||
                                        COALESCE(CAST(N.VALORMAX AS VARCHAR(30)), '') || '|' ||
-                                       COALESCE(C.NOME, ''), ';')
+                                       COALESCE(CAST(C.NOME AS VARCHAR(8191)), ''), ';')
                       FROM NORMALIDADE N
                       LEFT JOIN CLASSIFICACOES C ON C.CODCLASSIFICACAO = N.CODCLASSIFICACAO
                      WHERE N.CODVARIAVEL = V.CODVARIAVEL) AS NormalidadeDetalhes
               FROM VARIAVEIS V
               LEFT JOIN GRUPOSVARIAVEIS G ON G.CODGRUPO = V.CODGRUPO
               LEFT JOIN UNIDADEMEDIDA U ON U.CODUNIDADEMEDIDA = V.CODUNIDADEMEDIDA
-             ORDER BY COALESCE(G.NOME, ''), V.NOME, V.SIGLA", null, transaction, ct))).AsList();
+             ORDER BY COALESCE(CAST(G.NOME AS VARCHAR(8191)), ''), V.NOME, V.SIGLA", null, transaction, ct))).AsList();
 
     private static void ValidateCompositionDependencies(
         IReadOnlyList<NormalizedCompositionSection> sections,
@@ -1108,7 +1132,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
         return result;
     }
 
-    private static string NormalizeVariableToken(string value)
+    private static string NormalizeVariableToken(string? value)
     {
         var token = Regex.Replace(value ?? "", @"^VR_", "", RegexOptions.IgnoreCase);
         token = Regex.Replace(token, @"[^A-Za-z0-9_]+", "_").Trim('_');
@@ -1154,12 +1178,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
     private static int ResolveOwnerVariableId(FormulaUpsertRequest request, IReadOnlyList<int> variableIds)
     {
         if (request.CodVariavel is > 0)
-        {
-            if (!variableIds.Contains(request.CodVariavel.Value))
-                throw new InvalidOperationException("CODVARIAVEL deve estar entre as variáveis vinculadas.");
             return request.CodVariavel.Value;
-        }
 
+        if (variableIds.Count == 0)
+            throw new InvalidOperationException("Selecione ao menos uma variável.");
         return variableIds[0];
     }
 
@@ -1169,6 +1191,51 @@ public sealed class FormulasModelosService : IFormulasModelosService
             throw new InvalidOperationException("A fórmula é obrigatória.");
         if (request.CasasDecimais < 0 || request.CasasDecimais > 15)
             throw new InvalidOperationException("Casas decimais deve estar entre 0 e 15.");
+    }
+
+    private static async Task<IReadOnlyList<string>> LoadVariableReferenceTokens(FbConnection connection, IDbTransaction transaction, CancellationToken ct)
+    {
+        var rows = await connection.QueryAsync<string?>(Cmd(@"
+            SELECT SIGLA FROM VARIAVEIS WHERE SIGLA IS NOT NULL
+            UNION
+            SELECT VARIAVEL FROM VARIAVEIS WHERE VARIAVEL IS NOT NULL
+            UNION
+            SELECT ABREVIACAO FROM VARIAVEIS WHERE ABREVIACAO IS NOT NULL",
+            transaction: transaction,
+            ct: ct));
+        return rows
+            .Select(NormalizeVariableToken)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static void ValidateFormulaVariableReferences(FormulaUpsertRequest request, IReadOnlyList<VariableRow> variables, IReadOnlyList<string> knownTokens, VariableRow owner)
+    {
+        var selectedTokens = variables
+            .SelectMany(x => new[] { x.Sigla, x.Codigo, x.Abreviacao })
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(NormalizeVariableToken)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var ownerTokens = new[] { owner.Sigla, owner.Codigo, owner.Abreviacao }
+            .Select(NormalizeVariableToken)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var expressions = new[] { request.Formula }
+            .Concat((request.Equacoes ?? []).Select(x => x.Equacao))
+            .Where(x => !string.IsNullOrWhiteSpace(x));
+        var referencedTokens = expressions
+            .SelectMany(expression => ModeloModoTextoRules.ExtractDependencyTokens(expression, knownTokens))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var missing = referencedTokens
+            .Where(x => !ownerTokens.Contains(x))
+            .Where(x => !selectedTokens.Contains(x))
+            .OrderBy(x => x)
+            .ToArray();
+
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Inclua nas variáveis vinculadas todas as variáveis usadas na fórmula: {string.Join(", ", missing.Select(x => $"VR_{x}"))}.");
     }
 
     private static string RequiredName(string? value, string message)
@@ -1194,7 +1261,16 @@ public sealed class FormulasModelosService : IFormulasModelosService
         => new(sql, parameters, transaction, cancellationToken: ct);
 
     private sealed record FormulaRow(int CodFormula, int? CodVariavel, string Nome, string Formula, string? Descricao, int CasasDecimais);
-    private sealed record VariableRow(int CodVariavel, string Nome, string Sigla);
+    private sealed record VariableRow(int CodVariavel, string Nome, string Sigla, string? Codigo, string? Abreviacao);
+    private sealed record FormulaMetaVariavelRow(
+        int CodVariavel,
+        string Nome,
+        string Sigla,
+        string? Codigo,
+        string? Formula,
+        string? Normalidade,
+        string? Unidade,
+        string? Abreviacao);
     private sealed record ModeloRow(int CodModelo, string Nome);
     private sealed record SectionRow(int CodSecao, string Nome, int Ordem, int X, int Y, int Largura, int Altura);
     private sealed record CatalogVariableRow(

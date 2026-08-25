@@ -303,13 +303,13 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         return pool
             .Select(r => new
             {
-                Expression = !string.IsNullOrWhiteSpace(r.Equacao) ? r.Equacao : r.Formula,
-                JsScore = IsJavaScript(r.Linguagem) ? 2 : 0,
-                HasEquation = string.IsNullOrWhiteSpace(r.Equacao) ? 0 : 1
+                Expression = !string.IsNullOrWhiteSpace(r.Formula) ? r.Formula : r.Equacao,
+                HasFormula = string.IsNullOrWhiteSpace(r.Formula) ? 0 : 1,
+                JsScore = IsJavaScript(r.Linguagem) ? 2 : 0
             })
             .Where(x => !string.IsNullOrWhiteSpace(x.Expression))
-            .OrderByDescending(x => x.JsScore)
-            .ThenByDescending(x => x.HasEquation)
+            .OrderByDescending(x => x.HasFormula)
+            .ThenByDescending(x => x.JsScore)
             .Select(x => x.Expression)
             .FirstOrDefault();
     }
