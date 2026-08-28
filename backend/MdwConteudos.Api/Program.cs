@@ -101,6 +101,7 @@ builder.Services.AddScoped<IConteudosWebService, ConteudosWebService>();
 builder.Services.AddScoped<IPaineisWebService, PaineisWebService>();
 builder.Services.AddScoped<IRelatoriosWebService, RelatoriosWebService>();
 builder.Services.AddScoped<IVariaveisWebService, VariaveisWebService>();
+builder.Services.AddScoped<IImportacaoVariaveisService, ImportacaoVariaveisService>();
 builder.Services.AddScoped<IReferenciasService, ReferenciasService>();
 builder.Services.AddScoped<IPadroesClienteNormalidadeService, PadroesClienteNormalidadeService>();
 builder.Services.AddScoped<INormalidadesJsonImportService, NormalidadesJsonImportService>();

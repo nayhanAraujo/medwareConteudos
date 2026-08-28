@@ -126,6 +126,13 @@ export interface ImportacaoCsPreview {
   formulas: Array<{ variavel: string; expressao: string; casasDecimais: number }>
   normalidades: Array<{ variavel: string; sexo: string; valorMin: number; valorMax: number; idadeMin: number; idadeMax: number; referencia: string }>
 }
+export interface ImportacaoVariavelSugestao { codVariavel: number; codigo: string; nome?: string | null; sigla?: string | null; pontuacao: number; motivo: string }
+export interface ImportacaoVariavelItem { codigo: string; nome: string; sigla: string; abreviacao: string; unidade: string; existeNoBanco: boolean; valido: boolean; erros: string[]; totalFormulas: number; totalNormalidades: number; codVariavelExistente?: number | null; alternativasArquivo?: string[]; sugestoes?: ImportacaoVariavelSugestao[] }
+export interface ImportacaoVariavelDecisao { codigo: string; acao: 'criar' | 'atualizar' | 'alternativa' | 'ignorar'; codVariavelPrincipal?: number | null }
+export interface ImportacaoFormulaItem { variavel: string; expressao: string; casasDecimais: number; valido: boolean; erros: string[] }
+export interface ImportacaoNormalidadeItem { variavel: string; sexo: string; valorMin?: number | null; valorMax?: number | null; idadeMin?: number | null; idadeMax?: number | null; codReferencia?: number | null; referencia?: string | null; referenciaValida: boolean; valido: boolean; erros: string[]; anoReferencia?: number | null; classificacao?: string | null; pagina?: number | null; comentario?: string | null }
+export interface ImportacaoVariaveisPreview { formato: 'json' | 'json-studio' | 'json-normalidades-medware' | 'cs'; arquivo: string; variaveis: ImportacaoVariavelItem[]; formulas: ImportacaoFormulaItem[]; normalidades: ImportacaoNormalidadeItem[]; avisos: string[]; erros: string[] }
+export interface ImportacaoVariaveisResultado { inseridas: number; ignoradas: number; formulasInseridas: number; normalidadesInseridas: number; rejeitadas: string[]; alternativasInseridas: number; variaveisAtualizadas: number; comentariosInseridos: number }
 
 export interface ReferenciasNormalidadesPainel {
   referencias: Array<{
@@ -416,6 +423,8 @@ export function useVariaveisApi() {
   const downloadModoTexto = (id: number) => api.getBlob(`/api/web/variaveis/modelos-modo-texto/${id}/arquivo`)
   const previewImportacaoCs = (arquivo: File) => { const form = new FormData(); form.append('arquivo', arquivo); return api.postForm<{ success: boolean; data: ImportacaoCsPreview }>('/api/web/variaveis/importacao-cs/preview', form) }
   const confirmarImportacaoCs = (body: ImportacaoCsPreview & { variaveisSelecionadas: string[] }) => api.post<{ success: boolean; data: { inseridas: number; ignoradas: number } }>('/api/web/variaveis/importacao-cs/confirmar', body)
+  const previewImportacao = (arquivo: File, codReferencia?: number) => { const form = new FormData(); form.append('arquivo', arquivo); if (codReferencia) form.append('codReferencia', String(codReferencia)); return api.postForm<{ success: boolean; data: ImportacaoVariaveisPreview }>('/api/web/variaveis/importacoes/preview', form) }
+  const confirmarImportacao = (arquivo: File, decisoes: ImportacaoVariavelDecisao[], codReferencia?: number) => { const form = new FormData(); form.append('arquivo', arquivo); form.append('decisoes', JSON.stringify(decisoes)); if (codReferencia) form.append('codReferencia', String(codReferencia)); return api.postForm<{ success: boolean; data: ImportacaoVariaveisResultado }>('/api/web/variaveis/importacoes/confirmar', form) }
 
   return {
     listGrupos,
@@ -448,6 +457,6 @@ export function useVariaveisApi() {
     getEspecialidades, setEspecialidade, removeEspecialidade, setEspecialidadesLote,
     getAnexos, createAnexo, deleteAnexo, getEstudos,
     listModelosModoTexto, downloadModoTexto,
-    previewImportacaoCs, confirmarImportacaoCs
+    previewImportacaoCs, confirmarImportacaoCs, previewImportacao, confirmarImportacao
   }
 }

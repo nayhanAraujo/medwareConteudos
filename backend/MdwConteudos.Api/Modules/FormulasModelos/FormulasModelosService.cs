@@ -204,6 +204,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             var ownerId = ResolveOwnerVariableId(request, variableIds);
             var validationIds = DistinctPositive(variableIds.Concat([ownerId]));
             var variables = await LoadAndValidateVariables(connection, transaction, validationIds, null, ct);
+            await EnsureOwnerVariableAvailable(connection, transaction, ownerId, null, ct);
             ValidateFormulaVariableReferences(request, variables.Where(x => variableIds.Contains(x.CodVariavel)).ToArray(), await LoadVariableReferenceTokens(connection, transaction, ct), variables.First(x => x.CodVariavel == ownerId));
             var owner = variables.First(x => x.CodVariavel == ownerId);
             var name = string.IsNullOrWhiteSpace(request.Nome) ? owner.Sigla : request.Nome.Trim();
@@ -252,6 +253,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
             var ownerId = ResolveOwnerVariableId(request, variableIds);
             var validationIds = DistinctPositive(variableIds.Concat([ownerId]));
             var variables = await LoadAndValidateVariables(connection, transaction, validationIds, id, ct);
+            await EnsureOwnerVariableAvailable(connection, transaction, ownerId, id, ct);
             ValidateFormulaVariableReferences(request, variables.Where(x => variableIds.Contains(x.CodVariavel)).ToArray(), await LoadVariableReferenceTokens(connection, transaction, ct), variables.First(x => x.CodVariavel == ownerId));
             var owner = variables.First(x => x.CodVariavel == ownerId);
             var name = string.IsNullOrWhiteSpace(request.Nome) ? owner.Sigla : request.Nome.Trim();
@@ -807,7 +809,6 @@ public sealed class FormulasModelosService : IFormulasModelosService
             "text/html");
     }
 
-    // Uma variável só pode pertencer a uma fórmula (FORMULAS.CODVARIAVEL é único).
     private static async Task<IReadOnlyList<VariableRow>> LoadAndValidateVariables(
         FbConnection connection,
         IDbTransaction transaction,
@@ -822,27 +823,23 @@ public sealed class FormulasModelosService : IFormulasModelosService
                    COALESCE(SIGLA, '') AS Sigla,
                    VARIAVEL AS Codigo,
                    ABREVIACAO AS Abreviacao
-            FROM VARIAVEIS WHERE CODVARIAVEL IN @ids ORDER BY NOME", new { ids }, transaction, ct))).AsList();
+              FROM VARIAVEIS WHERE CODVARIAVEL IN @ids ORDER BY NOME", new { ids }, transaction, ct))).AsList();
         if (variables.Count != ids.Count) throw new InvalidOperationException("Uma ou mais variáveis não existem.");
-
-        var conflictSql = currentFormulaId.HasValue
-            ? @"SELECT COUNT(*) FROM (
-                    SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL IN @ids AND CODFORMULA <> @currentFormulaId
-                    UNION
-                    SELECT CODFORMULA FROM FORMULAS WHERE CODVARIAVEL IN @ids AND CODFORMULA <> @currentFormulaId
-                ) X"
-            : @"SELECT COUNT(*) FROM (
-                    SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL IN @ids
-                    UNION
-                    SELECT CODFORMULA FROM FORMULAS WHERE CODVARIAVEL IN @ids
-                ) X";
-        var conflicts = await connection.ExecuteScalarAsync<int>(Cmd(
-            conflictSql,
-            new { ids, currentFormulaId },
-            transaction,
-            ct));
-        if (conflicts > 0) throw new InvalidOperationException("Uma ou mais variáveis já estão vinculadas a outra fórmula.");
         return variables;
+    }
+
+    private static async Task EnsureOwnerVariableAvailable(
+        FbConnection connection,
+        IDbTransaction transaction,
+        int ownerId,
+        int? currentFormulaId,
+        CancellationToken ct)
+    {
+        var sql = currentFormulaId.HasValue
+            ? "SELECT COUNT(*) FROM FORMULAS WHERE CODVARIAVEL = @ownerId AND CODFORMULA <> @currentFormulaId"
+            : "SELECT COUNT(*) FROM FORMULAS WHERE CODVARIAVEL = @ownerId";
+        var conflicts = await connection.ExecuteScalarAsync<int>(Cmd(sql, new { ownerId, currentFormulaId }, transaction, ct));
+        if (conflicts > 0) throw new InvalidOperationException("A variável calculada já pertence a outra fórmula.");
     }
 
     private static async Task ReplaceFormulaLinks(

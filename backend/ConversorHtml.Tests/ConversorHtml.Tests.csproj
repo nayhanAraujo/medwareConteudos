@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ConversorHtml.Application\ConversorHtml.Application.csproj" />
+    <ProjectReference Include="..\MdwConteudos.Api\MdwConteudos.Api.csproj" />
   </ItemGroup>
 
 </Project>

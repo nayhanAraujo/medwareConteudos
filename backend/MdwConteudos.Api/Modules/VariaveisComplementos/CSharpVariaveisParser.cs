@@ -1,63 +1,56 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MdwConteudos.Api.Modules.Web;
 
-internal static partial class CSharpVariaveisParser
+public static class CSharpVariaveisParser
 {
+    private static readonly Regex VariablePattern = new(@"\bVR_[A-Za-z0-9_]+\b", RegexOptions.Compiled);
+
+    public static ImportacaoVariaveisPreview Parse(string source, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(source)) throw new InvalidOperationException("O arquivo C# está vazio.");
+        var tree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Latest));
+        var root = tree.GetRoot();
+        var warnings = tree.GetDiagnostics().Where(x => x.Severity == DiagnosticSeverity.Error)
+            .Take(20).Select(x => $"C# linha {x.Location.GetLineSpan().StartLinePosition.Line + 1}: {x.GetMessage()}").ToList();
+        var codes = root.DescendantTokens().SelectMany(token => VariablePattern.Matches(token.Text).Select(match => match.Value))
+            .Where(code => !code.EndsWith("_CHART", StringComparison.OrdinalIgnoreCase)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in VariablePattern.Matches(source)) if (!match.Value.EndsWith("_CHART", StringComparison.OrdinalIgnoreCase)) codes.Add(match.Value);
+
+        var formulas = new List<ImportacaoFormulaItem>();
+        foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(x => x.Identifier.Text.StartsWith("Calcular", StringComparison.OrdinalIgnoreCase)))
+        {
+            var variable = $"VR_{method.Identifier.Text[8..].ToUpperInvariant()}";
+            var expression = method.DescendantNodes().OfType<ReturnStatementSyntax>().FirstOrDefault()?.Expression?.ToString();
+            if (!codes.Contains(variable) || string.IsNullOrWhiteSpace(expression)) { warnings.Add($"Método {method.Identifier.Text} não pôde ser associado a uma variável/fórmula."); continue; }
+            formulas.Add(new(variable, expression, 1, true, []));
+        }
+
+        var normalidades = new List<ImportacaoNormalidadeItem>();
+        foreach (var section in root.DescendantNodes().OfType<SwitchSectionSyntax>())
+        {
+            var chart = section.Labels.SelectMany(x => VariablePattern.Matches(x.ToString()).Select(m => m.Value)).FirstOrDefault(x => x.EndsWith("_CHART", StringComparison.OrdinalIgnoreCase));
+            if (chart is null) continue;
+            var variable = chart[..^6]; if (!codes.Contains(variable)) continue;
+            var assignments = section.DescendantNodes().OfType<AssignmentExpressionSyntax>().GroupBy(x => x.Left.ToString().Split('.').Last(), StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.Last().Right.ToString(), StringComparer.OrdinalIgnoreCase);
+            var min = Decimal(assignments, "Normal") ?? Decimal(assignments, "Min"); var max = Decimal(assignments, "Max");
+            if (min.HasValue && max.HasValue) normalidades.Add(new(variable, "M", min, max, 0, 150, null, "Unknown", false, false, ["Referência não localizada."]));
+            else warnings.Add($"Faixa de normalidade incompleta para {variable}.");
+        }
+
+        var variables = codes.OrderBy(x => x).Select(code => { var shortName = code[3..]; return new ImportacaoVariavelItem(code, shortName.Replace('_', ' '), shortName, shortName, "unknown", false, true, [], formulas.Count(x => x.Variavel.Equals(code, StringComparison.OrdinalIgnoreCase)), normalidades.Count(x => x.Variavel.Equals(code, StringComparison.OrdinalIgnoreCase))); }).ToList();
+        return new("cs", fileName, variables, formulas, normalidades, warnings, []);
+    }
+
     public static ImportacaoCsPreview Parse(string source)
     {
-        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match match in VariableRegex().Matches(source))
-        {
-            var code = match.Value;
-            if (!code.Contains("CHART", StringComparison.OrdinalIgnoreCase)) codes.Add(code);
-        }
-
-        var variables = codes.OrderBy(x => x).Select(code =>
-        {
-            var shortName = code[3..];
-            return new ImportacaoCsVariavel(code, shortName.Replace('_', ' ').ToLowerInvariant(), shortName, shortName, "unknown", false);
-        }).ToList();
-
-        var formulas = new List<ImportacaoCsFormula>();
-        foreach (Match method in CalculateMethodRegex().Matches(source))
-        {
-            var variable = $"VR_{method.Groups["name"].Value.ToUpperInvariant()}";
-            var expression = method.Groups["expression"].Value.Trim();
-            if (codes.Contains(variable) && expression.Length > 0)
-                formulas.Add(new ImportacaoCsFormula(variable, expression, 1));
-        }
-
-        var normalidades = new List<ImportacaoCsNormalidade>();
-        foreach (Match chart in ChartBlockRegex().Matches(source))
-        {
-            var variable = chart.Groups["variable"].Value;
-            if (!codes.Contains(variable)) continue;
-            var body = chart.Groups["body"].Value;
-            var min = ReadDecimal(body, "Normal") ?? ReadDecimal(body, "Min");
-            var max = ReadDecimal(body, "Max");
-            if (min.HasValue && max.HasValue)
-                normalidades.Add(new ImportacaoCsNormalidade(variable, "M", min.Value, max.Value, 0, 150, "Unknown"));
-        }
-
-        return new ImportacaoCsPreview(variables, formulas, normalidades);
+        var parsed = Parse(source, "arquivo.cs");
+        return new(parsed.Variaveis.Select(x => new ImportacaoCsVariavel(x.Codigo, x.Nome, x.Sigla, x.Abreviacao, x.Unidade, x.ExisteNoBanco)).ToList(), parsed.Formulas.Select(x => new ImportacaoCsFormula(x.Variavel, x.Expressao, x.CasasDecimais)).ToList(), parsed.Normalidades.Where(x => x.ValorMin.HasValue && x.ValorMax.HasValue && x.IdadeMin.HasValue && x.IdadeMax.HasValue).Select(x => new ImportacaoCsNormalidade(x.Variavel, x.Sexo, x.ValorMin!.Value, x.ValorMax!.Value, x.IdadeMin!.Value, x.IdadeMax!.Value, x.Referencia ?? "Unknown")).ToList());
     }
 
-    private static decimal? ReadDecimal(string body, string property)
-    {
-        var match = Regex.Match(body, $@"\b{property}\s*=\s*(-?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase);
-        return match.Success && decimal.TryParse(match.Groups[1].Value.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : null;
-    }
-
-    [GeneratedRegex(@"\bVR_[A-Za-z0-9_]+", RegexOptions.Compiled)]
-    private static partial Regex VariableRegex();
-
-    [GeneratedRegex(@"\b(?:[A-Za-z0-9_<>,?\[\]\s]+)\s+Calcular(?<name>[A-Za-z0-9_]+)\s*\([^)]*\)\s*\{(?:(?!\}).)*?return\s+(?<expression>[^;]+);", RegexOptions.Compiled | RegexOptions.Singleline)]
-    private static partial Regex CalculateMethodRegex();
-
-    [GeneratedRegex("""(?:case\s+)?["'](?<variable>VR_[A-Za-z0-9_]+)_CHART["']\s*:\s*(?<body>(?:(?!case\s+|default\s*:).)*)""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase)]
-    private static partial Regex ChartBlockRegex();
+    private static decimal? Decimal(IReadOnlyDictionary<string, string> values, string key) => values.TryGetValue(key, out var raw) && decimal.TryParse(raw.TrimEnd('m', 'M', 'd', 'D', 'f', 'F').Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var value) ? value : null;
 }

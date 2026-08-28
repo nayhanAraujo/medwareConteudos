@@ -40,7 +40,13 @@ public class AuthService : IAuthService
         var id = identificacao.Trim().ToLowerInvariant();
         if (IsDevUser(id, senha))
         {
-            var devUser = new SessionUser(0, _auth.DevName, _auth.DevRole);
+            await using var devConn = await _db.OpenConnectionAsync(ct);
+            var codUsuario = await devConn.QueryFirstOrDefaultAsync<int?>(
+                "SELECT FIRST 1 CODUSUARIO FROM USUARIO WHERE LOWER(IDENTIFICACAO) = @id AND STATUS = -1",
+                new { id });
+            if (!codUsuario.HasValue)
+                return new LoginResponse(false, null, null, "O usuário de desenvolvimento não possui um cadastro ativo no banco.");
+            var devUser = new SessionUser(codUsuario.Value, _auth.DevName, _auth.DevRole);
             return new LoginResponse(true, CreateWebToken(devUser), devUser, null);
         }
 

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Services;
+using System.Text.Json;
 
 namespace MdwConteudos.Api.Modules.Web;
 
@@ -11,8 +12,9 @@ namespace MdwConteudos.Api.Modules.Web;
 public class VariaveisWebController : ControllerBase
 {
     private readonly IVariaveisWebService _svc;
+    private readonly IImportacaoVariaveisService _importacao;
     private readonly IWebHostEnvironment _env;
-    public VariaveisWebController(IVariaveisWebService svc, IWebHostEnvironment env) { _svc = svc; _env = env; }
+    public VariaveisWebController(IVariaveisWebService svc, IImportacaoVariaveisService importacao, IWebHostEnvironment env) { _svc = svc; _importacao = importacao; _env = env; }
 
     [HttpGet]
     public async Task<IActionResult> List(
@@ -237,6 +239,42 @@ public class VariaveisWebController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> ConfirmarImportacao([FromBody] ImportacaoCsConfirmarRequest req, CancellationToken ct)
         => await Handle(async () => Ok(await _svc.ImportarCsAsync(req, User.GetCodUsuario(), ct)));
+
+    [HttpPost("importacoes/preview")]
+    [Authorize(Roles = "admin")]
+    [RequestSizeLimit(ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
+    public async Task<IActionResult> PreviewImportacaoUnificada([FromForm] IFormFile arquivo, [FromForm] int? codReferencia, CancellationToken ct)
+        => await Handle(async () => Ok(ApiResponse.Ok(await _importacao.PreviewAsync(arquivo, codReferencia, ct))));
+
+    [HttpPost("importacoes/confirmar")]
+    [Authorize(Roles = "admin")]
+    [RequestSizeLimit(ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
+    public async Task<IActionResult> ConfirmarImportacaoUnificada(
+        [FromForm] IFormFile arquivo,
+        [FromForm] string? decisoes,
+        [FromForm] string? variaveisSelecionadas,
+        [FromForm] int? codReferencia,
+        CancellationToken ct)
+        => await Handle(async () =>
+        {
+            IReadOnlyList<ImportacaoVariavelDecisao> selected;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(decisoes))
+                {
+                    selected = JsonSerializer.Deserialize<List<ImportacaoVariavelDecisao>>(decisoes, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+                }
+                else
+                {
+                    var legacy = JsonSerializer.Deserialize<List<string>>(variaveisSelecionadas ?? "[]", new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+                    selected = legacy.Select(codigo => new ImportacaoVariavelDecisao(codigo, "criar")).ToList();
+                }
+            }
+            catch (JsonException) { throw new InvalidOperationException("A seleção de variáveis é inválida."); }
+            return Ok(ApiResponse.Ok(await _importacao.ConfirmarAsync(arquivo, selected, codReferencia, User.GetCodUsuario(), ct)));
+        });
 
     private async Task<IActionResult> Handle(Func<Task<IActionResult>> action)
     {

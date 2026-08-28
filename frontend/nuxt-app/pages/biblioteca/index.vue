@@ -126,7 +126,7 @@ const quickRef: BibAction[] = [
   { label: 'Nova Variável', icon: 'bi bi-plus-circle', nuxtPath: '/variaveis/nova' },
   { label: 'Nova Fórmula', icon: 'bi bi-plus-square', nuxtPath: '/formulas' },
   { label: 'Nova Referência', icon: 'bi bi-journal-plus', nuxtPath: '/referencias/nova' },
-  { label: 'Importar JSON', icon: 'bi bi-upload', flaskPath: '/uploads/uploaddll' },
+  { label: 'Importar JSON / C#', icon: 'bi bi-upload', nuxtPath: '/variaveis/importar' },
   { label: 'Novo Script', icon: 'bi bi-code-slash', nuxtPath: '/scripts/sistema' },
   { label: 'Novo Pacote', icon: 'bi bi-box-fill', nuxtPath: '/pacotes' },
   { label: 'Agente de Extração', icon: 'bi bi-robot', flaskPath: '/agente/processar_documento' },

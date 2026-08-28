@@ -61,3 +61,25 @@ public record ImportacaoCsConfirmarRequest(
     IReadOnlyList<ImportacaoCsVariavel> Variaveis,
     IReadOnlyList<ImportacaoCsFormula> Formulas,
     IReadOnlyList<ImportacaoCsNormalidade> Normalidades);
+
+public sealed record ImportacaoVariavelItem(
+    string Codigo, string Nome, string Sigla, string Abreviacao, string Unidade,
+    bool ExisteNoBanco, bool Valido, IReadOnlyList<string> Erros, int TotalFormulas, int TotalNormalidades,
+    int? CodVariavelExistente = null,
+    IReadOnlyList<string>? AlternativasArquivo = null,
+    IReadOnlyList<ImportacaoVariavelSugestao>? Sugestoes = null);
+public sealed record ImportacaoVariavelSugestao(
+    int CodVariavel, string Codigo, string? Nome, string? Sigla, int Pontuacao, string Motivo);
+public sealed record ImportacaoVariavelDecisao(string Codigo, string Acao, int? CodVariavelPrincipal = null);
+public sealed record ImportacaoFormulaItem(string Variavel, string Expressao, int CasasDecimais, bool Valido, IReadOnlyList<string> Erros);
+public sealed record ImportacaoNormalidadeItem(
+    string Variavel, string Sexo, decimal? ValorMin, decimal? ValorMax, int? IdadeMin, int? IdadeMax,
+    int? CodReferencia, string? Referencia, bool ReferenciaValida, bool Valido, IReadOnlyList<string> Erros,
+    int? AnoReferencia = null, string? Classificacao = null, int? Pagina = null, string? Comentario = null);
+public sealed record ImportacaoVariaveisPreview(
+    string Formato, string Arquivo, IReadOnlyList<ImportacaoVariavelItem> Variaveis,
+    IReadOnlyList<ImportacaoFormulaItem> Formulas, IReadOnlyList<ImportacaoNormalidadeItem> Normalidades,
+    IReadOnlyList<string> Avisos, IReadOnlyList<string> Erros);
+public sealed record ImportacaoVariaveisResultado(
+    int Inseridas, int Ignoradas, int FormulasInseridas, int NormalidadesInseridas, IReadOnlyList<string> Rejeitadas,
+    int AlternativasInseridas = 0, int VariaveisAtualizadas = 0, int ComentariosInseridos = 0);
