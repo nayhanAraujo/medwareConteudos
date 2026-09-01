@@ -9,6 +9,8 @@
     :columns="columns"
     :fields="fields"
     :row-actions="rowActions"
+    :bulk-actions="bulkActions"
+    selectable
   />
 </template>
 <script setup lang="ts">
@@ -34,13 +36,28 @@ function safeFileName(value: unknown) {
   return name.replace(/[\\/:*?"<>|]/g, '_')
 }
 
-async function exportDll(row: AssistenteEntity) {
+function isExportableScript(row: AssistenteEntity) {
+  return [1, 2, 3].includes(Number(row.tipoScript ?? row.TIPOSCRIPT))
+}
+
+async function exportScript(row: AssistenteEntity) {
   const id = scriptId(row)
   if (!id) return void swal.toast('Script inválido para exportação.', 'error')
   try {
-    await api.downloadScript(id, `${safeFileName(row.titulo ?? row.TITULO)}.dll`)
+    await api.exportScriptPackage(id, `${safeFileName(row.titulo ?? row.TITULO)}.zip`)
   } catch (reason) {
-    await swal.toast(reason instanceof Error ? reason.message : 'Não foi possível exportar a DLL.', 'error')
+    await swal.toast(reason instanceof Error ? reason.message : 'Não foi possível exportar o script.', 'error')
+  }
+}
+
+async function exportSelectedScripts(rows: AssistenteEntity[]) {
+  const ids = rows.filter(isExportableScript).map(scriptId).filter(Boolean)
+  if (!ids.length) return void swal.toast('Selecione ao menos um script VB legado, C# ou JSON.', 'warning')
+  try {
+    await api.exportScriptsPackage(ids, 'scripts_assistente.zip')
+    await swal.toast(`Exportação iniciada (${ids.length} script${ids.length === 1 ? '' : 's'}).`, 'success')
+  } catch (reason) {
+    await swal.toast(reason instanceof Error ? reason.message : 'Não foi possível exportar os scripts.', 'error')
   }
 }
 
@@ -62,11 +79,21 @@ const fields = [
 
 const rowActions = [
   {
-    key: 'export-dll',
-    label: 'Exportar DLL',
+    key: 'export-script',
+    label: 'Exportar',
     icon: 'download',
-    visible: (row: AssistenteEntity) => Number(row.tipoScript ?? row.TIPOSCRIPT) === 2,
-    handler: exportDll
+    visible: isExportableScript,
+    handler: exportScript
+  }
+]
+
+const bulkActions = [
+  {
+    key: 'export-selected',
+    label: 'Exportar selecionados',
+    icon: 'file-earmark-zip',
+    disabled: (rows: AssistenteEntity[]) => !rows.some(isExportableScript),
+    handler: exportSelectedScripts
   }
 ]
 </script>

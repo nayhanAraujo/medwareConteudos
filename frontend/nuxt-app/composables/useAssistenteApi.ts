@@ -171,6 +171,13 @@ export function useAssistenteApi() {
       api.put(`${root}/${domain}/${id}/vinculos/${relation}`, { ids, items }),
     downloadScript: (id: number, filename: string) =>
       download(`${root}/modelos/scripts/${id}/download`, filename),
+    exportScriptPackage: (id: number, filename: string) =>
+      download(`${root}/modelos/scripts/${id}/exportar`, filename),
+    exportScriptsPackage: (ids: number[], filename: string) => {
+      const params = new URLSearchParams()
+      ids.forEach(id => params.append('ids', String(id)))
+      return download(`${root}/modelos/scripts/exportar?${params}`, filename)
+    },
     downloadMrd: (id: number, filename: string) =>
       download(`${root}/modelos/paginas-fotos/${id}/download`, filename),
     importModel: async (payload: ImportarModeloPayload) => {

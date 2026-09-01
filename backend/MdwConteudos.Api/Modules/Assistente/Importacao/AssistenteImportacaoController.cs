@@ -32,6 +32,32 @@ public sealed class AssistenteImportacaoController(IAssistenteImportacaoService 
         catch (FormatException) { return UnprocessableEntity(ApiResponse.Fail("Conteúdo inválido", "O conteúdo armazenado não está em Base64 válido.", 422)); }
     }
 
+    [HttpGet("scripts/{id:int}/exportar")]
+    public async Task<IActionResult> ExportScript(int id, CancellationToken ct)
+    {
+        try
+        {
+            var package = await service.ExportScriptPackageAsync(id, ct);
+            return package is null
+                ? NotFound(ApiResponse.Fail("Não encontrado", "Script não encontrado.", 404))
+                : File(package.Conteudo, package.ContentType, package.NomeArquivo);
+        }
+        catch (FormatException) { return UnprocessableEntity(ApiResponse.Fail("Conteúdo inválido", "O conteúdo armazenado não está em Base64 válido.", 422)); }
+    }
+
+    [HttpGet("scripts/exportar")]
+    public async Task<IActionResult> ExportScripts([FromQuery] List<int> ids, CancellationToken ct)
+    {
+        try
+        {
+            var package = await service.ExportScriptsPackageAsync(ids, ct);
+            return package is null
+                ? NotFound(ApiResponse.Fail("Não encontrado", "Nenhum script válido encontrado para exportação.", 404))
+                : File(package.Conteudo, package.ContentType, package.NomeArquivo);
+        }
+        catch (FormatException) { return UnprocessableEntity(ApiResponse.Fail("Conteúdo inválido", "Um dos conteúdos armazenados não está em Base64 válido.", 422)); }
+    }
+
     [HttpGet("paginas-fotos/{id:int}/download")]
     public async Task<IActionResult> DownloadMrd(int id, CancellationToken ct)
     {

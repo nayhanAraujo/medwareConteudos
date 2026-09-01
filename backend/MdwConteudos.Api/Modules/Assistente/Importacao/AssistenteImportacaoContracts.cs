@@ -23,4 +23,6 @@ public sealed record AssistenteImportacaoResult(
 
 public sealed record AssistenteArquivoPreparado(string Conteudo, string NomeArquivo, string ContentType, short? TipoScript = null);
 
+public sealed record AssistenteArquivoBinario(string NomeArquivo, byte[] Conteudo, string ContentType);
+
 public sealed class AssistenteImportacaoException(string message) : InvalidOperationException(message);

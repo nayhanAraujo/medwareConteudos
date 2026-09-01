@@ -1,4 +1,6 @@
 using System.Data;
+using System.IO.Compression;
+using System.Text;
 using Dapper;
 using FirebirdSql.Data.FirebirdClient;
 using MdwConteudos.Api.Infrastructure;
@@ -11,6 +13,8 @@ public interface IAssistenteImportacaoService
     Task<AssistenteImportacaoResult> ImportAsync(AssistenteImportacaoForm form, CancellationToken ct);
     Task<AssistenteArquivoPreparado?> DownloadScriptAsync(int id, CancellationToken ct);
     Task<AssistenteArquivoPreparado?> DownloadMrdAsync(int id, CancellationToken ct);
+    Task<AssistenteArquivoBinario?> ExportScriptPackageAsync(int id, CancellationToken ct);
+    Task<AssistenteArquivoBinario?> ExportScriptsPackageAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
 }
 
 public sealed class AssistenteImportacaoService(
@@ -195,6 +199,40 @@ public sealed class AssistenteImportacaoService(
         return row is null ? null : new AssistenteArquivoPreparado(row.Content, SafeFileName(row.Title) + ".mrd", "application/octet-stream");
     }
 
+    public async Task<AssistenteArquivoBinario?> ExportScriptPackageAsync(int id, CancellationToken ct)
+    {
+        await using var connection = await connectionFactory.OpenConnectionAsync(ct);
+        var script = await LoadExportScriptAsync(connection, id, ct);
+        if (script is null) return null;
+        var content = BuildScriptPackage(script, await LoadLinkedMrdsAsync(connection, id, ct));
+        return new AssistenteArquivoBinario(SafeFileName(script.Title) + ".zip", content, "application/zip");
+    }
+
+    public async Task<AssistenteArquivoBinario?> ExportScriptsPackageAsync(IReadOnlyCollection<int> ids, CancellationToken ct)
+    {
+        var cleanIds = ids.Where(id => id > 0).Distinct().ToArray();
+        if (cleanIds.Length == 0) return null;
+
+        await using var connection = await connectionFactory.OpenConnectionAsync(ct);
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in cleanIds)
+            {
+                var script = await LoadExportScriptAsync(connection, id, ct);
+                if (script is null) continue;
+                var folder = UniqueZipName(used, SafeFileName(script.Title), "");
+                AddFile(archive, used, $"{folder}/{ScriptFileName(script)}", DecodeScript(script));
+                foreach (var mrd in await LoadLinkedMrdsAsync(connection, id, ct))
+                    AddFile(archive, used, $"{folder}/{MrdFileName(mrd.Title)}", Convert.FromBase64String(mrd.Content));
+            }
+        }
+        return output.Length == 0
+            ? null
+            : new AssistenteArquivoBinario($"scripts_assistente_{DateTime.Now:yyyyMMdd_HHmmss}.zip", output.ToArray(), "application/zip");
+    }
+
     private static async Task<byte[]> ReadFileAsync(IFormFile file, string field, CancellationToken ct)
     {
         if (file.Length <= 0) throw new AssistenteImportacaoException($"{field} não pode estar vazio.");
@@ -240,4 +278,76 @@ public sealed class AssistenteImportacaoService(
     private static string SafeFileName(string title) => string.Concat(title.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
     private sealed record StoredScript(string Title, short Type, string Content);
     private sealed record StoredMrd(string Title, string Content);
+    private sealed record ExportScript(int Id, string Title, short Type, string Content);
+
+    private static async Task<ExportScript?> LoadExportScriptAsync(System.Data.Common.DbConnection connection, int id, CancellationToken ct)
+    {
+        return await connection.QueryFirstOrDefaultAsync<ExportScript>(new CommandDefinition(
+            "SELECT CODSCRIPTLAUDO AS Id, TITULO AS Title, TIPOSCRIPT AS Type, ESTRUTURASCRIPT AS Content FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@Id",
+            new { Id = id }, cancellationToken: ct));
+    }
+
+    private static async Task<IReadOnlyList<StoredMrd>> LoadLinkedMrdsAsync(System.Data.Common.DbConnection connection, int scriptId, CancellationToken ct)
+    {
+        var rows = await connection.QueryAsync<StoredMrd>(new CommandDefinition("""
+            SELECT p.TITULO AS Title, p.ESTRUTURAPAGFOTOS AS Content
+            FROM SCRIPTLAUDO_PAGFOTOS sp
+            JOIN PAGFOTOS p ON p.CODPAGFOTOS = sp.CODPAGFOTOS
+            WHERE sp.CODSCRIPTLAUDO = @ScriptId
+            ORDER BY sp.SEQUENCIA, p.TITULO
+            """, new { ScriptId = scriptId }, cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    private static byte[] BuildScriptPackage(ExportScript script, IReadOnlyList<StoredMrd> mrds)
+    {
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddFile(archive, used, ScriptFileName(script), DecodeScript(script));
+            foreach (var mrd in mrds)
+                AddFile(archive, used, MrdFileName(mrd.Title), Convert.FromBase64String(mrd.Content));
+        }
+        return output.ToArray();
+    }
+
+    private static byte[] DecodeScript(ExportScript script) =>
+        script.Type is 1 or 2 ? Convert.FromBase64String(script.Content) : Encoding.UTF8.GetBytes(script.Content);
+
+    private static string ScriptFileName(ExportScript script)
+    {
+        var extension = script.Type switch { 1 or 2 => ".dll", 3 => ".json", _ => ".script" };
+        return WithExtension(SafeFileName(script.Title), extension);
+    }
+
+    private static string MrdFileName(string title) => WithExtension(SafeFileName(title), ".mrd");
+
+    private static string WithExtension(string name, string extension)
+    {
+        var clean = string.IsNullOrWhiteSpace(name) ? "arquivo" : name;
+        return Path.HasExtension(clean) ? Path.ChangeExtension(clean, extension) : clean + extension;
+    }
+
+    private static void AddFile(ZipArchive archive, HashSet<string> used, string name, byte[] content)
+    {
+        var entryName = UniqueZipName(used, name, Path.GetExtension(name));
+        var entry = archive.CreateEntry(entryName, CompressionLevel.Fastest);
+        using var stream = entry.Open();
+        stream.Write(content, 0, content.Length);
+    }
+
+    private static string UniqueZipName(HashSet<string> used, string name, string extension)
+    {
+        var candidate = name.Replace('\\', '/').Trim('/');
+        if (used.Add(candidate)) return candidate;
+        var directory = Path.GetDirectoryName(candidate)?.Replace('\\', '/');
+        var file = Path.GetFileNameWithoutExtension(candidate);
+        var ext = string.IsNullOrEmpty(extension) ? Path.GetExtension(candidate) : extension;
+        for (var i = 2; ; i++)
+        {
+            var numbered = string.IsNullOrWhiteSpace(directory) ? $"{file}_{i}{ext}" : $"{directory}/{file}_{i}{ext}";
+            if (used.Add(numbered)) return numbered;
+        }
+    }
 }

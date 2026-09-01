@@ -39,6 +39,12 @@ uploads/
 .dotnet/
 .codex-build/
 backend/MdwConteudos.Api/bin-check/
+backend/MdwConteudos.Api/bin-verify/
+graphify-out/
+graphify-out-*/
+**/graphify-out/
+.graphify_*.json
+.graphify_*.txt
 
 # -----------------------------------------------------------------------------
 # Logs (legado: *.log)
