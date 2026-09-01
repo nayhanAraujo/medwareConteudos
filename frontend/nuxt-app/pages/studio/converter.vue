@@ -21,8 +21,15 @@ const analysis = ref<AnalyzedMeasure[]>([])
 const analysisSourceFileName = ref('')
 const analyzing = ref(false)
 const generatingReviewedText = ref(false)
-const variableSearch = ref('')
-const variableOptions = ref<Array<{ codvariavel: number; nome?: string; sigla?: string; variavel?: string; unidade_medida?: string; nomes_clinicos?: string[] }>>([])
+type VariableOption = {
+  codvariavel: number
+  nome?: string
+  sigla?: string
+  variavel?: string
+  unidade_medida?: string
+  nomes_clinicos?: string[]
+}
+const variableOptions = ref<VariableOption[]>([])
 const reviewState = ref<Record<string, {
   codVariavel: number | null
   decision: 'keep' | 'ignore' | 'pending'
@@ -217,17 +224,6 @@ const handleConvert = async () => {
     loading.value = false
   }
 }
-
-const filteredVariableOptions = computed(() => {
-  const term = variableSearch.value.trim().toLocaleLowerCase()
-  const rows = variableOptions.value
-  if (!term) return rows
-  return rows.filter(v =>
-    `${v.nome ?? ''} ${v.sigla ?? ''} ${v.variavel ?? ''} ${(v.nomes_clinicos ?? []).join(' ')}`
-      .toLocaleLowerCase()
-      .includes(term)
-  )
-})
 
 const hasPendingReview = computed(() =>
   analysis.value.some(m => (reviewState.value[m.id]?.decision ?? 'pending') === 'pending')
@@ -432,9 +428,8 @@ const selectCandidate = async (measureId: string, codVariavel: number | null) =>
   }
 }
 
-const onCandidateChange = (measureId: string, event: Event) => {
-  const value = event.target instanceof HTMLSelectElement ? event.target.value : ''
-  void selectCandidate(measureId, value ? Number(value) : null)
+const onVariableComboboxChange = (measureId: string, codVariavel: number | null) => {
+  void selectCandidate(measureId, codVariavel)
 }
 
 const onReferenceChange = (measureId: string, event: Event) => {
@@ -713,16 +708,11 @@ const handleDownload = () => {
               Confira as medidas encontradas na imagem. Itens sem correlação precisam ser associados, ignorados ou mantidos como campo novo antes de gerar o TXT.
             </p>
             <p class="mt-1 text-xs text-ds-muted">
-              {{ filteredVariableOptions.length }} de {{ variableOptions.length }} variáveis no combo
-              (use a busca para filtrar). Pendentes: {{ analysis.filter(m => (reviewState[m.id]?.decision ?? 'pending') === 'pending').length }}
+              Abra o seletor de cada medida e use a busca no topo da lista para filtrar sugestões e o banco.
+              Pendentes: {{ analysis.filter(m => (reviewState[m.id]?.decision ?? 'pending') === 'pending').length }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <input
-              v-model="variableSearch"
-              class="h-10 min-w-64 rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated px-3 text-sm text-ds-text outline-none focus:border-ds-primary-accent"
-              placeholder="Buscar variável no banco..."
-            >
             <StudioDsButton
               icon="bi-file-text"
               :loading="generatingReviewedText"
@@ -773,23 +763,13 @@ const handleDownload = () => {
                   </span>
                 </td>
                 <td class="py-3 pr-3">
-                  <select
-                    class="h-10 w-full rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated px-2 text-sm text-ds-text"
-                    :value="reviewState[measure.id]?.codVariavel ?? ''"
-                    @change="onCandidateChange(measure.id, $event)"
-                  >
-                    <option value="">Selecionar variável...</option>
-                    <optgroup v-if="measure.candidates.length" label="Sugestões">
-                      <option v-for="candidate in measure.candidates" :key="`s-${candidate.codVariavel}`" :value="candidate.codVariavel">
-                        {{ candidate.nome }} ({{ candidate.sigla }}) - {{ candidate.score }}%
-                      </option>
-                    </optgroup>
-                    <optgroup label="Banco de variáveis">
-                      <option v-for="variable in filteredVariableOptions" :key="`b-${variable.codvariavel}`" :value="variable.codvariavel">
-                        {{ variable.nome }} ({{ variable.sigla || variable.variavel }})
-                      </option>
-                    </optgroup>
-                  </select>
+                  <StudioVariableCombobox
+                    :model-value="reviewState[measure.id]?.codVariavel ?? null"
+                    :candidates="measure.candidates"
+                    :bank-options="variableOptions"
+                    :aria-label="`Selecionar variável para ${measure.label}`"
+                    @update:model-value="onVariableComboboxChange(measure.id, $event)"
+                  />
                   <div v-if="reviewState[measure.id]?.codVariavel" class="mt-2 space-y-2">
                     <select
                       v-if="!usingPadraoCliente"
