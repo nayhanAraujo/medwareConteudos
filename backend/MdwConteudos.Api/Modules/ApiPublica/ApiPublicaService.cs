@@ -94,7 +94,8 @@ public class ApiPublicaService : IApiPublicaService
         {
             var sql = @"
                 SELECT v.CODVARIAVEL, v.NOME, v.VARIAVEL, v.SIGLA, v.ABREVIACAO, v.DESCRICAO, v.CASASDECIMAIS,
-                       u.DESCRICAO as UNIDADE_MEDIDA, LIST(e.NOME, ', ') as ESPECIALIDADES
+                       u.DESCRICAO as UNIDADE_MEDIDA, LIST(e.NOME, ', ') as ESPECIALIDADES,
+                       (SELECT LIST(nc.NOME, '|') FROM VARIAVEISNOMESCLINICOS nc WHERE nc.CODVARIAVEL = v.CODVARIAVEL) as NOMES_CLINICOS
                 FROM VARIAVEIS v
                 LEFT JOIN UNIDADEMEDIDA u ON v.CODUNIDADEMEDIDA = u.CODUNIDADEMEDIDA
                 LEFT JOIN VARIAVEL_ESPECIALIDADE ve ON v.CODVARIAVEL = ve.CODVARIAVEL
@@ -117,7 +118,8 @@ public class ApiPublicaService : IApiPublicaService
                 ["descricao"] = (string?)r.DESCRICAO,
                 ["casas_decimais"] = r.CASASDECIMAIS,
                 ["unidade_medida"] = (string?)r.UNIDADE_MEDIDA,
-                ["especialidades"] = ((string?)r.ESPECIALIDADES)?.Split(", ", StringSplitOptions.RemoveEmptyEntries) ?? Array.Empty<string>()
+                ["especialidades"] = ((string?)r.ESPECIALIDADES)?.Split(", ", StringSplitOptions.RemoveEmptyEntries) ?? Array.Empty<string>(),
+                ["nomes_clinicos"] = ((string?)r.NOMES_CLINICOS)?.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? Array.Empty<string>()
             }).ToList();
             return new OkObjectResult(ApiResponse.Ok(list, list.Count));
         }

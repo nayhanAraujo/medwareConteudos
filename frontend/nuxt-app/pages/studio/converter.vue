@@ -22,7 +22,7 @@ const analysisSourceFileName = ref('')
 const analyzing = ref(false)
 const generatingReviewedText = ref(false)
 const variableSearch = ref('')
-const variableOptions = ref<Array<{ codvariavel: number; nome?: string; sigla?: string; variavel?: string; unidade_medida?: string }>>([])
+const variableOptions = ref<Array<{ codvariavel: number; nome?: string; sigla?: string; variavel?: string; unidade_medida?: string; nomes_clinicos?: string[] }>>([])
 const reviewState = ref<Record<string, {
   codVariavel: number | null
   decision: 'keep' | 'ignore' | 'pending'
@@ -223,7 +223,9 @@ const filteredVariableOptions = computed(() => {
   const rows = variableOptions.value
   if (!term) return rows
   return rows.filter(v =>
-    `${v.nome ?? ''} ${v.sigla ?? ''} ${v.variavel ?? ''}`.toLocaleLowerCase().includes(term)
+    `${v.nome ?? ''} ${v.sigla ?? ''} ${v.variavel ?? ''} ${(v.nomes_clinicos ?? []).join(' ')}`
+      .toLocaleLowerCase()
+      .includes(term)
   )
 })
 
