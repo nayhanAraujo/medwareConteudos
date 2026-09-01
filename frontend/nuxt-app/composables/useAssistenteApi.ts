@@ -100,9 +100,25 @@ export function useAssistenteApi() {
     return result as T
   }
 
-  async function list<T = AssistenteEntity>(domain: string, page = 1, pageSize = 20, search = ''): Promise<AssistentePage<T>> {
+  function download(path: string, filename: string) {
+    return api.getBlob(path).then((blob) => {
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(a.href)
+    })
+  }
+
+  async function list<T = AssistenteEntity>(
+    domain: string,
+    page = 1,
+    pageSize = 20,
+    search = '',
+    filters: Record<string, string | number | boolean | undefined> = {}
+  ): Promise<AssistentePage<T>> {
     const response = await api.get<ApiEnvelope<AssistentePage<T>> | ApiEnvelope<T[]> | T[]>(
-      `${root}/${domain}${query({ page, pageSize, search })}`
+      `${root}/${domain}${query({ page, pageSize, search, ...filters })}`
     )
     const data = unwrap(response)
     if (Array.isArray(data)) {
@@ -153,6 +169,10 @@ export function useAssistenteApi() {
       )),
     setLinks: (domain: string, id: number, relation: string, ids: number[], items?: { id: number; sequencia: number }[]) =>
       api.put(`${root}/${domain}/${id}/vinculos/${relation}`, { ids, items }),
+    downloadScript: (id: number, filename: string) =>
+      download(`${root}/modelos/scripts/${id}/download`, filename),
+    downloadMrd: (id: number, filename: string) =>
+      download(`${root}/modelos/paginas-fotos/${id}/download`, filename),
     importModel: async (payload: ImportarModeloPayload) => {
       const form = new FormData()
       form.append('codScriptLaudoOrigem', String(payload.codScriptLaudoOrigem))

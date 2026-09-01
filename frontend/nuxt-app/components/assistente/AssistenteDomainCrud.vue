@@ -25,6 +25,16 @@
           <td><DsBadge :variant="isActive(row) ? 'success' : 'neutral'">{{ isActive(row) ? 'Ativo' : 'Inativo' }}</DsBadge></td>
           <td><div class="flex justify-end gap-2">
             <DsButton variant="secondary" size="sm" icon="diagram-3" @click="openLinks(row)">Vínculos</DsButton>
+            <DsButton
+              v-for="action in visibleRowActions(row)"
+              :key="action.key"
+              :variant="action.variant || 'secondary'"
+              size="sm"
+              :icon="action.icon"
+              @click="action.handler(row)"
+            >
+              {{ action.label }}
+            </DsButton>
             <template v-if="auth.isAdmin">
             <DsButton variant="secondary" size="sm" @click="openEditor(row)">Editar</DsButton>
             <DsButton variant="secondary" size="sm" @click="toggle(row)">{{ isActive(row) ? 'Inativar' : 'Ativar' }}</DsButton>
@@ -66,7 +76,8 @@
 import type { AssistenteEntity, AssistenteOption } from '~/composables/useAssistenteApi'
 export interface AssistenteField { key: string; apiKey?: string; label: string; kind?: 'text' | 'number' | 'textarea' | 'select' | 'multi'; required?: boolean; defaultValue?: string | number; options?: { label: string; value: string | number }[]; optionsDomain?: string }
 export interface AssistenteColumn { key: string; label: string; primary?: boolean; format?: (value: unknown, row: AssistenteEntity) => string }
-const props = defineProps<{ domain: string; title: string; singular: string; subtitle: string; icon?: string; fields: AssistenteField[]; columns: AssistenteColumn[]; hideCreate?: boolean }>()
+export interface AssistenteRowAction { key: string; label: string; icon?: string; variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success'; visible?: (row: AssistenteEntity) => boolean; handler: (row: AssistenteEntity) => void | Promise<void> }
+const props = defineProps<{ domain: string; title: string; singular: string; subtitle: string; icon?: string; fields: AssistenteField[]; columns: AssistenteColumn[]; hideCreate?: boolean; rowActions?: AssistenteRowAction[] }>()
 const auth = useAuthStore(); const api = useAssistenteApi(); const swal = useSwal()
 const rows = ref<AssistenteEntity[]>([]); const search = ref(''); const page = ref(1); const pageSize = ref(20); const total = ref(0)
 const loading = ref(false); const saving = ref(false); const error = ref(''); const editorOpen = ref(false); const editingId = ref<number | null>(null)
@@ -83,6 +94,7 @@ function display(row: AssistenteEntity, column: AssistenteColumn) {
   if (Array.isArray(value)) return value.map(item => typeof item === 'object' ? (item.nome || item.titulo || item.id) : item).join(', ')
   return value ?? '—'
 }
+function visibleRowActions(row: AssistenteEntity) { return (props.rowActions || []).filter(action => !action.visible || action.visible(row)) }
 function fieldLabel(field: AssistenteField) { return `${field.label}${field.required ? ' *' : ''}` }
 function fieldOptions(field: AssistenteField) { return field.options || (relationOptions[field.optionsDomain || ''] || []).map(option => ({ label: option.nome, value: option.id })) }
 function resetForm(row?: AssistenteEntity) { props.fields.forEach(field => { const value = row?.[field.key]; form[field.key] = field.kind === 'multi' ? (Array.isArray(value) ? value.map(item => Number(typeof item === 'object' ? item.id : item)) : []) : (value ?? field.defaultValue ?? '') }) }

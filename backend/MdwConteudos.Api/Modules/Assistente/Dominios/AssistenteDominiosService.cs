@@ -8,7 +8,7 @@ namespace MdwConteudos.Api.Modules.Assistente.Dominios;
 public interface IAssistenteDominiosService
 {
     Task<object> Dashboard(CancellationToken ct);
-    Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, CancellationToken ct);
+    Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, int? groupId, CancellationToken ct);
     Task<dynamic?> Get(string domain, int id, CancellationToken ct);
     Task<int> Create(string domain, object request, CancellationToken ct);
     Task<bool> Update(string domain, int id, object request, CancellationToken ct);
@@ -46,7 +46,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         return new { totalTabelas = 24, dominios = counts };
     }
 
-    public async Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, CancellationToken ct)
+    public async Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, int? groupId, CancellationToken ct)
     {
         var d = Resolve(domain); page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 200);
         await using var c = await connections.OpenConnectionAsync(ct);
@@ -54,6 +54,8 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
             return await ListProcedimentos(c, page, pageSize, search, ct);
         if (domain.Equals("scripts", StringComparison.OrdinalIgnoreCase))
             return await ListScripts(c, page, pageSize, search, ct);
+        if (domain.Equals("frases", StringComparison.OrdinalIgnoreCase))
+            return await ListFrases(c, page, pageSize, search, groupId, ct);
         var where = string.IsNullOrWhiteSpace(search) ? "" : $"WHERE UPPER(COALESCE(CAST({d.SearchColumn} AS VARCHAR(512)), '')) LIKE @Search";
         var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", Skip = (page - 1) * pageSize, Take = pageSize };
         var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) FROM {d.Table} {where}", args, cancellationToken: ct));
@@ -98,6 +100,30 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         var rows = (await c.QueryAsync(new CommandDefinition($@"SELECT s.*, esp.ESPECIALIDADES
             {from} {where}
             ORDER BY s.TITULO
+            ROWS @Skip + 1 TO @Skip + @Take", args, cancellationToken: ct))).ToList();
+        return new(rows, total, page, pageSize);
+    }
+
+    private static async Task<PagedResult<dynamic>> ListFrases(DbConnection c, int page, int pageSize, string? search, int? groupId, CancellationToken ct)
+    {
+        const string from = @"FROM FRASE f
+            LEFT JOIN GRUPO g ON g.CODGRUPO = f.CODGRUPO";
+        var where = new List<string>();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            where.Add(@"(
+                UPPER(COALESCE(CAST(f.TITULO AS VARCHAR(512)), '')) LIKE @Search OR
+                UPPER(COALESCE(CAST(f.CODIGO AS VARCHAR(64)), '')) LIKE @Search
+            )");
+        }
+        if (groupId.HasValue) where.Add("f.CODGRUPO = @GroupId");
+        var whereSql = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+        var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", GroupId = groupId, Skip = (page - 1) * pageSize, Take = pageSize };
+        var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) {from} {whereSql}", args, cancellationToken: ct));
+        var rows = (await c.QueryAsync(new CommandDefinition($@"SELECT
+                f.*, g.GRUPO AS GRUPO_NOME
+            {from} {whereSql}
+            ORDER BY f.TITULO
             ROWS @Skip + 1 TO @Skip + @Take", args, cancellationToken: ct))).ToList();
         return new(rows, total, page, pageSize);
     }
@@ -193,7 +219,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
     {
         switch (request)
         {
-            case GrupoRequest r: await ReplaceLinks(c, tx, ResolveLink(domain, "especialidades"), id, r.Especialidades ?? [], ct); break;
+            case GrupoRequest r when r.Especialidades is not null: await ReplaceLinks(c, tx, ResolveLink(domain, "especialidades"), id, r.Especialidades, ct); break;
             case GrupoOperadoraRequest r: await ReplaceLinks(c, tx, ResolveLink(domain, "operadoras"), id, r.Operadoras ?? [], ct); break;
             case ProcedimentoRequest r: await ReplaceLinks(c, tx, ResolveLink(domain, "frases"), id, r.Frases ?? [], ct); await ReplaceLinks(c, tx, ResolveLink(domain, "grupos"), id, r.Grupos ?? [], ct); await ReplaceLinks(c, tx, ResolveLink(domain, "scripts"), id, r.Scripts ?? [], ct); break;
             case ReferenciaRequest r: await ReplaceLinks(c, tx, ResolveLink(domain, "especialidades"), id, r.Especialidades ?? [], ct); break;

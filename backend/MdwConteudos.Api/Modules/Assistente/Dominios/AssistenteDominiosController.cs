@@ -23,8 +23,8 @@ public sealed class AssistenteDominiosController(IAssistenteDominiosService serv
     public async Task<IActionResult> Dashboard(CancellationToken ct) => Ok(ApiResponse.Ok(await service.Dashboard(ct)));
 
     [HttpGet("{domain}")]
-    public async Task<IActionResult> List(string domain, [FromQuery] int page = 1, [FromQuery] int pageSize = 30, [FromQuery] string? search = null, CancellationToken ct = default)
-        => await Handle(async () => { EnsureDomain(domain); var result = await service.List(domain, page, pageSize, search, ct); return Ok(ApiResponse.Ok(new { result.Items, result.Page, result.PageSize }, result.Total)); });
+    public async Task<IActionResult> List(string domain, [FromQuery] int page = 1, [FromQuery] int pageSize = 30, [FromQuery] string? search = null, [FromQuery] int? groupId = null, CancellationToken ct = default)
+        => await Handle(async () => { EnsureDomain(domain); var result = await service.List(domain, page, pageSize, search, groupId, ct); return Ok(ApiResponse.Ok(new { result.Items, result.Page, result.PageSize }, result.Total)); });
 
     [HttpGet("{domain}/{id:int}")]
     public async Task<IActionResult> Get(string domain, int id, CancellationToken ct)

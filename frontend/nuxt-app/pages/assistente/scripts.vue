@@ -1,11 +1,47 @@
-<template><AssistenteDomainCrud domain="scripts" title="Scripts de laudo" singular="script" subtitle="Scripts importados de /scripts/pacotes" icon="code-square" :hide-create="true" :columns="columns" :fields="fields" /></template>
+<template>
+  <AssistenteDomainCrud
+    domain="scripts"
+    title="Scripts de laudo"
+    singular="script"
+    subtitle="Scripts importados de /scripts/pacotes"
+    icon="code-square"
+    :hide-create="true"
+    :columns="columns"
+    :fields="fields"
+    :row-actions="rowActions"
+  />
+</template>
 <script setup lang="ts">
+import type { AssistenteEntity } from '~/composables/useAssistenteApi'
+
 definePageMeta({ layout: 'default' })
+
+const api = useAssistenteApi()
+const swal = useSwal()
 
 function formatTipo(value: unknown) {
   const map: Record<number, string> = { 1: 'VB (legado)', 2: 'C#', 3: 'JSON' }
   const n = Number(value)
   return map[n] ?? String(value ?? '—')
+}
+
+function scriptId(row: AssistenteEntity) {
+  return Number(row.id ?? row.codigo ?? row.codigoscriptlaudo ?? row.CODSCRIPTLAUDO ?? 0)
+}
+
+function safeFileName(value: unknown) {
+  const name = String(value || 'script').trim() || 'script'
+  return name.replace(/[\\/:*?"<>|]/g, '_')
+}
+
+async function exportDll(row: AssistenteEntity) {
+  const id = scriptId(row)
+  if (!id) return void swal.toast('Script inválido para exportação.', 'error')
+  try {
+    await api.downloadScript(id, `${safeFileName(row.titulo ?? row.TITULO)}.dll`)
+  } catch (reason) {
+    await swal.toast(reason instanceof Error ? reason.message : 'Não foi possível exportar a DLL.', 'error')
+  }
 }
 
 const columns = [
@@ -22,5 +58,15 @@ const fields = [
   { key: 'status', label: 'Status', kind: 'select' as const, required: true, defaultValue: -1, options: [{ label: 'Ativo', value: -1 }, { label: 'Inativo', value: 0 }] },
   { key: 'especialidades', label: 'Especialidades', kind: 'multi' as const, optionsDomain: 'especialidades' },
   { key: 'procedimentos', label: 'Procedimentos', kind: 'multi' as const, optionsDomain: 'procedimentos' }
+]
+
+const rowActions = [
+  {
+    key: 'export-dll',
+    label: 'Exportar DLL',
+    icon: 'download',
+    visible: (row: AssistenteEntity) => Number(row.tipoScript ?? row.TIPOSCRIPT) === 2,
+    handler: exportDll
+  }
 ]
 </script>
