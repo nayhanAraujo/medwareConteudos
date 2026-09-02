@@ -105,15 +105,15 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick))
 </script>
 
 <template>
-  <div ref="rootRef" class="relative w-full min-w-[14rem]">
+  <div ref="rootRef" class="studio-variable-combobox">
     <div
-      class="flex h-10 w-full items-center rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated text-sm text-ds-text transition-colors hover:border-ds-primary-accent/60"
-      :class="open ? 'border-ds-primary-accent' : ''"
+      class="studio-variable-combobox__control"
+      :class="{ 'is-open': open }"
     >
       <button
         type="button"
-        class="min-w-0 flex-1 truncate px-3 text-left"
-        :class="!modelValue ? 'text-ds-muted' : ''"
+        class="studio-variable-combobox__value"
+        :class="{ 'is-placeholder': !modelValue }"
         :aria-label="ariaLabel || placeholder"
         :aria-expanded="open"
         @click.stop="toggleDropdown"
@@ -123,88 +123,93 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick))
       <button
         v-if="modelValue"
         type="button"
-        class="shrink-0 px-2 text-ds-muted hover:text-ds-text"
+        class="studio-variable-combobox__icon-btn"
         aria-label="Limpar seleção"
         @click.stop="clearSelection"
       >
-        <i class="bi bi-x-lg text-xs" />
+        <i class="bi bi-x-lg" aria-hidden="true" />
       </button>
       <button
         type="button"
-        class="shrink-0 px-2 text-ds-muted"
+        class="studio-variable-combobox__icon-btn"
         aria-label="Abrir lista"
         @click.stop="toggleDropdown"
       >
-        <i class="bi text-xs" :class="open ? 'bi-chevron-up' : 'bi-chevron-down'" />
+        <i class="bi" :class="open ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true" />
       </button>
     </div>
 
     <div
       v-if="open"
-      class="absolute z-30 mt-1 w-full overflow-hidden rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated shadow-lg"
+      class="studio-variable-combobox__menu"
       @click.stop
     >
-      <div class="sticky top-0 z-10 border-b border-ds-border bg-ds-surface-elevated p-2">
-        <div class="relative">
-          <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-ds-muted">
-            <i class="bi bi-search text-xs" />
+      <div class="studio-variable-combobox__search">
+        <div class="studio-variable-combobox__search-wrap">
+          <span class="studio-variable-combobox__search-icon">
+            <i class="bi bi-search" aria-hidden="true" />
           </span>
           <input
             ref="searchInputRef"
             v-model="search"
             type="text"
-            class="h-9 w-full rounded-ds-sm border border-ds-field-border bg-ds-surface pl-8 pr-8 text-sm text-ds-text outline-none focus:border-ds-primary-accent"
+            class="studio-variable-combobox__search-input"
             placeholder="Buscar por nome, sigla ou nome clínico..."
             autocomplete="off"
             @keydown.esc.prevent="closeDropdown"
           >
-          <button
-            v-if="search"
-            type="button"
-            class="absolute inset-y-0 right-0 flex items-center pr-2 text-ds-muted hover:text-ds-text"
-            aria-label="Limpar busca"
-            @click="search = ''"
-          >
-            <i class="bi bi-x-lg text-xs" />
-          </button>
+          <div v-if="search" class="studio-variable-combobox__search-clear">
+            <button
+              type="button"
+              class="studio-variable-combobox__icon-btn"
+              aria-label="Limpar busca"
+              @click="search = ''"
+            >
+              <i class="bi bi-x-lg" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div class="max-h-56 overflow-y-auto py-1">
-        <p v-if="!hasResults" class="px-3 py-4 text-center text-xs text-ds-muted">
+      <div class="studio-variable-combobox__list">
+        <p v-if="!hasResults" class="studio-variable-combobox__empty">
           Nenhuma variável encontrada
         </p>
 
         <template v-if="filteredCandidates.length">
-          <p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-ds-muted">
+          <p class="studio-variable-combobox__section-label">
             Sugestões
           </p>
           <button
             v-for="candidate in filteredCandidates"
             :key="`s-${candidate.codVariavel}`"
             type="button"
-            class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-ds-surface"
-            :class="modelValue === candidate.codVariavel ? 'bg-ds-surface text-ds-primary-accent' : 'text-ds-text'"
+            class="studio-variable-combobox__option"
+            :class="{ 'is-selected': modelValue === candidate.codVariavel }"
             @click="selectValue(candidate.codVariavel)"
           >
-            <span class="truncate">{{ candidate.nome }} ({{ candidate.sigla }})</span>
-            <span class="shrink-0 text-xs text-ds-muted">{{ candidate.score }}%</span>
+            <span class="studio-variable-combobox__option-label">
+              {{ candidate.nome }} ({{ candidate.sigla }})
+            </span>
+            <span class="studio-variable-combobox__option-score">{{ candidate.score }}%</span>
           </button>
         </template>
 
         <template v-if="filteredBankOptions.length">
-          <p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-ds-muted">
+          <p class="studio-variable-combobox__section-label">
             Banco de variáveis
           </p>
           <button
             v-for="variable in filteredBankOptions"
             :key="`b-${variable.codvariavel}`"
             type="button"
-            class="w-full truncate px-3 py-2 text-left text-sm transition-colors hover:bg-ds-surface"
-            :class="modelValue === variable.codvariavel ? 'bg-ds-surface text-ds-primary-accent' : 'text-ds-text'"
+            class="studio-variable-combobox__option"
+            :class="{ 'is-selected': modelValue === variable.codvariavel }"
             @click="selectValue(variable.codvariavel)"
           >
-            {{ variable.nome }} ({{ variable.sigla || variable.variavel }})
+            <span class="studio-variable-combobox__option-label">
+              {{ variable.nome }} ({{ variable.sigla || variable.variavel }})
+            </span>
           </button>
         </template>
       </div>
