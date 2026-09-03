@@ -21,7 +21,7 @@ export const useConversionStore = defineStore('conversion', {
     updateContent(id: string, format: ConversionFormat, content: string) {
       if (this.current?.id === id) {
         this.current.format = format
-        if (format === 'modoTexto') {
+        if (format === 'modoTexto' || format === 'jsonStudio') {
           this.current.text = content
         } else {
           this.current.html = content
@@ -30,7 +30,7 @@ export const useConversionStore = defineStore('conversion', {
       const item = this.history.find(h => h.id === id)
       if (item) {
         item.format = format
-        if (format === 'modoTexto') {
+        if (format === 'modoTexto' || format === 'jsonStudio') {
           item.text = content
         } else {
           item.html = content

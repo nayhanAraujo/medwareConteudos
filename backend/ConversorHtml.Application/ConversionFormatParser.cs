@@ -15,10 +15,15 @@ public static class ConversionFormatParser
         {
             "html" => ConversionOutputFormat.Html,
             "modotexto" or "modo-texto" or "modo_texto" or "txt" or "text" => ConversionOutputFormat.ModoTexto,
+            "jsonstudio" or "json-studio" or "json_studio" or "json" => ConversionOutputFormat.JsonStudio,
             _ => fallback
         };
     }
 
-    public static string ToApiValue(ConversionOutputFormat format) =>
-        format == ConversionOutputFormat.ModoTexto ? "modoTexto" : "html";
+    public static string ToApiValue(ConversionOutputFormat format) => format switch
+    {
+        ConversionOutputFormat.ModoTexto => "modoTexto",
+        ConversionOutputFormat.JsonStudio => "jsonStudio",
+        _ => "html"
+    };
 }

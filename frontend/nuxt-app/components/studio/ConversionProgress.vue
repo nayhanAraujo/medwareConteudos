@@ -2,7 +2,7 @@
 const props = withDefaults(defineProps<{
   elapsedMs: number
   percent: number
-  format?: 'html' | 'modoTexto'
+  format?: 'html' | 'modoTexto' | 'jsonStudio'
   kind?: 'conversion' | 'voice-build' | 'voice-export'
 }>(), {
   kind: 'conversion'
@@ -29,9 +29,9 @@ const stage = computed(() => {
     return 'Ainda exportando. Isso pode levar alguns minutos...'
   }
   if (seconds < 8) return 'Enviando imagem...'
-  if (props.format === 'modoTexto') {
+  if (props.format === 'modoTexto' || props.format === 'jsonStudio') {
     if (seconds < 25) return 'Analisando campos e seções...'
-    if (seconds < 60) return 'Gerando DSL modo texto...'
+    if (seconds < 60) return props.format === 'jsonStudio' ? 'Preparando modelo JSON Studio...' : 'Gerando DSL modo texto...'
     return 'Ainda processando. Isso pode levar alguns minutos...'
   }
   if (seconds < 25) return 'Analisando o layout do laudo...'

@@ -50,9 +50,35 @@ export function useConversionApi() {
     })
   }
 
+  const generateJsonFromAnalysis = async (
+    sourceFileName: string,
+    measures: ReviewedMeasure[],
+    codPadraoCliente?: number | null
+  ): Promise<ConversionResponse> => {
+    return await $fetch<ConversionResponse>(`${apiBase}/api/conversions/generate-json-from-analysis`, {
+      method: 'POST',
+      body: { sourceFileName, measures, codPadraoCliente: codPadraoCliente ?? undefined }
+    })
+  }
+
+  const registerAlternativa = async (codVariavel: number, alternativa: string): Promise<void> => {
+    await $fetch(`${apiBase}/api/conversions/register-alternativa`, {
+      method: 'POST',
+      body: { codVariavel, alternativa }
+    })
+  }
+
   const checkHealth = async (): Promise<ConversionHealthResponse> => {
     return await $fetch<ConversionHealthResponse>(`${apiBase}/api/conversions/health`)
   }
 
-  return { convertImage, validateContent, checkHealth, analyzeImage, generateModoTextoFromAnalysis }
+  return {
+    convertImage,
+    validateContent,
+    checkHealth,
+    analyzeImage,
+    generateModoTextoFromAnalysis,
+    generateJsonFromAnalysis,
+    registerAlternativa
+  }
 }

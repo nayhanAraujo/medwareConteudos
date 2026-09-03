@@ -61,6 +61,13 @@ function buildFormatPickerHtml(mode: StudioThemeMode) {
       <span style="display:block;font-size:0.8125rem;line-height:1.4;color:${c.muted};">Arquivo .txt importável no LaudosUX</span>
     </span>
   </label>
+  <label data-format="jsonStudio" class="studio-format-option" style="${optionStyle(false)}">
+    <input type="radio" name="studio-conversion-format" value="jsonStudio" style="margin-top:4px;accent-color:#0F6CBD;width:16px;height:16px;flex-shrink:0;">
+    <span style="flex:1;min-width:0;">
+      <strong style="display:block;font-size:0.95rem;margin-bottom:4px;color:${c.color};">JSON Studio</strong>
+      <span style="display:block;font-size:0.8125rem;line-height:1.4;color:${c.muted};">Modelo { camposScript } com revisão de variáveis</span>
+    </span>
+  </label>
 </div>`
 }
 
@@ -136,7 +143,7 @@ export function useStudioSwal() {
     })
   }
 
-  const chooseConversionFormat = async (): Promise<'html' | 'modoTexto' | null> => {
+  const chooseConversionFormat = async (): Promise<'html' | 'modoTexto' | 'jsonStudio' | null> => {
     const mode = theme.value
     const colors = themeColors(mode)
 
@@ -175,7 +182,9 @@ export function useStudioSwal() {
     })
 
     if (!result.isConfirmed || !result.value) return null
-    return result.value === 'modoTexto' ? 'modoTexto' : 'html'
+    if (result.value === 'modoTexto') return 'modoTexto'
+    if (result.value === 'jsonStudio') return 'jsonStudio'
+    return 'html'
   }
 
   return { toast, confirm, alert, chooseConversionFormat }

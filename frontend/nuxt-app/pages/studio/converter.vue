@@ -4,9 +4,17 @@ import { looksLikeHtml, resolveConversionContent } from '~/utils/conversionForma
 
 definePageMeta({ layout: 'studio' })
 const store = useConversionStore()
-const { convertImage, validateContent, checkHealth, analyzeImage, generateModoTextoFromAnalysis } = useConversionApi()
-const { downloadHtml, downloadText, copyToClipboard } = useHtmlPreview()
-const { toast, alert, chooseConversionFormat } = useStudioSwal()
+const {
+  convertImage,
+  validateContent,
+  checkHealth,
+  analyzeImage,
+  generateModoTextoFromAnalysis,
+  generateJsonFromAnalysis,
+  registerAlternativa
+} = useConversionApi()
+const { downloadHtml, downloadText, downloadJson, copyToClipboard } = useHtmlPreview()
+const { toast, alert, confirm, chooseConversionFormat } = useStudioSwal()
 
 const selectedFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
@@ -21,6 +29,8 @@ const analysis = ref<AnalyzedMeasure[]>([])
 const analysisSourceFileName = ref('')
 const analyzing = ref(false)
 const generatingReviewedText = ref(false)
+const alternativesModalOpen = ref(false)
+const pendingJsonGeneration = ref(false)
 type VariableOption = {
   codvariavel: number
   nome?: string
@@ -45,8 +55,25 @@ const studioPadroes = ref<Array<{ codPadrao: number; nome: string; codigo: strin
 const padraoPainelCache = ref<import('~/composables/useVariaveisApi').PadroesClientePainel | null>(null)
 const usingPadraoCliente = computed(() => studioCodPadrao.value != null && studioCodPadrao.value > 0)
 
+const isTextualOutput = computed(() =>
+  outputFormat.value === 'modoTexto' || outputFormat.value === 'jsonStudio'
+)
+
 const hasOutput = computed(() =>
-  outputFormat.value === 'modoTexto' ? generatedText.value.length > 0 : generatedHtml.value.length > 0
+  isTextualOutput.value ? generatedText.value.length > 0 : generatedHtml.value.length > 0
+)
+
+const unmatchedForAlternatives = computed(() =>
+  analysis.value.filter((m) => {
+    const state = reviewState.value[m.id]
+    if (!state || state.decision === 'ignore') return false
+    return !state.codVariavel
+  }).map(m => ({
+    id: m.id,
+    label: m.label,
+    originalText: m.originalText,
+    unit: m.unit
+  }))
 )
 
 const EXPECTED_SECONDS = 70
@@ -138,9 +165,11 @@ const onFileSelect = (file: File) => {
   resetOutput()
 }
 
-const formatLabel = computed(() =>
-  outputFormat.value === 'modoTexto' ? 'TXT Modo Texto' : 'HTML LaudosUX'
-)
+const formatLabel = computed(() => {
+  if (outputFormat.value === 'modoTexto') return 'TXT Modo Texto'
+  if (outputFormat.value === 'jsonStudio') return 'JSON Studio'
+  return 'HTML LaudosUX'
+})
 
 const handleConvert = async () => {
   if (!isApiOnline.value) {
@@ -158,8 +187,8 @@ const handleConvert = async () => {
   outputFormat.value = format
   resetOutput()
 
-  if (format === 'modoTexto') {
-    await handleAnalyzeModoTexto()
+  if (format === 'modoTexto' || format === 'jsonStudio') {
+    await handleAnalyzeModoTexto(format)
     return
   }
 
@@ -237,7 +266,7 @@ const loadVariableOptions = async () => {
   variableOptions.value = res.data || []
 }
 
-const handleAnalyzeModoTexto = async () => {
+const handleAnalyzeModoTexto = async (format: 'modoTexto' | 'jsonStudio' = 'modoTexto') => {
   if (!selectedFile.value) return
   analyzing.value = true
   loading.value = true
@@ -272,7 +301,8 @@ const handleAnalyzeModoTexto = async () => {
       return
     }
 
-    toast('Análise concluída. Revise as correlações antes de gerar o TXT.', 'success')
+    const label = format === 'jsonStudio' ? 'JSON' : 'TXT'
+    toast(`Análise concluída. Revise as correlações antes de gerar o ${label}.`, 'success')
   } catch (e) {
     toast(conversionErrorMessage(e, 'Erro ao analisar imagem.'), 'error')
   } finally {
@@ -280,6 +310,35 @@ const handleAnalyzeModoTexto = async () => {
     loading.value = false
     analyzing.value = false
   }
+}
+
+const buildReviewedMeasures = (): ReviewedMeasure[] =>
+  analysis.value.map(m => {
+    const state = reviewState.value[m.id] ?? {
+      codVariavel: null,
+      decision: 'keep' as const,
+      codReferencia: null,
+      normalityMode: 'simple' as const
+    }
+    return {
+      id: m.id,
+      label: m.label,
+      section: m.section,
+      unit: m.unit,
+      originalText: m.originalText,
+      codVariavel: state.codVariavel,
+      codReferencia: state.codReferencia,
+      normalityMode: state.normalityMode,
+      decision: state.decision === 'ignore' ? 'ignore' : 'keep'
+    }
+  })
+
+const reviewSummaryText = () => {
+  const kept = analysis.value.filter(m => reviewState.value[m.id]?.decision !== 'ignore')
+  const matched = kept.filter(m => !!reviewState.value[m.id]?.codVariavel).length
+  const unmatched = kept.filter(m => !reviewState.value[m.id]?.codVariavel).length
+  const ignored = analysis.value.filter(m => reviewState.value[m.id]?.decision === 'ignore').length
+  return `${matched} correlacionada(s), ${unmatched} sem variável no banco, ${ignored} ignorada(s).`
 }
 
 const loadVariableDetails = async (codVariavel: number) => {
@@ -479,25 +538,7 @@ const handleGenerateReviewedModoTexto = async () => {
 
   generatingReviewedText.value = true
   try {
-    const measures: ReviewedMeasure[] = analysis.value.map(m => {
-      const state = reviewState.value[m.id] ?? {
-        codVariavel: null,
-        decision: 'keep' as const,
-        codReferencia: null,
-        normalityMode: 'simple' as const
-      }
-      return {
-        id: m.id,
-        label: m.label,
-        section: m.section,
-        unit: m.unit,
-        originalText: m.originalText,
-        codVariavel: state.codVariavel,
-        codReferencia: state.codReferencia,
-        normalityMode: state.normalityMode,
-        decision: state.decision === 'ignore' ? 'ignore' : 'keep'
-      }
-    })
+    const measures = buildReviewedMeasures()
     const result = await generateModoTextoFromAnalysis(
       analysisSourceFileName.value,
       measures,
@@ -529,8 +570,99 @@ const handleGenerateReviewedModoTexto = async () => {
   }
 }
 
+const handleGenerateReviewedJson = async () => {
+  if (hasPendingReview.value) {
+    toast('Revise todas as medidas sem correlação antes de gerar o JSON.', 'warning')
+    return
+  }
+
+  const confirmation = await confirm(
+    'Confirmar geração do JSON Studio',
+    `${reviewSummaryText()} O modelo só será gerado após esta confirmação.`
+  )
+  if (!confirmation.isConfirmed) return
+
+  if (unmatchedForAlternatives.value.length > 0) {
+    pendingJsonGeneration.value = true
+    alternativesModalOpen.value = true
+    return
+  }
+
+  await runGenerateJsonStudio()
+}
+
+const onAlternativesSkip = async () => {
+  if (!pendingJsonGeneration.value) return
+  pendingJsonGeneration.value = false
+  await runGenerateJsonStudio()
+}
+
+const onAlternativesConfirm = async (
+  items: Array<{ measureId: string; label: string; codVariavel: number }>
+) => {
+  if (!pendingJsonGeneration.value) return
+  pendingJsonGeneration.value = false
+
+  if (items.length) {
+    try {
+      for (const item of items) {
+        await registerAlternativa(item.codVariavel, item.label)
+        const state = reviewState.value[item.measureId]
+        if (state) {
+          reviewState.value[item.measureId] = {
+            ...state,
+            codVariavel: item.codVariavel,
+            decision: 'keep'
+          }
+        }
+      }
+      toast(`${items.length} alternativa(s) cadastrada(s)`, 'success')
+    } catch (e) {
+      toast(conversionErrorMessage(e, 'Erro ao cadastrar alternativa(s).'), 'error')
+      return
+    }
+  }
+
+  await runGenerateJsonStudio()
+}
+
+const runGenerateJsonStudio = async () => {
+  generatingReviewedText.value = true
+  try {
+    const measures = buildReviewedMeasures()
+    const result = await generateJsonFromAnalysis(
+      analysisSourceFileName.value,
+      measures,
+      studioCodPadrao.value
+    )
+    const resolved = resolveConversionContent('jsonStudio', result)
+    outputFormat.value = 'jsonStudio'
+    generatedText.value = resolved.text
+    generatedHtml.value = ''
+    validation.value = result.validation
+
+    store.setCurrent({
+      id: crypto.randomUUID(),
+      format: 'jsonStudio',
+      html: '',
+      text: generatedText.value,
+      sourceFileName: result.sourceFileName,
+      convertedAt: result.convertedAt,
+      provider: result.provider,
+      imagePreviewUrl: imagePreview.value ?? undefined,
+      validation: validation.value ?? { isValid: false, errors: [], warnings: [] }
+    })
+
+    toast(validation.value?.isValid ? 'JSON gerado com sucesso' : 'JSON gerado com avisos', validation.value?.isValid ? 'success' : 'warning')
+  } catch (e) {
+    toast(conversionErrorMessage(e, 'Erro ao gerar JSON Studio.'), 'error')
+  } finally {
+    generatingReviewedText.value = false
+  }
+}
+
 const currentContent = computed(() =>
-  outputFormat.value === 'modoTexto' ? generatedText.value : generatedHtml.value
+  isTextualOutput.value ? generatedText.value : generatedHtml.value
 )
 
 const handleValidate = async () => {
@@ -541,7 +673,7 @@ const handleValidate = async () => {
   }
   try {
     validation.value = await validateContent(outputFormat.value, currentContent.value)
-    const label = outputFormat.value === 'modoTexto' ? 'TXT' : 'HTML'
+    const label = formatLabel.value
     toast(
       validation.value.isValid ? `${label} válido` : `${label} com erros`,
       validation.value.isValid ? 'success' : 'warning'
@@ -565,16 +697,18 @@ function conversionErrorMessage(error: unknown, fallback: string) {
 const handleCopy = async () => {
   if (!hasOutput.value) return
   await copyToClipboard(currentContent.value)
-  toast(outputFormat.value === 'modoTexto' ? 'TXT copiado' : 'HTML copiado', 'success')
+  toast(`${formatLabel.value} copiado`, 'success')
 }
 
 const handleDownload = () => {
   if (!hasOutput.value) return
-  const name = selectedFile.value?.name.replace(/\.[^.]+$/, '') ?? 'laudo'
+  const base = (analysisSourceFileName.value || selectedFile.value?.name || 'laudo').replace(/\.[^.]+$/, '')
   if (outputFormat.value === 'modoTexto') {
-    downloadText(generatedText.value, `${name}-modo-texto.txt`)
+    downloadText(generatedText.value, `${base}-modo-texto.txt`)
+  } else if (outputFormat.value === 'jsonStudio') {
+    downloadJson(generatedText.value, `${base}-studio.json`)
   } else {
-    downloadHtml(generatedHtml.value, `${name}-laudosux.html`)
+    downloadHtml(generatedHtml.value, `${base}.html`)
   }
   toast('Download iniciado', 'success')
 }
@@ -584,7 +718,7 @@ const handleDownload = () => {
   <div>
     <StudioDsPageHeader
       title="Converter Imagem"
-      subtitle="Gere HTML LaudosUX ou TXT modo texto a partir de uma imagem de referência"
+      subtitle="Gere HTML, TXT modo texto ou JSON Studio a partir de uma imagem de referência"
       icon="bi-magic"
     />
     <StudioDsPageShell>
@@ -645,9 +779,15 @@ const handleDownload = () => {
           class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
           :class="outputFormat === 'modoTexto'
             ? 'border-ds-primary-accent/40 bg-ds-primary-accent/10 text-ds-primary-accent'
-            : 'border-ds-success/40 bg-ds-success/10 text-ds-success'"
+            : outputFormat === 'jsonStudio'
+              ? 'border-ds-info/40 bg-ds-info/10 text-ds-info'
+              : 'border-ds-success/40 bg-ds-success/10 text-ds-success'"
         >
-          <i :class="outputFormat === 'modoTexto' ? 'bi bi-file-text' : 'bi bi-code-slash'" />
+          <i :class="outputFormat === 'modoTexto'
+            ? 'bi bi-file-text'
+            : outputFormat === 'jsonStudio'
+              ? 'bi bi-filetype-json'
+              : 'bi bi-code-slash'" />
           {{ loading ? `Gerando ${formatLabel}...` : formatLabel }}
         </span>
         <StudioDsButton variant="secondary" icon="bi-check2-circle" :disabled="!hasOutput" @click="handleValidate">          Validar
@@ -705,7 +845,7 @@ const handleDownload = () => {
         <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p class="text-sm text-ds-muted">
-              Confira as medidas encontradas na imagem. Itens sem correlação precisam ser associados, ignorados ou mantidos como campo novo antes de gerar o TXT.
+              Confira as medidas encontradas na imagem. Itens sem correlação precisam ser associados, ignorados ou mantidos como campo novo antes de gerar o modelo.
             </p>
             <p class="mt-1 text-xs text-ds-muted">
               Abra o seletor de cada medida e use a busca no topo da lista para filtrar sugestões e o banco.
@@ -714,12 +854,22 @@ const handleDownload = () => {
           </div>
           <div class="flex flex-wrap gap-2">
             <StudioDsButton
+              v-if="outputFormat === 'modoTexto'"
               icon="bi-file-text"
               :loading="generatingReviewedText"
               :disabled="hasPendingReview || generatingReviewedText"
               @click="handleGenerateReviewedModoTexto"
             >
               Gerar TXT revisado
+            </StudioDsButton>
+            <StudioDsButton
+              v-else-if="outputFormat === 'jsonStudio'"
+              icon="bi-filetype-json"
+              :loading="generatingReviewedText"
+              :disabled="hasPendingReview || generatingReviewedText"
+              @click="handleGenerateReviewedJson"
+            >
+              Gerar JSON Studio
             </StudioDsButton>
           </div>
         </div>
@@ -848,9 +998,16 @@ const handleDownload = () => {
           <p v-else class="text-sm text-ds-muted">Nenhuma imagem selecionada</p>
         </StudioDsCard>
 
-        <StudioDsCard :title="outputFormat === 'modoTexto' ? 'Preview TXT (modo texto)' : 'Preview HTML'">
+        <StudioDsCard :title="outputFormat === 'modoTexto'
+          ? 'Preview TXT (modo texto)'
+          : outputFormat === 'jsonStudio'
+            ? 'Preview JSON Studio'
+            : 'Preview HTML'">
           <template v-if="outputFormat === 'modoTexto'">
             <StudioModoTextoPreview :text="generatedText" />
+          </template>
+          <template v-else-if="outputFormat === 'jsonStudio'">
+            <pre class="max-h-96 overflow-auto rounded-ds-sm bg-ds-surface p-3 font-mono text-xs text-ds-text whitespace-pre-wrap">{{ generatedText || 'O JSON gerado aparecerá aqui...' }}</pre>
           </template>
           <template v-else>
             <StudioHtmlPreviewFrame :html="generatedHtml" :execute-scripts="executeScripts" />
@@ -862,12 +1019,16 @@ const handleDownload = () => {
           <StudioValidationPanel :validation="validation" :format="outputFormat" />
         </StudioDsCard>
 
-        <StudioDsCard :title="outputFormat === 'modoTexto' ? 'Código TXT gerado' : 'Código HTML gerado'">
+        <StudioDsCard :title="outputFormat === 'modoTexto'
+          ? 'Código TXT gerado'
+          : outputFormat === 'jsonStudio'
+            ? 'Código JSON gerado'
+            : 'Código HTML gerado'">
           <textarea
-            v-if="outputFormat === 'modoTexto'"
+            v-if="isTextualOutput"
             v-model="generatedText"
             class="h-64 w-full resize-y rounded-ds-sm border border-ds-field-border bg-ds-surface-elevated p-3 font-mono text-xs text-ds-text outline-none focus:border-ds-primary-accent focus:ring-1 focus:ring-ds-primary-accent"
-            placeholder="O TXT gerado aparecerá aqui..."
+            :placeholder="outputFormat === 'jsonStudio' ? 'O JSON gerado aparecerá aqui...' : 'O TXT gerado aparecerá aqui...'"
           />
           <textarea
             v-else
@@ -877,6 +1038,14 @@ const handleDownload = () => {
           />
         </StudioDsCard>
       </div>
+
+      <StudioAlternativesModal
+        v-model:open="alternativesModalOpen"
+        :measures="unmatchedForAlternatives"
+        :bank-options="variableOptions"
+        @skip="onAlternativesSkip"
+        @confirm="onAlternativesConfirm"
+      />
     </StudioDsPageShell>
   </div>
 </template>

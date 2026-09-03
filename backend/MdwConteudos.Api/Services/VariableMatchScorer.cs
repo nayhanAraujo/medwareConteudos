@@ -86,7 +86,7 @@ public static class VariableMatchScorer
         };
     }
 
-    internal static string BuildQuery(ExtractedMeasureDto measure) =>
+    public static string BuildQuery(ExtractedMeasureDto measure) =>
         Normalize($"{measure.Label} {measure.VariableName} {measure.OriginalText}");
 
     private static int SubstringBoost(string fieldName) =>

@@ -1,4 +1,4 @@
-export type ConversionFormat = 'html' | 'modoTexto'
+export type ConversionFormat = 'html' | 'modoTexto' | 'jsonStudio'
 
 export interface ValidationResponse {
   isValid: boolean

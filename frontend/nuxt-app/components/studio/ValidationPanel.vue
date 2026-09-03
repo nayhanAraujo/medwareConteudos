@@ -11,8 +11,12 @@ const props = defineProps<{
 }>()
 
 const isModoTexto = computed(() => props.format === 'modoTexto')
+const isJsonStudio = computed(() => props.format === 'jsonStudio')
 
 const statusLabel = computed(() => {
+  if (isJsonStudio.value) {
+    return props.validation?.isValid ? 'JSON Studio válido' : 'JSON com erros de validação'
+  }
   if (isModoTexto.value) {
     return props.validation?.isValid ? 'TXT modo texto válido' : 'TXT com erros de validação'
   }

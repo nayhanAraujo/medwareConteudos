@@ -11,6 +11,8 @@ public interface IConversionAnalysisService
 {
     Task<ConversionAnalysisResponseDto> MatchAsync(MeasureExtractionResultDto extraction, CancellationToken ct);
     Task<string> GenerateModoTextoAsync(IReadOnlyList<ReviewedMeasureDto> measures, int? codPadraoCliente, CancellationToken ct);
+    Task<string> GenerateJsonStudioAsync(IReadOnlyList<ReviewedMeasureDto> measures, int? codPadraoCliente, CancellationToken ct);
+    Task RegisterAlternativaAsync(int codVariavel, string alternativa, CancellationToken ct);
 }
 
 public sealed class ConversionAnalysisService : IConversionAnalysisService
@@ -55,6 +57,39 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
             Provider = extraction.Provider,
             Measures = measures
         };
+    }
+
+    public async Task<string> GenerateJsonStudioAsync(IReadOnlyList<ReviewedMeasureDto> measures, int? codPadraoCliente, CancellationToken ct)
+    {
+        var text = await GenerateModoTextoAsync(measures, codPadraoCliente, ct);
+        return ModoTextoToJsonStudioConverter.Convert(text);
+    }
+
+    public async Task RegisterAlternativaAsync(int codVariavel, string alternativa, CancellationToken ct)
+    {
+        var alt = (alternativa ?? "").Trim();
+        if (codVariavel <= 0) throw new InvalidOperationException("Variável inválida.");
+        if (string.IsNullOrWhiteSpace(alt)) throw new InvalidOperationException("Informe o texto da alternativa.");
+
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL = @codVariavel",
+            new { codVariavel });
+        if (exists == 0) throw new InvalidOperationException("Variável não encontrada.");
+
+        var already = await conn.ExecuteScalarAsync<int>(@"
+            SELECT COUNT(*) FROM VARIAVEISALTERNATIVAS
+            WHERE CODVARIAVEL = @codVariavel AND UPPER(ALTERNATIVA) = UPPER(@alt)",
+            new { codVariavel, alt });
+        if (already > 0) return;
+
+        var codUsuario = await conn.ExecuteScalarAsync<int?>(
+            "SELECT FIRST 1 CODUSUARIO FROM USUARIO ORDER BY CODUSUARIO") ?? 1;
+
+        await conn.ExecuteAsync(@"
+            INSERT INTO VARIAVEISALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
+            VALUES (@codVariavel, @alt, @codUsuario, @now)",
+            new { codVariavel, alt, codUsuario, now = DateTime.Now });
     }
 
     public async Task<string> GenerateModoTextoAsync(IReadOnlyList<ReviewedMeasureDto> measures, int? codPadraoCliente, CancellationToken ct)

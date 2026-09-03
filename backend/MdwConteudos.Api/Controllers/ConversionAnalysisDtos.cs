@@ -52,3 +52,9 @@ public sealed class GenerateModoTextoFromAnalysisRequestDto
     public int? CodPadraoCliente { get; set; }
     public IReadOnlyList<ReviewedMeasureDto> Measures { get; set; } = [];
 }
+
+public sealed class RegisterAlternativaRequestDto
+{
+    public int CodVariavel { get; set; }
+    public string Alternativa { get; set; } = string.Empty;
+}

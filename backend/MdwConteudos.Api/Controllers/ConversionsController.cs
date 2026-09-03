@@ -1,12 +1,14 @@
 using ConversorHtml.Application;
 using ConversorHtml.Application.Dtos;
 using ConversorHtml.Application.Interfaces;
+using ConversorHtml.Application.Services;
 using ConversorHtml.Domain.Enums;
 using ConversorHtml.Domain.Models;
 using MdwConteudos.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace MdwConteudos.Api.Controllers;
 
@@ -116,6 +118,62 @@ public class ConversionsController : ControllerBase
         }
     }
 
+    [HttpPost("generate-json-from-analysis")]
+    public async Task<ActionResult<ConversionResponseDto>> GenerateJsonFromAnalysis(
+        [FromBody] GenerateModoTextoFromAnalysisRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Measures.Count == 0)
+        {
+            return BadRequest(new { message = "Nenhuma medida informada." });
+        }
+
+        if (request.Measures.Any(m => !m.CodVariavel.HasValue
+                && !string.Equals(m.Decision, "ignore", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(m.Decision, "keep", StringComparison.OrdinalIgnoreCase)))
+        {
+            return BadRequest(new { message = "Há medidas sem decisão de revisão." });
+        }
+
+        try
+        {
+            var text = await _analysisService.GenerateModoTextoAsync(request.Measures, request.CodPadraoCliente, cancellationToken);
+            var modoTextoValidation = _modoTextoValidator.Validate(text);
+            var json = ModoTextoToJsonStudioConverter.Convert(text);
+            var jsonValidation = ValidateJsonStudio(json, modoTextoValidation);
+
+            return Ok(new ConversionResponseDto
+            {
+                Format = ConversionOutputFormat.JsonStudio,
+                Text = json,
+                SourceFileName = request.SourceFileName ?? string.Empty,
+                ConvertedAt = DateTime.UtcNow,
+                Provider = "Analysis",
+                Validation = MapValidation(jsonValidation)
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("register-alternativa")]
+    public async Task<IActionResult> RegisterAlternativa(
+        [FromBody] RegisterAlternativaRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _analysisService.RegisterAlternativaAsync(request.CodVariavel, request.Alternativa, cancellationToken);
+            return Ok(new { message = "Alternativa cadastrada." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("health")]
     public IActionResult Health()
     {
@@ -124,7 +182,7 @@ public class ConversionsController : ControllerBase
             status = "healthy",
             timestamp = DateTime.UtcNow,
             provider = _converter.GetType().Name,
-            formats = new[] { "html", "modoTexto" }
+            formats = new[] { "html", "modoTexto", "jsonStudio" }
         });
     }
 
@@ -169,7 +227,8 @@ public class ConversionsController : ControllerBase
                 Validation = MapValidation(validation)
             };
 
-            if (outputFormat == ConversionOutputFormat.ModoTexto)
+            if (outputFormat == ConversionOutputFormat.ModoTexto
+                || outputFormat == ConversionOutputFormat.JsonStudio)
             {
                 response.Text = content;
             }
@@ -216,9 +275,69 @@ public class ConversionsController : ControllerBase
     }
 
     private ValidationResult ValidateContent(ConversionOutputFormat format, string content) =>
-        format == ConversionOutputFormat.ModoTexto
-            ? _modoTextoValidator.Validate(content)
-            : _htmlValidator.Validate(content);
+        format switch
+        {
+            ConversionOutputFormat.ModoTexto => _modoTextoValidator.Validate(content),
+            ConversionOutputFormat.JsonStudio => ValidateJsonStudio(content, null),
+            _ => _htmlValidator.Validate(content)
+        };
+
+    private static ValidationResult ValidateJsonStudio(string json, ValidationResult? modoTextoValidation)
+    {
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        if (modoTextoValidation is not null)
+        {
+            errors.AddRange(modoTextoValidation.Errors);
+            warnings.AddRange(modoTextoValidation.Warnings.Select(w => $"[TXT] {w}"));
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("camposScript", out var campos)
+                || campos.ValueKind != JsonValueKind.Array)
+            {
+                errors.Add("JSON Studio inválido: propriedade 'camposScript' ausente ou inválida.");
+            }
+            else if (campos.GetArrayLength() == 0)
+            {
+                warnings.Add("JSON Studio sem campos.");
+            }
+            else
+            {
+                var hasLaudo = false;
+                foreach (var campo in campos.EnumerateArray())
+                {
+                    if (campo.ValueKind != JsonValueKind.Object) continue;
+                    if (!campo.TryGetProperty("tipo", out var tipo) || tipo.ValueKind != JsonValueKind.String)
+                        errors.Add("Há campo sem 'tipo' no JSON Studio.");
+                    if (!campo.TryGetProperty("nome", out var nome) || nome.ValueKind != JsonValueKind.String
+                        || string.IsNullOrWhiteSpace(nome.GetString()))
+                        errors.Add("Há campo sem 'nome' no JSON Studio.");
+
+                    if (campo.TryGetProperty("nome", out var n)
+                        && string.Equals(n.GetString(), "LAUDODESCRITIVO", StringComparison.OrdinalIgnoreCase))
+                        hasLaudo = true;
+                }
+
+                if (!hasLaudo)
+                    warnings.Add("JSON Studio sem campo LAUDODESCRITIVO.");
+            }
+        }
+        catch (JsonException ex)
+        {
+            errors.Add($"JSON Studio inválido: {ex.Message}");
+        }
+
+        return new ValidationResult
+        {
+            IsValid = errors.Count == 0,
+            Errors = errors,
+            Warnings = warnings
+        };
+    }
 
     private IActionResult? ValidateImage(IFormFile? image)
     {
