@@ -85,6 +85,7 @@ export interface ScriptVersionDetailDto {
 
 export interface ScriptListItem {
   codScriptLaudo: number
+  codPacote?: number
   nome: string
   descricao?: string
   linguagem?: string

@@ -1,7 +1,7 @@
 <template>
   <fieldset>
     <legend class="mb-1.5 text-sm font-medium text-ds-text">{{ label }}</legend>
-    <div class="max-h-44 space-y-1 overflow-y-auto rounded-2xl border border-gray-200 p-3">
+    <div class="max-h-52 space-y-1 overflow-y-auto rounded-2xl border border-gray-200 p-3">
       <label v-for="option in options" :key="option.id" class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 hover:bg-gray-50">
         <input v-model="selected" type="checkbox" :value="option.id" :disabled="disabled" class="rounded border-gray-300">
         <span class="text-sm">{{ option.nome }}</span>

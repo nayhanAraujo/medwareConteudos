@@ -20,6 +20,21 @@ public sealed class AssistenteImportacaoController(IAssistenteImportacaoService 
         catch (Exception ex) { return StatusCode(500, ApiResponse.Fail("Erro ao importar", ex.Message, 500)); }
     }
 
+    [HttpPost("importar-lote")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ImportMany([FromBody] AssistenteImportacaoLoteRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await service.ImportManyAsync(request, ct);
+            return result.TotalImportado == 0
+                ? Conflict(ApiResponse.Fail("Validação", "Nenhum modelo foi importado.", 409))
+                : Ok(ApiResponse.Ok(result));
+        }
+        catch (AssistenteImportacaoException ex) { return Conflict(ApiResponse.Fail("Validação", ex.Message, 409)); }
+        catch (Exception ex) { return StatusCode(500, ApiResponse.Fail("Erro ao importar", ex.Message, 500)); }
+    }
+
     [HttpGet("scripts/{id:int}/download")]
     public async Task<IActionResult> DownloadScript(int id, CancellationToken ct)
     {

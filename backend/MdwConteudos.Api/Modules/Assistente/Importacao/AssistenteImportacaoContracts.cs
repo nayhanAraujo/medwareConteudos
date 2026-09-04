@@ -6,6 +6,7 @@ public sealed class AssistenteImportacaoForm
 {
     public int? CodScriptLaudoOrigem { get; set; }
     public int? CodScriptMrdOrigem { get; set; }
+    public string? Sistema { get; set; }
     public string TituloScript { get; set; } = string.Empty;
     public short TipoScript { get; set; }
     public IFormFile? ArquivoScript { get; set; }
@@ -17,9 +18,30 @@ public sealed class AssistenteImportacaoForm
 
 public sealed record AssistenteImportacaoResult(
     int CodScriptLaudo,
-    int CodPagFotos,
+    int? CodPagFotos,
     IReadOnlyCollection<int> Especialidades,
     int TotalProcedimentos);
+
+public sealed class AssistenteImportacaoLoteRequest
+{
+    public List<int> CodigosScriptLaudoOrigem { get; set; } = [];
+    public string? Sistema { get; set; }
+    public List<int> Especialidades { get; set; } = [];
+    public List<int> Procedimentos { get; set; } = [];
+}
+
+public sealed record AssistenteImportacaoLoteItemResult(
+    int CodScriptLaudoOrigem,
+    int? CodScriptLaudo,
+    int? CodPagFotos,
+    bool Importado,
+    string? Mensagem);
+
+public sealed record AssistenteImportacaoLoteResult(
+    int TotalSolicitado,
+    int TotalImportado,
+    int TotalFalhas,
+    IReadOnlyCollection<AssistenteImportacaoLoteItemResult> Itens);
 
 public sealed record AssistenteArquivoPreparado(string Conteudo, string NomeArquivo, string ContentType, short? TipoScript = null);
 

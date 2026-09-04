@@ -104,12 +104,12 @@ export function useStudioSwal() {
   const toast = (message: string, icon: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     const colors = themeColors(theme.value)
     return Swal.fire({
-      toast: true,
-      position: 'top-end',
+      position: 'center',
       icon,
       title: message,
+      width: '32rem',
       showConfirmButton: false,
-      timer: 3000,
+      timer: 2500,
       timerProgressBar: true,
       background: colors.background,
       color: colors.color

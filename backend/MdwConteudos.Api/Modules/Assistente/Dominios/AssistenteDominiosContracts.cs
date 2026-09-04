@@ -21,4 +21,4 @@ public sealed record PaginaFotosRequest(string? Titulo, string? EstruturaPagFoto
 public sealed record SequencedLink(int Id, short Sequencia);
 public sealed record LinksRequest(IReadOnlyList<int>? Ids);
 public sealed record SequencedLinksRequest(IReadOnlyList<SequencedLink>? Items);
-
+public sealed record AssistenteStatusRequest(int Status);

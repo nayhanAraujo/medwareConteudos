@@ -23,8 +23,17 @@ public sealed class AssistenteDominiosController(IAssistenteDominiosService serv
     public async Task<IActionResult> Dashboard(CancellationToken ct) => Ok(ApiResponse.Ok(await service.Dashboard(ct)));
 
     [HttpGet("{domain}")]
-    public async Task<IActionResult> List(string domain, [FromQuery] int page = 1, [FromQuery] int pageSize = 30, [FromQuery] string? search = null, [FromQuery] int? groupId = null, CancellationToken ct = default)
-        => await Handle(async () => { EnsureDomain(domain); var result = await service.List(domain, page, pageSize, search, groupId, ct); return Ok(ApiResponse.Ok(new { result.Items, result.Page, result.PageSize }, result.Total)); });
+    public async Task<IActionResult> List(
+        string domain,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 30,
+        [FromQuery] string? search = null,
+        [FromQuery] int? groupId = null,
+        [FromQuery] int? tipoScript = null,
+        [FromQuery] int? status = null,
+        [FromQuery] int? especialidade = null,
+        CancellationToken ct = default)
+        => await Handle(async () => { EnsureDomain(domain); var result = await service.List(domain, page, pageSize, search, groupId, tipoScript, status, especialidade, ct); return Ok(ApiResponse.Ok(new { result.Items, result.Page, result.PageSize }, result.Total)); });
 
     [HttpGet("{domain}/{id:int}")]
     public async Task<IActionResult> Get(string domain, int id, CancellationToken ct)
@@ -37,6 +46,10 @@ public sealed class AssistenteDominiosController(IAssistenteDominiosService serv
     [HttpPut("{domain}/{id:int}"), Authorize(Roles = "admin")]
     public async Task<IActionResult> Update(string domain, int id, [FromBody] JsonElement body, CancellationToken ct)
         => await Handle(async () => { var request = Parse(domain, body); Validate(domain, request); return await service.Update(domain, id, request, ct) ? Ok(ApiResponse.OkMessage("Registro atualizado.")) : NotFound(ApiResponse.Fail("Registro não encontrado")); });
+
+    [HttpPut("{domain}/{id:int}/status"), Authorize(Roles = "admin")]
+    public async Task<IActionResult> SetStatus(string domain, int id, [FromBody] AssistenteStatusRequest request, CancellationToken ct)
+        => await Handle(async () => { EnsureDomain(domain); return await service.SetStatus(domain, id, request.Status, ct) ? Ok(ApiResponse.OkMessage("Status atualizado.")) : NotFound(ApiResponse.Fail("Registro não encontrado")); });
 
     [HttpDelete("{domain}/{id:int}"), Authorize(Roles = "admin")]
     public async Task<IActionResult> Delete(string domain, int id, CancellationToken ct)

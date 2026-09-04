@@ -30,6 +30,7 @@ export interface AssistenteDashboard {
 export interface ImportarModeloPayload {
   codScriptLaudoOrigem: number
   codScriptMrdOrigem?: number
+  sistema?: 'Laudos Flex' | 'Laudos UX'
   tituloScript?: string
   tituloMrd?: string
   tipoScript?: 1 | 2 | 3
@@ -41,9 +42,31 @@ export interface ImportarModeloPayload {
 
 export interface ImportarModeloResult {
   codScriptLaudo: number
-  codPagFotos: number
+  codPagFotos?: number
   especialidadesVinculadas: number[]
   totalProcedimentosVinculados: number
+}
+
+export interface ImportarModelosPayload {
+  codigosScriptLaudoOrigem: number[]
+  sistema?: 'Laudos Flex' | 'Laudos UX'
+  especialidades: number[]
+  procedimentos: number[]
+}
+
+export interface ImportarModeloLoteItemResult {
+  codScriptLaudoOrigem: number
+  codScriptLaudo?: number
+  codPagFotos?: number
+  importado: boolean
+  mensagem?: string
+}
+
+export interface ImportarModelosResult {
+  totalSolicitado: number
+  totalImportado: number
+  totalFalhas: number
+  itens: ImportarModeloLoteItemResult[]
 }
 
 export interface AssistenteLinkItem { id: number; nome: string; status?: number; sequencia?: number }
@@ -100,6 +123,26 @@ export function useAssistenteApi() {
     return result as T
   }
 
+  function linkId(value: unknown) {
+    if (typeof value === 'number') return value
+    if (!value || typeof value !== 'object') return 0
+    const row = value as Record<string, unknown>
+    const keys = ['id', 'Id', 'ID', 'CODESPECIALIDADE', 'CODPROCEDIMENTO', 'CODESQUEMA', 'CODPAGFOTOS', 'CODSCRIPTLAUDO']
+    for (const key of keys) {
+      const id = Number(row[key])
+      if (id > 0) return id
+    }
+    const fallback = Object.values(row).map(Number).find(id => id > 0)
+    return fallback || 0
+  }
+
+  function normalizeLinks(links: Record<string, unknown> | undefined) {
+    return Object.fromEntries(Object.entries(links || {}).map(([relation, values]) => [
+      relation,
+      Array.isArray(values) ? values.map(linkId).filter(id => id > 0) : []
+    ]))
+  }
+
   function download(path: string, filename: string) {
     return api.getBlob(path).then((blob) => {
       const a = document.createElement('a')
@@ -148,7 +191,8 @@ export function useAssistenteApi() {
     list,
     get: async <T = AssistenteEntity>(domain: string, id: number) => {
       const data = unwrap<any>(await api.get<ApiEnvelope<any>>(`${root}/${domain}/${id}`))
-      return normalize(domain, (data.item || data) as AssistenteEntity) as T
+      const item = normalize(domain, (data.item || data) as AssistenteEntity)
+      return { ...item, ...normalizeLinks(data.links) } as T
     },
     create: async <T = AssistenteEntity>(domain: string, body: unknown) =>
       unwrap(await api.post<ApiEnvelope<T>>(`${root}/${domain}`, body)),
@@ -184,6 +228,7 @@ export function useAssistenteApi() {
       const form = new FormData()
       form.append('codScriptLaudoOrigem', String(payload.codScriptLaudoOrigem))
       if (payload.codScriptMrdOrigem) form.append('codScriptMrdOrigem', String(payload.codScriptMrdOrigem))
+      if (payload.sistema) form.append('sistema', payload.sistema)
       if (payload.tituloScript) form.append('tituloScript', payload.tituloScript)
       if (payload.tituloMrd) form.append('tituloMrd', payload.tituloMrd)
       if (payload.tipoScript) form.append('tipoScript', String(payload.tipoScript))
@@ -192,6 +237,8 @@ export function useAssistenteApi() {
       payload.especialidades.forEach(id => form.append('especialidades', String(id)))
       payload.procedimentos.forEach(id => form.append('procedimentos', String(id)))
       return unwrap(await api.postForm<ApiEnvelope<ImportarModeloResult>>(`${root}/modelos/importar`, form))
-    }
+    },
+    importModels: async (payload: ImportarModelosPayload) =>
+      unwrap(await api.post<ApiEnvelope<ImportarModelosResult>>(`${root}/modelos/importar-lote`, payload))
   }
 }

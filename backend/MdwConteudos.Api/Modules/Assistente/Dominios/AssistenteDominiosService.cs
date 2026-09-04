@@ -8,11 +8,12 @@ namespace MdwConteudos.Api.Modules.Assistente.Dominios;
 public interface IAssistenteDominiosService
 {
     Task<object> Dashboard(CancellationToken ct);
-    Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, int? groupId, CancellationToken ct);
+    Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, int? groupId, int? tipoScript, int? status, int? especialidade, CancellationToken ct);
     Task<dynamic?> Get(string domain, int id, CancellationToken ct);
     Task<int> Create(string domain, object request, CancellationToken ct);
     Task<bool> Update(string domain, int id, object request, CancellationToken ct);
     Task<bool> Delete(string domain, int id, CancellationToken ct);
+    Task<bool> SetStatus(string domain, int id, int status, CancellationToken ct);
     Task SetLinks(string domain, int id, string relation, IReadOnlyList<int> ids, CancellationToken ct);
     Task SetSequencedLinks(string domain, int id, string relation, IReadOnlyList<SequencedLink> links, CancellationToken ct);
 }
@@ -46,14 +47,14 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         return new { totalTabelas = 24, dominios = counts };
     }
 
-    public async Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, int? groupId, CancellationToken ct)
+    public async Task<PagedResult<dynamic>> List(string domain, int page, int pageSize, string? search, int? groupId, int? tipoScript, int? status, int? especialidade, CancellationToken ct)
     {
         var d = Resolve(domain); page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 200);
         await using var c = await connections.OpenConnectionAsync(ct);
         if (domain.Equals("procedimentos", StringComparison.OrdinalIgnoreCase))
             return await ListProcedimentos(c, page, pageSize, search, ct);
         if (domain.Equals("scripts", StringComparison.OrdinalIgnoreCase))
-            return await ListScripts(c, page, pageSize, search, ct);
+            return await ListScripts(c, page, pageSize, search, tipoScript, status, especialidade, ct);
         if (domain.Equals("frases", StringComparison.OrdinalIgnoreCase))
             return await ListFrases(c, page, pageSize, search, groupId, ct);
         var where = string.IsNullOrWhiteSpace(search) ? "" : $"WHERE UPPER(COALESCE(CAST({d.SearchColumn} AS VARCHAR(512)), '')) LIKE @Search";
@@ -82,7 +83,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         return new(rows, total, page, pageSize);
     }
 
-    private static async Task<PagedResult<dynamic>> ListScripts(DbConnection c, int page, int pageSize, string? search, CancellationToken ct)
+    private static async Task<PagedResult<dynamic>> ListScripts(DbConnection c, int page, int pageSize, string? search, int? tipoScript, int? status, int? especialidade, CancellationToken ct)
     {
         const string from = @"FROM SCRIPTLAUDO s
             LEFT JOIN (
@@ -92,13 +93,26 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
                 JOIN ESPECIALIDADE e ON e.CODESPECIALIDADE = se.CODESPECIALIDADE
                 GROUP BY se.CODSCRIPTLAUDO
             ) esp ON esp.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO";
-        var where = string.IsNullOrWhiteSpace(search) ? "" : @"WHERE
-            UPPER(COALESCE(CAST(s.TITULO AS VARCHAR(512)), '')) LIKE @Search OR
-            UPPER(COALESCE(CAST(esp.ESPECIALIDADES AS VARCHAR(512)), '')) LIKE @Search";
-        var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", Skip = (page - 1) * pageSize, Take = pageSize };
-        var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) {from} {where}", args, cancellationToken: ct));
+        var where = new List<string>();
+        if (!string.IsNullOrWhiteSpace(search))
+            where.Add(@"(
+                UPPER(COALESCE(CAST(s.TITULO AS VARCHAR(512)), '')) LIKE @Search OR
+                UPPER(COALESCE(CAST(s.CODSCRIPTLAUDO AS VARCHAR(32)), '')) LIKE @Search OR
+                UPPER(COALESCE(CAST(esp.ESPECIALIDADES AS VARCHAR(512)), '')) LIKE @Search
+            )");
+        if (tipoScript is 1 or 2 or 3) where.Add("s.TIPOSCRIPT = @TipoScript");
+        if (status is -1 or 0) where.Add("s.STATUS = @Status");
+        if (especialidade.HasValue && especialidade.Value > 0)
+            where.Add(@"EXISTS (
+                SELECT 1 FROM SCRIPTLAUDO_ESPECIALIDADE se_filter
+                WHERE se_filter.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
+                  AND se_filter.CODESPECIALIDADE = @Especialidade
+            )");
+        var whereSql = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+        var args = new { Search = $"%{search?.Trim().ToUpperInvariant()}%", TipoScript = tipoScript, Status = status, Especialidade = especialidade, Skip = (page - 1) * pageSize, Take = pageSize };
+        var total = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) {from} {whereSql}", args, cancellationToken: ct));
         var rows = (await c.QueryAsync(new CommandDefinition($@"SELECT s.*, esp.ESPECIALIDADES
-            {from} {where}
+            {from} {whereSql}
             ORDER BY s.TITULO
             ROWS @Skip + 1 TO @Skip + @Take", args, cancellationToken: ct))).ToList();
         return new(rows, total, page, pageSize);
@@ -163,6 +177,18 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         catch { await tx.RollbackAsync(ct); throw; }
     }
 
+    public async Task<bool> SetStatus(string domain, int id, int status, CancellationToken ct)
+    {
+        if (status is not (-1 or 0)) throw new InvalidOperationException("Status deve ser -1 (ativo) ou 0 (inativo).");
+        var d = Resolve(domain);
+        if (d.StatusColumn is null) throw new InvalidOperationException("Este domínio não possui status.");
+        await using var c = await connections.OpenConnectionAsync(ct);
+        return await c.ExecuteAsync(new CommandDefinition(
+            $"UPDATE {d.Table} SET {d.StatusColumn}=@Status WHERE {d.Key}=@Id",
+            new { Id = id, Status = status },
+            cancellationToken: ct)) > 0;
+    }
+
     public async Task SetLinks(string domain, int id, string relation, IReadOnlyList<int> ids, CancellationToken ct)
     {
         var link = ResolveLink(domain, relation); await using var c = await connections.OpenConnectionAsync(ct); await using var tx = await c.BeginTransactionAsync(ct);
@@ -208,7 +234,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
             "referencias" => "UPDATE REFERENCIA SET DESCRICAO=@Descricao,TIPO=@Tipo,VALOR=@Valor WHERE CODREFERENCIA=@Id",
             "esquemas" => "UPDATE ESQUEMAS SET DESCRICAO=@Descricao,IMAGEM=@Imagem WHERE CODESQUEMA=@Id",
             "esquemas-fotos" => "UPDATE ESQUEMAFOTOS SET TITULO=@Titulo,ESQUEMA=@Esquema WHERE CODESQUEMAFOTOS=@Id",
-            "scripts" => "UPDATE SCRIPTLAUDO SET TITULO=@Titulo,ESTRUTURASCRIPT=@EstruturaScript,TIPOSCRIPT=@TipoScript,STATUS=@Status WHERE CODSCRIPTLAUDO=@Id",
+            "scripts" => "UPDATE SCRIPTLAUDO SET TITULO=@Titulo,TIPOSCRIPT=@TipoScript,STATUS=@Status WHERE CODSCRIPTLAUDO=@Id",
             "paginas-fotos" => "UPDATE PAGFOTOS SET TITULO=@Titulo,ESTRUTURAPAGFOTOS=@EstruturaPagFotos,STATUS=@Status WHERE CODPAGFOTOS=@Id",
             _ => throw new ArgumentException("Domínio inválido.")
         };

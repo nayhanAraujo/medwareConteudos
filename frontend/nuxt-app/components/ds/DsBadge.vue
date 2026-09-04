@@ -11,7 +11,7 @@
 const props = withDefaults(
   defineProps<{
     label?: string
-    variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'dark'
+    variant?: 'default' | 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'dark' | 'purple'
   }>(),
   { variant: 'default' }
 )
@@ -19,11 +19,13 @@ const props = withDefaults(
 const variantClass = computed(() => {
   const map = {
     default: 'bg-ds-surface text-ds-text',
+    neutral: 'bg-gray-100 text-gray-700',
     primary: 'bg-blue-600 text-white',
     success: 'bg-green-600 text-white',
     warning: 'bg-orange-500 text-white',
     danger: 'bg-rose-600 text-white',
-    dark: 'bg-gray-800 text-white'
+    dark: 'bg-gray-800 text-white',
+    purple: 'bg-purple-600 text-white'
   }
   return map[props.variant]
 })

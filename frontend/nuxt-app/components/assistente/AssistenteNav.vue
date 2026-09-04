@@ -1,6 +1,14 @@
 <template>
   <nav class="mb-5 flex flex-wrap gap-2" aria-label="Seções do Assistente">
-    <DsButton v-for="item in items" :key="item.to" :to="item.to" :icon="item.icon" :variant="route.path === item.to ? 'primary' : 'secondary'" size="sm">
+    <DsButton
+      v-for="item in items"
+      :key="item.to"
+      :to="item.to"
+      :icon="item.icon"
+      :variant="route.path === item.to ? 'primary' : 'secondary'"
+      size="sm"
+      class="!px-3 !py-1.5 !text-xs"
+    >
       {{ item.label }}
     </DsButton>
   </nav>
