@@ -1,6 +1,7 @@
 <template>
   <div>
     <DsPageHeader title="Pacotes Disponíveis" icon="box-seam" />
+    <DsButton v-if="useAuthStore().isAdmin" variant="secondary" icon="arrow-repeat" to="/scripts/publicacao" class="mb-4">Publicação no Assistente</DsButton>
     <ScriptsBreadcrumb :sistema="sistema" />
     <DsPageShell>
       <div class="flex justify-between items-center mb-6">

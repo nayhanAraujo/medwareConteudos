@@ -91,19 +91,19 @@ public class PaineisWebService : IPaineisWebService
                    p.CODCLIENTE, c.NOME AS NOME_CLIENTE, p.CODMODULO, m.NOME AS NOME_MODULO,
                    CASE WHEN p.ARQUIVO_PBIX IS NOT NULL THEN 1 ELSE 0 END AS TEM_PBIX,
                    p.NOME_ARQUIVO_PBIX,
-                   v.NUMEROVERSAO, v.DATACRIACAO, v.PUBLICADO
+                   v.CODVERSAOPAINEL, v.NUMEROVERSAO, v.DATACRIACAO, v.PUBLICADO,
+                   (
+                       SELECT FIRST 1 i.CODIMAGEMPAINEL
+                       FROM IMAGENSPAINEL i
+                       WHERE i.CODVERSAOPAINEL = v.CODVERSAOPAINEL
+                       ORDER BY COALESCE(i.ORDEM_EXIBICAO, 999999), i.CODIMAGEMPAINEL
+                   ) AS THUMBNAIL_IMAGE_ID
             {from}
-            LEFT JOIN (
-                SELECT v1.CODPAINEL, v1.NUMEROVERSAO,
-                       COALESCE(v1.DATACRIACAO, CURRENT_TIMESTAMP) AS DATACRIACAO, v1.PUBLICADO
-                FROM VersoesPainel v1
-                INNER JOIN (
-                    SELECT CODPAINEL, MAX(COALESCE(DATACRIACAO, CURRENT_TIMESTAMP)) AS MAX_DATA
-                    FROM VersoesPainel
-                    GROUP BY CODPAINEL
-                ) v2 ON v1.CODPAINEL = v2.CODPAINEL
-                     AND COALESCE(v1.DATACRIACAO, CURRENT_TIMESTAMP) = v2.MAX_DATA
-            ) v ON p.CODPAINEL = v.CODPAINEL
+            LEFT JOIN VersoesPainel v ON v.CODVERSAOPAINEL = (
+                SELECT FIRST 1 latest.CODVERSAOPAINEL
+                FROM VersoesPainel latest WHERE latest.CODPAINEL = p.CODPAINEL
+                ORDER BY latest.DATACRIACAO DESC NULLS LAST, latest.CODVERSAOPAINEL DESC
+            )
             WHERE {whereClause}
             ORDER BY p.NOME", p)).ToList();
 
@@ -111,6 +111,8 @@ public class PaineisWebService : IPaineisWebService
         foreach (var r in rows)
         {
             var id = (int)r.CODPAINEL;
+            var thumbnailVersionId = r.CODVERSAOPAINEL is null ? null : (int?)Convert.ToInt32(r.CODVERSAOPAINEL);
+            var thumbnailImageId = r.THUMBNAIL_IMAGE_ID is null ? null : (int?)Convert.ToInt32(r.THUMBNAIL_IMAGE_ID);
             var pacotes = (await conn.QueryAsync<string>(@"
                 SELECT pc.NOME FROM Paineis_Pacotes pp
                 JOIN PacotesComerciais pc ON pp.CODPACOTECOMERCIAL = pc.CODPACOTECOMERCIAL
@@ -132,6 +134,11 @@ public class PaineisWebService : IPaineisWebService
                 ultima_versao = (string?)r.NUMEROVERSAO,
                 data_versao = FormatDate(r.DATACRIACAO),
                 publicado = r.PUBLICADO is null ? (int?)null : ToInt01(r.PUBLICADO),
+                thumbnail_version_id = thumbnailVersionId,
+                thumbnail_image_id = thumbnailImageId,
+                thumbnail_url = thumbnailVersionId.HasValue && thumbnailImageId.HasValue
+                    ? $"/api/web/paineis/{id}/versoes/{thumbnailVersionId.Value}/download/IMAGEM?imagemId={thumbnailImageId.Value}"
+                    : null,
                 pacotes
             });
         }
@@ -162,12 +169,12 @@ public class PaineisWebService : IPaineisWebService
             WHERE p.CODPAINEL = @id", new { id });
         if (r is null) return null;
 
-        var pacotes = (await conn.QueryAsync(@"
-            SELECT pc.CODPACOTECOMERCIAL AS Cod, pc.NOME AS Nome
+        var pacotes = (await conn.QueryAsync<PainelPacoteDetalheRow>(@"
+            SELECT pc.CODPACOTECOMERCIAL AS CodPacoteComercial, pc.NOME AS Nome
             FROM Paineis_Pacotes pp
             JOIN PacotesComerciais pc ON pp.CODPACOTECOMERCIAL = pc.CODPACOTECOMERCIAL
             WHERE pp.CODPAINEL = @id ORDER BY pc.NOME", new { id }))
-            .Select(x => new { codpacotecomercial = (int)x.Cod, nome = (string?)x.Nome })
+            .Select(x => new { codpacotecomercial = x.CodPacoteComercial, nome = x.Nome })
             .ToList();
 
         var versoes = (await conn.QueryAsync(@"
@@ -175,7 +182,7 @@ public class PaineisWebService : IPaineisWebService
                    COALESCE(DATACRIACAO, CURRENT_TIMESTAMP) AS DATACRIACAO, PUBLICADO, OBSERVACOES
             FROM VersoesPainel
             WHERE CODPAINEL = @id
-            ORDER BY COALESCE(DATACRIACAO, CURRENT_TIMESTAMP) DESC", new { id }))
+            ORDER BY DATACRIACAO DESC NULLS LAST, CODVERSAOPAINEL DESC", new { id }))
             .Select(v => new
             {
                 codversaopainel = (int)v.CODVERSAOPAINEL,
@@ -387,14 +394,14 @@ public class PaineisWebService : IPaineisWebService
         await using var conn = await _db.OpenConnectionAsync(ct);
         try
         {
-            var rows = await conn.QueryAsync(@"
+            var rows = await conn.QueryAsync<PainelModuloLookupRow>(@"
                 SELECT CODMODULO AS CodModulo, NOME AS Nome
                 FROM ModulosSistema WHERE ATIVO = 1 ORDER BY NOME");
             return new { success = true, data = rows };
         }
         catch
         {
-            var rows = await conn.QueryAsync(@"
+            var rows = await conn.QueryAsync<PainelModuloLookupRow>(@"
                 SELECT CODMODULO AS CodModulo, NOME AS Nome FROM ModulosSistema ORDER BY NOME");
             return new { success = true, data = rows };
         }
@@ -405,14 +412,14 @@ public class PaineisWebService : IPaineisWebService
         await using var conn = await _db.OpenConnectionAsync(ct);
         try
         {
-            var rows = await conn.QueryAsync(@"
+            var rows = await conn.QueryAsync<PainelPacoteLookupRow>(@"
                 SELECT CODPACOTECOMERCIAL AS CodPacote, NOME AS Nome
                 FROM PacotesComerciais WHERE ATIVO = 1 ORDER BY NOME");
             return new { success = true, data = rows };
         }
         catch
         {
-            var rows = await conn.QueryAsync(@"
+            var rows = await conn.QueryAsync<PainelPacoteLookupRow>(@"
                 SELECT CODPACOTECOMERCIAL AS CodPacote, NOME AS Nome FROM PacotesComerciais ORDER BY NOME");
             return new { success = true, data = rows };
         }
@@ -524,5 +531,23 @@ public class PaineisWebService : IPaineisWebService
 internal sealed class ClienteLookupRow
 {
     public int CodCliente { get; set; }
+    public string Nome { get; set; } = "";
+}
+
+internal sealed class PainelModuloLookupRow
+{
+    public int CodModulo { get; set; }
+    public string Nome { get; set; } = "";
+}
+
+internal sealed class PainelPacoteLookupRow
+{
+    public int CodPacote { get; set; }
+    public string Nome { get; set; } = "";
+}
+
+internal sealed class PainelPacoteDetalheRow
+{
+    public int CodPacoteComercial { get; set; }
     public string Nome { get; set; } = "";
 }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 
 namespace MdwConteudos.Api.Modules.PaineisCadastros;
 
@@ -12,37 +13,37 @@ public sealed class PaineisCadastrosController(IPaineisCadastrosService service)
     [HttpGet("clientes")]
     public Task<IActionResult> ListClientes(CancellationToken ct) => List(PainelCadastroTipo.Cliente, ct);
 
-    [HttpPost("clientes"), Authorize(Roles = "admin")]
+    [HttpPost("clientes"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Criar)]
     public Task<IActionResult> CreateCliente(PainelCadastroRequest request, CancellationToken ct) => Create(PainelCadastroTipo.Cliente, request, "Cliente cadastrado.", ct);
 
-    [HttpPut("clientes/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("clientes/{id:int}"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     public Task<IActionResult> UpdateCliente(int id, PainelCadastroRequest request, CancellationToken ct) => Update(PainelCadastroTipo.Cliente, id, request, "Cliente atualizado.", ct);
 
-    [HttpDelete("clientes/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("clientes/{id:int}"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Excluir)]
     public Task<IActionResult> DeleteCliente(int id, CancellationToken ct) => Delete(PainelCadastroTipo.Cliente, id, "Cliente excluído.", ct);
 
     [HttpGet("modulos")]
     public Task<IActionResult> ListModulos(CancellationToken ct) => List(PainelCadastroTipo.Modulo, ct);
 
-    [HttpPost("modulos"), Authorize(Roles = "admin")]
+    [HttpPost("modulos"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Criar)]
     public Task<IActionResult> CreateModulo(PainelCadastroRequest request, CancellationToken ct) => Create(PainelCadastroTipo.Modulo, request, "Módulo cadastrado.", ct);
 
-    [HttpPut("modulos/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("modulos/{id:int}"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     public Task<IActionResult> UpdateModulo(int id, PainelCadastroRequest request, CancellationToken ct) => Update(PainelCadastroTipo.Modulo, id, request, "Módulo atualizado.", ct);
 
-    [HttpDelete("modulos/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("modulos/{id:int}"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Excluir)]
     public Task<IActionResult> DeleteModulo(int id, CancellationToken ct) => Delete(PainelCadastroTipo.Modulo, id, "Módulo excluído.", ct);
 
     [HttpGet("pacotes-comerciais")]
     public Task<IActionResult> ListPacotes(CancellationToken ct) => List(PainelCadastroTipo.PacoteComercial, ct);
 
-    [HttpPost("pacotes-comerciais"), Authorize(Roles = "admin")]
+    [HttpPost("pacotes-comerciais"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Criar)]
     public Task<IActionResult> CreatePacote(PainelCadastroRequest request, CancellationToken ct) => Create(PainelCadastroTipo.PacoteComercial, request, "Pacote comercial cadastrado.", ct);
 
-    [HttpPut("pacotes-comerciais/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("pacotes-comerciais/{id:int}"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     public Task<IActionResult> UpdatePacote(int id, PainelCadastroRequest request, CancellationToken ct) => Update(PainelCadastroTipo.PacoteComercial, id, request, "Pacote comercial atualizado.", ct);
 
-    [HttpDelete("pacotes-comerciais/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("pacotes-comerciais/{id:int}"), RequirePermission(PermissionDomains.Paineis, PermissionActions.Excluir)]
     public Task<IActionResult> DeletePacote(int id, CancellationToken ct) => Delete(PainelCadastroTipo.PacoteComercial, id, "Pacote comercial excluído.", ct);
 
     private async Task<IActionResult> List(PainelCadastroTipo type, CancellationToken ct)

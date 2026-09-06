@@ -8,7 +8,7 @@
     <DsPageShell>
       <div class="flex flex-wrap justify-end gap-2 mb-4">
         <DsButton variant="secondary" size="sm" icon="journal-richtext" to="/referencias">Listar Referências</DsButton>
-        <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="plus-lg" to="/variaveis/nova">
+        <DsButton v-if="canCreateVariaveis" variant="success" size="sm" icon="plus-lg" to="/variaveis/nova">
           Nova Variável
         </DsButton>
         <DsButton variant="secondary" size="sm" icon="journal-medical" to="/variaveis/referencias-normalidades">
@@ -18,7 +18,7 @@
           Padrões por cliente
         </DsButton>
         <DsButton
-          v-if="auth.isAdmin"
+          v-if="canEditVariaveis"
           variant="secondary"
           size="sm"
           icon="diagram-3"
@@ -27,7 +27,7 @@
           Grupos/Classificações
         </DsButton>
         <DsButton
-          v-if="auth.isAdmin"
+          v-if="canImportVariaveis"
           variant="secondary"
           size="sm"
           icon="upload"
@@ -36,7 +36,7 @@
           Importar (.cs)
         </DsButton>
         <DsButton
-          v-if="auth.isAdmin"
+          v-if="canEditVariaveis"
           variant="secondary"
           size="sm"
           icon="link-45deg"
@@ -45,7 +45,7 @@
           Modelos modo texto
         </DsButton>
         <DsButton
-          v-if="auth.isAdmin"
+          v-if="canLinkVariaveis"
           variant="secondary"
           size="sm"
           icon="check2-all"
@@ -81,7 +81,7 @@
       <DsAlert v-else-if="!items.length" variant="info">
         Nenhuma variável encontrada.
         <template v-if="hasActiveFilter"> Tente refinar sua busca ou limpar os filtros.</template>
-        <template v-else-if="auth.isAdmin">
+        <template v-else-if="canCreateVariaveis">
           <DsButton variant="ghost" size="sm" class="ml-2 p-0 h-auto" to="/variaveis/nova">
             Cadastre uma nova variável
           </DsButton>
@@ -257,6 +257,10 @@ definePageMeta({ layout: 'default' })
 
 const PAGE_SIZE = 10
 const auth = useAuthStore()
+const canCreateVariaveis = computed(() => auth.can('variaveis', 'criar'))
+const canEditVariaveis = computed(() => auth.can('variaveis', 'editar'))
+const canImportVariaveis = computed(() => auth.can('variaveis', 'importar'))
+const canLinkVariaveis = computed(() => auth.can('variaveis', 'vincular'))
 const swal = useSwal()
 const variaveisApi = useVariaveisApi()
 const { open: listModalOpen, show: showListModal, hide: hideListModal } = useDsModal()
@@ -434,8 +438,8 @@ async function openDicomSwal(item: VariavelListItem) {
 }
 
 async function confirmarExclusao(item: VariavelListItem) {
-  if (!auth.isAdmin) {
-    await swal.warning('Acesso negado', 'Apenas administradores podem excluir variáveis.')
+  if (!auth.can('variaveis', 'excluir')) {
+    await swal.warning('Acesso negado', 'Você não possui permissão para excluir variáveis.')
     return
   }
   try {

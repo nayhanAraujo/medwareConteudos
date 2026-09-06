@@ -116,6 +116,7 @@ definePageMeta({ layout: 'default', middleware: 'admin' })
 const api = useAssistenteApi()
 const scriptsApi = useScriptsApi()
 const swal = useSwal()
+const route = useRoute()
 
 const saving = ref(false)
 const validationError = ref('')
@@ -176,6 +177,14 @@ const inferredTipo = computed(() => {
 function tipoLabel(value: number) {
   const map: Record<number, string> = { 1: 'VB (legado)', 2: 'C#', 3: 'JSON' }
   return map[value] ?? String(value)
+}
+
+function especialidadeSolicitada() {
+  const queryValue = Array.isArray(route.query.especialidade)
+    ? route.query.especialidade[0]
+    : route.query.especialidade
+  const id = Number(queryValue)
+  return Number.isInteger(id) && id > 0 ? id : null
 }
 
 let scriptTimer: ReturnType<typeof setTimeout> | undefined
@@ -382,6 +391,10 @@ onMounted(async () => {
     ])
     especialidades.value = especialidadesResult
     pacotes.value = pacotesResult.data || []
+    const especialidadeId = especialidadeSolicitada()
+    if (especialidadeId && especialidades.value.some(option => option.id === especialidadeId)) {
+      form.especialidades = [especialidadeId]
+    }
     await fetchScripts()
   } catch (reason) {
     validationError.value = reason instanceof Error ? reason.message : 'Não foi possível carregar os vínculos.'

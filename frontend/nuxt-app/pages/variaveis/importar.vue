@@ -112,7 +112,7 @@
 import type { ImportacaoVariavelDecisao, ImportacaoVariavelItem, ImportacaoVariaveisPreview } from '~/composables/useVariaveisApi'
 import type { ReferenciaItem } from '~/composables/useReferenciasApi'
 
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 const api = useVariaveisApi()
 const referenciasApi = useReferenciasApi()
 const swal = useSwal()

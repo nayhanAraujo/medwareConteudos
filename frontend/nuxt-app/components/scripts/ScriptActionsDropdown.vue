@@ -9,36 +9,36 @@
     </template>
     <template #default="{ close }">
       <DsDropdownItem
-        v-if="auth.isAdmin"
+        v-if="canLink"
         :to="`/scripts/${item.codScriptLaudo}/variaveis`"
         @click="close"
       >
         <i class="bi bi-link-45deg text-blue-600" /> Vincular Variáveis
       </DsDropdownItem>
       <DsDropdownItem
-        v-if="auth.isAdmin"
+        v-if="canLink"
         :to="`/scripts/${item.codScriptLaudo}/mrd`"
         @click="close"
       >
         <i class="bi bi-file-earmark-binary text-gray-600" /> Gerenciar MRDs
       </DsDropdownItem>
       <DsDropdownItem
-        v-if="auth.isAdmin"
+        v-if="canEdit"
         :to="`/scripts/${item.codScriptLaudo}/editar`"
         @click="close"
       >
         <i class="bi bi-pencil-fill text-blue-600" /> Editar
       </DsDropdownItem>
-      <DsDropdownDivider v-if="auth.isAdmin" />
+      <DsDropdownDivider v-if="canEdit || canCreate" />
       <DsDropdownItem
-        v-if="auth.isAdmin"
+        v-if="canEdit"
         :to="`/scripts/${item.codScriptLaudo}/versoes`"
         @click="close"
       >
         <i class="bi bi-layers text-gray-600" /> Gerenciar Versões
       </DsDropdownItem>
       <DsDropdownItem
-        v-if="auth.isAdmin"
+        v-if="canCreate"
         :to="`/scripts/${item.codScriptLaudo}/versoes/nova`"
         @click="close"
       >
@@ -63,14 +63,14 @@
           <span class="truncate">{{ m.nomeArquivo }}</span>
         </DsDropdownItem>
       </template>
-      <DsDropdownDivider v-if="auth.isAdmin" />
-      <DsDropdownItem v-if="auth.isAdmin" @click="toggleAprovacao(); close()">
+      <DsDropdownDivider v-if="canApprove || canActivate" />
+      <DsDropdownItem v-if="canApprove" @click="toggleAprovacao(); close()">
         <i
           :class="item.aprovado ? 'bi bi-hand-thumbs-down-fill text-rose-600' : 'bi bi-hand-thumbs-up-fill text-green-600'"
         />
         {{ item.aprovado ? 'Desaprovar' : 'Aprovar' }}
       </DsDropdownItem>
-      <DsDropdownItem v-if="auth.isAdmin" @click="toggleAtivo(); close()">
+      <DsDropdownItem v-if="canActivate" @click="toggleAtivo(); close()">
         <i :class="item.ativo ? 'bi bi-toggle-off text-gray-600' : 'bi bi-toggle-on text-green-600'" />
         {{ item.ativo ? 'Desativar' : 'Ativar' }}
       </DsDropdownItem>
@@ -92,6 +92,11 @@ const props = defineProps<{ item: ScriptListItem }>()
 const auth = useAuthStore()
 const api = useScriptsApi()
 const swal = useSwal()
+const canCreate = computed(() => auth.can('scripts', 'criar'))
+const canEdit = computed(() => auth.can('scripts', 'editar'))
+const canLink = computed(() => auth.can('scripts', 'vincular'))
+const canApprove = computed(() => auth.can('scripts', 'aprovar'))
+const canActivate = computed(() => auth.can('scripts', 'ativar'))
 
 const azureDisponivel = computed(
   () => props.item.sistema === 'Laudos Flex' && !!props.item.caminhoAzure

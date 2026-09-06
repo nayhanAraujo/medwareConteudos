@@ -2,7 +2,7 @@
   <div>
     <DsPageHeader title="Assistente" subtitle="Gerenciamento do banco de modelos de laudos" icon="database">
       <template #actions>
-        <DsButton v-if="auth.isAdmin" variant="success" to="/assistente/modelos/importar">
+        <DsButton v-if="canImport" variant="success" to="/assistente/modelos/importar">
           Importar modelo de laudo
         </DsButton>
       </template>
@@ -40,6 +40,7 @@ const auth = useAuthStore()
 const api = useAssistenteApi()
 const stats = ref<Partial<AssistenteDashboard>>({})
 const error = ref('')
+const canImport = computed(() => auth.can('assistente', 'importar'))
 
 const modules = [
   { key: 'procedimentos', title: 'Procedimentos / TUSS', description: 'Procedimentos e vínculos com scripts e frases.', icon: 'clipboard2-pulse', themeName: 'blue' as DsThemeName, to: '/assistente/procedimentos' },

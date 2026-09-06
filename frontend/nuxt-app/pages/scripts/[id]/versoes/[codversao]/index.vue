@@ -186,7 +186,7 @@
 <script setup lang="ts">
 import type { ScriptVersionDetailDto, ScriptVersionFileDto, ScriptVersionMrdDto } from '~/composables/useScriptsApi'
 
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const router = useRouter()

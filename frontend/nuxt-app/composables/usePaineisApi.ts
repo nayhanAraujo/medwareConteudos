@@ -13,6 +13,12 @@ export interface PainelItem {
   ultima_versao?: string | null
   data_versao?: string | null
   publicado?: number | null
+  thumbnail_version_id?: number | null
+  thumbnail_image_id?: number | null
+  thumbnail_url?: string | null
+  thumbnailVersionId?: number | null
+  thumbnailImageId?: number | null
+  thumbnailUrl?: string | null
   pacotes: string[]
 }
 
@@ -90,6 +96,8 @@ export function usePaineisApi() {
       URL.revokeObjectURL(a.href)
     })
 
+  const getThumbnailBlob = (path: string) => api.getBlob(path)
+
   const listClientes = () =>
     api.get<{ success: boolean; data: { codCliente: number; nome: string }[] }>(`/api/web/paineis/clientes`)
 
@@ -110,6 +118,7 @@ export function usePaineisApi() {
     setStatus,
     deletePainel,
     downloadPbix,
+    getThumbnailBlob,
     listClientes,
     listModulos,
     listPacotes,

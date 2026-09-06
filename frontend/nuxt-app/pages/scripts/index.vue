@@ -1,6 +1,7 @@
 <template>
   <div>
     <DsPageHeader title="Scripts Cadastrados" icon="card-checklist" />
+    <DsButton v-if="canApproveScripts" variant="secondary" icon="arrow-repeat" to="/scripts/publicacao" class="mb-4">Publicação no Assistente</DsButton>
     <DsAlert v-if="!hasParams" variant="warning" class="mb-4">
       Esta página requer pacote e sistema.
       <DsButton size="sm" to="/scripts/sistema" class="ml-2">Seleção de Sistema</DsButton>
@@ -36,10 +37,10 @@
             <DsButton variant="secondary" size="sm" icon="funnel-fill" @click="filterModalOpen = true">Filtros</DsButton>
             <DsButton :variant="viewMode === 'cards' ? 'primary' : 'secondary'" size="sm" icon="grid-3x3-gap-fill" @click="viewMode = 'cards'" />
             <DsButton :variant="viewMode === 'list' ? 'primary' : 'secondary'" size="sm" icon="list-ul" @click="viewMode = 'list'" />
-            <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="plus-circle-fill" :to="{ path: '/scripts/novo', query: { pacote, sistema } }">
+            <DsButton v-if="canCreateScripts" variant="success" size="sm" icon="plus-circle-fill" :to="{ path: '/scripts/novo', query: { pacote, sistema } }">
               Novo Script
             </DsButton>
-            <DsButton v-if="auth.isAdmin" variant="secondary" size="sm" icon="database-add" to="/assistente/modelos/importar?origem=scripts">
+            <DsButton v-if="canImportAssistente" variant="secondary" size="sm" icon="database-add" to="/assistente/modelos/importar?origem=scripts">
               Importar no Assistente
             </DsButton>
           </div>
@@ -85,6 +86,7 @@
             </div>
             <div class="p-3 flex flex-col gap-1.5">
               <h3 class="font-semibold font-manrope text-sm text-ds-text line-clamp-2">{{ item.nome }}</h3>
+              <NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink>
               <div class="flex flex-wrap gap-1">
                 <DsBadge v-if="item.nomePacote" variant="primary">{{ item.nomePacote }}</DsBadge>
                 <DsBadge variant="default">{{ item.sistema }}</DsBadge>
@@ -124,7 +126,7 @@
                 @change="syncSelectAll"
               />
             </td>
-            <td>{{ item.nome }}</td>
+            <td>{{ item.nome }}<NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="block text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink></td>
             <td>{{ item.sistema }}</td>
             <td>{{ item.nomePacote || '—' }}</td>
             <td>{{ item.aprovado ? 'Sim' : 'Não' }}</td>
@@ -221,6 +223,9 @@ definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const auth = useAuthStore()
+const canCreateScripts = computed(() => auth.can('scripts', 'criar'))
+const canApproveScripts = computed(() => auth.can('scripts', 'aprovar'))
+const canImportAssistente = computed(() => auth.can('assistente', 'importar'))
 const scriptsApi = useScriptsApi()
 const { isSistemaValido } = useScriptsNav()
 
@@ -287,6 +292,7 @@ function formatDateTime(value?: string | null) {
   })
 }
 
+const publications = ref<Record<number, string>>({})
 async function load(p = 1) {
   if (!hasParams.value) return
   loading.value = true
@@ -307,6 +313,13 @@ async function load(p = 1) {
       if (res.data.length) filtros.ativo = ''
     }
     items.value = res.data
+    publications.value = {}
+    if (auth.isAdmin) {
+      try {
+        const states = await useApi().post<{ items: Record<string, unknown>[] }>('/api/web/assistente/publicacao/estados', items.value.map(item => item.codScriptLaudo))
+        publications.value = Object.fromEntries(states.items.map(item => [Number(item.ID ?? item.id), String(item.ESTADO ?? item.estado)]))
+      } catch { /* Publication monitoring is independent from source listing. */ }
+    }
     selectedScriptIds.value = selectedScriptIds.value.filter((id) => items.value.some((x) => x.codScriptLaudo === id))
     syncSelectAll()
     totalPages.value = res.totalPages

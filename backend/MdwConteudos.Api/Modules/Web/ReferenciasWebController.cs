@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Web;
@@ -48,7 +49,7 @@ public class ReferenciasWebController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Referencias, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] ReferenciaUpsertRequest req, CancellationToken ct = default)
     {
         try
@@ -63,7 +64,7 @@ public class ReferenciasWebController : ControllerBase
     }
 
     [HttpPut("{codReferencia:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Referencias, PermissionActions.Editar)]
     public async Task<IActionResult> Update(int codReferencia, [FromBody] ReferenciaUpsertRequest req, CancellationToken ct = default)
     {
         try
@@ -78,7 +79,7 @@ public class ReferenciasWebController : ControllerBase
     }
 
     [HttpDelete("{codReferencia:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Referencias, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int codReferencia, CancellationToken ct = default)
     {
         try
@@ -129,7 +130,7 @@ public class ReferenciasWebController : ControllerBase
     }
 
     [HttpPost("{codReferencia:int}/anexos")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Referencias, PermissionActions.Editar)]
     [RequestSizeLimit(30_000_000)]
     public async Task<IActionResult> CreateAnexo(
         int codReferencia,
@@ -165,7 +166,7 @@ public class ReferenciasWebController : ControllerBase
     }
 
     [HttpPut("anexos/{codAnexo:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Referencias, PermissionActions.Editar)]
     [RequestSizeLimit(30_000_000)]
     public async Task<IActionResult> UpdateAnexo(
         int codAnexo,
@@ -201,7 +202,7 @@ public class ReferenciasWebController : ControllerBase
     }
 
     [HttpDelete("anexos/{codAnexo:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Referencias, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteAnexo(int codAnexo, CancellationToken ct = default)
     {
         try
@@ -230,7 +231,7 @@ public class ReferenciasWebController : ControllerBase
     }
 
     [HttpPost("{codReferencia:int}/autores")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Referencias, PermissionActions.Vincular)]
     public async Task<IActionResult> SaveAutoresByReferencia(
         int codReferencia,
         [FromBody] SaveAutoresRequest req,

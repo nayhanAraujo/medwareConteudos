@@ -28,6 +28,7 @@
     <template v-if="isPowerBi">
       <div class="rounded-2xl border border-gray-100 p-4 space-y-3 bg-gray-50/50">
         <p class="text-sm font-semibold text-ds-text">Power BI</p>
+        <template v-if="showConfiguration !== false">
         <DsInput v-model="form.diretorioPbix" label="Diretório PBIX" />
         <DsInput v-model="form.nomeArquivoPbixMeta" label="Nome arquivo (metadado)" />
         <DsInput v-model="form.workspacePowerbi" label="Workspace" />
@@ -39,6 +40,7 @@
           <option value="Mensal">Mensal</option>
           <option value="Manual">Manual</option>
         </DsSelect>
+        </template>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Arquivo PBIX</label>
           <input type="file" accept=".pbix" class="block w-full text-sm" @change="onPbix">
@@ -54,7 +56,7 @@
       </div>
     </template>
 
-    <template v-else>
+    <template v-else-if="showConfiguration !== false">
       <DsInput v-model="form.responsavelApi" label="Responsável API" />
     </template>
 
@@ -87,6 +89,7 @@ const props = defineProps<{
   modulos: { codModulo: number; nome: string }[]
   pacotes: { codPacote: number; nome: string }[]
   nomePbixAtual?: string | null
+  showConfiguration?: boolean
 }>()
 
 defineEmits<{ submit: [] }>()

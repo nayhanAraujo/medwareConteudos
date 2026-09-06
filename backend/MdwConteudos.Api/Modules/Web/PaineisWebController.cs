@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Web;
@@ -75,6 +76,7 @@ public class PaineisWebController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Criar)]
     [RequestSizeLimit(80_000_000)]
     public async Task<IActionResult> Create(
         [FromForm] string nome,
@@ -111,6 +113,7 @@ public class PaineisWebController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     [RequestSizeLimit(80_000_000)]
     public async Task<IActionResult> Update(
         int id,
@@ -152,6 +155,7 @@ public class PaineisWebController : ControllerBase
     }
 
     [HttpPatch("{id:int}/status")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Ativar)]
     public async Task<IActionResult> SetStatus(int id, [FromBody] PainelStatusRequest req, CancellationToken ct)
     {
         try
@@ -166,7 +170,7 @@ public class PaineisWebController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         try

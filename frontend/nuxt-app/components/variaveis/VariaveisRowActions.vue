@@ -1,6 +1,7 @@
 <template>
   <div class="flex items-center justify-center gap-1">
     <DsButton
+      v-if="canEdit"
       variant="secondary"
       size="sm"
       icon="pencil-square"
@@ -24,7 +25,7 @@
         <span class="hidden xl:inline">Mais</span>
       </template>
       <template #default="{ close }">
-        <DsDropdownItem :to="`/variaveis/${item.codVariavel}/complementos#anexos`" @click="close">
+        <DsDropdownItem v-if="canLink" :to="`/variaveis/${item.codVariavel}/complementos#anexos`" @click="close">
           <i class="bi bi-paperclip" /> Vincular Anexo
         </DsDropdownItem>
         <DsDropdownItem @click="emitAction('detalhes', close)">
@@ -39,11 +40,11 @@
         <DsDropdownItem @click="emitAction('dicom', close)">
           <i class="bi bi-qr-code-scan text-cyan-600" /> Códigos DICOM
         </DsDropdownItem>
-        <DsDropdownItem :to="`/variaveis/${item.codVariavel}/complementos#especialidades`" @click="close">
+        <DsDropdownItem v-if="canLink" :to="`/variaveis/${item.codVariavel}/complementos#especialidades`" @click="close">
           <i class="bi bi-link-45deg text-blue-600" /> Vincular Especialidades
         </DsDropdownItem>
-        <DsDropdownDivider />
-        <DsDropdownItem danger @click="emitAction('excluir', close)">
+        <DsDropdownDivider v-if="canDelete" />
+        <DsDropdownItem v-if="canDelete" danger @click="emitAction('excluir', close)">
           <i class="bi bi-trash" /> Excluir Variável
         </DsDropdownItem>
       </template>
@@ -55,6 +56,10 @@
 import type { VariavelListItem } from '~/composables/useVariaveisApi'
 
 const props = defineProps<{ item: VariavelListItem }>()
+const auth = useAuthStore()
+const canEdit = computed(() => auth.can('variaveis', 'editar'))
+const canLink = computed(() => auth.can('variaveis', 'vincular'))
+const canDelete = computed(() => auth.can('variaveis', 'excluir'))
 const emit = defineEmits<{
   detalhes: [item: VariavelListItem]
   formula: [item: VariavelListItem]

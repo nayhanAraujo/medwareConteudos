@@ -125,6 +125,10 @@ public sealed class AssistenteVinculosService(IAssistantFirebirdConnectionFactor
                         new { Id = id, Child = child, Sequence = order.GetValueOrDefault(child, next++) }, tx, cancellationToken: ct));
                 }
             }
+            if (domain.Equals("scripts", StringComparison.OrdinalIgnoreCase))
+                await c.ExecuteAsync(new CommandDefinition(
+                    "UPDATE SCRIPTLAUDO SET DATAMODIFICACAO=CURRENT_TIMESTAMP WHERE CODSCRIPTLAUDO=@Id",
+                    new { Id = id }, tx, cancellationToken: ct));
             await tx.CommitAsync(ct);
         }
         catch { await tx.RollbackAsync(ct); throw; }

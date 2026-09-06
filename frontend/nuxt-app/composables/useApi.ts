@@ -6,6 +6,11 @@ export function useApi() {
 
   const isAuthRedirecting = useState<boolean>('auth-redirecting', () => false)
 
+  function apiUrl(path: string) {
+    const base = import.meta.client ? config.public.apiBase : config.apiServerBase
+    return `${String(base || '').replace(/\/$/, '')}${path}`
+  }
+
   async function handleUnauthorized() {
     auth.logout()
     if (!import.meta.client || isAuthRedirecting.value) return
@@ -24,7 +29,7 @@ export function useApi() {
     if (auth.token) {
       headers.Authorization = `Bearer ${auth.token}`
     }
-    const res = await fetch(`${config.public.apiBase}${path}`, {
+    const res = await fetch(apiUrl(path), {
       ...options,
       headers
     })
@@ -41,7 +46,7 @@ export function useApi() {
   async function requestForm<T>(path: string, form: FormData, method = 'POST'): Promise<T> {
     const headers: Record<string, string> = {}
     if (auth.token) headers.Authorization = `Bearer ${auth.token}`
-    const res = await fetch(`${config.public.apiBase}${path}`, { method, headers, body: form })
+    const res = await fetch(apiUrl(path), { method, headers, body: form })
     const data = await res.json().catch(() => ({}))
     if (res.status === 401 && !path.includes('/api/web/auth/login')) {
       await handleUnauthorized()
@@ -53,7 +58,7 @@ export function useApi() {
   async function getBlob(path: string): Promise<Blob> {
     const headers: Record<string, string> = {}
     if (auth.token) headers.Authorization = `Bearer ${auth.token}`
-    const res = await fetch(`${config.public.apiBase}${path}`, { headers })
+    const res = await fetch(apiUrl(path), { headers })
     if (res.status === 401 && !path.includes('/api/web/auth/login')) {
       await handleUnauthorized()
     }

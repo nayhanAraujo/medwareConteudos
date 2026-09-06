@@ -20,7 +20,8 @@ public interface IAssistenteImportacaoService
 
 public sealed class AssistenteImportacaoService(
     IAssistantFirebirdConnectionFactory connectionFactory,
-    ScriptsService scriptsService) : IAssistenteImportacaoService
+    ScriptsService scriptsService,
+    Publicacao.PublicacaoService publicacao) : IAssistenteImportacaoService
 {
     public async Task<AssistenteImportacaoResult> ImportAsync(AssistenteImportacaoForm form, CancellationToken ct)
     {
@@ -36,6 +37,8 @@ public sealed class AssistenteImportacaoService(
         if (form.CodScriptLaudoOrigem.HasValue && form.CodScriptLaudoOrigem.Value > 0)
         {
             var codOrigem = form.CodScriptLaudoOrigem.Value;
+            if (publicacao.Enabled)
+                return await publicacao.ImportSource(codOrigem, specialties, procedures, ct);
             var loaded = await LoadFromReferenciasAsync(form, codOrigem, ct);
             return await PersistImportAsync(
                 loaded.ScriptTitle, loaded.MrdTitle, loaded.ScriptContent, loaded.MrdContent,
@@ -172,8 +175,8 @@ public sealed class AssistenteImportacaoService(
             AddBlob(scriptParams, "Content", scriptContent);
             scriptParams.Add("Type", tipoScript);
             var scriptId = await connection.ExecuteScalarAsync<int>(new CommandDefinition("""
-                INSERT INTO SCRIPTLAUDO (TITULO, ESTRUTURASCRIPT, TIPOSCRIPT, STATUS)
-                VALUES (@Title, @Content, @Type, -1)
+                INSERT INTO SCRIPTLAUDO (TITULO, ESTRUTURASCRIPT, TIPOSCRIPT, STATUS, DATAMODIFICACAO)
+                VALUES (@Title, @Content, @Type, -1, CURRENT_TIMESTAMP)
                 RETURNING CODSCRIPTLAUDO
                 """, scriptParams, transaction, cancellationToken: ct));
 

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.RelatoriosComplementos;
@@ -231,14 +232,14 @@ public sealed class RelatoriosComplementosService(IFirebirdConnectionFactory db)
 public sealed class RelatoriosComplementosController(IRelatoriosComplementosService service) : ControllerBase
 {
     [HttpGet("{id:int}/validacoes")] public async Task<IActionResult> Validacoes(int id, CancellationToken ct) => Ok(ApiResponse.Ok(await service.ListValidacoes(id, ct)));
-    [HttpPost("{id:int}/validacoes")][Authorize(Roles="admin")] public async Task<IActionResult> CriarValidacao(int id, ValidacaoRequest req, CancellationToken ct) => await Execute(async () => { await service.CreateValidacao(id, req, User.GetCodUsuario(), ct); return ApiResponse.OkMessage("Validação cadastrada."); });
+    [HttpPost("{id:int}/validacoes")][RequirePermission(PermissionDomains.Relatorios, PermissionActions.Aprovar)] public async Task<IActionResult> CriarValidacao(int id, ValidacaoRequest req, CancellationToken ct) => await Execute(async () => { await service.CreateValidacao(id, req, User.GetCodUsuario(), ct); return ApiResponse.OkMessage("Validação cadastrada."); });
     [HttpGet("filtros")] public async Task<IActionResult> Filtros(CancellationToken ct) => Ok(ApiResponse.Ok(await service.ListFiltros(ct)));
-    [HttpPost("filtros")][Authorize(Roles="admin")] public async Task<IActionResult> CriarFiltro(FiltroRequest req, CancellationToken ct) => await Execute(async () => ApiResponse.Ok(new { codFiltro = await service.CreateFiltro(req, User.GetCodUsuario(), ct) }));
-    [HttpPut("filtros/{id:int}")][Authorize(Roles="admin")] public async Task<IActionResult> EditarFiltro(int id, FiltroRequest req, CancellationToken ct) => await Execute(async () => { await service.UpdateFiltro(id, req, User.GetCodUsuario(), ct); return ApiResponse.OkMessage("Filtro atualizado."); });
-    [HttpDelete("filtros/{id:int}")][Authorize(Roles="admin")] public async Task<IActionResult> ExcluirFiltro(int id, CancellationToken ct) => await Execute(async () => { await service.DeleteFiltro(id, ct); return ApiResponse.OkMessage("Filtro excluído."); });
+    [HttpPost("filtros")][RequirePermission(PermissionDomains.Relatorios, PermissionActions.Criar)] public async Task<IActionResult> CriarFiltro(FiltroRequest req, CancellationToken ct) => await Execute(async () => ApiResponse.Ok(new { codFiltro = await service.CreateFiltro(req, User.GetCodUsuario(), ct) }));
+    [HttpPut("filtros/{id:int}")][RequirePermission(PermissionDomains.Relatorios, PermissionActions.Editar)] public async Task<IActionResult> EditarFiltro(int id, FiltroRequest req, CancellationToken ct) => await Execute(async () => { await service.UpdateFiltro(id, req, User.GetCodUsuario(), ct); return ApiResponse.OkMessage("Filtro atualizado."); });
+    [HttpDelete("filtros/{id:int}")][RequirePermission(PermissionDomains.Relatorios, PermissionActions.Excluir)] public async Task<IActionResult> ExcluirFiltro(int id, CancellationToken ct) => await Execute(async () => { await service.DeleteFiltro(id, ct); return ApiResponse.OkMessage("Filtro excluído."); });
     [HttpGet("{id:int}/colunas")] public async Task<IActionResult> Colunas(int id, CancellationToken ct) => Ok(ApiResponse.Ok(await service.ListColunas(id, ct)));
     [HttpGet("colunas/search")] public async Task<IActionResult> Buscar([FromQuery]string q, CancellationToken ct) => await Execute(async () => ApiResponse.Ok(await service.SearchColunas(q, ct)));
-    [HttpPost("colunas/reindexar")][Authorize(Roles="admin")] public async Task<IActionResult> Reindexar(CancellationToken ct) => await Execute(async () => ApiResponse.Ok(await service.Reindexar(User.GetCodUsuario(), ct)));
+    [HttpPost("colunas/reindexar")][RequirePermission(PermissionDomains.Relatorios, PermissionActions.Editar)] public async Task<IActionResult> Reindexar(CancellationToken ct) => await Execute(async () => ApiResponse.Ok(await service.Reindexar(User.GetCodUsuario(), ct)));
     [HttpGet("colunas/status")] public async Task<IActionResult> Status(CancellationToken ct) => Ok(ApiResponse.Ok(await service.StatusColunas(ct)));
 
     private async Task<IActionResult> Execute(Func<Task<object>> action)

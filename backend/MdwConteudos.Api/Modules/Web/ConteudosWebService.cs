@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Modules.ConteudosImpressos;
+using MdwConteudos.Api.Modules.Permissions;
 
 namespace MdwConteudos.Api.Modules.Web;
 
@@ -185,19 +186,19 @@ public class ConteudosWebController : ControllerBase
 
     [HttpGet("grupos-frases")]
     public Task<IActionResult> GruposFrases(CancellationToken ct) => Handle(() => _svc.ListGruposFrasesAsync(ct));
-    [HttpPost("grupos-frases"), Authorize(Roles = "admin")]
+    [HttpPost("grupos-frases"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Criar)]
     public Task<IActionResult> CriarGrupo(GrupoFraseRequest request, CancellationToken ct) => Handle(() => _svc.CreateGrupoFraseAsync(request, ct));
-    [HttpPut("grupos-frases/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("grupos-frases/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Editar)]
     public Task<IActionResult> AtualizarGrupo(int id, GrupoFraseRequest request, CancellationToken ct) => Handle(() => _svc.UpdateGrupoFraseAsync(id, request, ct));
-    [HttpDelete("grupos-frases/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("grupos-frases/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Excluir)]
     public Task<IActionResult> ExcluirGrupo(int id, CancellationToken ct) => Handle(() => _svc.DeleteGrupoFraseAsync(id, ct));
     [HttpGet("grupos-frases/{codGrupo:int}/frases")]
     public Task<IActionResult> Frases(int codGrupo, CancellationToken ct) => Handle(() => _svc.ListFrasesAsync(codGrupo, ct));
-    [HttpPost("frases"), Authorize(Roles = "admin")]
+    [HttpPost("frases"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Criar)]
     public Task<IActionResult> CriarFrase(FraseRequest request, CancellationToken ct) => Handle(() => _svc.CreateFraseAsync(request, ct));
-    [HttpPut("frases/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("frases/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Editar)]
     public Task<IActionResult> AtualizarFrase(int id, FraseRequest request, CancellationToken ct) => Handle(() => _svc.UpdateFraseAsync(id, request, ct));
-    [HttpDelete("frases/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("frases/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Excluir)]
     public Task<IActionResult> ExcluirFrase(int id, CancellationToken ct) => Handle(() => _svc.DeleteFraseAsync(id, ct));
 
     private async Task<IActionResult> Handle(Func<Task<object>> action)

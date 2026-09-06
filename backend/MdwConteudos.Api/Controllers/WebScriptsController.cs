@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Controllers;
@@ -56,7 +57,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Criar)]
     [RequestSizeLimit(100_000_000)]
     public async Task<IActionResult> Create([FromForm] ScriptFormDto form)
     {
@@ -73,7 +74,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Editar)]
     [RequestSizeLimit(100_000_000)]
     public async Task<IActionResult> Update(int id, [FromForm] ScriptFormDto form)
     {
@@ -90,7 +91,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("{id:int}/toggle-ativo")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Ativar)]
     public async Task<IActionResult> ToggleAtivo(int id)
     {
         await _scripts.ToggleAtivoAsync(id);
@@ -98,7 +99,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("{id:int}/toggle-aprovacao")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Aprovar)]
     public async Task<IActionResult> ToggleAprovacao(int id)
     {
         var nome = User.FindFirstValue(ClaimTypes.Name) ?? "Admin";
@@ -107,7 +108,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("{id:int}/variaveis")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Vincular)]
     public async Task<IActionResult> GetVariaveis(int id)
     {
         var data = await _scripts.GetVariaveisForLinkAsync(id);
@@ -116,7 +117,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("{id:int}/variaveis")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Vincular)]
     public async Task<IActionResult> SaveVariaveis(int id, [FromBody] SaveVariaveisRequest req)
     {
         await _scripts.SaveVariaveisAsync(id, req.CodVariaveis ?? []);
@@ -133,7 +134,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("{id:int}/mrd")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Vincular)]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> AddMrd(int id, [FromForm] string sistema, [FromForm] List<IFormFile> arquivos_mrd)
     {
@@ -152,7 +153,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpDelete("mrd/{codScriptMrd:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Vincular)]
     public async Task<IActionResult> DeleteMrd(int codScriptMrd)
     {
         await _scripts.DeleteMrdAsync(codScriptMrd);
@@ -160,7 +161,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("{id:int}/versoes")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Visualizar)]
     public async Task<IActionResult> ListVersoes(
         int id,
         [FromQuery] string? numeroVersao,
@@ -172,7 +173,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("{id:int}/versoes/meta")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Criar)]
     public async Task<IActionResult> GetVersaoCreateMeta(int id)
     {
         var data = await _scripts.GetVersaoCreateMetaAsync(id);
@@ -181,7 +182,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("{id:int}/versoes/{codVersao:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Visualizar)]
     public async Task<IActionResult> GetVersao(int id, int codVersao)
     {
         var data = await _scripts.GetVersaoAsync(id, codVersao);
@@ -190,7 +191,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("{id:int}/versoes")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Criar)]
     [RequestSizeLimit(100_000_000)]
     public async Task<IActionResult> CreateVersao(int id, [FromForm] VersaoFormDto form)
     {
@@ -208,7 +209,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPut("versoes/{codVersao:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Editar)]
     [RequestSizeLimit(100_000_000)]
     public async Task<IActionResult> UpdateVersao(int codVersao, [FromForm] VersaoFormDto form)
     {
@@ -226,7 +227,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("versoes/{codVersao:int}/ativar")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Ativar)]
     public async Task<IActionResult> AtivarVersao(int codVersao)
     {
         try
@@ -242,7 +243,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("versoes/{codVersao:int}/aprovar")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Aprovar)]
     public async Task<IActionResult> AprovarVersao(int codVersao)
     {
         try
@@ -258,7 +259,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpDelete("versoes/{codVersao:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteVersao(int codVersao)
     {
         try
@@ -274,7 +275,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("versoes/{codVersao:int}/exportar/{tipo}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Exportar)]
     public async Task<IActionResult> ExportVersaoArquivo(int codVersao, string tipo)
     {
         var r = await _scripts.ExportVersaoArquivoAsync(codVersao, tipo);
@@ -283,7 +284,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("versoes/{codVersao:int}/exportar-mrd")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Exportar)]
     public async Task<IActionResult> ExportVersaoMrd(int codVersao, [FromQuery] int? codVersaoMrd)
     {
         var r = await _scripts.ExportVersaoMrdAsync(codVersao, codVersaoMrd);
@@ -292,7 +293,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("versoes/{codVersao:int}/exportar-mrd-zip")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Exportar)]
     public async Task<IActionResult> ExportVersaoMrdZip(int codVersao)
     {
         var r = await _scripts.ExportVersaoMrdZipAsync(codVersao);
@@ -301,7 +302,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("versoes/anexos/{codArquivo:int}/download")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Exportar)]
     public async Task<IActionResult> DownloadVersaoAnexo(int codArquivo)
     {
         var r = await _scripts.DownloadVersaoAnexoAsync(codArquivo);
@@ -310,7 +311,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpDelete("versoes/anexos/{codArquivo:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteVersaoAnexo(int codArquivo)
     {
         try
@@ -361,7 +362,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpGet("emails-notificacao")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Configuracoes, PermissionActions.Visualizar)]
     public async Task<IActionResult> GetEmails()
     {
         var v = await _scripts.GetEmailsNotificacaoAsync();
@@ -369,7 +370,7 @@ public class WebScriptsController : ControllerBase
     }
 
     [HttpPost("emails-notificacao")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Configuracoes, PermissionActions.Editar)]
     public async Task<IActionResult> SaveEmails([FromBody] EmailsRequest req)
     {
         await _scripts.SaveEmailsNotificacaoAsync(req.Emails ?? "");

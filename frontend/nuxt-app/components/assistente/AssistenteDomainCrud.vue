@@ -3,17 +3,17 @@
     <DsPageHeader v-if="!compactLayout" :title="title" :subtitle="subtitle" :icon="icon">
       <template #actions>
         <DsButton variant="secondary" size="sm" to="/assistente">Voltar</DsButton>
-        <DsButton v-if="auth.isAdmin && !hideCreate" variant="success" size="sm" icon="plus-lg" @click="openEditor()">{{ createLabel }}</DsButton>
+        <DsButton v-if="canCreate && !hideCreate" variant="success" size="sm" icon="plus-lg" @click="openEditor()">{{ createLabel }}</DsButton>
       </template>
     </DsPageHeader>
     <DsPageShell :panel-class="compactLayout ? '!bg-transparent !shadow-none !border-0 !ring-0 !p-0' : undefined">
       <AssistenteNav />
-      <DsAlert v-if="!auth.isAdmin" variant="info" class="mb-4">Consulta liberada. Alterações são exclusivas de administradores.</DsAlert>
+      <DsAlert v-if="!canWrite" variant="info" class="mb-4">Consulta liberada. Alterações exigem permissão no módulo Assistente.</DsAlert>
       <DsAlert v-if="error" variant="error" class="mb-4">{{ error }}</DsAlert>
       <div v-if="compactLayout" class="mb-4 grid grid-cols-1 gap-3">
         <div class="flex flex-wrap items-center gap-2">
           <slot name="filters" />
-          <DsButton v-if="auth.isAdmin && !hideCreate" variant="success" size="sm" icon="plus-lg" @click="openEditor()">{{ createLabel }}</DsButton>
+          <DsButton v-if="canCreate && !hideCreate" variant="success" size="sm" icon="plus-lg" @click="openEditor()">{{ createLabel }}</DsButton>
         </div>
         <div class="flex flex-wrap items-end justify-between gap-3">
           <DsSearchInput v-model="search" class="min-w-72 flex-1" wrapper-class="!mb-0" :placeholder="searchPlaceholder" @enter="load(1)" />
@@ -25,7 +25,7 @@
               size="sm"
               :icon="action.icon"
               :disabled="selectedRows.length === 0 || action.disabled?.(selectedRows)"
-              @click="action.handler(selectedRows)"
+              @click="runBulkAction(action)"
             >
               {{ action.label }}
             </DsButton>
@@ -45,7 +45,7 @@
             size="sm"
             :icon="action.icon"
             :disabled="selectedRows.length === 0 || action.disabled?.(selectedRows)"
-            @click="action.handler(selectedRows)"
+            @click="runBulkAction(action)"
           >
             {{ action.label }}
           </DsButton>
@@ -89,17 +89,17 @@
                     <i v-if="action.icon" :class="`bi bi-${action.icon}`" />
                     {{ action.label }}
                   </DsDropdownItem>
-                  <DsDropdownDivider v-if="auth.isAdmin" />
-                  <template v-if="auth.isAdmin">
-                    <DsDropdownItem @click="openEditor(row); close()">
+                  <DsDropdownDivider v-if="canWrite" />
+                  <template v-if="canWrite">
+                    <DsDropdownItem v-if="canEdit" @click="openEditor(row); close()">
                       <i class="bi bi-pencil" />
                       Editar
                     </DsDropdownItem>
-                    <DsDropdownItem @click="toggle(row); close()">
+                    <DsDropdownItem v-if="canActivate" @click="toggle(row); close()">
                       <i :class="`bi bi-${isActive(row) ? 'slash-circle' : 'check-circle'}`" />
                       {{ isActive(row) ? 'Inativar' : 'Ativar' }}
                     </DsDropdownItem>
-                    <DsDropdownItem danger @click="remove(row); close()">
+                    <DsDropdownItem v-if="canDelete" danger @click="remove(row); close()">
                       <i class="bi bi-trash" />
                       Excluir
                     </DsDropdownItem>
@@ -129,7 +129,7 @@
               size="sm"
               :icon="action.icon"
               :disabled="action.disabled?.(selectedRows)"
-              @click="action.handler(selectedRows)"
+              @click="runBulkAction(action)"
             >
               {{ action.label }}
             </DsButton>
@@ -141,7 +141,7 @@
     <DsModal v-model="editorOpen" :title="editingId ? `Editar ${singular}` : `Novo ${singular}`" size="xl">
       <p class="mb-4 text-sm text-gray-600"><span class="font-semibold text-red-600">*</span> Campos obrigatórios</p>
       <div class="grid gap-4 md:grid-cols-2">
-        <template v-for="field in fields" :key="field.key">
+        <template v-for="field in editableFields" :key="field.key">
           <DsTextarea v-if="field.kind === 'textarea'" v-model="form[field.key]" :label="fieldLabel(field)" :required="field.required" class="md:col-span-2" />
           <DsSelect v-else-if="field.kind === 'select'" v-model="form[field.key]" :label="fieldLabel(field)" :required="field.required">
             <option value="">Selecione</option><option v-for="option in fieldOptions(field)" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -165,7 +165,7 @@
           <div class="mt-2 text-sm text-gray-600">{{ deleteTotal }} vínculo{{ deleteTotal === 1 ? '' : 's' }} encontrado{{ deleteTotal === 1 ? '' : 's' }}.</div>
         </div>
         <DsAlert :variant="deleteTotal > 0 ? 'warning' : 'info'" class="mb-4">
-          {{ deleteTotal > 0 ? 'Revise os vínculos abaixo antes de confirmar a exclusão. A API pode bloquear registros ainda vinculados.' : 'Este registro não possui vínculos cadastrados.' }}
+          {{ deleteMessage }}
         </DsAlert>
         <div v-if="deleteLinkedGroups.length" class="space-y-3">
           <div v-for="group in deleteLinkedGroups" :key="group.relacao" class="rounded-xl border border-gray-200 p-4">
@@ -184,7 +184,7 @@
       </template>
       <template #footer>
         <DsButton variant="secondary" :disabled="deleting" @click="deleteOpen = false">Cancelar</DsButton>
-        <DsButton variant="danger" :loading="deleting" :disabled="deleteLoading || !!deleteError || !deleteRow" @click="confirmRemove">Excluir</DsButton>
+        <DsButton variant="danger" :loading="deleting" :disabled="deleteLoading || !!deleteError || !deleteRow || !canDelete" @click="confirmRemove">Excluir</DsButton>
       </template>
     </DsModal>
   </div>
@@ -196,9 +196,14 @@ export interface AssistenteField { key: string; apiKey?: string; label: string; 
 type AssistenteBadgeVariant = 'default' | 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'dark' | 'purple'
 export interface AssistenteColumn { key: string; label: string; primary?: boolean; format?: (value: unknown, row: AssistenteEntity) => string; badgeVariant?: (value: unknown, row: AssistenteEntity) => AssistenteBadgeVariant | undefined }
 export interface AssistenteRowAction { key: string; label: string; icon?: string; variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success'; visible?: (row: AssistenteEntity) => boolean; handler: (row: AssistenteEntity) => void | Promise<void> }
-export interface AssistenteBulkAction { key: string; label: string; icon?: string; variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success'; disabled?: (rows: AssistenteEntity[]) => boolean; handler: (rows: AssistenteEntity[]) => void | Promise<void> }
+export interface AssistenteBulkAction { key: string; label: string; icon?: string; variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success'; disabled?: (rows: AssistenteEntity[]) => boolean; refreshAfter?: boolean; handler: (rows: AssistenteEntity[]) => void | Promise<void> }
 const props = withDefaults(defineProps<{ domain: string; title: string; singular: string; subtitle: string; icon?: string; fields: AssistenteField[]; columns: AssistenteColumn[]; hideCreate?: boolean; rowActions?: AssistenteRowAction[]; bulkActions?: AssistenteBulkAction[]; selectable?: boolean; compactLayout?: boolean; createLabel?: string; searchPlaceholder?: string; listFilters?: Record<string, string | number | boolean | undefined> }>(), { createLabel: 'Novo', searchPlaceholder: 'Pesquisar...' })
 const auth = useAuthStore(); const api = useAssistenteApi(); const swal = useSwal()
+const canCreate = computed(() => auth.can('assistente', 'criar'))
+const canEdit = computed(() => auth.can('assistente', 'editar'))
+const canDelete = computed(() => auth.can('assistente', 'excluir'))
+const canActivate = computed(() => auth.can('assistente', 'ativar'))
+const canWrite = computed(() => canCreate.value || canEdit.value || canDelete.value || canActivate.value)
 const rows = ref<AssistenteEntity[]>([]); const search = ref(''); const page = ref(1); const pageSize = ref(20); const total = ref(0)
 const loading = ref(false); const saving = ref(false); const error = ref(''); const editorOpen = ref(false); const editingId = ref<number | null>(null)
 const linksOpen = ref(false); const linkedId = ref<number | null>(null)
@@ -210,6 +215,12 @@ const selectedRows = computed(() => rows.value.filter(row => selectedIds.value.i
 const allRowsSelected = computed(() => rows.value.length > 0 && selectedRows.value.length === rows.value.length)
 const deleteLinkedGroups = computed(() => (deleteDetail.value?.relacoes || []).filter(group => group.itens.length > 0))
 const deleteTotal = computed(() => deleteLinkedGroups.value.reduce((sum, group) => sum + group.itens.length, 0))
+const deleteMessage = computed(() => {
+  if (deleteTotal.value === 0) return 'Este registro não possui vínculos cadastrados.'
+  if (props.domain === 'scripts') return 'Ao confirmar, os vínculos abaixo serão removidos e o script será excluído. Os registros vinculados não serão excluídos.'
+  return 'Revise os vínculos abaixo antes de confirmar a exclusão. A API pode bloquear registros ainda vinculados.'
+})
+const editableFields = computed(() => props.domain === 'scripts' && editingId.value ? props.fields.filter(field => field.key !== 'estruturaScript') : props.fields)
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 function message(reason: unknown) { return reason instanceof Error ? reason.message : 'Não foi possível concluir a operação.' }
 function entityId(row: AssistenteEntity) { return Number(row.id ?? row.codigo ?? row.codigoscriptlaudo ?? row.codpagfotos ?? row.codprocedimento ?? 0) }
@@ -222,18 +233,19 @@ function display(row: AssistenteEntity, column: AssistenteColumn) {
 }
 function visibleRowActions(row: AssistenteEntity) { return (props.rowActions || []).filter(action => !action.visible || action.visible(row)) }
 function toggleAllRows() { selectedIds.value = allRowsSelected.value ? [] : rows.value.map(row => entityId(row)) }
+async function runBulkAction(action: AssistenteBulkAction) { if (!canWrite.value) return; await action.handler(selectedRows.value); if (action.refreshAfter) await load() }
 function fieldLabel(field: AssistenteField) { return `${field.label}${field.required ? ' *' : ''}` }
 function fieldOptions(field: AssistenteField) { return field.options || (relationOptions[field.optionsDomain || ''] || []).map(option => ({ label: option.nome, value: option.id })) }
-function resetForm(row?: AssistenteEntity) { props.fields.forEach(field => { const value = row?.[field.key]; form[field.key] = field.kind === 'multi' ? (Array.isArray(value) ? value.map(item => Number(typeof item === 'object' ? item.id : item)) : []) : (value ?? field.defaultValue ?? '') }) }
-function requestBody() { return Object.fromEntries(props.fields.map(field => [field.apiKey || field.key, form[field.key]])) }
+function resetForm(row?: AssistenteEntity) { editableFields.value.forEach(field => { const value = row?.[field.key]; form[field.key] = field.kind === 'multi' ? (Array.isArray(value) ? value.map(item => Number(typeof item === 'object' ? item.id : item)) : []) : (value ?? field.defaultValue ?? '') }) }
+function requestBody() { return Object.fromEntries(editableFields.value.map(field => [field.apiKey || field.key, form[field.key]])) }
 async function load(target = page.value) { loading.value = true; error.value = ''; try { const result = await api.list(props.domain, target, Number(pageSize.value), search.value, props.listFilters || {}); rows.value = result.items || []; selectedIds.value = selectedIds.value.filter(id => rows.value.some(row => entityId(row) === id)); total.value = result.total ?? rows.value.length; page.value = result.page || target } catch (reason) { error.value = message(reason); rows.value = [] } finally { loading.value = false } }
-async function loadRelations() { const domains = [...new Set(props.fields.filter(f => (f.kind === 'multi' || f.kind === 'select') && f.optionsDomain).map(f => f.optionsDomain).filter(Boolean))] as string[]; await Promise.all(domains.map(async domain => { if (!relationOptions[domain]) relationOptions[domain] = await api.options(domain) })) }
-async function openEditor(row?: AssistenteEntity) { editingId.value = row ? entityId(row) : null; let detail = row; if (editingId.value) { try { detail = await api.get(props.domain, editingId.value) } catch { /* use list row */ } } resetForm(detail); await loadRelations(); editorOpen.value = true }
+async function loadRelations() { const domains = [...new Set(editableFields.value.filter(f => (f.kind === 'multi' || f.kind === 'select') && f.optionsDomain).map(f => f.optionsDomain).filter(Boolean))] as string[]; await Promise.all(domains.map(async domain => { if (!relationOptions[domain]) relationOptions[domain] = await api.options(domain) })) }
+async function openEditor(row?: AssistenteEntity) { if (row ? !canEdit.value : !canCreate.value) return; editingId.value = row ? entityId(row) : null; let detail = row; if (editingId.value) { try { detail = await api.get(props.domain, editingId.value) } catch { /* use list row */ } } resetForm(detail); await loadRelations(); editorOpen.value = true }
 function openLinks(row: AssistenteEntity) { linkedId.value = entityId(row); linksOpen.value = true }
-async function save() { const missing = props.fields.find(field => field.required && (form[field.key] === '' || form[field.key] === null || form[field.key] === undefined || (Array.isArray(form[field.key]) && !form[field.key].length))); if (missing) return void swal.toast(`Preencha ${missing.label}.`, 'warning'); saving.value = true; try { const body = requestBody(); if (editingId.value) await api.update(props.domain, editingId.value, body); else await api.create(props.domain, body); editorOpen.value = false; await load(); await swal.toast(`${props.singular} salvo com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } finally { saving.value = false } }
-async function toggle(row: AssistenteEntity) { const active = !isActive(row); try { await api.setStatus(props.domain, entityId(row), active); await load(); await swal.toast(`${props.singular} ${active ? 'ativado' : 'inativado'} com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } }
-async function remove(row: AssistenteEntity) { deleteRow.value = row; deleteDetail.value = null; deleteError.value = ''; deleteOpen.value = true; deleteLoading.value = true; try { deleteDetail.value = await api.links(props.domain, entityId(row)) } catch (reason) { deleteError.value = reason instanceof Error ? reason.message : 'Não foi possível consultar os vínculos.' } finally { deleteLoading.value = false } }
-async function confirmRemove() { if (!deleteRow.value) return; deleting.value = true; try { await api.remove(props.domain, entityId(deleteRow.value)); deleteOpen.value = false; deleteRow.value = null; deleteDetail.value = null; await load(); await swal.toast(`${props.singular} excluído com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } finally { deleting.value = false } }
+async function save() { if (editingId.value ? !canEdit.value : !canCreate.value) return; const missing = editableFields.value.find(field => field.required && (form[field.key] === '' || form[field.key] === null || form[field.key] === undefined || (Array.isArray(form[field.key]) && !form[field.key].length))); if (missing) return void swal.toast(`Preencha ${missing.label}.`, 'warning'); saving.value = true; try { const body = requestBody(); if (editingId.value) await api.update(props.domain, editingId.value, body); else await api.create(props.domain, body); editorOpen.value = false; await load(); await swal.toast(`${props.singular} salvo com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } finally { saving.value = false } }
+async function toggle(row: AssistenteEntity) { if (!canActivate.value) return; const active = !isActive(row); try { await api.setStatus(props.domain, entityId(row), active); await load(); await swal.toast(`${props.singular} ${active ? 'ativado' : 'inativado'} com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } }
+async function remove(row: AssistenteEntity) { if (!canDelete.value) return; deleteRow.value = row; deleteDetail.value = null; deleteError.value = ''; deleteOpen.value = true; deleteLoading.value = true; try { deleteDetail.value = await api.links(props.domain, entityId(row)) } catch (reason) { deleteError.value = reason instanceof Error ? reason.message : 'Não foi possível consultar os vínculos.' } finally { deleteLoading.value = false } }
+async function confirmRemove() { if (!deleteRow.value || !canDelete.value) return; deleting.value = true; try { await api.remove(props.domain, entityId(deleteRow.value)); deleteOpen.value = false; deleteRow.value = null; deleteDetail.value = null; await load(); await swal.toast(`${props.singular} excluído com sucesso.`) } catch (reason) { await swal.toast(message(reason), 'error') } finally { deleting.value = false } }
 onMounted(() => load())
 watch(search, () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => load(1), 350) })
 watch(() => JSON.stringify(props.listFilters || {}), () => load(1))

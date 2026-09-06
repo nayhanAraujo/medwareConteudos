@@ -32,23 +32,15 @@ public static class AssistenteImportacaoValidator
     public static string PrepareMrd(string fileName, byte[] bytes)
     {
         ValidateBytes(bytes, "O arquivo MRD");
+        if (!string.Equals(Path.GetExtension(fileName), ".mrd", StringComparison.OrdinalIgnoreCase))
+            throw new AssistenteImportacaoException("O arquivo MRD deve possuir extensão .mrd.");
+
         var headerLength = Math.Min(bytes.Length, 256);
         var header = Encoding.ASCII.GetString(bytes, 0, headerLength);
         if (header.StartsWith(MrdHeader, StringComparison.Ordinal))
             return Convert.ToBase64String(bytes);
 
-        if (string.Equals(Path.GetExtension(fileName), ".mrd", StringComparison.OrdinalIgnoreCase))
-            throw new AssistenteImportacaoException($"Arquivo MRD inválido: cabeçalho '{MrdHeader}' não encontrado.");
-
-        try
-        {
-            using var _ = JsonDocument.Parse(Encoding.UTF8.GetString(bytes));
-        }
-        catch (Exception ex) when (ex is JsonException or DecoderFallbackException)
-        {
-            throw new AssistenteImportacaoException("O MRD de origem não é um arquivo .mrd nem JSON válido.");
-        }
-        return Convert.ToBase64String(bytes);
+        throw new AssistenteImportacaoException($"Arquivo MRD inválido: cabeçalho '{MrdHeader}' não encontrado.");
     }
 
     public static byte[] DecodeStored(short type, string content) =>

@@ -1,4 +1,5 @@
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +11,7 @@ namespace MdwConteudos.Api.Modules.Assistente.Importacao;
 public sealed class AssistenteImportacaoController(IAssistenteImportacaoService service) : ControllerBase
 {
     [HttpPost("importar")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Assistente, PermissionActions.Importar)]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(2 * AssistenteImportacaoValidator.MaxFileSize + 1024 * 1024)]
     public async Task<IActionResult> Import([FromForm] AssistenteImportacaoForm form, CancellationToken ct)
@@ -21,7 +22,7 @@ public sealed class AssistenteImportacaoController(IAssistenteImportacaoService 
     }
 
     [HttpPost("importar-lote")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Assistente, PermissionActions.Importar)]
     public async Task<IActionResult> ImportMany([FromBody] AssistenteImportacaoLoteRequest request, CancellationToken ct)
     {
         try

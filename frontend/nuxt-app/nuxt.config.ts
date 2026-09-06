@@ -23,8 +23,9 @@ export default defineNuxtConfig({
     }
   },
   runtimeConfig: {
+    apiServerBase: process.env.NUXT_API_SERVER_BASE || process.env.DOTNET_API_BASE || 'http://localhost:5080',
     public: {
-      apiBase: '/api-dotnet'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api-dotnet'
     }
   },
   nitro: {

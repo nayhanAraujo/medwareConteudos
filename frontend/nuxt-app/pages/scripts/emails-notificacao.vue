@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 const scriptsApi = useScriptsApi()
 const swal = useSwal()

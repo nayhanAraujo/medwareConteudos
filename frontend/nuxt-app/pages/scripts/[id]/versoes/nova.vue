@@ -27,7 +27,7 @@
 import type { VersaoCreateMetaDto, VersaoFormFiles } from '~/composables/useScriptsApi'
 import type { VersaoFormModel } from '~/components/scripts/ScriptVersaoForm.vue'
 
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const router = useRouter()

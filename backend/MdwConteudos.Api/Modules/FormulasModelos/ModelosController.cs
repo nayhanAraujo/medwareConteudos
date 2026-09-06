@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.FormulasModelos;
@@ -48,7 +49,7 @@ public sealed class ModelosController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] ModeloUpsertRequest request, CancellationToken ct)
     {
         try
@@ -63,17 +64,17 @@ public sealed class ModelosController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> Update(int id, [FromBody] ModeloUpsertRequest request, CancellationToken ct)
         => await Write(() => _service.UpdateModeloAsync(id, request, User.GetCodUsuario(), ct), "Modelo atualizado com sucesso.");
 
     [HttpDelete("{id:int}")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
         => await Write(() => _service.DeleteModeloAsync(id, User.GetCodUsuario(), ct), "Modelo excluído com sucesso.");
 
     [HttpPost("{modeloId:int}/secoes")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> CreateSecao(int modeloId, [FromBody] SecaoUpsertRequest request, CancellationToken ct)
     {
         try
@@ -88,32 +89,32 @@ public sealed class ModelosController : ControllerBase
     }
 
     [HttpPut("{modeloId:int}/secoes/{secaoId:int}")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> UpdateSecao(int modeloId, int secaoId, [FromBody] SecaoUpsertRequest request, CancellationToken ct)
         => await Write(() => _service.UpdateSecaoAsync(modeloId, secaoId, request, User.GetCodUsuario(), ct), "Seção atualizada com sucesso.");
 
     [HttpDelete("{modeloId:int}/secoes/{secaoId:int}")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteSecao(int modeloId, int secaoId, CancellationToken ct)
         => await Write(() => _service.DeleteSecaoAsync(modeloId, secaoId, User.GetCodUsuario(), ct), "Seção excluída com sucesso.");
 
     [HttpPut("{modeloId:int}/secoes/ordem")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> OrdenarSecoes(int modeloId, [FromBody] OrdenarSecoesRequest request, CancellationToken ct)
         => await Write(() => _service.OrderSecoesAsync(modeloId, request.SecaoIds ?? [], User.GetCodUsuario(), ct), "Ordem das seções atualizada.");
 
     [HttpPut("{modeloId:int}/secoes/{secaoId:int}/variaveis/ordem")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> OrdenarVariaveis(int modeloId, int secaoId, [FromBody] OrdenarVariaveisRequest request, CancellationToken ct)
         => await Write(() => _service.OrderVariaveisAsync(modeloId, secaoId, request.VariavelIds ?? [], User.GetCodUsuario(), ct), "Ordem das variáveis atualizada.");
 
     [HttpPut("{modeloId:int}/layout")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> SalvarLayout(int modeloId, [FromBody] SalvarLayoutRequest request, CancellationToken ct)
         => await Write(() => _service.SaveLayoutAsync(modeloId, request.Layout ?? [], User.GetCodUsuario(), ct), "Layout atualizado com sucesso.");
 
     [HttpPut("{modeloId:int}/composicao")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> SalvarComposicao(int modeloId, [FromBody] SalvarComposicaoRequest request, CancellationToken ct)
     {
         try
@@ -128,7 +129,7 @@ public sealed class ModelosController : ControllerBase
     }
 
     [HttpPost("{modeloId:int}/preview")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Visualizar)]
     public async Task<IActionResult> Preview(int modeloId, [FromBody] SalvarComposicaoRequest request, CancellationToken ct)
     {
         try

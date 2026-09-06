@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Modules.ConteudosImpressos;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Web;
@@ -50,7 +51,7 @@ public class ImpressosWebController : ControllerBase
             row.UsoGeral, row.ImprimirCabecalho, row.CodUsuario, row.DthrUltModificacao, ConteudoTextCodec.Decode(vbs?.ScriptVbs), vbs?.DthrUltModificacao)));
     }
 
-    [HttpPost, Authorize(Roles = "admin"), RequestSizeLimit(MaxUploadSize)]
+    [HttpPost, RequirePermission(PermissionDomains.Conteudos, PermissionActions.Criar), RequestSizeLimit(MaxUploadSize)]
     public Task<IActionResult> Create([FromForm] ImpressoForm form, CancellationToken ct) => Handle(async () =>
     {
         ValidateForm(form);
@@ -68,7 +69,7 @@ public class ImpressosWebController : ControllerBase
         return ApiResponse.Ok(new { codImpresso = id });
     });
 
-    [HttpPut("{id:int}"), Authorize(Roles = "admin"), RequestSizeLimit(MaxUploadSize)]
+    [HttpPut("{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Editar), RequestSizeLimit(MaxUploadSize)]
     public Task<IActionResult> Update(int id, [FromForm] ImpressoForm form, CancellationToken ct) => Handle(async () =>
     {
         ValidateForm(form);
@@ -94,7 +95,7 @@ public class ImpressosWebController : ControllerBase
         return ApiResponse.OkMessage("Impresso atualizado com sucesso.");
     });
 
-    [HttpDelete("{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Excluir)]
     public Task<IActionResult> Delete(int id, CancellationToken ct) => Handle(async () =>
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
@@ -106,7 +107,7 @@ public class ImpressosWebController : ControllerBase
         return ApiResponse.OkMessage("Impresso excluído com sucesso.");
     });
 
-    [HttpDelete("{id:int}/vbs"), Authorize(Roles = "admin")]
+    [HttpDelete("{id:int}/vbs"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Excluir)]
     public Task<IActionResult> DeleteVbs(int id, CancellationToken ct) => Handle(async () =>
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
@@ -123,7 +124,7 @@ public class ImpressosWebController : ControllerBase
     [HttpGet("{id:int}/download/vbs")]
     public Task<IActionResult> DownloadVbs(int id, CancellationToken ct) => Download(id, true, ct);
 
-    [HttpPost("importar"), Authorize(Roles = "admin"), RequestSizeLimit(MaxUploadSize)]
+    [HttpPost("importar"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Importar), RequestSizeLimit(MaxUploadSize)]
     public Task<IActionResult> Import([FromForm] ImpressoImportForm form, CancellationToken ct) => Handle(async () =>
     {
         var titulo = form.Titulo?.Trim() ?? string.Empty;

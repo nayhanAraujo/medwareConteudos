@@ -15,7 +15,7 @@
       <div v-if="current" class="mt-4">
         <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
           <DsSearchInput v-model="linkSearch" wrapper-class="mb-0" class="min-w-64 flex-1" placeholder="Pesquisar nos vínculos" />
-          <DsButton v-if="auth.isAdmin && current.editavel" size="sm" :variant="editing ? 'secondary' : 'primary'" icon="pencil" @click="beginEdit">{{ editing ? 'Cancelar edição' : 'Gerenciar' }}</DsButton>
+          <DsButton v-if="canManageLinks && current.editavel" size="sm" :variant="editing ? 'secondary' : 'primary'" icon="pencil" @click="beginEdit">{{ editing ? 'Cancelar edição' : 'Gerenciar' }}</DsButton>
         </div>
         <div v-if="editing" class="mb-4 rounded-2xl border border-gray-200 p-4">
           <AssistenteMultiSelect v-model="selected" :label="`Selecionar ${current.titulo.toLowerCase()}`" :options="available" />
@@ -45,6 +45,7 @@ import type { AssistenteLinkGroup, AssistenteLinksDetail, AssistenteOption } fro
 const props = defineProps<{ domain: string; id: number }>()
 const emit = defineEmits<{ updated: [] }>()
 const api = useAssistenteApi(); const auth = useAuthStore(); const swal = useSwal()
+const canManageLinks = computed(() => auth.can('assistente', 'vincular'))
 const detail = ref<AssistenteLinksDetail>(); const current = ref<AssistenteLinkGroup>(); const loading = ref(false); const saving = ref(false); const error = ref(''); const linkSearch = ref(''); const editing = ref(false); const selected = ref<number[]>([]); const available = ref<AssistenteOption[]>([])
 const total = computed(() => detail.value?.relacoes.reduce((sum, item) => sum + item.itens.length, 0) || 0)
 const active = computed(() => detail.value?.status === undefined || detail.value?.status === null || Number(detail.value.status) === -1)
@@ -54,7 +55,7 @@ function select(group: AssistenteLinkGroup){current.value=group; editing.value=f
 function optionName(id:number){return available.value.find(x=>x.id===id)?.nome || `#${id}`}
 function move(index:number,delta:number){const target=index+delta; if(target<0||target>=selected.value.length)return; [selected.value[index],selected.value[target]]=[selected.value[target],selected.value[index]]}
 async function load(){loading.value=true;error.value='';try{detail.value=await api.links(props.domain,props.id);const previous=current.value?.relacao;current.value=detail.value.relacoes.find(x=>x.relacao===previous)||detail.value.relacoes[0]}catch(reason){error.value=reason instanceof Error?reason.message:'Não foi possível consultar os vínculos.'}finally{loading.value=false}}
-async function beginEdit(){if(editing.value){editing.value=false;return}if(!current.value)return;available.value=await api.options(current.value.dominioDestino);selected.value=current.value.itens.map(x=>x.id);editing.value=true}
-async function save(){if(!current.value)return;if(current.value.obrigatorio&&!selected.value.length){await swal.toast('Selecione ao menos um registro.','warning');return}if(current.value.selecaoUnica&&selected.value.length>1){await swal.toast('Este vínculo aceita apenas um registro.','warning');return}if(current.value.itens.some(item=>!selected.value.includes(item.id))){const confirmation=await swal.confirm('Remover vínculos','Os registros desmarcados serão desvinculados. Deseja continuar?');if(!confirmation?.isConfirmed)return}saving.value=true;try{await api.setLinks(props.domain,props.id,current.value.relacao,selected.value,current.value.ordenavel?selected.value.map((id,index)=>({id,sequencia:index})):undefined);editing.value=false;await load();emit('updated');await swal.toast('Vínculos atualizados.')}catch(reason){await swal.toast(reason instanceof Error?reason.message:'Não foi possível atualizar.','error')}finally{saving.value=false}}
+async function beginEdit(){if(!canManageLinks.value)return;if(editing.value){editing.value=false;return}if(!current.value)return;available.value=await api.options(current.value.dominioDestino);selected.value=current.value.itens.map(x=>x.id);editing.value=true}
+async function save(){if(!current.value||!canManageLinks.value)return;if(current.value.obrigatorio&&!selected.value.length){await swal.toast('Selecione ao menos um registro.','warning');return}if(current.value.selecaoUnica&&selected.value.length>1){await swal.toast('Este vínculo aceita apenas um registro.','warning');return}if(current.value.itens.some(item=>!selected.value.includes(item.id))){const confirmation=await swal.confirm('Remover vínculos','Os registros desmarcados serão desvinculados. Deseja continuar?');if(!confirmation?.isConfirmed)return}saving.value=true;try{await api.setLinks(props.domain,props.id,current.value.relacao,selected.value,current.value.ordenavel?selected.value.map((id,index)=>({id,sequencia:index})):undefined);editing.value=false;await load();emit('updated');await swal.toast('Vínculos atualizados.')}catch(reason){await swal.toast(reason instanceof Error?reason.message:'Não foi possível atualizar.','error')}finally{saving.value=false}}
 watch(()=>[props.domain,props.id],load,{immediate:true})
 </script>

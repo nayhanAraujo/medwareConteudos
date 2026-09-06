@@ -47,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const id = computed(() => Number(route.params.id))

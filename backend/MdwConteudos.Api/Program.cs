@@ -10,6 +10,7 @@ using MdwConteudos.Api.Modules.ApiPublica;
 using MdwConteudos.Api.Modules.Assistente.Dominios;
 using MdwConteudos.Api.Modules.Assistente.Importacao;
 using MdwConteudos.Api.Modules.Assistente.Vinculos;
+using MdwConteudos.Api.Modules.Assistente.Publicacao;
 using MdwConteudos.Api.Modules.Auth;
 using MdwConteudos.Api.Modules.Cadastros;
 using MdwConteudos.Api.Modules.Dashboard;
@@ -17,6 +18,7 @@ using MdwConteudos.Api.Modules.FirebirdAdmin;
 using MdwConteudos.Api.Modules.FormulasModelos;
 using MdwConteudos.Api.Modules.PaineisCadastros;
 using MdwConteudos.Api.Modules.PaineisComplementos;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Modules.RelatoriosComplementos;
 using MdwConteudos.Api.Modules.Users;
 using MdwConteudos.Api.Modules.Web;
@@ -91,6 +93,9 @@ builder.Services.AddSingleton<IAssistantFirebirdConnectionFactory, AssistantFire
 builder.Services.AddScoped<IAssistenteDominiosService, AssistenteDominiosService>();
 builder.Services.AddScoped<IAssistenteImportacaoService, AssistenteImportacaoService>();
 builder.Services.AddScoped<IAssistenteVinculosService, AssistenteVinculosService>();
+builder.Services.Configure<PublicacaoOptions>(builder.Configuration.GetSection("PublicacaoAssistente"));
+builder.Services.AddScoped<PublicacaoService>();
+builder.Services.AddHostedService<PublicacaoWorker>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<IApiPublicaService, ApiPublicaService>();
@@ -107,6 +112,7 @@ builder.Services.AddScoped<IPadroesClienteNormalidadeService, PadroesClienteNorm
 builder.Services.AddScoped<INormalidadesJsonImportService, NormalidadesJsonImportService>();
 builder.Services.AddScoped<IConversionAnalysisService, ConversionAnalysisService>();
 builder.Services.AddScoped<ScriptsService>();
+builder.Services.AddPermissionsModule();
 builder.Services.AddCadastrosModules();
 builder.Services.AddDashboardModule();
 builder.Services.AddFirebirdAdminModule();
@@ -215,6 +221,11 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .AllowCredentials()));
 
 var app = builder.Build();
+using (var scope = app.Services.CreateScope())
+{
+    var permissions = scope.ServiceProvider.GetRequiredService<IPermissionService>();
+    await permissions.EnsureSchemaAsync();
+}
 app.UseCors();
 app.UseRequestTimeouts();
 var repoRoot = MdwConteudos.Api.Infrastructure.StaticContentPaths.ResolveRepoRoot(builder.Configuration, builder.Environment.ContentRootPath);

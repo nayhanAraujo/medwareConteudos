@@ -102,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 interface BibAction {
   label: string
@@ -202,7 +202,7 @@ const placeholderTabs = [
     cards: [
       { title: 'Usuários', desc: 'Gerencie usuários do sistema.', icon: 'bi bi-people', color: '#0d6efd', nuxtPath: '/usuarios' },
       { title: 'Clientes', desc: 'Gerencie clientes cadastrados no sistema.', icon: 'bi bi-building', color: '#198754', nuxtPath: '/configuracoes/clientes' },
-      { title: 'Permissões', desc: 'Controle de acesso.', icon: 'bi bi-shield-lock', color: '#dc3545' },
+      { title: 'Permissões', desc: 'Controle de acesso.', icon: 'bi bi-shield-lock', color: '#dc3545', nuxtPath: '/biblioteca/configuracoes/permissoes' },
       { title: 'Unidades', desc: 'Unidades de medida.', icon: 'bi bi-rulers', color: '#6c757d', nuxtPath: '/configuracoes' }
     ]
   }

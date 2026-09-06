@@ -18,6 +18,8 @@
 </template>
 
 <script setup lang="ts">
+import type { AuthUser } from '~/stores/auth'
+
 definePageMeta({ layout: false })
 
 const usuario = ref('')
@@ -39,7 +41,7 @@ function isLucas(nome: string, login: string) {
 async function onSubmit() {
   loading.value = true
   try {
-    const res = await api.post<{ success: boolean; token: string; user: { codusuario: number; nome: string; role: string } }>(
+    const res = await api.post<{ success: boolean; token: string; user: AuthUser }>(
       '/api/web/auth/login',
       { usuario: usuario.value, senha: senha.value }
     )

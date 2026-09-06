@@ -15,6 +15,7 @@ public interface IPaineisVersoesService
     Task UpdateAsync(int painelId, int versaoId, VersaoPainelForm form, string responsavel, CancellationToken ct);
     Task DeleteAsync(int painelId, int versaoId, CancellationToken ct);
     Task<ArquivoVersao> DownloadAsync(int painelId, int versaoId, string tipo, int? imagemId, CancellationToken ct);
+    Task<int> AddImagesAsync(int painelId, int versaoId, IReadOnlyList<IFormFile> imagens, string responsavel, CancellationToken ct);
     Task DeleteImageAsync(int painelId, int versaoId, int imagemId, CancellationToken ct);
     Task AddMetricaAsync(int painelId, int versaoId, MetricaRequest request, CancellationToken ct);
     Task AddDimensaoAsync(int painelId, int versaoId, DimensaoRequest request, CancellationToken ct);
@@ -29,20 +30,20 @@ public sealed class PaineisVersoesService(IFirebirdConnectionFactory db) : IPain
     {
         await using var conn = await db.OpenConnectionAsync(ct);
         await EnsurePainel(conn, painelId);
-        var rows = await conn.QueryAsync(@"
+        var rows = await conn.QueryAsync<VersaoPainelResumoRow>(@"
             SELECT v.CODVERSAOPAINEL AS CodVersaoPainel, v.NUMEROVERSAO AS NumeroVersao,
                    v.DATACRIACAO AS DataCriacao, v.PUBLICADO AS Publicado, v.OBSERVACOES AS Observacoes,
                    (SELECT COUNT(*) FROM IMAGENSPAINEL i WHERE i.CODVERSAOPAINEL=v.CODVERSAOPAINEL) AS TotalImagens,
                    (SELECT COUNT(*) FROM ARQUIVOSVERSOES a WHERE a.CODVERSAOPAINEL=v.CODVERSAOPAINEL) AS TotalArquivos
             FROM VersoesPainel v WHERE v.CODPAINEL=@painelId
-            ORDER BY COALESCE(v.DATACRIACAO, CURRENT_TIMESTAMP) DESC, v.CODVERSAOPAINEL DESC", new { painelId });
+            ORDER BY v.DATACRIACAO DESC NULLS LAST, v.CODVERSAOPAINEL DESC", new { painelId });
         return rows.Cast<object>().ToList();
     }
 
     public async Task<object?> GetAsync(int painelId, int versaoId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        var versao = await conn.QueryFirstOrDefaultAsync(@"
+        var versao = await conn.QueryFirstOrDefaultAsync<VersaoPainelDetalheRow>(@"
             SELECT v.CODVERSAOPAINEL AS CodVersaoPainel, v.CODPAINEL AS CodPainel,
                    v.NUMEROVERSAO AS NumeroVersao, v.DATACRIACAO AS DataCriacao,
                    v.PUBLICADO AS Publicado, v.OBSERVACOES AS Observacoes,
@@ -51,8 +52,8 @@ public sealed class PaineisVersoesService(IFirebirdConnectionFactory db) : IPain
             WHERE v.CODPAINEL=@painelId AND v.CODVERSAOPAINEL=@versaoId", new { painelId, versaoId });
         if (versao is null) return null;
 
-        object? configuracao = string.Equals((string?)versao.TipoPainel, "POWERBI", StringComparison.OrdinalIgnoreCase)
-            ? await conn.QueryFirstOrDefaultAsync(@"
+        object? configuracao = string.Equals(versao.TipoPainel, "POWERBI", StringComparison.OrdinalIgnoreCase)
+            ? await conn.QueryFirstOrDefaultAsync<ConfiguracaoPowerBiRow>(@"
                 SELECT CODCONFIGPOWERBI AS CodConfiguracao, DIRETORIO_PBIX AS DiretorioPbix,
                        NOME_ARQUIVO_PBIX AS NomeArquivoPbix, WORKSPACE_POWERBI AS WorkspacePowerbi,
                        DATASET_POWERBI AS DatasetPowerbi, GATEWAY_POWERBI AS GatewayPowerbi,
@@ -60,31 +61,31 @@ public sealed class PaineisVersoesService(IFirebirdConnectionFactory db) : IPain
                        RESPONSAVEL_ATUALIZACAO AS ResponsavelAtualizacao, PUBLICLINK AS PublicLink,
                        IFRAMECODE AS IframeCode, OBSERVACOES AS Observacoes
                 FROM CONFIGURACOESPOWERBI WHERE CODVERSAOPAINEL=@versaoId", new { versaoId })
-            : await conn.QueryFirstOrDefaultAsync(@"
+            : await conn.QueryFirstOrDefaultAsync<ConfiguracaoApiRow>(@"
                 SELECT CODCONFIGAPI AS CodConfiguracao, ENDERECO_API AS EnderecoApi,
                        RESPONSAVEL_API AS ResponsavelApi, OBSERVACOES AS Observacoes,
                        CASE WHEN ARQUIVO_JSON IS NULL THEN 0 ELSE 1 END AS TemJson
                 FROM CONFIGURACOESAPI WHERE CODVERSAOPAINEL=@versaoId", new { versaoId });
 
-        var imagens = (await conn.QueryAsync(@"
+        var imagens = (await conn.QueryAsync<ImagemPainelRow>(@"
             SELECT CODIMAGEMPAINEL AS CodImagemPainel, NOME_ARQUIVO AS NomeArquivo,
                    TAMANHO_ARQUIVO AS TamanhoArquivo, TIPO_IMAGEM AS TipoImagem,
                    ORDEM_EXIBICAO AS OrdemExibicao
-            FROM IMAGENSPAINEL WHERE CODVERSAOPAINEL=@versaoId ORDER BY ORDEM_EXIBICAO", new { versaoId })).ToList();
-        var arquivos = (await conn.QueryAsync(@"
+            FROM IMAGENSPAINEL WHERE CODVERSAOPAINEL=@versaoId ORDER BY COALESCE(ORDEM_EXIBICAO, 999999), CODIMAGEMPAINEL", new { versaoId })).ToList();
+        var arquivos = (await conn.QueryAsync<ArquivoVersaoRow>(@"
             SELECT CODARQUIVOVERSAO AS CodArquivoVersao, TIPO_ARQUIVO AS TipoArquivo,
                    NOME_ARQUIVO AS NomeArquivo, TAMANHO_ARQUIVO AS TamanhoArquivo,
                    MIME_TYPE AS MimeType, DATACRIACAO AS DataCriacao
             FROM ARQUIVOSVERSOES WHERE CODVERSAOPAINEL=@versaoId ORDER BY TIPO_ARQUIVO", new { versaoId })).ToList();
-        var metricas = (await conn.QueryAsync(@"
+        var metricas = (await conn.QueryAsync<MetricaPainelRow>(@"
             SELECT CODMETRICA AS CodMetrica, NOME AS Nome, UNIDADEMEDIDA AS UnidadeMedida,
                    CONCEITO AS Conceito, MEDIDADAX AS MedidaDax
             FROM Metricas WHERE CODVERSAOPAINEL=@versaoId ORDER BY NOME", new { versaoId })).ToList();
-        var dimensoes = (await conn.QueryAsync(@"
+        var dimensoes = (await conn.QueryAsync<DimensaoPainelRow>(@"
             SELECT CODDIMENSAO AS CodDimensao, NOME AS Nome, DESCRICAO AS Descricao,
                    DOMINIOHIERARQUIA AS DominioHierarquia
             FROM Dimensoes WHERE CODVERSAOPAINEL=@versaoId ORDER BY NOME", new { versaoId })).ToList();
-        var fontes = (await conn.QueryAsync(@"
+        var fontes = (await conn.QueryAsync<FonteDadosPainelRow>(@"
             SELECT CODFONTEDADOS AS CodFonteDados, ORIGEM AS Origem, METODOEXTRACAO AS MetodoExtracao,
                    ARQUIVO AS Arquivo, PERIODOATUALIZACAO AS PeriodoAtualizacao, RESPONSAVEL AS Responsavel
             FROM FontesDados WHERE CODVERSAOPAINEL=@versaoId ORDER BY ORIGEM", new { versaoId })).ToList();
@@ -189,6 +190,28 @@ public sealed class PaineisVersoesService(IFirebirdConnectionFactory db) : IPain
         return new(content, SafeName((string?)file!.NOME_ARQUIVO, $"{tipo.ToLowerInvariant()}_{versaoId}.docx"), (string?)file.MIME_TYPE ?? DocxMime);
     }
 
+    public async Task<int> AddImagesAsync(int painelId, int versaoId, IReadOnlyList<IFormFile> imagens, string responsavel, CancellationToken ct)
+    {
+        var validImages = imagens.Where(x => x.Length > 0).ToList();
+        if (validImages.Count == 0) throw new InvalidOperationException("Selecione ao menos uma imagem.");
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await EnsureVersion(conn, painelId, versaoId);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        try
+        {
+            var total = await SaveImages(conn, tx, versaoId, validImages, ct);
+            await Log(conn, tx, versaoId, "IMAGENS", $"{total} imagem(ns) anexada(s) ao painel.", responsavel);
+            await tx.CommitAsync(ct);
+            return total;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
+    }
+
     public async Task DeleteImageAsync(int painelId, int versaoId, int imagemId, CancellationToken ct)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
@@ -240,15 +263,24 @@ public sealed class PaineisVersoesService(IFirebirdConnectionFactory db) : IPain
     {
         await SaveDocument(conn, tx, id, "MANUAL", form.ManualDocx, update, ct);
         await SaveDocument(conn, tx, id, "INSIGHTS", form.InsightsDocx, update, ct);
+        await SaveImages(conn, tx, id, form.Imagens, ct);
+    }
+
+    private static async Task<int> SaveImages(DbConnection conn, DbTransaction tx, int id, IEnumerable<IFormFile> imagens, CancellationToken ct)
+    {
         var order = (await conn.ExecuteScalarAsync<int?>("SELECT MAX(ORDEM_EXIBICAO) FROM IMAGENSPAINEL WHERE CODVERSAOPAINEL=@id", new { id }, tx) ?? 0) + 1;
-        foreach (var image in form.Imagens.Where(x => x.Length > 0))
+        var total = 0;
+        foreach (var image in imagens.Where(x => x.Length > 0))
         {
             if (!IsImage(image.FileName)) throw new InvalidOperationException($"Formato de imagem inválido: {image.FileName}");
             var bytes = await ReadFile(image, ct);
             var base64 = Encoding.UTF8.GetBytes(Convert.ToBase64String(bytes));
             await conn.ExecuteAsync(@"INSERT INTO IMAGENSPAINEL (CODVERSAOPAINEL,IMAGEM,NOME_ARQUIVO,TAMANHO_ARQUIVO,TIPO_IMAGEM,ORDEM_EXIBICAO,DATACRIACAO) VALUES (@id,@base64,@name,@size,'SCREENSHOT',@order,CURRENT_TIMESTAMP)", new { id, base64, name=SafeName(image.FileName,"imagem"), size=bytes.Length, order }, tx);
             order++;
+            total++;
         }
+
+        return total;
     }
 
     private static async Task SaveDocument(DbConnection conn, DbTransaction tx, int id, string type, IFormFile? file, bool update, CancellationToken ct)

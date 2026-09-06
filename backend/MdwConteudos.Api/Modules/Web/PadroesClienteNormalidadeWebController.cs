@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Web;
@@ -36,7 +37,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] CreatePadraoClienteRequest req, CancellationToken ct = default)
     {
         try
@@ -55,7 +56,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpPut("{codPadrao:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> Update(int codPadrao, [FromBody] UpdatePadraoClienteRequest req, CancellationToken ct = default)
     {
         try
@@ -74,7 +75,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpDelete("{codPadrao:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int codPadrao, CancellationToken ct = default)
     {
         try
@@ -93,7 +94,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpPut("{codPadrao:int}/vigente")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Ativar)]
     public async Task<IActionResult> SetVigente(int codPadrao, CancellationToken ct = default)
     {
         try
@@ -112,7 +113,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpPost("{codPadrao:int}/importar-referencia")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Importar)]
     public async Task<IActionResult> ImportarReferencia(
         int codPadrao,
         [FromBody] ImportarReferenciaPadraoRequest req,
@@ -134,7 +135,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpPost("{codPadrao:int}/faixas")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Criar)]
     public async Task<IActionResult> CreateFaixa(int codPadrao, [FromBody] UpsertFaixaPadraoRequest req, CancellationToken ct = default)
     {
         try
@@ -153,7 +154,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpPut("faixas/{codFaixa:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> UpdateFaixa(int codFaixa, [FromBody] UpsertFaixaPadraoRequest req, CancellationToken ct = default)
     {
         try
@@ -172,7 +173,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpDelete("faixas/{codFaixa:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteFaixa(int codFaixa, CancellationToken ct = default)
     {
         try
@@ -191,7 +192,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     }
 
     [HttpPost("{codPadrao:int}/comentario")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> UpsertComentario(int codPadrao, [FromBody] ComentarioPadraoRequest req, CancellationToken ct = default)
     {
         try

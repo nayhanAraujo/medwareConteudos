@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 
 namespace MdwConteudos.Api.Modules.Assistente.Dominios;
 
@@ -22,6 +23,14 @@ public sealed class AssistenteDominiosController(IAssistenteDominiosService serv
     [HttpGet("dashboard")]
     public async Task<IActionResult> Dashboard(CancellationToken ct) => Ok(ApiResponse.Ok(await service.Dashboard(ct)));
 
+    [HttpGet("scripts/especialidades")]
+    public async Task<IActionResult> ScriptEspecialidades(
+        [FromQuery] string? search = null,
+        [FromQuery] int? tipoScript = null,
+        [FromQuery] int? status = null,
+        CancellationToken ct = default)
+        => await Handle(async () => Ok(ApiResponse.Ok(await service.ListScriptEspecialidades(search, tipoScript, status, ct))));
+
     [HttpGet("{domain}")]
     public async Task<IActionResult> List(
         string domain,
@@ -39,21 +48,30 @@ public sealed class AssistenteDominiosController(IAssistenteDominiosService serv
     public async Task<IActionResult> Get(string domain, int id, CancellationToken ct)
         => await Handle(async () => { EnsureDomain(domain); var row = await service.Get(domain, id, ct); return row is null ? NotFound(ApiResponse.Fail("Registro não encontrado")) : Ok(ApiResponse.Ok(row)); });
 
-    [HttpPost("{domain}"), Authorize(Roles = "admin")]
+    [HttpPost("{domain}"), RequirePermission(PermissionDomains.Assistente, PermissionActions.Criar)]
     public async Task<IActionResult> Create(string domain, [FromBody] JsonElement body, CancellationToken ct)
-        => await Handle(async () => { var request = Parse(domain, body); Validate(domain, request); var id = await service.Create(domain, request, ct); return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(new { id })); });
+        => await Handle(async () => { var request = Parse(domain, body); Validate(domain, request, isCreate: true); var id = await service.Create(domain, request, ct); return StatusCode(StatusCodes.Status201Created, ApiResponse.Ok(new { id })); });
 
-    [HttpPut("{domain}/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("{domain}/{id:int}"), RequirePermission(PermissionDomains.Assistente, PermissionActions.Editar)]
     public async Task<IActionResult> Update(string domain, int id, [FromBody] JsonElement body, CancellationToken ct)
-        => await Handle(async () => { var request = Parse(domain, body); Validate(domain, request); return await service.Update(domain, id, request, ct) ? Ok(ApiResponse.OkMessage("Registro atualizado.")) : NotFound(ApiResponse.Fail("Registro não encontrado")); });
+        => await Handle(async () => { var request = Parse(domain, body); Validate(domain, request, isCreate: false); return await service.Update(domain, id, request, ct) ? Ok(ApiResponse.OkMessage("Registro atualizado.")) : NotFound(ApiResponse.Fail("Registro não encontrado")); });
 
-    [HttpPut("{domain}/{id:int}/status"), Authorize(Roles = "admin")]
+    [HttpPut("{domain}/{id:int}/status"), RequirePermission(PermissionDomains.Assistente, PermissionActions.Ativar)]
     public async Task<IActionResult> SetStatus(string domain, int id, [FromBody] AssistenteStatusRequest request, CancellationToken ct)
         => await Handle(async () => { EnsureDomain(domain); return await service.SetStatus(domain, id, request.Status, ct) ? Ok(ApiResponse.OkMessage("Status atualizado.")) : NotFound(ApiResponse.Fail("Registro não encontrado")); });
 
-    [HttpDelete("{domain}/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("{domain}/{id:int}"), RequirePermission(PermissionDomains.Assistente, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(string domain, int id, CancellationToken ct)
         => await Handle(async () => { EnsureDomain(domain); return await service.Delete(domain, id, ct) ? Ok(ApiResponse.OkMessage("Registro excluído.")) : NotFound(ApiResponse.Fail("Registro não encontrado")); });
+
+    [HttpPost("{domain}/excluir-lote"), RequirePermission(PermissionDomains.Assistente, PermissionActions.Excluir)]
+    public async Task<IActionResult> DeleteMany(string domain, [FromBody] DeleteManyRequest request, CancellationToken ct)
+        => await Handle(async () =>
+        {
+            EnsureDomain(domain);
+            var deleted = await service.DeleteMany(domain, request.Ids ?? [], ct);
+            return Ok(ApiResponse.Ok(new { totalExcluido = deleted }));
+        });
 
     private static object Parse(string domain, JsonElement body)
     {
@@ -67,7 +85,7 @@ public sealed class AssistenteDominiosController(IAssistenteDominiosService serv
         if (!RequestTypes.ContainsKey(domain)) throw new ArgumentException("Domínio inválido.");
     }
 
-    private static void Validate(string domain, object request)
+    private static void Validate(string domain, object request, bool isCreate)
     {
         static string Required(string? value, string field, int max)
         { var v = value?.Trim(); if (string.IsNullOrWhiteSpace(v)) throw new InvalidOperationException($"{field} é obrigatório."); if (v.Length > max) throw new InvalidOperationException($"{field} deve ter no máximo {max} caracteres."); return v; }
@@ -84,7 +102,7 @@ public sealed class AssistenteDominiosController(IAssistenteDominiosService serv
             case ReferenciaRequest x: Required(x.Descricao, "Descrição", 80); Required(x.Valor, "Valor", int.MaxValue); break;
             case EsquemaRequest x: Required(x.Descricao, "Descrição", 80); Required(x.Imagem, "Imagem", int.MaxValue); break;
             case EsquemaFotosRequest x: Required(x.Titulo, "Título", 252); break;
-            case ScriptRequest x: Required(x.Titulo, "Título", 252); Required(x.EstruturaScript, "Estrutura do script", int.MaxValue); if (x.TipoScript is < 1 or > 3) throw new InvalidOperationException("Tipo de script inválido."); Status(x.Status); break;
+            case ScriptRequest x: Required(x.Titulo, "Título", 252); if (isCreate) Required(x.EstruturaScript, "Estrutura do script", int.MaxValue); if (x.TipoScript is < 1 or > 3) throw new InvalidOperationException("Tipo de script inválido."); Status(x.Status); break;
             case PaginaFotosRequest x: Required(x.Titulo, "Título", 128); Status(x.Status); break;
             default: throw new ArgumentException($"Requisição inválida para {domain}.");
         }

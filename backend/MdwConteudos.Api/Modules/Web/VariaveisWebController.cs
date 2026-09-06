@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 using System.Text.Json;
 
@@ -34,7 +35,7 @@ public class VariaveisWebController : ControllerBase
         => Ok(await _svc.GetMetaAsync(ct));
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] VariavelCreateRequest req, CancellationToken ct)
     {
         try
@@ -56,7 +57,7 @@ public class VariaveisWebController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> Update(int id, [FromBody] VariavelCreateRequest req, CancellationToken ct)
     {
         try
@@ -93,12 +94,12 @@ public class VariaveisWebController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int id, [FromQuery] bool force = false, CancellationToken ct = default)
         => await Handle(async () => { await _svc.DeleteVariavelAsync(id, force, ct); return Ok(new { success = true }); });
 
     [HttpPatch("{id:int}/grupo")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> AlterarGrupo(int id, [FromBody] AlterarGrupoVariavelRequest req, CancellationToken ct)
         => await Handle(async () => { await _svc.AlterarGrupoAsync(id, req.CodGrupo, User.GetCodUsuario(), ct); return Ok(new { success = true }); });
 
@@ -106,32 +107,32 @@ public class VariaveisWebController : ControllerBase
     public async Task<IActionResult> Classificacoes(CancellationToken ct) => Ok(await _svc.ListClassificacoesAsync(ct));
 
     [HttpPost("classificacoes/grupos")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Criar)]
     public async Task<IActionResult> CriarGrupoClassificacao([FromBody] NomeRequest req, CancellationToken ct)
         => await Handle(async () => Ok(new { success = true, codGrupo = await _svc.CreateGrupoClassificacaoAsync(req.Nome, User.GetCodUsuario(), ct) }));
 
     [HttpPut("classificacoes/grupos/{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> EditarGrupoClassificacao(int id, [FromBody] NomeRequest req, CancellationToken ct)
         => await Handle(async () => { await _svc.UpdateGrupoClassificacaoAsync(id, req.Nome, User.GetCodUsuario(), ct); return Ok(new { success = true }); });
 
     [HttpDelete("classificacoes/grupos/{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Excluir)]
     public async Task<IActionResult> ExcluirGrupoClassificacao(int id, CancellationToken ct)
         => await Handle(async () => { await _svc.DeleteGrupoClassificacaoAsync(id, ct); return Ok(new { success = true }); });
 
     [HttpPost("classificacoes")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Criar)]
     public async Task<IActionResult> CriarClassificacao([FromBody] ClassificacaoRequest req, CancellationToken ct)
         => await Handle(async () => Ok(new { success = true, codClassificacao = await _svc.CreateClassificacaoAsync(req, User.GetCodUsuario(), ct) }));
 
     [HttpPut("classificacoes/{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> EditarClassificacao(int id, [FromBody] ClassificacaoRequest req, CancellationToken ct)
         => await Handle(async () => { await _svc.UpdateClassificacaoAsync(id, req, User.GetCodUsuario(), ct); return Ok(new { success = true }); });
 
     [HttpDelete("classificacoes/{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Excluir)]
     public async Task<IActionResult> ExcluirClassificacao(int id, CancellationToken ct)
         => await Handle(async () => { await _svc.DeleteClassificacaoAsync(id, ct); return Ok(new { success = true }); });
 
@@ -139,7 +140,7 @@ public class VariaveisWebController : ControllerBase
     public async Task<IActionResult> ClassificacoesVariavel(int id, CancellationToken ct) => Ok(await _svc.GetVariavelClassificacoesAsync(id, ct));
 
     [HttpPut("{id:int}/classificacoes")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> VincularClassificacoes(int id, [FromBody] VariavelClassificacoesRequest req, CancellationToken ct)
         => await Handle(async () => { await _svc.SetVariavelClassificacoesAsync(id, req.Classificacoes, User.GetCodUsuario(), ct); return Ok(new { success = true }); });
 
@@ -147,7 +148,7 @@ public class VariaveisWebController : ControllerBase
     public async Task<IActionResult> CodigosUniversais([FromQuery] string? search, CancellationToken ct) => Ok(await _svc.ListCodigosUniversaisAsync(search, ct));
 
     [HttpPut("{id:int}/codigos-universais")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> VincularCodigos(int id, [FromBody] CodigosUniversaisRequest req, CancellationToken ct)
         => await Handle(async () => { await _svc.SetCodigosUniversaisAsync(id, req.Codigos, User.GetCodUsuario(), ct); return Ok(new { success = true }); });
 
@@ -155,17 +156,17 @@ public class VariaveisWebController : ControllerBase
     public async Task<IActionResult> Especialidades(int id, CancellationToken ct) => Ok(await _svc.GetEspecialidadesAsync(id, ct));
 
     [HttpPut("{id:int}/especialidades")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> VincularEspecialidade(int id, [FromBody] EspecialidadeVinculoRequest req, CancellationToken ct)
         => await Handle(async () => { await _svc.SetEspecialidadeAsync(id, req, User.GetCodUsuario(), ct); return Ok(new { success = true }); });
 
     [HttpDelete("{id:int}/especialidades/{codEspecialidade:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> DesvincularEspecialidade(int id, int codEspecialidade, CancellationToken ct)
         => await Handle(async () => { await _svc.RemoveEspecialidadeAsync(id, codEspecialidade, ct); return Ok(new { success = true }); });
 
     [HttpPost("especialidades/lote")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> EspecialidadesLote([FromBody] EspecialidadesLoteRequest req, CancellationToken ct)
         => await Handle(async () => { await _svc.SetEspecialidadesLoteAsync(req, User.GetCodUsuario(), ct); return Ok(new { success = true, total = req.Variaveis.Distinct().Count() }); });
 
@@ -173,7 +174,7 @@ public class VariaveisWebController : ControllerBase
     public async Task<IActionResult> Anexos(int id, CancellationToken ct) => Ok(await _svc.GetAnexosContextoAsync(id, ct));
 
     [HttpPost("{id:int}/anexos")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     [RequestSizeLimit(25_000_000)]
     public async Task<IActionResult> CriarAnexo(int id, [FromForm] string tipoAnexo, [FromForm] string? nome, [FromForm] string? descricao,
         [FromForm] string? link, [FromForm] int? codFormula, [FromForm] int? codReferencia, [FromForm] IFormFile? arquivo, CancellationToken ct)
@@ -205,7 +206,7 @@ public class VariaveisWebController : ControllerBase
     }
 
     [HttpDelete("{id:int}/anexos/{codAnexo:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> ExcluirAnexo(int id, int codAnexo, CancellationToken ct)
         => await Handle(async () => { await _svc.DeleteAnexoAsync(id, codAnexo, ct); return Ok(new { success = true }); });
 
@@ -225,7 +226,7 @@ public class VariaveisWebController : ControllerBase
     }
 
     [HttpPost("importacao-cs/preview")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Importar)]
     [RequestSizeLimit(10_000_000)]
     public async Task<IActionResult> PreviewImportacao([FromForm] IFormFile arquivo, CancellationToken ct)
     {
@@ -236,19 +237,19 @@ public class VariaveisWebController : ControllerBase
     }
 
     [HttpPost("importacao-cs/confirmar")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Importar)]
     public async Task<IActionResult> ConfirmarImportacao([FromBody] ImportacaoCsConfirmarRequest req, CancellationToken ct)
         => await Handle(async () => Ok(await _svc.ImportarCsAsync(req, User.GetCodUsuario(), ct)));
 
     [HttpPost("importacoes/preview")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Importar)]
     [RequestSizeLimit(ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
     public async Task<IActionResult> PreviewImportacaoUnificada([FromForm] IFormFile arquivo, [FromForm] int? codReferencia, CancellationToken ct)
         => await Handle(async () => Ok(ApiResponse.Ok(await _importacao.PreviewAsync(arquivo, codReferencia, ct))));
 
     [HttpPost("importacoes/confirmar")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Importar)]
     [RequestSizeLimit(ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = ImportacaoVariaveisService.MaxFileSize + 1024 * 1024)]
     public async Task<IActionResult> ConfirmarImportacaoUnificada(

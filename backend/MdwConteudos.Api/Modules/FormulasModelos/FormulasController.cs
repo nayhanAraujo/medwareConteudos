@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.FormulasModelos;
@@ -49,7 +50,7 @@ public sealed class FormulasController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] FormulaUpsertRequest request, CancellationToken ct)
     {
         try
@@ -64,7 +65,7 @@ public sealed class FormulasController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Editar)]
     public async Task<IActionResult> Update(int id, [FromBody] FormulaUpsertRequest request, CancellationToken ct)
     {
         try
@@ -79,7 +80,7 @@ public sealed class FormulasController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize]
+    [RequirePermission(PermissionDomains.Formulas, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         try

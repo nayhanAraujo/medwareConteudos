@@ -2,6 +2,7 @@ export type AssistenteEntity = Record<string, unknown> & {
   id?: number
   codigo?: number
   status?: number | boolean
+  dataModificacao?: string
 }
 
 export interface AssistentePage<T = AssistenteEntity> {
@@ -78,6 +79,7 @@ export interface AssistenteLinksDetail {
   dominio: string; id: number; nome: string; status?: number; relacoes: AssistenteLinkGroup[]
 }
 export interface AssistenteLinksSummaryItem { id: number; nome: string; status?: number; totalVinculos: number }
+export interface AssistenteScriptEspecialidadeGroup { id: number; nome: string; totalScripts: number }
 
 type ApiEnvelope<T> = { data?: T; items?: T[]; total?: number; page?: number; pageSize?: number }
 
@@ -92,8 +94,8 @@ const domainFields: Record<string, Record<string, string>> = {
   referencias: { codigo: 'CODREFERENCIA', id: 'CODREFERENCIA', titulo: 'DESCRICAO', descricao: 'DESCRICAO', tipo: 'TIPO', conteudo: 'VALOR', valor: 'VALOR' },
   esquemas: { codigo: 'CODESQUEMA', id: 'CODESQUEMA', nome: 'DESCRICAO', descricao: 'DESCRICAO', conteudo: 'IMAGEM', imagem: 'IMAGEM' },
   'esquemas-fotos': { codigo: 'CODESQUEMAFOTOS', id: 'CODESQUEMAFOTOS', nome: 'TITULO', titulo: 'TITULO', conteudo: 'ESQUEMA', esquema: 'ESQUEMA' },
-  scripts: { codigo: 'CODSCRIPTLAUDO', id: 'CODSCRIPTLAUDO', titulo: 'TITULO', tipo: 'TIPOSCRIPT', tipoScript: 'TIPOSCRIPT', conteudo: 'ESTRUTURASCRIPT', estruturaScript: 'ESTRUTURASCRIPT', status: 'STATUS', especialidades: 'ESPECIALIDADES', especialidade: 'ESPECIALIDADES' },
-  'paginas-fotos': { codigo: 'CODPAGFOTOS', id: 'CODPAGFOTOS', titulo: 'TITULO', conteudo: 'ESTRUTURAPAGFOTOS', estruturaPagFotos: 'ESTRUTURAPAGFOTOS', status: 'STATUS' }
+  scripts: { codigo: 'CODSCRIPTLAUDO', id: 'CODSCRIPTLAUDO', titulo: 'TITULO', tipo: 'TIPOSCRIPT', tipoScript: 'TIPOSCRIPT', conteudo: 'ESTRUTURASCRIPT', estruturaScript: 'ESTRUTURASCRIPT', status: 'STATUS', dataModificacao: 'DATAMODIFICACAO', especialidades: 'ESPECIALIDADES', especialidade: 'ESPECIALIDADES' },
+  'paginas-fotos': { codigo: 'CODPAGFOTOS', id: 'CODPAGFOTOS', nome: 'TITULO', titulo: 'TITULO', conteudo: 'ESTRUTURAPAGFOTOS', estruturaPagFotos: 'ESTRUTURAPAGFOTOS', status: 'STATUS' }
 }
 
 export function useAssistenteApi() {
@@ -189,6 +191,10 @@ export function useAssistenteApi() {
       } satisfies AssistenteDashboard
     },
     list,
+    scriptSpecialtyGroups: async (search = '', tipoScript?: string | number, status?: string | number) =>
+      unwrap(await api.get<ApiEnvelope<AssistenteScriptEspecialidadeGroup[]>>(
+        `${root}/scripts/especialidades${query({ search, tipoScript, status })}`
+      )),
     get: async <T = AssistenteEntity>(domain: string, id: number) => {
       const data = unwrap<any>(await api.get<ApiEnvelope<any>>(`${root}/${domain}/${id}`))
       const item = normalize(domain, (data.item || data) as AssistenteEntity)
@@ -199,6 +205,7 @@ export function useAssistenteApi() {
     update: async <T = AssistenteEntity>(domain: string, id: number, body: unknown) =>
       unwrap(await api.put<ApiEnvelope<T>>(`${root}/${domain}/${id}`, body)),
     remove: (domain: string, id: number) => api.del(`${root}/${domain}/${id}`),
+    removeMany: (domain: string, ids: number[]) => api.post(`${root}/${domain}/excluir-lote`, { ids }),
     setStatus: (domain: string, id: number, active: boolean) =>
       api.put(`${root}/${domain}/${id}/status`, { status: active ? -1 : 0 }),
     options: async (domain: string, search = '') => {

@@ -1,6 +1,7 @@
 namespace MdwConteudos.Api.Modules.Assistente.Dominios;
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
+public sealed record ScriptEspecialidadeGroup(int Id, string Nome, long TotalScripts);
 public sealed record NamedRequest(string? Nome, int Status = -1);
 public sealed record EspecialidadeRequest(string? Descricao);
 public sealed record GrupoRequest(string? Grupo, int? CodGrupoPai, int Status, IReadOnlyList<int>? Especialidades);
@@ -20,5 +21,6 @@ public sealed record PaginaFotosRequest(string? Titulo, string? EstruturaPagFoto
     IReadOnlyList<int>? Especialidades, IReadOnlyList<int>? Esquemas, IReadOnlyList<SequencedLink>? Scripts);
 public sealed record SequencedLink(int Id, short Sequencia);
 public sealed record LinksRequest(IReadOnlyList<int>? Ids);
+public sealed record DeleteManyRequest(IReadOnlyList<int>? Ids);
 public sealed record SequencedLinksRequest(IReadOnlyList<SequencedLink>? Items);
 public sealed record AssistenteStatusRequest(int Status);

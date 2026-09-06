@@ -4,6 +4,7 @@ export interface AuthUser {
   codusuario: number
   nome: string
   role: string
+  permissions?: string[]
 }
 
 const TOKEN_KEY = 'mdw_token'
@@ -42,7 +43,12 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isAuthenticated: (s) => !!s.token,
-    isAdmin: (s) => s.user?.role === 'admin'
+    isAdmin: (s) => String(s.user?.role || '').toLowerCase() === 'admin',
+    can: (s) => (domain: string, action: string) => {
+      if (String(s.user?.role || '').toLowerCase() === 'admin') return true
+      const key = `${domain}.${action}`.toLowerCase()
+      return (s.user?.permissions || []).some((permission) => permission.toLowerCase() === key)
+    }
   },
   actions: {
     loadFromStorage() {

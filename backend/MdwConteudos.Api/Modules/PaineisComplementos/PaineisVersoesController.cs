@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.PaineisComplementos;
@@ -25,7 +26,7 @@ public sealed class PaineisVersoesController(IPaineisVersoesService service) : C
     });
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Criar)]
     [RequestSizeLimit(100_000_000)]
     public async Task<IActionResult> Create(int painelId, [FromForm] VersaoPainelForm form, CancellationToken ct) => await Write(async () =>
     {
@@ -34,7 +35,7 @@ public sealed class PaineisVersoesController(IPaineisVersoesService service) : C
     });
 
     [HttpPut("{versaoId:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     [RequestSizeLimit(100_000_000)]
     public async Task<IActionResult> Update(int painelId, int versaoId, [FromForm] VersaoPainelForm form, CancellationToken ct) => await Write(async () =>
     {
@@ -43,7 +44,7 @@ public sealed class PaineisVersoesController(IPaineisVersoesService service) : C
     });
 
     [HttpDelete("{versaoId:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int painelId, int versaoId, CancellationToken ct) => await Write(async () =>
     {
         await service.DeleteAsync(painelId, versaoId, ct);
@@ -63,15 +64,24 @@ public sealed class PaineisVersoesController(IPaineisVersoesService service) : C
     }
 
     [HttpDelete("{versaoId:int}/imagens/{imagemId:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteImage(int painelId, int versaoId, int imagemId, CancellationToken ct) => await Write(async () =>
     {
         await service.DeleteImageAsync(painelId, versaoId, imagemId, ct);
         return Ok(ApiResponse.OkMessage("Imagem excluída com sucesso."));
     });
 
+    [HttpPost("{versaoId:int}/imagens")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
+    [RequestSizeLimit(100_000_000)]
+    public async Task<IActionResult> AddImages(int painelId, int versaoId, [FromForm] List<IFormFile> imagens, CancellationToken ct) => await Write(async () =>
+    {
+        var total = await service.AddImagesAsync(painelId, versaoId, imagens, User.Identity?.Name ?? User.GetCodUsuario().ToString(), ct);
+        return Ok(ApiResponse.Ok(new { total }, total));
+    });
+
     [HttpPost("{versaoId:int}/metricas")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     public async Task<IActionResult> AddMetric(int painelId, int versaoId, MetricaRequest request, CancellationToken ct) => await Write(async () =>
     {
         await service.AddMetricaAsync(painelId, versaoId, request, ct);
@@ -79,7 +89,7 @@ public sealed class PaineisVersoesController(IPaineisVersoesService service) : C
     });
 
     [HttpPost("{versaoId:int}/dimensoes")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     public async Task<IActionResult> AddDimension(int painelId, int versaoId, DimensaoRequest request, CancellationToken ct) => await Write(async () =>
     {
         await service.AddDimensaoAsync(painelId, versaoId, request, ct);
@@ -87,7 +97,7 @@ public sealed class PaineisVersoesController(IPaineisVersoesService service) : C
     });
 
     [HttpPost("{versaoId:int}/fontes")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Paineis, PermissionActions.Editar)]
     public async Task<IActionResult> AddSource(int painelId, int versaoId, FonteDadosRequest request, CancellationToken ct) => await Write(async () =>
     {
         await service.AddFonteAsync(painelId, versaoId, request, ct);

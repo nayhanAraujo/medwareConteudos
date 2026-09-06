@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Web;
@@ -49,6 +50,7 @@ public class RelatoriosWebController : ControllerBase
         => Ok(await _svc.ListModulosSimplesAsync(codsistema, ct));
 
     [HttpPost("modulos")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Criar)]
     public async Task<IActionResult> CreateModulo([FromBody] ModuloRelatorioCreateRequest req, CancellationToken ct)
     {
         try
@@ -62,6 +64,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpPut("modulos/{nomeModulo}")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Editar)]
     public async Task<IActionResult> UpdateModulo(string nomeModulo, [FromBody] ModuloRelatorioUpdateRequest req, CancellationToken ct)
     {
         try
@@ -79,6 +82,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpDelete("modulos/{nomeModulo}")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteModulo(string nomeModulo, CancellationToken ct)
     {
         try
@@ -96,6 +100,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpPost("exportar-multiplos")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Exportar)]
     public async Task<IActionResult> ExportMultiplos([FromBody] RelatorioExportRequest req, CancellationToken ct)
     {
         try
@@ -110,7 +115,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpPost("importar-lote")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Importar)]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> ImportLote(
         [FromForm] string modulo,
@@ -233,7 +238,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] RelatorioUpsertRequest req, CancellationToken ct)
     {
         try
@@ -247,7 +252,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Editar)]
     public async Task<IActionResult> Update(int id, [FromBody] RelatorioUpsertRequest req, CancellationToken ct)
     {
         try
@@ -265,7 +270,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpPatch("{id:int}/status")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Ativar)]
     public async Task<IActionResult> SetStatus(int id, [FromBody] RelatorioStatusRequest req, CancellationToken ct)
     {
         try
@@ -283,7 +288,7 @@ public class RelatoriosWebController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Relatorios, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         try

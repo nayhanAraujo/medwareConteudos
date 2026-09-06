@@ -18,7 +18,7 @@
 import type { ScriptFormModel } from '~/components/scripts/ScriptForm.vue'
 import { buildScriptFormData } from '~/utils/scriptFormData'
 
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const router = useRouter()

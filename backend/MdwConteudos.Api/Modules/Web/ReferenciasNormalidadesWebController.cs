@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Web;
@@ -45,7 +46,7 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     }
 
     [HttpPost("vincular")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> Vincular([FromBody] VincularNormalidadesRequest req, CancellationToken ct = default)
     {
         try
@@ -68,7 +69,7 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     }
 
     [HttpPost("atualizar")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> Atualizar([FromBody] AtualizarNormalidadeReferenciaRequest req, CancellationToken ct = default)
     {
         try
@@ -83,7 +84,7 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     }
 
     [HttpPost("desvincular")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> Desvincular([FromBody] DesvincularNormalidadeReferenciaRequest req, CancellationToken ct = default)
     {
         try
@@ -98,7 +99,7 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     }
 
     [HttpPost("importar")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Importar)]
     public async Task<IActionResult> Importar([FromBody] ImportarNormalidadesRequest req, CancellationToken ct = default)
     {
         try
@@ -118,7 +119,7 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     }
 
     [HttpPost("comentario")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Editar)]
     public async Task<IActionResult> UpsertComentario([FromBody] UpsertNormalidadeComentarioRequest req, CancellationToken ct = default)
     {
         try
@@ -133,7 +134,7 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     }
 
     [HttpDelete("comentario")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Excluir)]
     public async Task<IActionResult> DeleteComentario([FromQuery] int codVariavel, [FromQuery] int codReferencia, CancellationToken ct = default)
     {
         try
@@ -148,7 +149,7 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     }
 
     [HttpPost("importar-json")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Importar)]
     public async Task<IActionResult> ImportarJson([FromBody] ImportarNormalidadesJsonRequest? req, CancellationToken ct = default)
     {
         try

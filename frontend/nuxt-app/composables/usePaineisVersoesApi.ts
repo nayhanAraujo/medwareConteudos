@@ -32,6 +32,8 @@ export function usePaineisVersoesApi() {
   const remove = (painelId: number, versaoId: number) => api.del(`${base(painelId)}/${versaoId}`)
   const removeImage = (painelId: number, versaoId: number, imagemId: number) =>
     api.del(`${base(painelId)}/${versaoId}/imagens/${imagemId}`)
+  const addImages = (painelId: number, versaoId: number, form: FormData) =>
+    api.postForm<{ success: boolean; data: { total: number } }>(`${base(painelId)}/${versaoId}/imagens`, form)
   const addMetric = (painelId: number, versaoId: number, body: unknown) =>
     api.post(`${base(painelId)}/${versaoId}/metricas`, body)
   const addDimension = (painelId: number, versaoId: number, body: unknown) =>
@@ -48,5 +50,5 @@ export function usePaineisVersoesApi() {
     URL.revokeObjectURL(anchor.href)
   }
 
-  return { list, get, create, update, remove, removeImage, addMetric, addDimension, addSource, download }
+  return { list, get, create, update, remove, removeImage, addImages, addMetric, addDimension, addSource, download }
 }

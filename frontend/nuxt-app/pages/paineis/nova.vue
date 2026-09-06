@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import PainelForm from '~/components/paineis/PainelForm.vue'
 definePageMeta({ layout: 'default' })
 
 const route = useRoute()

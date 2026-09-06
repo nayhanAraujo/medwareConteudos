@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import type { VersaoDto } from '~/composables/useScriptsApi'
 
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const id = Number(route.params.id)

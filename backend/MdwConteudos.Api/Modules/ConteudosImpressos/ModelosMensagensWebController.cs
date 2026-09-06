@@ -2,6 +2,7 @@ using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.ConteudosImpressos;
@@ -27,7 +28,7 @@ public class ModelosMensagensWebController : ControllerBase
         return Ok(ApiResponse.Ok(rows, rows.Count));
     }
 
-    [HttpPost("grupos"), Authorize(Roles = "admin")]
+    [HttpPost("grupos"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Criar)]
     public Task<IActionResult> CreateGrupo(GrupoMensagemRequest request, CancellationToken ct) => Handle(async () =>
     {
         var nome = Required(request.Nome, "Nome do grupo");
@@ -44,7 +45,7 @@ public class ModelosMensagensWebController : ControllerBase
         return ApiResponse.Ok(new { codGrupoMensagem = id });
     });
 
-    [HttpPut("grupos/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("grupos/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Editar)]
     public Task<IActionResult> UpdateGrupo(int id, GrupoMensagemRequest request, CancellationToken ct) => Handle(async () =>
     {
         var nome = Required(request.Nome, "Nome do grupo");
@@ -63,7 +64,7 @@ public class ModelosMensagensWebController : ControllerBase
         return ApiResponse.OkMessage("Grupo atualizado com sucesso.");
     });
 
-    [HttpDelete("grupos/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("grupos/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Excluir)]
     public Task<IActionResult> DeleteGrupo(int id, CancellationToken ct) => Handle(async () =>
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
@@ -104,7 +105,7 @@ public class ModelosMensagensWebController : ControllerBase
         return row is null ? NotFound(ApiResponse.Fail("Não encontrado", "Mensagem não encontrada.")) : Ok(ApiResponse.Ok(row));
     }
 
-    [HttpPost("mensagens"), Authorize(Roles = "admin")]
+    [HttpPost("mensagens"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Criar)]
     public Task<IActionResult> CreateMensagem(ModeloMensagemRequest request, CancellationToken ct) => Handle(async () =>
     {
         var titulo = Required(request.Titulo, "Título");
@@ -126,7 +127,7 @@ public class ModelosMensagensWebController : ControllerBase
         return ApiResponse.Ok(new { codModeloMensagem = id });
     });
 
-    [HttpPut("mensagens/{id:int}"), Authorize(Roles = "admin")]
+    [HttpPut("mensagens/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Editar)]
     public Task<IActionResult> UpdateMensagem(int id, ModeloMensagemRequest request, CancellationToken ct) => Handle(async () =>
     {
         var titulo = Required(request.Titulo, "Título");
@@ -152,7 +153,7 @@ public class ModelosMensagensWebController : ControllerBase
         return ApiResponse.OkMessage("Mensagem atualizada com sucesso.");
     });
 
-    [HttpDelete("mensagens/{id:int}"), Authorize(Roles = "admin")]
+    [HttpDelete("mensagens/{id:int}"), RequirePermission(PermissionDomains.Conteudos, PermissionActions.Excluir)]
     public Task<IActionResult> DeleteMensagem(int id, CancellationToken ct) => Handle(async () =>
     {
         await using var conn = await _db.OpenConnectionAsync(ct);

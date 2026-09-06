@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 
 namespace MdwConteudos.Api.Modules.Assistente.Vinculos;
 
@@ -23,7 +24,7 @@ public sealed class AssistenteVinculosController(IAssistenteVinculosService serv
         catch (ArgumentException ex) { return BadRequest(ApiResponse.Fail("Requisição inválida", ex.Message)); }
     }
 
-    [HttpPut("{domain}/{id:int}/vinculos/{relation}"), Authorize(Roles = "admin")]
+    [HttpPut("{domain}/{id:int}/vinculos/{relation}"), RequirePermission(PermissionDomains.Assistente, PermissionActions.Vincular)]
     public async Task<IActionResult> Set(string domain, int id, string relation, [FromBody] SetVinculosRequest request, CancellationToken ct)
     {
         try { await service.Set(domain, id, relation, request.Ids ?? [], request.Items, ct); return Ok(ApiResponse.OkMessage("Vínculos atualizados.")); }

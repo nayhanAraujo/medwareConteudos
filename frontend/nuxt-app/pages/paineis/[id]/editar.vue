@@ -12,6 +12,7 @@
         :modulos="modulos"
         :pacotes="pacotes"
         :nome-pbix-atual="nomePbixAtual"
+        :show-configuration="false"
         @submit="onSubmit"
       >
         <template #actions>
@@ -19,11 +20,16 @@
           <DsButton type="submit" icon="check-circle" :loading="saving" :disabled="saving">Salvar</DsButton>
         </template>
       </PainelForm>
+      <div v-if="!loading && !errorMsg && latestVersionId" class="mt-6 rounded-xl border border-gray-200 p-4">
+        <p class="mb-3 text-sm text-gray-600">Configurações de API/Power BI e imagens são gerenciadas por versão.</p>
+        <DsButton variant="secondary" icon="gear" :to="`/paineis/${id}/versoes/${latestVersionId}/editar`">Editar configurações da última versão</DsButton>
+      </div>
     </DsPageShell>
   </div>
 </template>
 
 <script setup lang="ts">
+import PainelForm from '~/components/paineis/PainelForm.vue'
 definePageMeta({ layout: 'default' })
 
 const route = useRoute()
@@ -37,6 +43,7 @@ const saving = ref(false)
 const errorMsg = ref('')
 const tipoPainel = ref('POWERBI')
 const nomePbixAtual = ref<string | null>(null)
+const latestVersionId = ref<number | null>(null)
 const clientes = ref<{ codCliente: number; nome: string }[]>([])
 const modulos = ref<{ codModulo: number; nome: string }[]>([])
 const pacotes = ref<{ codPacote: number; nome: string }[]>([])
@@ -90,6 +97,7 @@ async function load() {
     modulos.value = m.data || []
     pacotes.value = p.data || []
     const d = detail.data
+    latestVersionId.value = d.versoes?.[0]?.codversaopainel || null
     tipoPainel.value = d.tipo_painel
     nomePbixAtual.value = d.nome_arquivo_pbix || null
     form.nome = d.nome

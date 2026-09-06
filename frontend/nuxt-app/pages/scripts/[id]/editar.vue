@@ -1,6 +1,7 @@
 <template>
   <div>
     <DsPageHeader title="Editar Script" icon="pencil-fill" />
+    <ScriptsPublicationStatus :script-id="id" />
     <DsPageShell panel-class="!p-6 md:!p-8">
       <div v-if="loadingData" class="text-gray-500 py-8 text-center">Carregando...</div>
       <ScriptsScriptForm
@@ -22,7 +23,7 @@
 import type { ScriptFormModel } from '~/components/scripts/ScriptForm.vue'
 import { buildScriptFormData } from '~/utils/scriptFormData'
 
-definePageMeta({ layout: 'default', middleware: ['admin'] })
+definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const router = useRouter()

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
 
 namespace MdwConteudos.Api.Modules.Users;
 
@@ -29,7 +30,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Usuarios, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest req, CancellationToken ct)
     {
         var (ok, error) = await _users.CreateAsync(req, ct);
@@ -38,7 +39,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{codUsuario:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Usuarios, PermissionActions.Editar)]
     public async Task<IActionResult> Update(int codUsuario, [FromBody] UpdateUserRequest req, CancellationToken ct)
     {
         var (ok, error) = await _users.UpdateAsync(codUsuario, req, ct);
@@ -47,7 +48,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{codUsuario:int}")]
-    [Authorize(Roles = "admin")]
+    [RequirePermission(PermissionDomains.Usuarios, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int codUsuario, CancellationToken ct)
     {
         if (!await _users.DeleteAsync(codUsuario, ct))
