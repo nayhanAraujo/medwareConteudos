@@ -1,6 +1,6 @@
 # Checklist — Migração Nuxt 3 → Nuxt 4 + Tailwind 4 (MDW Conteúdos)
 
-**Projeto:** `mdw-migracao/frontend/nuxt-app`  
+**Projeto:** `frontend/nuxt-app` (relativo à raiz do checkout)
 **Repo Azure:** `Conteudos_migracao`  
 **Antes:** Nuxt `^3.21.6` + Tailwind `^3.4` (`@nuxtjs/tailwindcss`)  
 **Alvo:** Nuxt `^4.4.x` + Tailwind `^4` via `@tailwindcss/vite`  
@@ -31,7 +31,7 @@
 ## 1. Branch e baseline limpa
 
 ```bash
-cd mdw-migracao
+cd <raiz-do-checkout>
 git checkout main
 git pull origin main
 git checkout -b chore/upgrade-nuxt4-tailwind4
@@ -205,7 +205,7 @@ git push -u origin chore/upgrade-nuxt4
 ## 10. Pós-merge (cada desenvolvedor)
 
 ```bash
-cd mdw-migracao
+cd <raiz-do-checkout>
 git checkout main
 git pull origin main
 cd frontend/nuxt-app

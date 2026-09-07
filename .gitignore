@@ -1,5 +1,5 @@
 # =============================================================================
-# MDW Conteúdos — Migração (Nuxt 3 + ASP.NET Core 8)
+# MDW Conteúdos — Migração (Nuxt 4 + ASP.NET Core 10)
 # Baseado no .gitignore do projeto legado Flask, adaptado para a nova stack.
 # =============================================================================
 
@@ -39,6 +39,7 @@ uploads/
 .dotnet/
 .codex-build/
 backend/MdwConteudos.Api/bin-check/
+backend/MdwConteudos.Api/bin-temp/
 backend/MdwConteudos.Api/bin-verify/
 backend/MdwConteudos.Api/bin-verify-*/
 graphify-out/
@@ -54,7 +55,7 @@ graphify-out-*/
 logs/
 
 # -----------------------------------------------------------------------------
-# ASP.NET Core / .NET 8
+# ASP.NET Core / .NET 10
 # -----------------------------------------------------------------------------
 bin/
 obj/

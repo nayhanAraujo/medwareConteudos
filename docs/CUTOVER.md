@@ -3,7 +3,7 @@
 ## Estratégia
 
 1. Manter **Flask** em produção (`C:\MedwareConteudo`, NSSM) até cada módulo ter paridade validada.
-2. Validar a nova stack em `mdw-migracao/` contra o mesmo Firebird e `.env`.
+2. Validar a nova stack a partir da raiz do checkout contra o mesmo Firebird e `.env`.
 3. Redirecionar tráfego por módulo (reverse proxy ou IIS URL Rewrite).
 
 ## Escopo desta migração
@@ -25,8 +25,8 @@
 
 Adicionar estágios ao `azure-pipelines.yml` **somente após** homologação:
 
-1. `dotnet publish` → `mdw-migracao/backend/MdwConteudos.Api`
-2. `npm ci && npm run build` → `mdw-migracao/frontend/nuxt-app`
+1. `dotnet publish` → `backend/MdwConteudos.Api`
+2. `npm ci && npm run build` → `frontend/nuxt-app`
 3. NSSM: segundo serviço `MedwareConteudoApi` (Kestrel :5080)
 4. Servir Nuxt estático via IIS ou `node .output/server/index.mjs`
 

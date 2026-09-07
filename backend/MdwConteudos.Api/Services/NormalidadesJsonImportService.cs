@@ -23,12 +23,15 @@ public sealed class NormalidadesJsonImportService : INormalidadesJsonImportServi
     private static readonly string[] SexosJson = ["F", "M", "U", "A"];
 
     private readonly IFirebirdConnectionFactory _db;
-    private readonly IConfiguration _config;
+    private readonly string _migrationRoot;
 
-    public NormalidadesJsonImportService(IFirebirdConnectionFactory db, IConfiguration config)
+    public NormalidadesJsonImportService(
+        IFirebirdConnectionFactory db,
+        IConfiguration config,
+        IWebHostEnvironment env)
     {
         _db = db;
-        _config = config;
+        _migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
     }
 
     public async Task<object> ImportarAseChamberAsync(int codReferencia, int codUsuario, CancellationToken ct)
@@ -196,8 +199,7 @@ public sealed class NormalidadesJsonImportService : INormalidadesJsonImportServi
 
     private string ResolveJsonPath()
     {
-        var repoRoot = StaticContentPaths.ResolveRepoRoot(_config);
-        return Path.GetFullPath(Path.Combine(repoRoot, "docs", "normalidades", "NormalidadesEcodopplercardiograma.json"));
+        return Path.GetFullPath(Path.Combine(_migrationRoot, "docs", "normalidades", "NormalidadesEcodopplercardiograma.json"));
     }
 
     private static async Task<Dictionary<string, int>> EnsureGrupoPtAsync(

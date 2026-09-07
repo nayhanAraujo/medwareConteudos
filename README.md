@@ -1,6 +1,6 @@
 # MDW Conteúdos — Stack nova (migração)
 
-Stack de migração com Nuxt 4 + ASP.NET Core 10. O Flask/Jinja na raiz do repositório continua funcionando até o cutover módulo a módulo.
+Stack de migração com Nuxt 4 + ASP.NET Core 10. O Flask/Jinja no repositório legado pai continua funcionando até o cutover módulo a módulo.
 
 Ficam deliberadamente no legado: `uploads/uploaddll`, automação E2E e os módulos de IA (Agente PubMed/Grok, Oráculo/XML e conversor Azure OpenAI). Essa exclusão não abrange importação de variáveis `.cs`, impressos `.mrd`, anexos ou arquivos de versões.
 
@@ -8,7 +8,7 @@ Ficam deliberadamente no legado: `uploads/uploaddll`, automação E2E e os módu
 
 - .NET 10 SDK
 - Node.js 18+ (frontend Nuxt); **Node.js 22+** obrigatório para o conversor Studio (`backend/agent-bridge`)
-- Firebird (mesmo `BD/REFERENCIAS.FDB` e `.env` do projeto pai)
+- Firebird (bancos configurados em `bd/` ou por variáveis de ambiente)
 
 **Deploy em servidor:** checklist completo em [docs/DEPLOY.md](docs/DEPLOY.md) (pacotes npm, variáveis de ambiente, Studio/Cursor, verificação pós-deploy).
 
@@ -17,16 +17,16 @@ Ficam deliberadamente no legado: `uploads/uploaddll`, automação E2E e os módu
 ### 1. API .NET (porta 5080)
 
 ```powershell
-cd mdw-migracao\backend\MdwConteudos.Api
+cd backend\MdwConteudos.Api
 dotnet run
 ```
 
-A API lê o `.env` da raiz do repositório (`FIREBIRD_*`, `SECRET_KEY`, `API_JWT_*`).
+A API lê o `.env` da raiz detectada da stack (`FIREBIRD_*`, `SECRET_KEY`, `API_JWT_*`).
 
 ### 2. Nuxt (porta 3000)
 
 ```powershell
-cd mdw-migracao\frontend\nuxt-app
+cd frontend\nuxt-app
 npm run dev
 ```
 
@@ -89,7 +89,7 @@ Instalação completa, produção e troubleshooting: [`docs/DEPLOY.md`](docs/DEP
 ## Estrutura
 
 ```
-mdw-migracao/
+<raiz-do-projeto>/
 ├── backend/
 │   ├── MdwConteudos.Api/          # ASP.NET Core 10 (inclui /api/conversions)
 │   ├── ConversorHtml.Application/ # Conversão imagem → HTML ou TXT

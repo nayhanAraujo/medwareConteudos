@@ -2,9 +2,8 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Modules.Permissions;
-using MdwConteudos.Api.Services;
 
-namespace MdwConteudos.Api.Controllers;
+namespace MdwConteudos.Api.Modules.Web;
 
 [ApiController]
 [Route("api/web/scripts")]

@@ -135,6 +135,12 @@ Exemplo mínimo para produção:
 
 Em produção, prefira **`CURSOR_API_KEY`** como variável de ambiente do serviço Windows/Linux em vez de gravar a chave no arquivo.
 
+### Raiz da stack e arquivos compartilhados
+
+A API localiza a raiz pelo conteúdo (`backend/MdwConteudos.Api` e `frontend/nuxt-app`), portanto o checkout pode ter qualquer nome. A partir dessa raiz são resolvidos `static/`, `static/uploads/`, `uploads/`, `docs/` e bancos configurados com caminho relativo.
+
+`LegacyPaths:RepoRoot` é um override opcional para instalações fora do layout padrão ou para acesso ao repositório Flask pai. Não é necessário configurá-lo quando a estrutura acima estiver preservada.
+
 ### Chave Cursor (desenvolvimento)
 
 ```powershell
@@ -294,7 +300,7 @@ Erros comuns:
 
 ## Variáveis opcionais (e-mail, URLs)
 
-Usadas por alguns fluxos legados/migrados ([`ScriptsService.cs`](../backend/MdwConteudos.Api/Services/ScriptsService.cs)):
+Usadas por alguns fluxos legados/migrados ([`ScriptsService.cs`](../backend/MdwConteudos.Api/Modules/Web/ScriptsService.cs)):
 
 - `BASE_URL`
 - `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SENDER`

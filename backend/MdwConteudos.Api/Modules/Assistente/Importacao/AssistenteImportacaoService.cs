@@ -4,7 +4,7 @@ using System.Text;
 using Dapper;
 using FirebirdSql.Data.FirebirdClient;
 using MdwConteudos.Api.Infrastructure;
-using MdwConteudos.Api.Services;
+using MdwConteudos.Api.Modules.Web;
 
 namespace MdwConteudos.Api.Modules.Assistente.Importacao;
 

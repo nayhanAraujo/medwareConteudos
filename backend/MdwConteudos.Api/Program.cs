@@ -51,13 +51,13 @@ builder.Services.PostConfigure<FirebirdOptions>(opt =>
         opt.Port = port;
     if (string.IsNullOrWhiteSpace(opt.Database))
     {
-        var root = FindRepoRoot(builder.Environment.ContentRootPath);
-        if (root != null)
-            opt.Database = Path.Combine(root, "BD", "REFERENCIAS.FDB").Replace('\\', '/');
+        var root = MigrationRootResolver.ResolveMigrationRoot(builder.Configuration, builder.Environment.ContentRootPath);
+        opt.Database = Path.Combine(root, "bd", "REFERENCIAS.FDB").Replace('\\', '/');
     }
     else if (!Path.IsPathFullyQualified(opt.Database))
     {
-        opt.Database = Path.GetFullPath(Path.Combine(GetMigrationRoot(builder.Environment.ContentRootPath), opt.Database));
+        var root = MigrationRootResolver.ResolveMigrationRoot(builder.Configuration, builder.Environment.ContentRootPath);
+        opt.Database = Path.GetFullPath(Path.Combine(root, opt.Database));
     }
 });
 
@@ -67,7 +67,8 @@ builder.Services.PostConfigure<AssistantFirebirdOptions>(opt =>
     opt.ApplyEnvironmentVariables();
     if (!Path.IsPathFullyQualified(opt.Database))
     {
-        opt.Database = Path.GetFullPath(Path.Combine(GetMigrationRoot(builder.Environment.ContentRootPath), opt.Database));
+        var root = MigrationRootResolver.ResolveMigrationRoot(builder.Configuration, builder.Environment.ContentRootPath);
+        opt.Database = Path.GetFullPath(Path.Combine(root, opt.Database));
     }
 });
 
@@ -229,8 +230,8 @@ using (var scope = app.Services.CreateScope())
 }
 app.UseCors();
 app.UseRequestTimeouts();
-var repoRoot = MdwConteudos.Api.Infrastructure.StaticContentPaths.ResolveRepoRoot(builder.Configuration, builder.Environment.ContentRootPath);
-var staticDir = MdwConteudos.Api.Infrastructure.StaticContentPaths.StaticRoot(repoRoot);
+var migrationRoot = MigrationRootResolver.ResolveMigrationRoot(builder.Configuration, builder.Environment.ContentRootPath);
+var staticDir = MigrationRootResolver.StaticRoot(migrationRoot);
 if (Directory.Exists(staticDir))
 {
     app.UseStaticFiles(new StaticFileOptions
@@ -239,10 +240,13 @@ if (Directory.Exists(staticDir))
         RequestPath = "/static"
     });
 }
-// Compat: se ainda existir a pasta legada mdw-migracao/static, também monta (não sobrescreve a principal).
-var legacyStaticDir = Path.Combine(repoRoot, "mdw-migracao", "static");
-if (Directory.Exists(legacyStaticDir) &&
-    !string.Equals(Path.GetFullPath(legacyStaticDir), Path.GetFullPath(staticDir), StringComparison.OrdinalIgnoreCase))
+// Compatibilidade para assets do Flask pai, sem depender do nome da pasta da migração.
+var legacyRoot = MigrationRootResolver.ResolveLegacyRoot(
+    builder.Configuration,
+    migrationRoot,
+    builder.Environment.ContentRootPath);
+var legacyStaticDir = legacyRoot is null ? null : Path.Combine(legacyRoot, "static");
+if (legacyStaticDir is not null && Directory.Exists(legacyStaticDir))
 {
     app.UseStaticFiles(new StaticFileOptions
     {
@@ -273,26 +277,4 @@ static string? FirstNonEmpty(params string?[] values)
     foreach (var v in values)
         if (!string.IsNullOrWhiteSpace(v)) return v;
     return null;
-}
-
-static string? FindRepoRoot(string startDir)
-{
-    var dir = startDir;
-    for (var i = 0; i < 8; i++)
-    {
-        if (File.Exists(Path.Combine(dir, "app.py")) || File.Exists(Path.Combine(dir, ".env")))
-            return dir;
-        var parent = Directory.GetParent(dir);
-        if (parent == null) break;
-        dir = parent.FullName;
-    }
-    return null;
-}
-
-static string GetMigrationRoot(string contentRoot)
-{
-    var root = FindRepoRoot(contentRoot);
-    return root != null && Directory.Exists(Path.Combine(root, "mdw-migracao"))
-        ? Path.Combine(root, "mdw-migracao")
-        : Path.GetFullPath(Path.Combine(contentRoot, "..", ".."));
 }

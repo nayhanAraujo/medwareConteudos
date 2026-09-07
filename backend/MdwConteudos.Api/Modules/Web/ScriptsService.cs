@@ -5,29 +5,31 @@ using System.Net.Mail;
 using System.Text;
 using Dapper;
 using FirebirdSql.Data.FirebirdClient;
+using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Models;
 
-namespace MdwConteudos.Api.Services;
+namespace MdwConteudos.Api.Modules.Web;
 
 public class ScriptsService
 {
     private readonly string _connectionString;
-    private readonly string _uploadRoot;
-    private readonly string _migracaoStaticUploadsRoot;
-    private readonly string _repoRoot;
+    private readonly string _migrationRoot;
+    private readonly string _staticUploadsRoot;
+    private readonly string? _legacyRoot;
     private readonly IConfiguration _config;
     private readonly ILogger<ScriptsService> _logger;
 
-    public ScriptsService(IConfiguration config, ILogger<ScriptsService> logger)
+    public ScriptsService(
+        IConfiguration config,
+        ILogger<ScriptsService> logger,
+        IWebHostEnvironment env)
     {
         _config = config;
-        _connectionString = Infrastructure.EnvFileLoader.GetFirebirdConnectionString(config);
+        _connectionString = EnvFileLoader.GetFirebirdConnectionString(config);
         _logger = logger;
-        _repoRoot = Infrastructure.StaticContentPaths.ResolveRepoRoot(config);
-        _uploadRoot = Path.Combine(_repoRoot, "uploads");
-        _migracaoStaticUploadsRoot = Infrastructure.StaticContentPaths.UploadsRoot(_repoRoot);
-        Directory.CreateDirectory(_uploadRoot);
-        Directory.CreateDirectory(_migracaoStaticUploadsRoot);
+        _migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
+        _staticUploadsRoot = MigrationRootResolver.StaticUploadsRoot(_migrationRoot);
+        _legacyRoot = MigrationRootResolver.ResolveLegacyRoot(config, _migrationRoot, env.ContentRootPath);
     }
 
     private IDbConnection CreateConnection() => new FbConnection(_connectionString);
@@ -375,7 +377,7 @@ public class ScriptsService
     {
         var ext = Path.GetExtension(file.FileName);
         var filename = $"{Guid.NewGuid():N}{ext}";
-        var dir = Path.Combine(_migracaoStaticUploadsRoot, folder);
+        var dir = Path.Combine(_staticUploadsRoot, folder);
         Directory.CreateDirectory(dir);
         var full = Path.Combine(dir, filename);
         await File.WriteAllBytesAsync(full, file.Content);
@@ -1190,7 +1192,7 @@ public class ScriptsService
     {
         var ext = Path.GetExtension(file.FileName);
         var filename = $"{prefix}_{Guid.NewGuid():N}{ext}";
-        var dir = Path.Combine(_migracaoStaticUploadsRoot, folder);
+        var dir = Path.Combine(_staticUploadsRoot, folder);
         Directory.CreateDirectory(dir);
         var full = Path.Combine(dir, filename);
         await File.WriteAllBytesAsync(full, file.Content);
@@ -1447,7 +1449,7 @@ public class ScriptsService
 
     private void AttachLogo(MailMessage msg)
     {
-        var logoPath = Path.Combine(_repoRoot, "static", "img", "logo.png");
+        var logoPath = Path.Combine(MigrationRootResolver.StaticRoot(_migrationRoot), "img", "logo.png");
         if (!File.Exists(logoPath)) return;
         var logo = new LinkedResource(logoPath) { ContentId = "logo" };
         var htmlView = AlternateView.CreateAlternateViewFromString(
@@ -1461,11 +1463,17 @@ public class ScriptsService
     private string ResolveLegacyPath(string? caminho)
     {
         if (string.IsNullOrWhiteSpace(caminho)) return "";
-        var cleaned = caminho.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-        var primary = Path.Combine(_repoRoot, cleaned);
+        var raw = caminho.Trim().Replace('/', Path.DirectorySeparatorChar);
+        if (Path.IsPathFullyQualified(raw)) return Path.GetFullPath(raw);
+
+        var cleaned = raw.TrimStart(Path.DirectorySeparatorChar);
+        var primary = Path.Combine(_migrationRoot, cleaned);
         if (File.Exists(primary)) return primary;
-        var secondary = Path.Combine(_repoRoot, "mdw-migracao", cleaned);
-        if (File.Exists(secondary)) return secondary;
+        if (_legacyRoot is not null)
+        {
+            var legacy = Path.Combine(_legacyRoot, cleaned);
+            if (File.Exists(legacy)) return legacy;
+        }
         return primary;
     }
 

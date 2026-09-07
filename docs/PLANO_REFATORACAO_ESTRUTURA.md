@@ -2,7 +2,11 @@
 
 Documento para **outro agente** executar em etapas, sem parar o desenvolvimento. Foco nas quatro recomendações de **alta prioridade** da análise de estrutura.
 
-**Repositório:** `C:\Users\Nayha\Documents\Conteudos\Conteudos_migracao`
+**Repositório:** raiz atual do checkout; o nome físico da pasta é irrelevante.
+
+**Decisão aplicada:** manter o checkout atual e resolver a raiz pela presença de `backend/MdwConteudos.Api` e `frontend/nuxt-app`. `Conteudos_migracao` permanece apenas como nome do repositório remoto.
+
+**Status em 07/09/2026:** implementação concluída no working tree; compilação e testes funcionais aguardam validação manual do responsável pelo projeto.
 
 **Ordem obrigatória:** Fase 1 → 2 → 3 → 4 → 5 (cada fase depende da anterior).
 
@@ -12,7 +16,7 @@ Documento para **outro agente** executar em etapas, sem parar o desenvolvimento.
 
 ## Objetivo
 
-1. Eliminar referências incorretas a `mdw-migracao` quando a pasta real é `Conteudos_migracao`.
+1. Eliminar dependências de código em qualquer nome físico específico para a raiz.
 2. Centralizar resolução de paths (static, uploads, anexos).
 3. Remover artefatos de build versionados no git.
 4. Mover `WebScriptsController` + `ScriptsService` para `Modules/Web/`, alinhando ao padrão dos demais módulos.
@@ -23,8 +27,8 @@ Documento para **outro agente** executar em etapas, sem parar o desenvolvimento.
 
 | Opção | Descrição |
 |-------|-----------|
-| **A (recomendada)** | Manter pasta **`Conteudos_migracao`** como raiz da migração. Código passa a resolver a raiz pelo conteúdo (`backend/`, `frontend/nuxt-app/`), **sem** exigir subpasta `mdw-migracao`. |
-| B | Renomear fisicamente o repo para `mdw-migracao` (quebra paths locais, OneDrive, atalhos). |
+| **A (adotada)** | Manter a pasta atual e resolver a raiz pelo conteúdo (`backend/`, `frontend/nuxt-app/`), sem exigir um nome específico. |
+| B | Renomear fisicamente o checkout (descartada por quebrar paths locais, OneDrive e atalhos). |
 
 Este plano assume **Opção A**.
 
@@ -50,7 +54,7 @@ Atualizar o cabeçalho de “ASP.NET Core 8” para **Core 10**.
 ### 1.2 Remover pastas do índice git (não apagar localmente se ainda em uso)
 
 ```powershell
-cd C:\Users\Nayha\Documents\Conteudos\Conteudos_migracao
+cd <raiz-do-checkout>
 git rm -r --cached backend/MdwConteudos.Api/bin-check
 git rm -r --cached backend/MdwConteudos.Api/bin-temp
 ```
@@ -81,7 +85,7 @@ Responsabilidades:
 - `FindRepoRoot(startDir)` — sobe diretórios até achar `.env` **ou** `app.py` (legado Flask no repo pai).
 - `GetMigrationRoot(startDir)` — retorna a pasta da **stack nova**:
   1. Se `startDir` ou ancestral contém `frontend/nuxt-app` **e** `backend/MdwConteudos.Api` → essa pasta.
-  2. Senão, se `FindRepoRoot` + filho `mdw-migracao` existe → compatibilidade legado.
+  2. Senão, procurar ancestral ou filho imediato que possua os marcadores estruturais da stack nova.
   3. Senão, fallback atual: `Path.GetFullPath(Path.Combine(contentRoot, "..", ".."))` (sobe de `MdwConteudos.Api` para raiz `backend/..`).
 
 Métodos auxiliares (opcional, recomendado):
@@ -122,7 +126,7 @@ dotnet run
 
 ---
 
-## Fase 3 — Substituir paths `mdw-migracao` nos consumidores
+## Fase 3 — Remover nomes físicos de pasta dos consumidores
 
 **Risco:** médio-alto (uploads/anexos). **Esforço:** ~2–3 h.
 
@@ -131,7 +135,7 @@ dotnet run
 | Arquivo | O que mudar |
 |---------|-------------|
 | [`Program.cs`](../backend/MdwConteudos.Api/Program.cs) | Já na Fase 2 |
-| [`Services/ScriptsService.cs`](../backend/MdwConteudos.Api/Services/ScriptsService.cs) | `_migracaoStaticUploadsRoot`, `_repoRoot`, método ~linha 1472 |
+| [`Modules/Web/ScriptsService.cs`](../backend/MdwConteudos.Api/Modules/Web/ScriptsService.cs) | raiz da migração, uploads e resolução de arquivos legados |
 | [`Services/ReferenciasService.cs`](../backend/MdwConteudos.Api/Services/ReferenciasService.cs) | `_staticUploadsRoot` |
 | [`Modules/ApiPublica/ApiScriptOperations.cs`](../backend/MdwConteudos.Api/Modules/ApiPublica/ApiScriptOperations.cs) | candidatos de path static ~linha 370 |
 | [`Modules/Web/VariaveisWebController.cs`](../backend/MdwConteudos.Api/Modules/Web/VariaveisWebController.cs) | `FindMigracaoRoot()` — substituir por `MigrationRootResolver` |
@@ -152,7 +156,7 @@ Injetar ou resolver `migrationRoot` no construtor dos services (via `IWebHostEnv
 
 | Arquivo | Ação |
 |---------|------|
-| [`README.md`](../README.md) | Trocar `mdw-migracao\` por paths relativos à raiz real (`backend\`, `frontend\`) |
+| [`README.md`](../README.md) | Usar paths relativos à raiz (`backend\`, `frontend\`) |
 | [`CHECKLIST_MIGRACAO_NUXT4.md`](../CHECKLIST_MIGRACAO_NUXT4.md) | Idem |
 | [`docs/CUTOVER.md`](CUTOVER.md) | Idem |
 | [`docs/DEPLOY.md`](DEPLOY.md) | Confirmar paths de deploy |
@@ -250,12 +254,12 @@ Swagger: rotas `/api/web/scripts/*` inalteradas.
 
 ### 5.1 Atualizar [`docs/DEPLOY.md`](DEPLOY.md)
 
-- Seção “Estrutura no servidor”: copiar `static/`, `backend/agent-bridge/`, **não** depender de subpasta `mdw-migracao`.
+- Seção “Estrutura no servidor”: copiar `static/`, `uploads/` e `backend/agent-bridge/` sem depender do nome do checkout.
 - Mencionar `MigrationRootResolver` e variável opcional `LegacyPaths:RepoRoot`.
 
 ### 5.2 Atualizar [`README.md`](../README.md)
 
-- Diagrama de pastas com nome real `Conteudos_migracao/`.
+- Diagrama de pastas usando `<raiz-do-projeto>/`.
 - Link para este plano: `docs/PLANO_REFATORACAO_ESTRUTURA.md`.
 
 ### 5.3 Checklist final para o agente executor
@@ -284,7 +288,7 @@ flowchart LR
 |------|------------|-------------------------|
 | 1 | `.gitignore` + remove cached artifacts | Sim |
 | 2 | `MigrationRootResolver` + `Program.cs` | Sim |
-| 3 | Services + docs sem `mdw-migracao` | Sim (depende 2) |
+| 3 | Services e docs agnósticos ao nome da raiz | Sim (depende 2) |
 | 4 | Move controller/service Scripts | Sim (depende 3) |
 | 5 | DEPLOY + README | Sim |
 
@@ -305,10 +309,10 @@ Recomendação: **1 PR por fase** para revisão incremental.
 ## Armadilhas conhecidas
 
 1. **`LegacyPaths:RepoRoot`** vazio — services usam fallback `Directory.GetCurrentDirectory()`; em IIS/NSSM o cwd pode diferir. Preferir `MigrationRootResolver` + config explícita em produção.
-2. **`FindMigracaoRoot` em VariaveisWebController** — hoje lança exceção se não achar `mdw-migracao`; usuários perdem upload de anexo. Prioridade alta na Fase 3.
+2. **Resolução de anexos em VariaveisWebController** — deve usar o resolvedor central; falhas de detecção impedem o upload.
 3. **Dois services de scripts** — `ScriptsWebService` ≠ `ScriptsService`; não renomear sem mapear consumidores.
 4. **`ConversionsController`** — não mover para `Modules/` neste plano (bounded context separado).
-5. **Monorepo pai** — se repo ficar dentro de pasta com `app.py`, `FindRepoRoot` sobe além de `Conteudos_migracao`; testar ambos layouts.
+5. **Repositório Flask pai** — a detecção estrutural da stack nova deve ocorrer antes da procura por `app.py`.
 
 ---
 

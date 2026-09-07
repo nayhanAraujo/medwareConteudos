@@ -9,8 +9,10 @@ namespace MdwConteudos.Api.Modules.ApiPublica;
 public class ApiScriptOperations
 {
     private readonly IFirebirdConnectionFactory _db;
-    private readonly string _repoRoot;
+    private readonly string _migrationRoot;
+    private readonly string _staticRoot;
     private readonly string _uploadRoot;
+    private readonly string? _legacyRoot;
 
     private const string ScriptListSelect = @"
         SELECT s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
@@ -19,29 +21,16 @@ public class ApiScriptOperations
         FROM SCRIPTLAUDO s
         LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE";
 
-    public ApiScriptOperations(IFirebirdConnectionFactory db, IConfiguration config)
+    public ApiScriptOperations(
+        IFirebirdConnectionFactory db,
+        IConfiguration config,
+        IWebHostEnvironment env)
     {
         _db = db;
-        var repo = config["LegacyPaths:RepoRoot"];
-        if (string.IsNullOrWhiteSpace(repo))
-            repo = FindRepoRoot(Directory.GetCurrentDirectory())
-                ?? Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".."));
-        _repoRoot = repo;
-        _uploadRoot = Path.Combine(repo, "uploads");
-    }
-
-    private static string? FindRepoRoot(string startDir)
-    {
-        var dir = startDir;
-        for (var i = 0; i < 8; i++)
-        {
-            if (File.Exists(Path.Combine(dir, "app.py")) || File.Exists(Path.Combine(dir, ".env")))
-                return dir;
-            var parent = Directory.GetParent(dir);
-            if (parent is null) break;
-            dir = parent.FullName;
-        }
-        return null;
+        _migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
+        _staticRoot = MigrationRootResolver.StaticRoot(_migrationRoot);
+        _uploadRoot = MigrationRootResolver.UploadsRoot(_migrationRoot, create: false);
+        _legacyRoot = MigrationRootResolver.ResolveLegacyRoot(config, _migrationRoot, env.ContentRootPath);
     }
 
     public static bool ParseIncluirArquivos(string? value)
@@ -363,19 +352,32 @@ public class ApiScriptOperations
         if (File.Exists(caminho)) return Path.GetFullPath(caminho);
 
         var rel = caminho.Replace('\\', '/').TrimStart('/');
-        var candidatos = new List<string> { Path.GetFullPath(caminho) };
+        var candidatos = new List<string>();
         if (rel.StartsWith("static/", StringComparison.OrdinalIgnoreCase))
-            candidatos.Add(Path.Combine(_repoRoot, rel));
-        candidatos.Add(Path.Combine(_repoRoot, rel));
-        candidatos.Add(Path.Combine(_repoRoot, "mdw-migracao", "static", rel.StartsWith("static/", StringComparison.OrdinalIgnoreCase) ? rel["static/".Length..] : rel));
-        if (!string.IsNullOrEmpty(_uploadRoot))
         {
-            candidatos.Add(Path.Combine(_uploadRoot, rel));
-            if (rel.StartsWith("static/", StringComparison.OrdinalIgnoreCase))
-                candidatos.Add(Path.Combine(_uploadRoot, rel["static/".Length..]));
+            candidatos.Add(Path.Combine(_migrationRoot, rel));
+            rel = rel["static/".Length..];
         }
 
-        foreach (var path in candidatos.Distinct())
+        candidatos.Add(Path.Combine(_migrationRoot, rel));
+        candidatos.Add(Path.Combine(_staticRoot, rel));
+        candidatos.Add(Path.Combine(_uploadRoot, rel));
+
+        if (rel.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+        {
+            var uploadRelative = rel["uploads/".Length..];
+            candidatos.Add(Path.Combine(_uploadRoot, uploadRelative));
+            candidatos.Add(Path.Combine(_staticRoot, "uploads", uploadRelative));
+        }
+
+        if (_legacyRoot is not null)
+        {
+            candidatos.Add(Path.Combine(_legacyRoot, rel));
+            candidatos.Add(Path.Combine(_legacyRoot, "static", rel));
+            candidatos.Add(Path.Combine(_legacyRoot, "uploads", rel));
+        }
+
+        foreach (var path in candidatos.Distinct(StringComparer.OrdinalIgnoreCase))
             if (File.Exists(path)) return Path.GetFullPath(path);
         return null;
     }

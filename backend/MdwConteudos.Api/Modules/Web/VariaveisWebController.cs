@@ -15,7 +15,18 @@ public class VariaveisWebController : ControllerBase
     private readonly IVariaveisWebService _svc;
     private readonly IImportacaoVariaveisService _importacao;
     private readonly IWebHostEnvironment _env;
-    public VariaveisWebController(IVariaveisWebService svc, IImportacaoVariaveisService importacao, IWebHostEnvironment env) { _svc = svc; _importacao = importacao; _env = env; }
+    private readonly IConfiguration _config;
+    public VariaveisWebController(
+        IVariaveisWebService svc,
+        IImportacaoVariaveisService importacao,
+        IWebHostEnvironment env,
+        IConfiguration config)
+    {
+        _svc = svc;
+        _importacao = importacao;
+        _env = env;
+        _config = config;
+    }
 
     [HttpGet]
     public async Task<IActionResult> List(
@@ -186,8 +197,10 @@ public class VariaveisWebController : ControllerBase
             if (!tipoAnexo.Equals("URL", StringComparison.OrdinalIgnoreCase))
             {
                 if (arquivo is null || arquivo.Length == 0) return BadRequest(new { message = "O arquivo é obrigatório." });
-                var folder = Path.Combine(FindMigracaoRoot(_env.ContentRootPath), "static", "uploads");
-                Directory.CreateDirectory(folder);
+                var migrationRoot = MigrationRootResolver.ResolveMigrationRoot(
+                    _config,
+                    _env.ContentRootPath);
+                var folder = MigrationRootResolver.StaticUploadsRoot(migrationRoot);
                 var safeName = Path.GetFileName(arquivo.FileName);
                 var storedName = $"{Guid.NewGuid():N}_{safeName}";
                 physicalPath = Path.Combine(folder, storedName);
@@ -289,15 +302,4 @@ public class VariaveisWebController : ControllerBase
         _ => StatusCode(500, new { message = ex.Message })
     };
 
-    private static string FindMigracaoRoot(string start)
-    {
-        var current = new DirectoryInfo(start);
-        while (current is not null)
-        {
-            if (current.Name.Equals("mdw-migracao", StringComparison.OrdinalIgnoreCase)) return current.FullName;
-            if (Directory.Exists(Path.Combine(current.FullName, "mdw-migracao"))) return Path.Combine(current.FullName, "mdw-migracao");
-            current = current.Parent;
-        }
-        throw new InvalidOperationException("Não foi possível localizar a raiz mdw-migracao para salvar o anexo.");
-    }
 }

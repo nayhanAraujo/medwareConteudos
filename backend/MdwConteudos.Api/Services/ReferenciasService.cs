@@ -111,14 +111,13 @@ public interface IReferenciasService
 public class ReferenciasService : IReferenciasService
 {
     private readonly string _connectionString;
-    private readonly string _repoRoot;
     private readonly string _staticUploadsRoot;
 
-    public ReferenciasService(IConfiguration config)
+    public ReferenciasService(IConfiguration config, IWebHostEnvironment env)
     {
         _connectionString = EnvFileLoader.GetFirebirdConnectionString(config);
-        _repoRoot = StaticContentPaths.ResolveRepoRoot(config);
-        _staticUploadsRoot = StaticContentPaths.UploadsRoot(_repoRoot);
+        var migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
+        _staticUploadsRoot = MigrationRootResolver.StaticUploadsRoot(migrationRoot);
     }
 
     private IDbConnection CreateConnection() => new FbConnection(_connectionString);
@@ -1598,7 +1597,7 @@ public class ReferenciasService : IReferenciasService
     }
 
     private static string? NormalizeAnexoUrl(string? link, string? caminho, string? tipo)
-        => Infrastructure.StaticContentPaths.ToWebUrl(link, caminho);
+        => MigrationRootResolver.ToWebUrl(link, caminho);
 
     private static void ValidateReferencia(ReferenciaUpsertRequest req)
     {
