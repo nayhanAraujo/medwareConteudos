@@ -197,7 +197,7 @@ public class PadroesClienteNormalidadeWebController : ControllerBase
     {
         try
         {
-            await _svc.UpsertComentarioAsync(codPadrao, req.CodVariavel, req.Texto ?? "", User.GetCodUsuario(), ct);
+            await _svc.UpsertComentarioAsync(codPadrao, req.CodVariavel, req.Texto ?? "", User.GetCodUsuario(), ct, req.Sexo, req.IdadeMin, req.IdadeMax);
             return Ok(new { success = true, message = "Comentário salvo com sucesso." });
         }
         catch (InvalidOperationException ex)
@@ -220,4 +220,7 @@ public sealed class ComentarioPadraoRequest
 {
     public int CodVariavel { get; set; }
     public string? Texto { get; set; }
+    public string? Sexo { get; set; } = "A";
+    public int? IdadeMin { get; set; } = -1;
+    public int? IdadeMax { get; set; } = -1;
 }

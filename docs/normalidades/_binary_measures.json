@@ -1,0 +1,178 @@
+[
+  {
+    "k": "VR_FACVD",
+    "grades": [
+      "grave",
+      "leve",
+      "moderado",
+      "normal"
+    ],
+    "com": "> 35",
+    "full": true
+  },
+  {
+    "k": "VR_TAPSE_VD",
+    "grades": [
+      "grave",
+      "leve",
+      "moderado",
+      "normal"
+    ],
+    "com": "> 17",
+    "full": true
+  },
+  {
+    "k": "VR_DP_DT",
+    "grades": [
+      "grave",
+      "leve",
+      "moderado",
+      "normal"
+    ],
+    "com": "≥ 1200",
+    "full": true
+  },
+  {
+    "k": "VR_VIA_SAIDA_VE",
+    "grades": [
+      "normal"
+    ],
+    "com": "18-23"
+  },
+  {
+    "k": "VR_ARCOAO",
+    "grades": [
+      "normal"
+    ],
+    "com": "≤ 34"
+  },
+  {
+    "k": "VR_AO_ASC_PROX",
+    "grades": [
+      "normal"
+    ],
+    "com": "≤ 36"
+  },
+  {
+    "k": "VR_E_SPETAL",
+    "grades": [
+      "normal"
+    ],
+    "com": "> 6"
+  },
+  {
+    "k": "VR_E_LATERAL",
+    "grades": [
+      "normal"
+    ],
+    "com": "> 7"
+  },
+  {
+    "k": "VR_E_MEDIA",
+    "grades": [
+      "normal"
+    ],
+    "com": "> 6.5"
+  },
+  {
+    "k": "VR_RELACAO_E_E_SEPTAL",
+    "grades": [
+      "normal"
+    ],
+    "com": "< 15"
+  },
+  {
+    "k": "VR_RELACAO_E_E_LATERAL",
+    "grades": [
+      "normal"
+    ],
+    "com": "< 13"
+  },
+  {
+    "k": "VR_VELOCIDADE_PROPAGACAO_FLUXO_MITRAL",
+    "grades": [],
+    "com": ""
+  },
+  {
+    "k": "VR_RELACAO_E_MITRAL_VP",
+    "grades": [
+      "normal"
+    ],
+    "com": "< 2.5"
+  },
+  {
+    "k": "VR_TRIV",
+    "grades": [
+      "normal"
+    ],
+    "com": "> 70"
+  },
+  {
+    "k": "VR_SAER",
+    "grades": [
+      "normal"
+    ],
+    "com": "23-60"
+  },
+  {
+    "k": "VR_ERP",
+    "grades": [
+      "normal"
+    ],
+    "com": "0.22-0.42"
+  },
+  {
+    "k": "VR_PSAP",
+    "grades": [
+      "normal"
+    ],
+    "com": "< 35"
+  },
+  {
+    "k": "VR_VEL_REG_TRICUSPIDE",
+    "grades": [
+      "normal"
+    ],
+    "com": "< 2.8"
+  },
+  {
+    "k": "VR_VVCI",
+    "grades": [
+      "normal"
+    ],
+    "com": "≥ 50"
+  },
+  {
+    "k": "VR_VEIA_CAVA_EXPIRACAO",
+    "grades": [
+      "normal"
+    ],
+    "com": "≤ 21"
+  },
+  {
+    "k": "VR_RESISTENCIA_VASCULAR_PULMONAR",
+    "grades": [
+      "normal"
+    ],
+    "com": "< 1.5"
+  },
+  {
+    "k": "VR_PRESSAO_CAPILAR_PULMONAR",
+    "grades": [],
+    "com": ""
+  },
+  {
+    "k": "VR_TEMPO_ACELERACAO_FLUXO_PULMONAR",
+    "grades": [
+      "normal"
+    ],
+    "com": "> 105"
+  },
+  {
+    "k": "VR_VTI_VSVD",
+    "grades": [
+      "normal"
+    ],
+    "com": "> 18"
+  }
+]

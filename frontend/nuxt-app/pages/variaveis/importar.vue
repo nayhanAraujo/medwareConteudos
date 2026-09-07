@@ -29,11 +29,35 @@
 
         <section v-if="step === 2" class="rounded-2xl border border-gray-200 bg-white p-5">
           <div v-if="needsReferenceSelection" class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <DsSelect v-model="codReferencia" :label="referenceLabel" @update:model-value="reanalyzeWithReference">
-              <option value="">Selecione a referência bibliográfica</option>
-              <option v-for="reference in references" :key="reference.codReferencia" :value="reference.codReferencia">{{ reference.titulo }}{{ reference.ano ? ` (${reference.ano})` : '' }}</option>
-            </DsSelect>
-            <p class="mt-2 text-xs text-amber-800">A referência escolhida será usada somente nas faixas cuja fonte não foi localizada automaticamente no banco.</p>
+            <div class="flex flex-wrap items-end gap-3">
+              <div class="min-w-[16rem] flex-1">
+                <DsSelect v-model="codReferencia" :label="referenceLabel" @update:model-value="reanalyzeWithReference">
+                  <option value="">Selecione a referência bibliográfica</option>
+                  <option v-for="reference in references" :key="reference.codReferencia" :value="reference.codReferencia">
+                    {{ reference.titulo }}{{ reference.ano ? ` (${reference.ano})` : '' }}
+                  </option>
+                </DsSelect>
+              </div>
+              <DsButton variant="secondary" size="sm" icon="journal-plus" @click="openCreateReference()">
+                Cadastrar referência
+              </DsButton>
+            </div>
+            <p class="mt-2 text-xs text-amber-800">
+              A referência escolhida será usada somente nas faixas cuja fonte não foi localizada automaticamente no banco.
+              Se a fonte do JSON ainda não existir, cadastre-a pelo botão ao lado.
+            </p>
+            <div v-if="unresolvedReferenceTitles.length" class="mt-3 space-y-1">
+              <p class="text-xs font-medium text-amber-900">Fontes não localizadas no arquivo:</p>
+              <button
+                v-for="title in unresolvedReferenceTitles"
+                :key="title"
+                type="button"
+                class="block w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-left text-xs text-amber-950 hover:bg-amber-100"
+                @click="openCreateReference(title)"
+              >
+                <i class="bi bi-plus-circle mr-1" />{{ title }}
+              </button>
+            </div>
           </div>
 
           <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -90,6 +114,11 @@
               <p class="text-sm">{{ item.sexo }} · {{ item.classificacao || 'sem classificação' }} · {{ item.valorMin }} a {{ item.valorMax }}<template v-if="item.idadeMin != null || item.idadeMax != null"> · idades {{ item.idadeMin }}–{{ item.idadeMax }}</template></p>
               <small>Referência: {{ item.codReferencia || item.referencia || 'não informada' }}{{ item.anoReferencia ? ` (${item.anoReferencia})` : '' }}{{ item.pagina ? ` · pág. ${item.pagina}` : '' }}</small>
               <small v-if="item.erros.length" class="block text-red-600">{{ item.erros.join(' ') }}</small>
+              <div v-if="!item.referenciaValida && item.referencia" class="mt-2">
+                <DsButton size="sm" variant="secondary" icon="journal-plus" @click="openCreateReference(item.referencia || '', item.anoReferencia)">
+                  Cadastrar esta referência
+                </DsButton>
+              </div>
             </div>
             <DsEmptyState v-if="!filteredNormals.length" title="Nenhuma normalidade encontrada" />
           </div>
@@ -105,6 +134,65 @@
         </section>
       </template>
     </DsPageShell>
+
+    <DsModal v-model="createRefOpen" title="Cadastrar referência" size="xl">
+      <p class="mb-4 text-sm text-gray-600">
+        Cadastre a fonte do JSON no banco de referências. Depois da gravação, a análise do arquivo será refeita automaticamente.
+      </p>
+      <ReferenciasReferenciaForm
+        :form="refForm"
+        :especialidades="especialidades"
+        :tipos="tipos"
+        :show-validation="refAttempted"
+        @submit="saveNewReference"
+      >
+        <template #before-actions>
+          <div class="mt-6 space-y-4 border-t border-gray-200 pt-5">
+            <DsSectionTitle title="Anexo do estudo (opcional)" />
+            <p class="text-sm text-gray-600">
+              Vincule o PDF e/ou a URL do estudo. Eles serão gravados junto com a referência.
+            </p>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <DsInput
+                v-model="refAnexo.descricao"
+                label="Descrição do anexo"
+                placeholder="Ex.: PDF do guideline"
+              />
+              <DsInput
+                v-model="refAnexo.nome"
+                label="Nome do anexo"
+                placeholder="Ex.: ASE 2015 Chamber"
+              />
+              <DsInput
+                v-model="refAnexo.link"
+                label="URL do estudo"
+                placeholder="https://..."
+                hint="Opcional"
+              />
+              <div>
+                <DsFileInput
+                  label="PDF do estudo"
+                  accept=".pdf,application/pdf"
+                  @change="onRefAnexoPdf"
+                />
+                <p v-if="refAnexo.arquivo" class="mt-1 text-xs text-gray-600">
+                  Arquivo: {{ refAnexo.arquivo.name }}
+                  <button type="button" class="ml-2 text-rose-600 underline" @click="clearRefAnexoPdf">
+                    Remover
+                  </button>
+                </p>
+              </div>
+            </div>
+          </div>
+        </template>
+        <template #actions>
+          <DsButton variant="secondary" type="button" @click="createRefOpen = false">Cancelar</DsButton>
+          <DsButton type="submit" icon="check-circle" :loading="refSaving" :disabled="refSaving">
+            Salvar e usar na importação
+          </DsButton>
+        </template>
+      </ReferenciasReferenciaForm>
+    </DsModal>
   </div>
 </template>
 
@@ -129,11 +217,45 @@ const loading = ref(false)
 const error = ref('')
 const codReferencia = ref<number | string>('')
 const references = ref<ReferenciaItem[]>([])
+const createRefOpen = ref(false)
+const refSaving = ref(false)
+const refAttempted = ref(false)
+const especialidades = ref<Array<{ codEspecialidade: number; nome: string }>>([])
+const tipos = ref<Array<{ codTipoRef: number; nome?: string; descricao: string }>>([])
+const refForm = reactive({
+  titulo: '',
+  ano: '',
+  descricao: '',
+  doi: '',
+  isbn: '',
+  volume: '',
+  paginas: '',
+  codEspecialidade: '',
+  codTipoRef: ''
+})
+const refAnexo = reactive<{
+  descricao: string
+  nome: string
+  link: string
+  arquivo: File | null
+}>({
+  descricao: '',
+  nome: '',
+  link: '',
+  arquivo: null
+})
 
 const formatLabel = computed(() => ({ json: 'JSON legado', 'json-studio': 'JSON Studio', 'json-normalidades-medware': 'Normalidades Medware', cs: 'C#' }[previewData.value?.formato || 'json']))
 const unresolvedNormals = computed(() => previewData.value?.normalidades.filter(item => !item.referenciaValida).length || 0)
 const needsReferenceSelection = computed(() => previewData.value?.formato === 'json-studio' && !!previewData.value.normalidades.length || previewData.value?.formato === 'json-normalidades-medware' && unresolvedNormals.value > 0)
 const referenceLabel = computed(() => previewData.value?.formato === 'json-studio' ? 'Referência das normalidades do JSON Studio *' : 'Referência para fontes não localizadas')
+const unresolvedReferenceTitles = computed(() => {
+  const titles = new Set<string>()
+  for (const item of previewData.value?.normalidades || []) {
+    if (!item.referenciaValida && item.referencia?.trim()) titles.add(item.referencia.trim())
+  }
+  return [...titles]
+})
 const filteredVariables = computed(() => { const q = search.value.trim().toLowerCase(); return previewData.value?.variaveis.filter(item => !q || `${item.codigo} ${item.nome} ${item.unidade} ${(item.sugestoes || []).map(s => `${s.codigo} ${s.nome || ''}`).join(' ')}`.toLowerCase().includes(q)) || [] })
 const filteredFormulas = computed(() => { const q = search.value.trim().toLowerCase(); return previewData.value?.formulas.filter(item => !q || `${item.variavel} ${item.expressao}`.toLowerCase().includes(q)) || [] })
 const filteredNormals = computed(() => { const q = search.value.trim().toLowerCase(); return previewData.value?.normalidades.filter(item => !q || `${item.variavel} ${item.referencia || ''} ${item.codReferencia || ''} ${item.classificacao || ''}`.toLowerCase().includes(q)) || [] })
@@ -146,6 +268,10 @@ const actionableItems = computed(() => previewData.value?.variaveis.filter(item 
 const selectedFormulas = computed(() => previewData.value?.formulas.filter(formula => actionableItems.value.some(item => related(formula.variavel, item.codigo, item.sigla))).length || 0)
 const selectedNormals = computed(() => previewData.value?.normalidades.filter(normal => actionableItems.value.some(item => related(normal.variavel, item.codigo, item.sigla))).length || 0)
 const canContinue = computed(() => actionableDecisions.value.length > 0 && !(previewData.value?.variaveis.some(item => decisionError(item))))
+const canSubmitReference = computed(() => {
+  const ano = Number(refForm.ano)
+  return refForm.titulo.trim().length > 0 && Number.isFinite(ano) && ano >= 1800 && ano <= 2200
+})
 
 function selectFile(files: FileList | null) { file.value = files?.[0] || null; previewData.value = null; error.value = '' }
 function reset() { step.value = 1; previewData.value = null; clearDecisions(); search.value = ''; error.value = ''; codReferencia.value = '' }
@@ -167,6 +293,109 @@ function decisionError(item: ImportacaoVariavelItem) {
   if (decision.acao === 'alternativa' && previewData.value?.formato === 'json-normalidades-medware' && !item.valido) return 'As normalidades precisam estar válidas para vincular este item.'
   return ''
 }
+function resetRefAnexo() {
+  refAnexo.descricao = ''
+  refAnexo.nome = ''
+  refAnexo.link = ''
+  refAnexo.arquivo = null
+}
+function resetRefForm(titulo = '', ano?: number | null) {
+  refForm.titulo = titulo
+  refForm.ano = ano != null && Number.isFinite(ano) ? String(ano) : ''
+  refForm.descricao = ''
+  refForm.doi = ''
+  refForm.isbn = ''
+  refForm.volume = ''
+  refForm.paginas = ''
+  refForm.codEspecialidade = ''
+  refForm.codTipoRef = ''
+  refAttempted.value = false
+  resetRefAnexo()
+}
+function onRefAnexoPdf(files: FileList | null) {
+  refAnexo.arquivo = files?.[0] || null
+  if (refAnexo.arquivo && !refAnexo.nome.trim()) {
+    refAnexo.nome = refAnexo.arquivo.name.replace(/\.pdf$/i, '')
+  }
+  if (refAnexo.arquivo && !refAnexo.descricao.trim()) {
+    refAnexo.descricao = 'PDF do estudo'
+  }
+}
+function clearRefAnexoPdf() {
+  refAnexo.arquivo = null
+}
+function openCreateReference(titulo = '', ano?: number | null) {
+  const title = titulo.trim() || unresolvedReferenceTitles.value[0] || ''
+  const year = ano ?? previewData.value?.normalidades.find(item => !item.referenciaValida && item.referencia?.trim() === title)?.anoReferencia
+  resetRefForm(title, year)
+  tab.value = 'normalidades'
+  createRefOpen.value = true
+}
+async function refreshReferences() {
+  try {
+    references.value = (await referenciasApi.listReferencias({ page: 1, pageSize: 200 })).data || []
+  } catch {
+    /* A referência também será validada no servidor. */
+  }
+}
+async function saveAnexoForReference(codRef: number) {
+  const link = refAnexo.link.trim()
+  const pdf = refAnexo.arquivo
+  if (!link && !pdf) return
+
+  const descricao = refAnexo.descricao.trim() || (pdf ? 'PDF do estudo' : 'Link do estudo')
+  const nome = refAnexo.nome.trim() || pdf?.name?.replace(/\.pdf$/i, '') || refForm.titulo.trim() || 'Anexo'
+  const fd = new FormData()
+  fd.append('descricao', descricao)
+  fd.append('nome', nome)
+  fd.append('link', link)
+  if (pdf) fd.append('arquivo', pdf)
+  await referenciasApi.createAnexo(codRef, fd)
+}
+async function saveNewReference() {
+  refAttempted.value = true
+  if (!canSubmitReference.value) {
+    await swal.toast('Preencha os campos obrigatórios: Título e Ano (1800–2200).', 'warning')
+    return
+  }
+  refSaving.value = true
+  try {
+    const res = await referenciasApi.createReferencia({
+      titulo: refForm.titulo.trim(),
+      ano: Number(refForm.ano),
+      descricao: refForm.descricao.trim() || undefined,
+      doi: refForm.doi.trim() || undefined,
+      isbn: refForm.isbn.trim() || undefined,
+      volume: refForm.volume.trim() || undefined,
+      paginas: refForm.paginas.trim() || undefined,
+      codEspecialidade: refForm.codEspecialidade ? Number(refForm.codEspecialidade) : null,
+      codTipoRef: refForm.codTipoRef ? Number(refForm.codTipoRef) : null
+    })
+    const newId = res.codReferencia
+    if (!newId) throw new Error('Referência criada sem código de retorno.')
+
+    try {
+      await saveAnexoForReference(newId)
+    } catch (anexoErr) {
+      await swal.toast(
+        anexoErr instanceof Error
+          ? `Referência criada, mas o anexo falhou: ${anexoErr.message}`
+          : 'Referência criada, mas o anexo falhou.',
+        'warning'
+      )
+    }
+
+    await refreshReferences()
+    codReferencia.value = newId
+    createRefOpen.value = false
+    await swal.toast('Referência cadastrada. Reanalisando o arquivo…')
+    await preview()
+  } catch (caught) {
+    await swal.toast(caught instanceof Error ? caught.message : 'Erro ao cadastrar referência', 'error')
+  } finally {
+    refSaving.value = false
+  }
+}
 async function preview() {
   if (!file.value) return
   loading.value = true; error.value = ''
@@ -185,5 +414,14 @@ async function confirm() {
   } catch (caught) { error.value = caught instanceof Error ? caught.message : 'Não foi possível importar o arquivo.'; step.value = 2 }
   finally { loading.value = false }
 }
-onMounted(async () => { try { references.value = (await referenciasApi.listReferencias({ page: 1, pageSize: 200 })).data } catch { /* A referência também será validada no servidor. */ } })
+onMounted(async () => {
+  await refreshReferences()
+  try {
+    const meta = await referenciasApi.getMeta()
+    especialidades.value = meta.especialidades || []
+    tipos.value = meta.tipos || []
+  } catch {
+    /* Formulário de referência ainda funciona sem meta. */
+  }
+})
 </script>

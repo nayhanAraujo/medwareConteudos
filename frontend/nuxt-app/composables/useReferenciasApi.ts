@@ -90,7 +90,7 @@ export function useReferenciasApi() {
     api.get<{
       success: boolean
       especialidades: { codEspecialidade: number; nome: string }[]
-      tipos: { codTipoRef: number; descricao: string }[]
+      tipos: { codTipoRef: number; nome?: string; descricao: string }[]
     }>(`/api/web/referencias/meta`)
 
   const searchReferencias = (q: string) =>

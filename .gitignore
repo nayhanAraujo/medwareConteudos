@@ -40,6 +40,7 @@ uploads/
 .codex-build/
 backend/MdwConteudos.Api/bin-check/
 backend/MdwConteudos.Api/bin-verify/
+backend/MdwConteudos.Api/bin-verify-*/
 graphify-out/
 graphify-out-*/
 **/graphify-out/

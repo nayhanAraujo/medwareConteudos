@@ -1,0 +1,5231 @@
+{
+  "VR_ANELAORTICO": {
+    "F": {
+      "normal": {
+        "min": 17.4,
+        "max": 21.6
+      },
+      "leve": {
+        "min": 21.7,
+        "max": 23.0
+      },
+      "moderado": {
+        "min": 23.1,
+        "max": 25.0
+      },
+      "grave": {
+        "min": 25.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 19.0,
+        "max": 23.4
+      },
+      "leve": {
+        "min": 23.5,
+        "max": 25.0
+      },
+      "moderado": {
+        "min": 25.1,
+        "max": 27.0
+      },
+      "grave": {
+        "min": 27.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "17.4-21.6"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 32,
+      "PaginaPDF": 32,
+      "TabelaFigura": "Tabela 14",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 189,
+      "VariavelBanco": "VR_ANELAORTICO",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Anel aórtico",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Anel em mesossistole inner-edge; juncao em telediastole leading-edge; indexacao por SC quando indicada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "EstatisticasDescritivas": {
+        "F": {
+          "media": 23,
+          "desvioPadrao": 2
+        },
+        "M": {
+          "media": 26,
+          "desvioPadrao": 3
+        }
+      },
+      "LeituraComplementar": {
+        "Ano": 2022,
+        "Fonte": "Normal Values of Aortic Root Size According to Age, Sex, and Race: Results of the World Alliance of Societies of Echocardiography Study",
+        "DOI": "10.1016/j.echo.2021.09.011",
+        "LinkOficial": "https://doi.org/10.1016/j.echo.2021.09.011",
+        "Observacao": "Tabelas de medias +/- DP consultadas em HTML. Limites percentilares e pagina editorial nao verificados; nenhuma faixa numerica transcrita."
+      },
+      "ObservacaoRevisao": "A tabela apresenta media e desvio-padrao, nao os intervalos e graus presentes no JSON original. Media +/- 1 DP nao representa intervalo de normalidade. Sem faixa universal validada neste arquivo; considerar referencia por idade, sexo e metodo, incluindo WASE 2022."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Anel aórtico"
+    ]
+  },
+  "VR_ANELAORTICO_INDEX": {
+    "F": {
+      "normal": {
+        "min": 10.5,
+        "max": 13.3
+      },
+      "leve": {
+        "min": 13.4,
+        "max": 15.0
+      },
+      "moderado": {
+        "min": 15.1,
+        "max": 17.0
+      },
+      "grave": {
+        "min": 17.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 10.0,
+        "max": 12.6
+      },
+      "leve": {
+        "min": 12.7,
+        "max": 14.0
+      },
+      "moderado": {
+        "min": 14.1,
+        "max": 16.0
+      },
+      "grave": {
+        "min": 16.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "10.5-13.3"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 32,
+      "PaginaPDF": 32,
+      "TabelaFigura": "Tabela 14",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm/m2",
+      "CodigoBanco": 79,
+      "VariavelBanco": "VR_ANELAORTICO_INDEX",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Aorta Anel I",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Anel em mesossistole inner-edge; juncao em telediastole leading-edge; indexacao por SC quando indicada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_ANELAORTICO_INDEX"
+      ],
+      "EstatisticasDescritivas": {
+        "F": {
+          "media": 13,
+          "desvioPadrao": 1
+        },
+        "M": {
+          "media": 13,
+          "desvioPadrao": 1
+        }
+      },
+      "LeituraComplementar": {
+        "Ano": 2022,
+        "Fonte": "Normal Values of Aortic Root Size According to Age, Sex, and Race: Results of the World Alliance of Societies of Echocardiography Study",
+        "DOI": "10.1016/j.echo.2021.09.011",
+        "LinkOficial": "https://doi.org/10.1016/j.echo.2021.09.011",
+        "Observacao": "Tabelas de medias +/- DP consultadas em HTML. Limites percentilares e pagina editorial nao verificados; nenhuma faixa numerica transcrita."
+      },
+      "ObservacaoRevisao": "A tabela apresenta media e desvio-padrao, nao os intervalos e graus presentes no JSON original. Media +/- 1 DP nao representa intervalo de normalidade. Sem faixa universal validada neste arquivo; considerar referencia por idade, sexo e metodo, incluindo WASE 2022."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_ANEL_AO_INDEX"
+    ],
+    "NOMEALTERNATIVO": [
+      "Aorta Anel I"
+    ]
+  },
+  "VR_AO_SEIOS_VALSALVA": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 34,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 33.0,
+        "max": 36.0
+      },
+      "moderado": {
+        "min": 36.1,
+        "max": 39.0
+      },
+      "grave": {
+        "min": 39.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 40,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 36.0,
+        "max": 39.0
+      },
+      "moderado": {
+        "min": 39.1,
+        "max": 42.0
+      },
+      "grave": {
+        "min": 42.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 34"
+    },
+    "_meta": {
+      "Ano": 2024,
+      "Fonte": "2024 ESC Guidelines for the management of peripheral arterial and aortic diseases",
+      "Pagina": 3563,
+      "PaginaPDF": 26,
+      "TabelaFigura": "Figura 5",
+      "DOI": "10.1093/eurheartj/ehae179",
+      "LinkOficial": "https://doi.org/10.1093/eurheartj/ehae179",
+      "PDFConsultado": "https://orbi.uliege.be/bitstream/2268/331882/1/ehae179.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 5,
+      "VariavelBanco": "VR_AO",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâmetro da Aorta",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Segmento aortico indicado; diametro perpendicular ao eixo, tecnica documentada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_AO"
+      ],
+      "ObservacaoRevisao": "Limites superiores por sexo da Figura 5, sem limite inferior publicado. Considerar idade, tamanho corporal e z-score; nao equivalem a limiares de cirurgia."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_AO_SEIOS_VALSALVA"
+    ],
+    "NOMEALTERNATIVO": [
+      "Diâmetro da Aorta",
+      "Aorta (raiz)",
+      "Aorta (seios de Valsalva)"
+    ]
+  },
+  "VR_AO_ASCENDENTE": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 36,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 31.0,
+        "max": 34.0
+      },
+      "moderado": {
+        "min": 35.0,
+        "max": 38.0
+      },
+      "grave": {
+        "min": 39.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 40,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 36.0,
+        "max": 39.0
+      },
+      "moderado": {
+        "min": 40.0,
+        "max": 43.0
+      },
+      "grave": {
+        "min": 44.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 36"
+    },
+    "_meta": {
+      "Ano": 2024,
+      "Fonte": "2024 ESC Guidelines for the management of peripheral arterial and aortic diseases",
+      "Pagina": 3563,
+      "PaginaPDF": 26,
+      "TabelaFigura": "Figura 5",
+      "DOI": "10.1093/eurheartj/ehae179",
+      "LinkOficial": "https://doi.org/10.1093/eurheartj/ehae179",
+      "PDFConsultado": "https://orbi.uliege.be/bitstream/2268/331882/1/ehae179.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 192,
+      "VariavelBanco": "VR_AO_ASCENDENTE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Aorta ascendente",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Segmento aortico indicado; diametro perpendicular ao eixo, tecnica documentada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites superiores por sexo da Figura 5, sem limite inferior publicado. Considerar idade, tamanho corporal e z-score; nao equivalem a limiares de cirurgia."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Aorta ascendente"
+    ]
+  },
+  "VR_AO_SEIO_VALSALVA_INDEX": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 22,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 20.7,
+        "max": 23.0
+      },
+      "moderado": {
+        "min": 23.1,
+        "max": 25.0
+      },
+      "grave": {
+        "min": 25.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 22,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 19.8,
+        "max": 22.0
+      },
+      "moderado": {
+        "min": 22.1,
+        "max": 24.0
+      },
+      "grave": {
+        "min": 24.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 22"
+    },
+    "_meta": {
+      "Ano": 2024,
+      "Fonte": "2024 ESC Guidelines for the management of peripheral arterial and aortic diseases",
+      "Pagina": 3563,
+      "PaginaPDF": 26,
+      "TabelaFigura": "Figura 5",
+      "DOI": "10.1093/eurheartj/ehae179",
+      "LinkOficial": "https://doi.org/10.1093/eurheartj/ehae179",
+      "PDFConsultado": "https://orbi.uliege.be/bitstream/2268/331882/1/ehae179.pdf",
+      "Unidade": "mm/m2",
+      "CodigoBanco": 84,
+      "VariavelBanco": "VR_AO_SEIO_VALSALVA_INDEX",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Aorta Seio Valsalva I",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Seios de Valsalva indexados pela superficie corporal",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_AO_INDEX"
+      ],
+      "ObservacaoRevisao": "A figura explicita <22 mm/m2. Nao confundir com o anel aortico. Sem graduacao leve/moderada/grave nessa figura."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Aorta Seio Valsalva I"
+    ]
+  },
+  "VR_AO_JUNCAO": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 33,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 28.9,
+        "max": 31.0
+      },
+      "moderado": {
+        "min": 31.1,
+        "max": 34.0
+      },
+      "grave": {
+        "min": 34.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 38,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 31.5,
+        "max": 34.0
+      },
+      "moderado": {
+        "min": 34.1,
+        "max": 37.0
+      },
+      "grave": {
+        "min": 37.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 33"
+    },
+    "_meta": {
+      "Ano": 2024,
+      "Fonte": "2024 ESC Guidelines for the management of peripheral arterial and aortic diseases",
+      "Pagina": 3563,
+      "PaginaPDF": 26,
+      "TabelaFigura": "Figura 5",
+      "DOI": "10.1093/eurheartj/ehae179",
+      "LinkOficial": "https://doi.org/10.1093/eurheartj/ehae179",
+      "PDFConsultado": "https://orbi.uliege.be/bitstream/2268/331882/1/ehae179.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 82,
+      "VariavelBanco": "VR_AO_JUNCAO",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Aorta Junção",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Segmento aortico indicado; diametro perpendicular ao eixo, tecnica documentada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_AO_JUNCAO_SINO_TUBULAR"
+      ],
+      "ObservacaoRevisao": "Limites superiores por sexo da Figura 5, sem limite inferior publicado. Considerar idade, tamanho corporal e z-score; nao equivalem a limiares de cirurgia."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Aorta Junção"
+    ]
+  },
+  "VR_AO_JUNCAO_INDEX": {
+    "F": {
+      "normal": {
+        "min": 13.2,
+        "max": 18.0
+      },
+      "leve": {
+        "min": 18.1,
+        "max": 20.0
+      },
+      "moderado": {
+        "min": 20.1,
+        "max": 22.0
+      },
+      "grave": {
+        "min": 22.1,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 12.5,
+        "max": 17.1
+      },
+      "leve": {
+        "min": 17.2,
+        "max": 19.0
+      },
+      "moderado": {
+        "min": 19.1,
+        "max": 21.0
+      },
+      "grave": {
+        "min": 21.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "13.2-18"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 32,
+      "PaginaPDF": 32,
+      "TabelaFigura": "Tabela 14",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm/m2",
+      "CodigoBanco": 83,
+      "VariavelBanco": "VR_AO_JUNCAO_INDEX",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Aorta Junção I",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Anel em mesossistole inner-edge; juncao em telediastole leading-edge; indexacao por SC quando indicada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_AO_JUNCAO_SINO_TUBULAR_INDEX"
+      ],
+      "EstatisticasDescritivas": {
+        "F": {
+          "media": 15,
+          "desvioPadrao": 2
+        },
+        "M": {
+          "media": 15,
+          "desvioPadrao": 2
+        }
+      },
+      "LeituraComplementar": {
+        "Ano": 2022,
+        "Fonte": "Normal Values of Aortic Root Size According to Age, Sex, and Race: Results of the World Alliance of Societies of Echocardiography Study",
+        "DOI": "10.1016/j.echo.2021.09.011",
+        "LinkOficial": "https://doi.org/10.1016/j.echo.2021.09.011",
+        "Observacao": "Tabelas de medias +/- DP consultadas em HTML. Limites percentilares e pagina editorial nao verificados; nenhuma faixa numerica transcrita."
+      },
+      "ObservacaoRevisao": "A tabela apresenta media e desvio-padrao, nao os intervalos e graus presentes no JSON original. Media +/- 1 DP nao representa intervalo de normalidade. Sem faixa universal validada neste arquivo; considerar referencia por idade, sexo e metodo, incluindo WASE 2022."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Aorta Junção I"
+    ]
+  },
+  "VR_AE": {
+    "F": {
+      "normal": {
+        "min": 27,
+        "max": 38,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 39.0,
+        "max": 42.0
+      },
+      "moderado": {
+        "min": 43.0,
+        "max": 46.0
+      },
+      "grave": {
+        "min": 47.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 30,
+        "max": 40,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 44.0
+      },
+      "moderado": {
+        "min": 45.0,
+        "max": 48.0
+      },
+      "grave": {
+        "min": 49.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "27-38"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e14",
+      "PaginaPDF": 53,
+      "TabelaFigura": "Tabela suplementar 9",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 6,
+      "VariavelBanco": "VR_AE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâmetro do Átrio Esquerdo",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Diametro anteroposterior, paraesternal longitudinal",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "A tabela fornece intervalos normais, nao graus de aumento para esta medida. Preferir volume indexado para avaliar tamanho do AE; ver secao 9.2, pagina 25."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Diâmetro do Átrio Esquerdo"
+    ]
+  },
+  "VR_DDFVE": {
+    "F": {
+      "normal": {
+        "min": 38,
+        "max": 52,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 53,
+        "max": 56,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 57,
+        "max": 61,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 61,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 42,
+        "max": 58,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 59,
+        "max": 63,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 64,
+        "max": 68,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 68,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "38-52"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 149,
+      "VariavelBanco": "VR_DDFVE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâmetro Diastólico Final VE",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Medidas lineares 2D; massa pela formula linear/cubica ASE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_VED"
+    ],
+    "NOMEALTERNATIVO": [
+      "Diâmetro Diastólico Final VE"
+    ]
+  },
+  "VR_DSFVE": {
+    "F": {
+      "normal": {
+        "min": 22,
+        "max": 35,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 36,
+        "max": 38,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 39,
+        "max": 41,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 41,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 25,
+        "max": 40,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 41,
+        "max": 43,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 44,
+        "max": 45,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 45,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "22-35"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 150,
+      "VariavelBanco": "VR_DSFVE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâmetro Sistólico Final VE",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Medidas lineares 2D; massa pela formula linear/cubica ASE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_VES"
+    ],
+    "NOMEALTERNATIVO": [
+      "Diâmetro Sistólico Final VE"
+    ]
+  },
+  "VR_DVD": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 41,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 41,
+        "max": 44,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 44,
+        "max": 49,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 49,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 41"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 156,
+      "VariavelBanco": "VR_DVD",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâmetro Basal do VD",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Diametro basal do VD em A4C focado no VD, telediastole",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Diâmetro Basal do VD"
+    ]
+  },
+  "VR_ESPESSURA_PAREDE_LIVRE_VD": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 5,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 5,
+        "max": 7,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 7,
+        "max": 9,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 9,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 200,
+      "VariavelBanco": "VR_ESPESSURA_PAREDE_LIVRE_VD",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Espessura da parede livre do VD",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Parede livre do VD, preferencialmente subcostal em telediastole",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Espessura da parede livre do VD"
+    ]
+  },
+  "VR_FACVD": {
+    "U": {
+      "normal": {
+        "min": 35,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      },
+      "leve": {
+        "min": 29,
+        "max": 35,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 22,
+        "max": 29,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": null,
+        "max": 22,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 35"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 97,
+      "VariavelBanco": "VR_FACVD",
+      "UnidadeBanco": "%",
+      "NomeMedida": "Fração de Encurtamento do VD",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Variacao fracional da area do VD: (area diastolica - sistolica)/diastolica",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Normal >35%; 35% pertence a faixa leve. A medida nao inclui a contribuicao do trato de saida do VD."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_FAC_VD"
+    ],
+    "NOMEALTERNATIVO": [
+      "Fração de Encurtamento do VD"
+    ]
+  },
+  "VR_FESIMPSON": {
+    "F": {
+      "normal": {
+        "min": 54,
+        "max": 74,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 41,
+        "max": 53,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 30,
+        "max": 40,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": null,
+        "max": 30,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 52,
+        "max": 72,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 41,
+        "max": 51,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 30,
+        "max": 40,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": null,
+        "max": 30,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "54-74"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 10,
+      "PaginaPDF": 10,
+      "TabelaFigura": "Tabela 4",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 44,
+      "VariavelBanco": "VR_FESIMPSON",
+      "UnidadeBanco": "%",
+      "NomeMedida": "F. Ejeção Simpson",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Simpson biplanar 2D",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Faixas publicadas em pontos percentuais inteiros. Nao completar lacunas entre categorias com decimais inventados; valores acima do limite superior nao sao graduados como disfuncao sistolica."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "F. Ejeção Simpson"
+    ]
+  },
+  "VR_FETEICHOLZ": {
+    "F": {
+      "normal": {
+        "min": 54.0,
+        "max": 74.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 53.9
+      },
+      "moderado": {
+        "min": 30.0,
+        "max": 40.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 29.9
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 52.0,
+        "max": 72.0
+      },
+      "leve": {
+        "min": 41.0,
+        "max": 51.9
+      },
+      "moderado": {
+        "min": 30.0,
+        "max": 40.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 29.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "54-74"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 3,
+      "PaginaPDF": 3,
+      "TabelaFigura": "Secao 1.2",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 45,
+      "VariavelBanco": "VR_FETEICHOLZ",
+      "UnidadeBanco": "%",
+      "NomeMedida": "F. Ejeção Teichholz",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Metodo sem faixa especifica validada",
+      "Metodo": "Teichholz",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "A diretriz de 2015 nao recomenda Teichholz/Quinones para calcular volumes do VE na pratica clinica. Nao transferir as faixas do Simpson para este metodo sem validacao especifica. Faixas removidas."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "F. Ejeção Teichholz"
+    ]
+  },
+  "VR_IPM": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 0.43
+      },
+      "leve": {
+        "min": 0.44,
+        "max": 0.54
+      },
+      "moderado": {
+        "min": 0.55,
+        "max": 0.65
+      },
+      "grave": {
+        "min": 0.66,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "0-0.43"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": 174,
+      "VariavelBanco": "VR_IPM",
+      "UnidadeBanco": "%",
+      "NomeMedida": "Índice de Performance Miocárdica",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Dependente do metodo",
+      "Metodo": "Camara e metodo Doppler nao definidos no cadastro",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Indice generico: confirmar VE/VD e Doppler pulsado/tecidual. Para VD, normal <0,40 por pulsado e <0,55 por tecidual. Nao adotar automaticamente o antigo <0,43."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Índice de Performance Miocárdica"
+    ],
+    "REFERENCIASPORCONTEXTO": [
+      {
+        "Contexto": "Somente VD, Doppler pulsado",
+        "U": {
+          "normal": {
+            "min": null,
+            "max": 0.4,
+            "minInclusivo": null,
+            "maxInclusivo": false
+          },
+          "leve": {
+            "min": 0.4,
+            "max": 0.49,
+            "minInclusivo": true,
+            "maxInclusivo": false
+          },
+          "moderado": {
+            "min": 0.49,
+            "max": 0.57,
+            "minInclusivo": true,
+            "maxInclusivo": false
+          },
+          "grave": {
+            "min": 0.57,
+            "max": null,
+            "minInclusivo": true,
+            "maxInclusivo": null
+          }
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+          "Pagina": 145,
+          "PaginaPDF": 5,
+          "TabelaFigura": "Tabela 1",
+          "DOI": "10.1016/j.echo.2025.01.006",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf"
+        }
+      },
+      {
+        "Contexto": "Somente VD, Doppler tecidual",
+        "U": {
+          "normal": {
+            "min": null,
+            "max": 0.55,
+            "minInclusivo": null,
+            "maxInclusivo": false
+          },
+          "leve": {
+            "min": 0.55,
+            "max": 0.62,
+            "minInclusivo": true,
+            "maxInclusivo": false
+          },
+          "moderado": {
+            "min": 0.62,
+            "max": 0.7,
+            "minInclusivo": true,
+            "maxInclusivo": false
+          },
+          "grave": {
+            "min": 0.7,
+            "max": null,
+            "minInclusivo": true,
+            "maxInclusivo": null
+          }
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+          "Pagina": 145,
+          "PaginaPDF": 5,
+          "TabelaFigura": "Tabela 1",
+          "DOI": "10.1016/j.echo.2025.01.006",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf"
+        }
+      }
+    ]
+  },
+  "VR_MVE": {
+    "F": {
+      "normal": {
+        "min": 67,
+        "max": 162,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 163,
+        "max": 186,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 187,
+        "max": 210,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 210,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 88,
+        "max": 224,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 225,
+        "max": 258,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 259,
+        "max": 292,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 292,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "67-162"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "g",
+      "CodigoBanco": 15,
+      "VariavelBanco": "VR_MVE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Massa do Ventrículo Esquerdo",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Medidas lineares 2D; massa pela formula linear/cubica ASE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Massa do Ventrículo Esquerdo"
+    ]
+  },
+  "VR_MVE_INDEX": {
+    "F": {
+      "normal": {
+        "min": 43,
+        "max": 95,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 96,
+        "max": 108,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 109,
+        "max": 121,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 121,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 49,
+        "max": 115,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 116,
+        "max": 131,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 132,
+        "max": 148,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 148,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "43-95"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "g/m2",
+      "CodigoBanco": 16,
+      "VariavelBanco": "VR_MVE_INDEX",
+      "UnidadeBanco": "g/m²",
+      "NomeMedida": "Massa do VE Indexada",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Medidas lineares 2D; massa pela formula linear/cubica ASE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_MVE_SC"
+    ],
+    "NOMEALTERNATIVO": [
+      "Massa do VE Indexada"
+    ]
+  },
+  "VR_ONDA_A_MITRAL": {
+    "M": {
+      "normal": {
+        "min": 0.2,
+        "max": 0.5
+      },
+      "leve": {
+        "min": 0.1,
+        "max": 0.19
+      },
+      "moderado": {
+        "min": 0.0,
+        "max": 0.09
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 0.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "0.2-0.5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 551,
+      "PaginaPDF": 15,
+      "TabelaFigura": "Tabela 5",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": 211,
+      "VariavelBanco": "VR_ONDA_A_MITRAL",
+      "UnidadeBanco": "m/s",
+      "NomeMedida": "Onda A mitral",
+      "Situacao": "Confirmada por contexto",
+      "TipoReferencia": "Referencia populacional por idade",
+      "Metodo": "Doppler pulsado transmitral",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Sem faixa unica para adultos. Referencias por idade sao percentis 5 e 95, convertidos de m/s para cm/s (x100). Nao confundir os IC dos percentis com o intervalo individual. A fonte usa grupos 20-39, 40-60 e 60-80; a idade 60 e compartilhada entre os dois ultimos e nao deve ser resolvida silenciosamente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Onda A mitral"
+    ],
+    "REFERENCIASPORCONTEXTO": [
+      {
+        "Contexto": "Faixa etaria publicada; selecionar clinicamente aos 60 anos",
+        "IdadeGrupoPublicado": "20-39",
+        "Sexo": "U",
+        "normal": {
+          "min": 24,
+          "max": 68,
+          "minInclusivo": true,
+          "maxInclusivo": true
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+          "Pagina": 551,
+          "PaginaPDF": 15,
+          "TabelaFigura": "Tabela 5",
+          "DOI": "10.1016/j.echo.2025.03.011",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf"
+        }
+      },
+      {
+        "Contexto": "Faixa etaria publicada; selecionar clinicamente aos 60 anos",
+        "IdadeGrupoPublicado": "40-60",
+        "Sexo": "U",
+        "normal": {
+          "min": 33,
+          "max": 82,
+          "minInclusivo": true,
+          "maxInclusivo": true
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+          "Pagina": 551,
+          "PaginaPDF": 15,
+          "TabelaFigura": "Tabela 5",
+          "DOI": "10.1016/j.echo.2025.03.011",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf"
+        }
+      },
+      {
+        "Contexto": "Faixa etaria publicada; selecionar clinicamente aos 60 anos",
+        "IdadeGrupoPublicado": "60-80",
+        "Sexo": "U",
+        "normal": {
+          "min": 43,
+          "max": 97,
+          "minInclusivo": true,
+          "maxInclusivo": true
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+          "Pagina": 551,
+          "PaginaPDF": 15,
+          "TabelaFigura": "Tabela 5",
+          "DOI": "10.1016/j.echo.2025.03.011",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf"
+        }
+      }
+    ]
+  },
+  "VR_ONDA_E_MITRAL": {
+    "U": {
+      "normal": {
+        "min": 0.6,
+        "max": 1.0
+      },
+      "leve": {
+        "min": 1.1,
+        "max": 1.3
+      },
+      "moderado": {
+        "min": 1.4,
+        "max": 1.6
+      },
+      "grave": {
+        "min": 1.7,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "0.6-1"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 551,
+      "PaginaPDF": 15,
+      "TabelaFigura": "Tabela 5",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": 210,
+      "VariavelBanco": "VR_ONDA_E_MITRAL",
+      "UnidadeBanco": "m/s",
+      "NomeMedida": "Onda E mitral",
+      "Situacao": "Confirmada por contexto",
+      "TipoReferencia": "Referencia populacional por idade",
+      "Metodo": "Doppler pulsado transmitral",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Sem faixa unica para adultos. Referencias por idade sao percentis 5 e 95, convertidos de m/s para cm/s (x100). Nao confundir os IC dos percentis com o intervalo individual. A fonte usa grupos 20-39, 40-60 e 60-80; a idade 60 e compartilhada entre os dois ultimos e nao deve ser resolvida silenciosamente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Onda E mitral"
+    ],
+    "REFERENCIASPORCONTEXTO": [
+      {
+        "Contexto": "Faixa etaria publicada; selecionar clinicamente aos 60 anos",
+        "IdadeGrupoPublicado": "20-39",
+        "Sexo": "U",
+        "normal": {
+          "min": 54,
+          "max": 111,
+          "minInclusivo": true,
+          "maxInclusivo": true
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+          "Pagina": 551,
+          "PaginaPDF": 15,
+          "TabelaFigura": "Tabela 5",
+          "DOI": "10.1016/j.echo.2025.03.011",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf"
+        }
+      },
+      {
+        "Contexto": "Faixa etaria publicada; selecionar clinicamente aos 60 anos",
+        "IdadeGrupoPublicado": "40-60",
+        "Sexo": "U",
+        "normal": {
+          "min": 47,
+          "max": 102,
+          "minInclusivo": true,
+          "maxInclusivo": true
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+          "Pagina": 551,
+          "PaginaPDF": 15,
+          "TabelaFigura": "Tabela 5",
+          "DOI": "10.1016/j.echo.2025.03.011",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf"
+        }
+      },
+      {
+        "Contexto": "Faixa etaria publicada; selecionar clinicamente aos 60 anos",
+        "IdadeGrupoPublicado": "60-80",
+        "Sexo": "U",
+        "normal": {
+          "min": 39,
+          "max": 92,
+          "minInclusivo": true,
+          "maxInclusivo": true
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+          "Pagina": 551,
+          "PaginaPDF": 15,
+          "TabelaFigura": "Tabela 5",
+          "DOI": "10.1016/j.echo.2025.03.011",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf"
+        }
+      }
+    ]
+  },
+  "VR_PPVE": {
+    "F": {
+      "normal": {
+        "min": 6,
+        "max": 9,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 10,
+        "max": 12,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 13,
+        "max": 15,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 15,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 6,
+        "max": 10,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 11,
+        "max": 13,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 14,
+        "max": 16,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 16,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "6-9"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 11,
+      "VariavelBanco": "VR_PPVE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Parede Posterior VE",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Medidas lineares 2D; massa pela formula linear/cubica ASE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_EDPPVE"
+      ],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Parede Posterior VE"
+    ]
+  },
+  "VR_PEC": {
+    "F": {
+      "normal": {
+        "min": 27,
+        "max": 45,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 22,
+        "max": 26,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 17,
+        "max": 21,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": null,
+        "max": 16,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 25,
+        "max": 43,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 20,
+        "max": 24,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 15,
+        "max": 19,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": null,
+        "max": 14,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "27-45"
+    },
+    "_meta": {
+      "Ano": 2005,
+      "Fonte": "Recommendations for Chamber Quantification: A Report from the American Society of Echocardiography's Guidelines and Standards Committee and the Chamber Quantification Writing Group, Developed in Conjunction with the European Association of Echocardiography, a Branch of the European Society of Cardiology",
+      "Pagina": 1448,
+      "PaginaPDF": 9,
+      "TabelaFigura": "Tabela 6",
+      "DOI": "10.1016/j.echo.2005.10.005",
+      "LinkOficial": "https://doi.org/10.1016/j.echo.2005.10.005",
+      "PDFConsultado": "https://anesthesia.bidmc.harvard.edu/ADEL/documents/echo/ASE%20Chamber%20Quantification%202005.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 107,
+      "VariavelBanco": "VR_PEC",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Percentual Encurtamento",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Encurtamento fracional endocardico por medidas lineares",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Origem historica identificada em 2005, nao na tabela de 2015 atribuida pelo arquivo original. A diretriz de 2015 prefere FE volumetrica e ressalta limitacoes das medidas lineares (secao 2.1, paginas 6-9). Faixas historicas confirmadas, aplicabilidade atual requer revisao."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Percentual Encurtamento"
+    ]
+  },
+  "VR_RELACAO_E_ELINHA": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 14,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 14.1,
+        "max": 16.0
+      },
+      "moderado": {
+        "min": 16.1,
+        "max": 20.0
+      },
+      "grave": {
+        "min": 20.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "<= 14"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": 104,
+      "VariavelBanco": "VR_MEDIA_E_ELINHA",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Media E Elinha",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Doppler tecidual mitral; media aritmetica de e' septal e lateral para media",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Ponto de corte do algoritmo, nao intervalo populacional nem diagnostico isolado. Aplicar junto aos demais parametros e observar exclusoes da Figura 3: FA, valvopatia/intervencao mitral relevante, MAC moderada/importante, transplante, LVAD, constricao e HP nao cardiaca. E/e' medio = E / ((e' septal + e' lateral)/2); nao e a media aritmetica das duas relacoes."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_RELACAO_E_ELINHA"
+    ],
+    "NOMEALTERNATIVO": [
+      "Media E Elinha"
+    ]
+  },
+  "VR_SEPTO": {
+    "F": {
+      "normal": {
+        "min": 6,
+        "max": 9,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 10,
+        "max": 12,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 13,
+        "max": 15,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 15,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 6,
+        "max": 10,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 11,
+        "max": 13,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 14,
+        "max": 16,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 16,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "6-9"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 10,
+      "VariavelBanco": "VR_SEPTO",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Espessura do Septo",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Medidas lineares 2D; massa pela formula linear/cubica ASE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_EDS",
+        "VR_SEPTO_IVS",
+        "VR_ESPESSURA_SEPTAL"
+      ],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Espessura do Septo"
+    ]
+  },
+  "VR_ONDA_S_ANEL_TRICUSPIDE": {
+    "U": {
+      "normal": {
+        "min": 9.5,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      },
+      "leve": {
+        "min": 7.2,
+        "max": 9.5
+      },
+      "moderado": {
+        "min": 5.0,
+        "max": 7.1
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 4.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 9.5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": 190,
+      "VariavelBanco": "VR_ONDA_S_ANEL_TRICUSPIDE",
+      "UnidadeBanco": "cm/s",
+      "NomeMedida": "Onda S' do Anel Tricúspide",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Velocidade sistolica do anel tricuspide por Doppler tecidual pulsado",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_S_ANEL_TRICUSPIDE"
+      ],
+      "ObservacaoRevisao": "Faixa normal confirmada. Graus omitidos devido a sobreposicao/inconsistencia de desigualdades na Tabela 1 consultada (TAPSE 1,3 cm; S' 7,2 cm/s; FE 3D intervalo leve). Nao corrigir silenciosamente a fonte. Para S' tricuspide, 0,095 m/s equivale a 9,5 cm/s, nao a 0,95 cm/s."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Onda S' do Anel Tricúspide"
+    ]
+  },
+  "VR_TAPSE_VD": {
+    "U": {
+      "normal": {
+        "min": 17,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      },
+      "leve": {
+        "min": 13.0,
+        "max": 16.9
+      },
+      "moderado": {
+        "min": 10.0,
+        "max": 12.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 9.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 17"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 161,
+      "VariavelBanco": "VR_TAPSE_VD",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "TAPSE",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "TAPSE por modo M",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_TAPSE_VD"
+      ],
+      "ObservacaoRevisao": "Faixa normal confirmada. Graus omitidos devido a sobreposicao/inconsistencia de desigualdades na Tabela 1 consultada (TAPSE 1,3 cm; S' 7,2 cm/s; FE 3D intervalo leve). Nao corrigir silenciosamente a fonte. Para S' tricuspide, 0,095 m/s equivale a 9,5 cm/s, nao a 0,95 cm/s."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "TAPSE"
+    ]
+  },
+  "VR_TEMPO_DESACELERACAO_E_MITRAL": {
+    "U": {
+      "normal": {
+        "min": 150.0,
+        "max": 240.0
+      },
+      "leve": {
+        "min": 201.0,
+        "max": 240.0
+      },
+      "moderado": {
+        "min": 160.0,
+        "max": 200.0
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 159.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "160-240"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 547,
+      "PaginaPDF": 11,
+      "TabelaFigura": "Tabela 4, Mitral E-wave DT",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "ms",
+      "CodigoBanco": 198,
+      "VariavelBanco": "VR_TEMPO_DESACELERACAO_E_MITRAL",
+      "UnidadeBanco": "ms",
+      "NomeMedida": "Tempo de Desaceleração da Onda E do fluxo mitral",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Tempo de desaceleracao E mitral",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "O significado depende de idade, relaxamento, FE e pressoes. Nao confirmada faixa universal 150-240/160-240 ms na fonte atribuida; os graus originais se sobrepunham a faixa normal. Faixas removidas."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Tempo de Desaceleração da Onda E do fluxo mitral"
+    ]
+  },
+  "VR_VDF": {
+    "F": {
+      "normal": {
+        "min": 46,
+        "max": 106,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 107,
+        "max": 120,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 121,
+        "max": 130,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 130,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 62,
+        "max": 150,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 151,
+        "max": 174,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 175,
+        "max": 200,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 200,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "46-106"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mL",
+      "CodigoBanco": 13,
+      "VariavelBanco": "VR_VDF",
+      "UnidadeBanco": "ml",
+      "NomeMedida": "Volume Diastólico Final",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Volumes 2D por Simpson biplanar, sem contraste; nao aplicar a volumes por Teichholz ou 3D",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_VDF_MANUAL"
+      ],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Volume Diastólico Final"
+    ]
+  },
+  "VR_VOLUME_AD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 0.0,
+        "max": 27.0
+      },
+      "leve": {
+        "min": 28.0,
+        "max": 32.0
+      },
+      "moderado": {
+        "min": 33.0,
+        "max": 37.0
+      },
+      "grave": {
+        "min": 38.0,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 0.0,
+        "max": 32.0
+      },
+      "leve": {
+        "min": 33.0,
+        "max": 37.0
+      },
+      "moderado": {
+        "min": 38.0,
+        "max": 42.0
+      },
+      "grave": {
+        "min": 43.0,
+        "max": 999.0
+      }
+    },
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 34.0
+      },
+      "leve": {
+        "min": 35.0,
+        "max": 40.0
+      },
+      "moderado": {
+        "min": 41.0,
+        "max": 45.0
+      },
+      "grave": {
+        "min": 46.0,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 27"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mL/m2",
+      "CodigoBanco": 250,
+      "VariavelBanco": "VR_VOLUME_AD_INDEX",
+      "UnidadeBanco": "ml/m²",
+      "NomeMedida": "Volume do Átrio Direito Indexado",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Dependente do metodo",
+      "Metodo": "Metodo volumetrico precisa ser selecionado",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Os antigos 21 +/- 6 (F) e 25 +/- 7 (M) eram medias +/- DP, nao limites superiores. ASE 2025: <30 por discos, <33 por area-comprimento. Sem faixa generica enquanto o metodo nao for informado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Volume do Átrio Direito Indexado"
+    ],
+    "REFERENCIASPORCONTEXTO": [
+      {
+        "Contexto": "Volume maximo AD por metodo dos discos 2D",
+        "U": {
+          "normal": {
+            "min": null,
+            "max": 30,
+            "minInclusivo": null,
+            "maxInclusivo": false
+          },
+          "leve": {
+            "min": 30,
+            "max": 36,
+            "minInclusivo": true,
+            "maxInclusivo": true
+          },
+          "moderado": {
+            "min": 36,
+            "max": 41,
+            "minInclusivo": false,
+            "maxInclusivo": true
+          },
+          "grave": {
+            "min": 41,
+            "max": null,
+            "minInclusivo": false,
+            "maxInclusivo": null
+          }
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+          "Pagina": 145,
+          "PaginaPDF": 5,
+          "TabelaFigura": "Tabela 1",
+          "DOI": "10.1016/j.echo.2025.01.006",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf"
+        }
+      },
+      {
+        "Contexto": "Volume maximo AD por area-comprimento 2D",
+        "U": {
+          "normal": {
+            "min": null,
+            "max": 33,
+            "minInclusivo": null,
+            "maxInclusivo": false
+          }
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+          "Pagina": 145,
+          "PaginaPDF": 5,
+          "TabelaFigura": "Tabela 1",
+          "DOI": "10.1016/j.echo.2025.01.006",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf"
+        }
+      }
+    ]
+  },
+  "VR_VDF_INDEX": {
+    "F": {
+      "normal": {
+        "min": 29,
+        "max": 61,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 62,
+        "max": 70,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 71,
+        "max": 80,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 80,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 34,
+        "max": 74,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 75,
+        "max": 89,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 90,
+        "max": 100,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 100,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "29-61"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mL/m2",
+      "CodigoBanco": 121,
+      "VariavelBanco": "VR_VDF_INDEX",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Volume Diastólico Final I",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Volumes 2D por Simpson biplanar, sem contraste; nao aplicar a volumes por Teichholz ou 3D",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Volume Diastólico Final I"
+    ]
+  },
+  "VR_VSF_INDEX": {
+    "F": {
+      "normal": {
+        "min": 8,
+        "max": 24,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 25,
+        "max": 32,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 33,
+        "max": 40,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 40,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 11,
+        "max": 31,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 32,
+        "max": 38,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 39,
+        "max": 45,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 45,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "8-24"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mL/m2",
+      "CodigoBanco": 132,
+      "VariavelBanco": "VR_VSF_INDEX",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Volume Sistólico Final I",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Volumes 2D por Simpson biplanar, sem contraste; nao aplicar a volumes por Teichholz ou 3D",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Volume Sistólico Final I"
+    ]
+  },
+  "VR_VSF": {
+    "F": {
+      "normal": {
+        "min": 14,
+        "max": 42,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 43,
+        "max": 55,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 56,
+        "max": 67,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 67,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 21,
+        "max": 61,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 62,
+        "max": 73,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 74,
+        "max": 85,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 85,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "14-42"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": "39.e8",
+      "PaginaPDF": 47,
+      "TabelaFigura": "Tabela suplementar 3",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mL",
+      "CodigoBanco": 14,
+      "VariavelBanco": "VR_VSF",
+      "UnidadeBanco": "ml",
+      "NomeMedida": "Volume Sistólico Final",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Volumes 2D por Simpson biplanar, sem contraste; nao aplicar a volumes por Teichholz ou 3D",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_VSF_MANUAL"
+      ],
+      "PrecisaoFaixasPublicadas": "Limites preservados da tabela; valores entre intervalos devem permanecer sem classificacao, sem arredondamento automatico.",
+      "ObservacaoRevisao": "Faixas transcritas na precisao publicada. Intervalos entre categorias arredondadas nao foram preenchidos artificialmente. Graus indicam alteracao da medida, nao diagnostico isolado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Volume Sistólico Final"
+    ]
+  },
+  "VR_VOL_AE_INDEX": {
+    "U": {
+      "normal": {
+        "min": 16,
+        "max": 34,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 35,
+        "max": 41,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 42,
+        "max": 48,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 48,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "16-34"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 10,
+      "PaginaPDF": 10,
+      "TabelaFigura": "Tabela 4",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "mL/m2",
+      "CodigoBanco": 251,
+      "VariavelBanco": "VR_VOL_AE_INDEX",
+      "UnidadeBanco": "ml/m²",
+      "NomeMedida": "Volume do Átrio Esquerdo Indexado",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Volume maximo do AE 2D indexado pela superficie corporal",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Graus corrigidos: leve 35-41, moderado 42-48 e grave >48. A ASE 2025 mantem >34 como marcador no algoritmo diastolico; isoladamente nao diagnostica disfuncao diastolica."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_VAE_SC",
+      "VR_VAE_INDEX",
+      "VR_VOLUME_AE_INDEX",
+      "VR_VOLUME_AE_SC"
+    ],
+    "NOMEALTERNATIVO": [
+      "Volume do Átrio Esquerdo Indexado"
+    ]
+  },
+  "VR_DVD_MEDIO": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 35,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 35,
+        "max": 38,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 38,
+        "max": 42,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 42,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 35"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 157,
+      "VariavelBanco": "VR_VD2",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâmetro Médio do VD",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Diametro medio do VD em A4C focado no VD, telediastole",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Correspondencia clinica revisada",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Diâmetro Médio do VD"
+    ]
+  },
+  "VR_AREA_DVD_INDEX": {
+    "U": {
+      "normal": {
+        "min": 0.0,
+        "max": 11.5
+      },
+      "leve": {
+        "min": 11.6,
+        "max": 14.0
+      },
+      "moderado": {
+        "min": 14.1,
+        "max": 16.0
+      },
+      "grave": {
+        "min": 16.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "0-11.5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm2/m2",
+      "CodigoBanco": 229,
+      "VariavelBanco": "VR_AREA_DVD_INDEX",
+      "UnidadeBanco": "unknown",
+      "NomeMedida": "Área do VD (DVD) Indexada",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Medida ambigua",
+      "Metodo": "Fase cardiaca nao identificada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Cadastro diz area do VD indexada sem confirmar diastole/sistole. Os limites sao diferentes (<14 diastolica; <8 sistolica). Nao associar automaticamente a VR_AREA_DIASTOLICA_VD_INDEX."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Área do VD (DVD) Indexada"
+    ]
+  },
+  "VR_GLS": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": -18,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": -17.9,
+        "max": -16.0
+      },
+      "moderado": {
+        "min": -15.9,
+        "max": -14.0
+      },
+      "grave": {
+        "min": -13.9,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< -18"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Clinical Applications of Strain Echocardiography: A Clinical Consensus Statement From the American Society of Echocardiography Developed in Collaboration With the European Association of Cardiovascular Imaging of the European Society of Cardiology",
+      "Pagina": 995,
+      "PaginaPDF": 11,
+      "TabelaFigura": "Secao 3, Clinical Consensus Statements",
+      "DOI": "10.1016/j.echo.2025.07.007",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/11/Strain-2025-Guideline-2.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 154,
+      "VariavelBanco": "VR_GLS_2D",
+      "UnidadeBanco": "%",
+      "NomeMedida": "Strain Longitudinal Global 2D",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "GLS miocardico do VE 2D, midwall/full-wall, fim da sistole",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Correspondencia clinica revisada",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Valores negativos preservados. Normal mais negativo que -18%; entre -18 e -16 e limitrofe, menos negativo que -16 e anormal. Nao ha graus universais leve/moderado/grave nesse consenso. Dependente do software e carga."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Strain Longitudinal Global 2D"
+    ],
+    "CLASSIFICACOESADICIONAIS": {
+      "U": {
+        "limitrofe": {
+          "min": -18,
+          "max": -16,
+          "minInclusivo": true,
+          "maxInclusivo": true
+        },
+        "anormal": {
+          "min": -16,
+          "max": null,
+          "minInclusivo": false,
+          "maxInclusivo": null
+        }
+      }
+    }
+  },
+  "VR_TRONCO_PULMONAR": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 25,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 25,
+        "max": 30,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 30,
+        "max": 35,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 35,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 25,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 25,
+        "max": 30,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 30,
+        "max": 35,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 35,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 25"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 197,
+      "VariavelBanco": "VR_TRONCO_PULMONAR",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Tronco Pulmonar",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Diametro do tronco pulmonar por ecocardiografia",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Tronco Pulmonar"
+    ]
+  },
+  "VR_DP_DT": {
+    "U": {
+      "normal": {
+        "min": 1000.0,
+        "max": 9999.0
+      },
+      "leve": {
+        "min": 900.0,
+        "max": 999.0
+      },
+      "moderado": {
+        "min": 800.0,
+        "max": 899.0
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 799.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≥ 1200"
+    },
+    "_meta": {
+      "Ano": null,
+      "Fonte": null,
+      "Pagina": null,
+      "PaginaPDF": null,
+      "TabelaFigura": null,
+      "DOI": null,
+      "LinkOficial": null,
+      "Unidade": "mmHg/s",
+      "CodigoBanco": 24,
+      "VariavelBanco": "VR_DP_DT",
+      "UnidadeBanco": "%",
+      "NomeMedida": "dP/dT do VE",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "dP/dt do VE pelo jato de regurgitacao mitral",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [
+        "VR_DP_DT"
+      ],
+      "FontesConsultadas": [
+        {
+          "Ano": 2017,
+          "Fonte": "Recommendations for Noninvasive Evaluation of Native Valvular Regurgitation: A Report from the American Society of Echocardiography Developed in Collaboration with the Society for Cardiovascular Magnetic Resonance",
+          "Pagina": null,
+          "PaginaPDF": null,
+          "TabelaFigura": "Documento completo; faixa nao localizada",
+          "DOI": "10.1016/j.echo.2017.01.007",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2017/04/2017VavularRegurgitationGuideline.pdf"
+        }
+      ],
+      "ObservacaoRevisao": "Nao localizado respaldo para a faixa e graus originais na diretriz de regurgitacao ASE 2017 consultada. O valor >1200 aparece em revisoes educacionais, mas nao foi adotado sem fonte primaria e pagina verificadas. Nao substituir por dP/dt do VD. Cadastro em % e inconsistente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "dP/dT do VE"
+    ]
+  },
+  "VR_RELACAO_E_A": {
+    "U": {
+      "normal": {
+        "min": 0.8,
+        "max": 2,
+        "minInclusivo": false,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 0.0,
+        "max": 0.79
+      },
+      "moderado": {
+        "min": 1.51,
+        "max": 2.0
+      },
+      "grave": {
+        "min": 2.01,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "0.8-2"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 553,
+      "PaginaPDF": 17,
+      "TabelaFigura": "Figura 2; Figura 3, pagina 554",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Relacao E/A mitral",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Faixa operacional entre pontos de corte",
+      "Metodo": "Onda E mitral / onda A mitral",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Mantida a faixa solicitada >0,8 e <2,0 como faixa operacional, nao como normalidade universal. Pode haver pseudonormalizacao; intervalos populacionais variam com idade. Nao atribuir graus diastolicos somente por E/A."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_DVD_LONGITUDINAL": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 82,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 82,
+        "max": 89,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 89,
+        "max": 96,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 96,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 82"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 158,
+      "VariavelBanco": "VR_VD3",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâmetro Longitudinal do VD",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Diametro longitudinal do VD em A4C focado no VD, telediastole",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Correspondencia clinica revisada",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Diâmetro Longitudinal do VD"
+    ]
+  },
+  "VR_TSVD_PARASTERNAL": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 33,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 33,
+        "max": 35,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 35,
+        "max": 39,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 39,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 33"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 247,
+      "VariavelBanco": "VR_TSVD_PARASTERNAL",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "TSVD Parasternal",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "TSVD no paraesternal eixo longo (PLAX)",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "TSVD Parasternal"
+    ]
+  },
+  "VR_TSVD_PROXIMAL": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 34,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 34,
+        "max": 38,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 38,
+        "max": 41,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 41,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 34"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 248,
+      "VariavelBanco": "VR_TSVD_PROXIMAL",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "TSVD Proximal",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "TSVD proximal no paraesternal eixo curto (PSAX)",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "TSVD Proximal"
+    ]
+  },
+  "VR_TSVD_DISTAL": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 29,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 29,
+        "max": 30,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 30,
+        "max": 33,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 33,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 29"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 246,
+      "VariavelBanco": "VR_TSVD_DISTAL",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "TSVD Distal",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "TSVD distal no paraesternal eixo curto (PSAX)",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "TSVD Distal"
+    ]
+  },
+  "VR_AREA_DIASTOLICA_VD": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 25,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 25,
+        "max": 28,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 28,
+        "max": 32,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 32,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 25,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 25,
+        "max": 28,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 28,
+        "max": 32,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 32,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 25"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm2",
+      "CodigoBanco": 227,
+      "VariavelBanco": "VR_AREA_DIASTOLICA_VD",
+      "UnidadeBanco": "cm²",
+      "NomeMedida": "Área Diastólica do Ventrículo Direito",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Area 2D em telediastole; A4C focado no VD",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Área Diastólica do Ventrículo Direito"
+    ]
+  },
+  "VR_AREA_DIASTOLICA_VD_INDEX": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 14,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 14,
+        "max": 15,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 15,
+        "max": 17,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 17,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 14,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 14,
+        "max": 15,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 15,
+        "max": 17,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 17,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 14"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm2/m2",
+      "CodigoBanco": 228,
+      "VariavelBanco": "VR_AREA_DIASTOLICA_VD_INDEX",
+      "UnidadeBanco": "unknown",
+      "NomeMedida": "Área Diastólica do VD Indexada",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Area 2D em telediastole / superficie corporal",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Área Diastólica do VD Indexada"
+    ]
+  },
+  "VR_AREA_SISTOLICA_VD": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 14,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 14,
+        "max": 16,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 16,
+        "max": 19,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 19,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 14,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 14,
+        "max": 16,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 16,
+        "max": 19,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 19,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 14"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm2",
+      "CodigoBanco": 230,
+      "VariavelBanco": "VR_AREA_SISTOLICA_VD",
+      "UnidadeBanco": "cm²",
+      "NomeMedida": "Área Sistólica do Ventrículo Direito",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Area 2D em telesistole; A4C focado no VD",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Área Sistólica do Ventrículo Direito"
+    ]
+  },
+  "VR_AREA_SISTOLICA_VD_INDEX": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 8,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 8,
+        "max": 9,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 9,
+        "max": 11,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 11,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 8,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 8,
+        "max": 9,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 9,
+        "max": 11,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 11,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 8"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm2/m2",
+      "CodigoBanco": 231,
+      "VariavelBanco": "VR_AREA_SISTOLICA_VD_INDEX",
+      "UnidadeBanco": "unknown",
+      "NomeMedida": "Área Sistólica do VD Indexada",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Area 2D em telesistole / superficie corporal",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Área Sistólica do VD Indexada"
+    ]
+  },
+  "VR_VDF_VD_INDEX_3D": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 90,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 90,
+        "max": 103,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 103,
+        "max": 115,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 115,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 90,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 90,
+        "max": 103,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 103,
+        "max": 115,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 115,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 90"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mL/m2",
+      "CodigoBanco": 249,
+      "VariavelBanco": "VR_VDF_VD_INDEX_3D",
+      "UnidadeBanco": "ml/m²",
+      "NomeMedida": "VDF VD Indexado 3D",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Volume diastolico final do VD por ecocardiografia 3D / SC",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "VDF VD Indexado 3D"
+    ]
+  },
+  "VR_VSF_VD_INDEX_3D": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 41,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 41,
+        "max": 48,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 48,
+        "max": 55,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 55,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 41,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      },
+      "leve": {
+        "min": 41,
+        "max": 48,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      },
+      "moderado": {
+        "min": 48,
+        "max": 55,
+        "minInclusivo": false,
+        "maxInclusivo": true
+      },
+      "grave": {
+        "min": 55,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 41"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mL/m2",
+      "CodigoBanco": 252,
+      "VariavelBanco": "VR_VSF_VD_INDEX_3D",
+      "UnidadeBanco": "ml/m²",
+      "NomeMedida": "VSF VD Indexado 3D",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Volume sistolico final do VD por ecocardiografia 3D / SC",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites gerais da tabela ASE 2025, sem estratificacao por sexo nessa tabela; quando ha blocos F/M, recebem os mesmos limites. Nao transportar valores de ressonancia ou de outros planos. Unidades indexadas de area sao cm2/m2; a unidade abreviada da tabela foi explicitada dimensionalmente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "VSF VD Indexado 3D"
+    ]
+  },
+  "VR_ONDA_S_DOPPLER_COLORIDO": {
+    "U": {
+      "normal": {
+        "min": 6.0,
+        "max": 999.0
+      },
+      "leve": {
+        "min": 4.0,
+        "max": 5.9
+      },
+      "moderado": {
+        "min": 2.0,
+        "max": 3.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 1.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≥ 6"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 157,
+      "PaginaPDF": 17,
+      "TabelaFigura": "Tissue Doppler Imaging S' Velocity",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Velocidade S' por Doppler tecidual colorido",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Doppler tecidual colorido; local nao especificado",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Nao aplicar o limite de S' por Doppler pulsado ao Doppler colorido. A fonte consultada nao confirma os antigos 6 cm/s e graus. Confirmar sitio e tecnica."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_STRAIN_PAREDE_LIVRE_VD": {
+    "U": {
+      "normal": {
+        "min": -999.0,
+        "max": -20.0
+      },
+      "leve": {
+        "min": -19.9,
+        "max": -17.0
+      },
+      "moderado": {
+        "min": -16.9,
+        "max": -14.0
+      },
+      "grave": {
+        "min": -13.9,
+        "max": 999.0
+      }
+    },
+    "F": {
+      "normal": {
+        "min": null,
+        "max": -21,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": -20,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ -21"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Clinical Applications of Strain Echocardiography: A Clinical Consensus Statement From the American Society of Echocardiography Developed in Collaboration With the European Association of Cardiovascular Imaging of the European Society of Cardiology",
+      "Pagina": 995,
+      "PaginaPDF": 11,
+      "TabelaFigura": "Secao 3, Clinical Consensus Statements",
+      "DOI": "10.1016/j.echo.2025.07.007",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/11/Strain-2025-Guideline-2.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 245,
+      "VariavelBanco": "VR_STRAIN_PAREDE_LIVRE_VD",
+      "UnidadeBanco": "%",
+      "NomeMedida": "Strain Parede Livre do VD",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "RVFWLS 2D, tres segmentos da parede livre em vista focada no VD",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Consenso de novembro/2025: limite -21% em mulheres e -20% em homens; valores menos negativos sao patologicos. Atualiza o limite unico discutido anteriormente. Nao confundir parede livre com strain global de seis segmentos. Sem faixa U por depender do sexo."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Strain Parede Livre do VD"
+    ]
+  },
+  "VR_FE_3D_VD": {
+    "U": {
+      "normal": {
+        "min": 45,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      },
+      "leve": {
+        "min": 40.0,
+        "max": 44.9
+      },
+      "moderado": {
+        "min": 35.0,
+        "max": 39.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 34.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 45"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "%",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Fracao de ejecao 3D do ventriculo direito",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Fracao de ejecao do VD por ecocardiografia 3D",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Faixa normal confirmada. Graus omitidos devido a sobreposicao/inconsistencia de desigualdades na Tabela 1 consultada (TAPSE 1,3 cm; S' 7,2 cm/s; FE 3D intervalo leve). Nao corrigir silenciosamente a fonte. Para S' tricuspide, 0,095 m/s equivale a 9,5 cm/s, nao a 0,95 cm/s."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_RELACAO_ELINHA_ALINHA": {
+    "U": {
+      "normal": {
+        "min": 0.52,
+        "max": 0.99
+      },
+      "leve": {
+        "min": 1.0,
+        "max": 1.5
+      },
+      "moderado": {
+        "min": 1.6,
+        "max": 2.0
+      },
+      "grave": {
+        "min": 2.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "0.52-0.99"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 145,
+      "PaginaPDF": 5,
+      "TabelaFigura": "Tabela 1",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Relacao e'/a' - sitio nao especificado",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Medida ambigua",
+      "Metodo": "Anel/camara nao especificados",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Nao confundir e'/a' tricuspide com relacao mitral. O codigo e o cadastro nao confirmam local de amostragem; sem faixa generica."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_E_LINHA": {
+    "U": {
+      "normal": {
+        "min": 7.8,
+        "max": 9.9
+      },
+      "leve": {
+        "min": 5.0,
+        "max": 7.7
+      },
+      "moderado": {
+        "min": 3.0,
+        "max": 4.9
+      },
+      "grave": {
+        "min": 0.0,
+        "max": 2.9
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "7.8-9.9"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Velocidade e' - sitio nao especificado",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Medida ambigua",
+      "Metodo": "Anel/camara nao especificados",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "O codigo nao distingue e' septal, lateral ou tricuspide. Nao transferir faixas entre sitios. Usar os novos itens especificos."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_EIXO_CURTO_AD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 1.6,
+        "max": 2.2
+      },
+      "leve": {
+        "min": 2.3,
+        "max": 2.5
+      },
+      "moderado": {
+        "min": 2.6,
+        "max": 2.8
+      },
+      "grave": {
+        "min": 2.9,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 1.6,
+        "max": 2.2
+      },
+      "leve": {
+        "min": 2.3,
+        "max": 2.5
+      },
+      "moderado": {
+        "min": 2.6,
+        "max": 2.8
+      },
+      "grave": {
+        "min": 2.9,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "1.6-2.2"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 30,
+      "PaginaPDF": 30,
+      "TabelaFigura": "Tabela 13",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "cm/m2",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Eixo curto do atrio direito indexado",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Eixo atrial direito indexado por SC",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "EstatisticasDescritivas": {
+        "F": {
+          "media": 1.9,
+          "desvioPadrao": 0.3
+        },
+        "M": {
+          "media": 1.9,
+          "desvioPadrao": 0.3
+        }
+      },
+      "ObservacaoRevisao": "Media +/- DP nao define normalidade individual. A ASE 2025 fornece cortes para eixos absolutos, nao para estes eixos indexados. Removidas faixas derivadas de +/-1 DP e graus sem respaldo."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_EIXO_LONGO_AD_INDEX": {
+    "F": {
+      "normal": {
+        "min": 2.2,
+        "max": 2.8
+      },
+      "leve": {
+        "min": 2.9,
+        "max": 3.2
+      },
+      "moderado": {
+        "min": 3.3,
+        "max": 3.6
+      },
+      "grave": {
+        "min": 3.7,
+        "max": 999.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 2.1,
+        "max": 2.7
+      },
+      "leve": {
+        "min": 2.8,
+        "max": 3.1
+      },
+      "moderado": {
+        "min": 3.2,
+        "max": 3.5
+      },
+      "grave": {
+        "min": 3.6,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "2.2-2.8"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 30,
+      "PaginaPDF": 30,
+      "TabelaFigura": "Tabela 13",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "cm/m2",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Eixo longo do atrio direito indexado",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Eixo atrial direito indexado por SC",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "EstatisticasDescritivas": {
+        "F": {
+          "media": 2.5,
+          "desvioPadrao": 0.3
+        },
+        "M": {
+          "media": 2.4,
+          "desvioPadrao": 0.3
+        }
+      },
+      "ObservacaoRevisao": "Media +/- DP nao define normalidade individual. A ASE 2025 fornece cortes para eixos absolutos, nao para estes eixos indexados. Removidas faixas derivadas de +/-1 DP e graus sem respaldo."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_DIFERENCA_AR_A": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 30,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      },
+      "leve": {
+        "min": 0.1,
+        "max": 15.0
+      },
+      "moderado": {
+        "min": 15.1,
+        "max": 30.0
+      },
+      "grave": {
+        "min": 30.1,
+        "max": 999.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 30"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "ms",
+      "CodigoBanco": 232,
+      "VariavelBanco": "VR_DIFERENCA_AR_A",
+      "UnidadeBanco": "ms",
+      "NomeMedida": "Diferença AR-A",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Complemento de ponto de corte diagnostico",
+      "Metodo": "Duracao Ar pulmonar - duracao A mitral",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Ar-A >30 ms e um criterio suplementar de elevacao das pressoes. <=30 significa criterio ausente, nao pressao normal comprovada. Valores negativos sao validos (100-120 = -20 ms). Sem graus leve/moderado/grave."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Diferença AR-A"
+    ]
+  },
+  "VR_VIA_SAIDA_VE": {
+    "F": {
+      "normal": {
+        "min": 18.0,
+        "max": 23.0
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 20.0,
+        "max": 25.0
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "18-23"
+    },
+    "_meta": {
+      "Ano": null,
+      "Fonte": null,
+      "Pagina": null,
+      "PaginaPDF": null,
+      "TabelaFigura": null,
+      "DOI": null,
+      "LinkOficial": null,
+      "Unidade": "mm",
+      "CodigoBanco": 203,
+      "VariavelBanco": "VR_DIAMETRO_VSVE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Diâm. VSVE",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Diametro da via de saida do VE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Correspondencia clinica revisada",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Fonte original era apenas Editado pelo usuario (2026), sem estudo. Nao confirmadas faixas F 18-23/M 20-25 mm com pagina em fonte primaria; nao confundir diametro VSVE com anel aortico. Sem faixa ate validacao."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_DSVE"
+    ],
+    "NOMEALTERNATIVO": [
+      "Diâm. VSVE"
+    ]
+  },
+  "VR_ARCOAO": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 34,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 37,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 34"
+    },
+    "_meta": {
+      "Ano": 2024,
+      "Fonte": "2024 ESC Guidelines for the management of peripheral arterial and aortic diseases",
+      "Pagina": 3563,
+      "PaginaPDF": 26,
+      "TabelaFigura": "Figura 5",
+      "DOI": "10.1093/eurheartj/ehae179",
+      "LinkOficial": "https://doi.org/10.1093/eurheartj/ehae179",
+      "PDFConsultado": "https://orbi.uliege.be/bitstream/2268/331882/1/ehae179.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 86,
+      "VariavelBanco": "VR_ARCOAO",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Arco Aórtico",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Segmento aortico indicado; diametro perpendicular ao eixo, tecnica documentada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites superiores por sexo da Figura 5, sem limite inferior publicado. Considerar idade, tamanho corporal e z-score; nao equivalem a limiares de cirurgia. Arco proximal e segmento tubular ascendente sao medidas diferentes."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_ARCOAORTICO"
+    ],
+    "NOMEALTERNATIVO": [
+      "Arco Aórtico"
+    ]
+  },
+  "VR_AO_ASC_PROX": {
+    "F": {
+      "normal": {
+        "min": null,
+        "max": 36,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "M": {
+      "normal": {
+        "min": null,
+        "max": 40,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 36"
+    },
+    "_meta": {
+      "Ano": 2024,
+      "Fonte": "2024 ESC Guidelines for the management of peripheral arterial and aortic diseases",
+      "Pagina": 3563,
+      "PaginaPDF": 26,
+      "TabelaFigura": "Figura 5",
+      "DOI": "10.1093/eurheartj/ehae179",
+      "LinkOficial": "https://doi.org/10.1093/eurheartj/ehae179",
+      "PDFConsultado": "https://orbi.uliege.be/bitstream/2268/331882/1/ehae179.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 80,
+      "VariavelBanco": "VR_AO_ASC_PROX",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Aorta Ascendente Proximal",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Segmento aortico indicado; diametro perpendicular ao eixo, tecnica documentada",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limites superiores por sexo da Figura 5, sem limite inferior publicado. Considerar idade, tamanho corporal e z-score; nao equivalem a limiares de cirurgia."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Aorta Ascendente Proximal"
+    ]
+  },
+  "VR_E_SPETAL": {
+    "U": {
+      "normal": {
+        "min": 6,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 6"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": 213,
+      "VariavelBanco": "VR_E_SPETAL",
+      "UnidadeBanco": "m/s",
+      "NomeMedida": "e' septal",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Doppler tecidual mitral; media aritmetica de e' septal e lateral para media",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "ColisoesAlternativasBanco": {
+        "VR_INDICEELINHA": [
+          28,
+          101
+        ]
+      },
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Ponto de corte do algoritmo, nao intervalo populacional nem diagnostico isolado. Aplicar junto aos demais parametros e observar exclusoes da Figura 3: FA, valvopatia/intervencao mitral relevante, MAC moderada/importante, transplante, LVAD, constricao e HP nao cardiaca. As Figuras 2/3 usam <= para e' reduzido; Tabela 6/texto usam <. Aqui foi adotada explicitamente a Figura 3, conforme alinhado."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_E_SEPTAL",
+      "VR_INDICEELINHA"
+    ],
+    "NOMEALTERNATIVO": [
+      "e' septal"
+    ]
+  },
+  "VR_E_LATERAL": {
+    "U": {
+      "normal": {
+        "min": 7,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 7"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": 214,
+      "VariavelBanco": "VR_E_LATERAL",
+      "UnidadeBanco": "m/s",
+      "NomeMedida": "e' lateral",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Doppler tecidual mitral; media aritmetica de e' septal e lateral para media",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "ColisoesAlternativasBanco": {
+        "VR_INDICEELINHA_LAT": [
+          102
+        ]
+      },
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Ponto de corte do algoritmo, nao intervalo populacional nem diagnostico isolado. Aplicar junto aos demais parametros e observar exclusoes da Figura 3: FA, valvopatia/intervencao mitral relevante, MAC moderada/importante, transplante, LVAD, constricao e HP nao cardiaca. As Figuras 2/3 usam <= para e' reduzido; Tabela 6/texto usam <. Aqui foi adotada explicitamente a Figura 3, conforme alinhado."
+    },
+    "VARIAVEISALTERNATIVAS": [
+      "VR_INDICEELINHA_LAT"
+    ],
+    "NOMEALTERNATIVO": [
+      "e' lateral"
+    ]
+  },
+  "VR_E_MEDIA": {
+    "U": {
+      "normal": {
+        "min": 6.5,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 6.5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Velocidade e' mitral media",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Doppler tecidual mitral; media aritmetica de e' septal e lateral para media",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Ponto de corte do algoritmo, nao intervalo populacional nem diagnostico isolado. Aplicar junto aos demais parametros e observar exclusoes da Figura 3: FA, valvopatia/intervencao mitral relevante, MAC moderada/importante, transplante, LVAD, constricao e HP nao cardiaca. As Figuras 2/3 usam <= para e' reduzido; Tabela 6/texto usam <. Aqui foi adotada explicitamente a Figura 3, conforme alinhado."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_RELACAO_E_E_SEPTAL": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 15,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 15"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Relacao E/e' mitral septal",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Doppler tecidual mitral; media aritmetica de e' septal e lateral para media",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Ponto de corte do algoritmo, nao intervalo populacional nem diagnostico isolado. Aplicar junto aos demais parametros e observar exclusoes da Figura 3: FA, valvopatia/intervencao mitral relevante, MAC moderada/importante, transplante, LVAD, constricao e HP nao cardiaca. E/e' medio = E / ((e' septal + e' lateral)/2); nao e a media aritmetica das duas relacoes."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_RELACAO_E_E_LATERAL": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 13,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 13"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Relacao E/e' mitral lateral",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Doppler tecidual mitral; media aritmetica de e' septal e lateral para media",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Ponto de corte do algoritmo, nao intervalo populacional nem diagnostico isolado. Aplicar junto aos demais parametros e observar exclusoes da Figura 3: FA, valvopatia/intervencao mitral relevante, MAC moderada/importante, transplante, LVAD, constricao e HP nao cardiaca. E/e' medio = E / ((e' septal + e' lateral)/2); nao e a media aritmetica das duas relacoes."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_VELOCIDADE_PROPAGACAO_FLUXO_MITRAL": {
+    "U": {},
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 550,
+      "PaginaPDF": 14,
+      "TabelaFigura": "Tabela 4, Color M-mode Vp",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "cm/s",
+      "CodigoBanco": 217,
+      "VariavelBanco": "VR_VELOCIDADE_PROPAGACAO_FLUXO_MITRAL",
+      "UnidadeBanco": "m/s",
+      "NomeMedida": "Velocidade de propagação fl. Mitral (Vp)",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Modo M colorido",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Vp depende do contexto de FE e tamanho ventricular; pode ser pseudonormal em VE pequeno/hipertrofiado. Sem faixa universal transcrita da referencia consultada."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Velocidade de propagação fl. Mitral (Vp)"
+    ]
+  },
+  "VR_RELACAO_E_MITRAL_VP": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 2.5,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 2.5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 550,
+      "PaginaPDF": 14,
+      "TabelaFigura": "Tabela 4, Color M-mode Vp",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": null,
+      "VariavelBanco": null,
+      "UnidadeBanco": null,
+      "NomeMedida": "Relacao E mitral / Vp",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Complemento de ponto de corte diagnostico",
+      "Metodo": "Onda E / Vp com ambas as velocidades em cm/s",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Nao identificado de forma inequivoca; nao criar vinculo por semelhanca textual.",
+      "SituacaoUnidadeBanco": "Sem vinculo",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "E/Vp >=2,5 prediz PCWP >15 mmHg em pacientes com FE reduzida. <2,5 significa ausencia desse criterio, nao normalidade universal. Nao aplicar isoladamente a FE preservada."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": []
+  },
+  "VR_TRIV": {
+    "U": {
+      "normal": {
+        "min": 70,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 70"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "ms",
+      "CodigoBanco": 216,
+      "VariavelBanco": "VR_TRIV",
+      "UnidadeBanco": "ms",
+      "NomeMedida": "TRIV",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Complemento de ponto de corte diagnostico",
+      "Metodo": "Tempo de relaxamento isovolumetrico do VE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Na Figura 3, TRIV <=70 ms e criterio complementar no contexto indicado. >70 significa ausencia desse criterio, nao normalidade universal. Os limites de MAC significativa sao diferentes."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "TRIV"
+    ]
+  },
+  "VR_SAER": {
+    "U": {
+      "normal": {
+        "min": 23,
+        "max": 60,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "23-60"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Clinical Applications of Strain Echocardiography: A Clinical Consensus Statement From the American Society of Echocardiography Developed in Collaboration With the European Association of Cardiovascular Imaging of the European Society of Cardiology",
+      "Pagina": 995,
+      "PaginaPDF": 11,
+      "TabelaFigura": "Secao 3, Clinical Consensus Statements",
+      "DOI": "10.1016/j.echo.2025.07.007",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/11/Strain-2025-Guideline-2.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 164,
+      "VariavelBanco": "VR_SAER",
+      "UnidadeBanco": "%",
+      "NomeMedida": "Strain do Átrio Esquerdo (Reservoir)",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Strain de reservatorio do AE por speckle tracking 2D",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ZonaLimitrofeDescritiva": "23-30%, incluida no intervalo 23-60% publicado; nao tratar como grau leve.",
+      "ObservacaoRevisao": "Consenso: limites 23-60%, com zona limitrofe de 23-30%. >18% e ausencia de um marcador do algoritmo diastolico, nao equivale a normalidade populacional de strain. Dependente de software, idade e carga."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Strain do Átrio Esquerdo (Reservoir)"
+    ],
+    "REFERENCIASPORCONTEXTO": [
+      {
+        "Contexto": "Algoritmo diastolico: ausencia do criterio LARS <=18%; nao normalidade populacional",
+        "U": {
+          "normal": {
+            "min": 18,
+            "max": null,
+            "minInclusivo": false,
+            "maxInclusivo": null
+          }
+        },
+        "_meta": {
+          "Ano": 2025,
+          "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+          "Pagina": 554,
+          "PaginaPDF": 18,
+          "TabelaFigura": "Figura 3",
+          "DOI": "10.1016/j.echo.2025.03.011",
+          "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf"
+        }
+      }
+    ]
+  },
+  "VR_ERP": {
+    "F": {
+      "normal": {
+        "min": 0.22,
+        "max": 0.42,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      }
+    },
+    "M": {
+      "normal": {
+        "min": 0.24,
+        "max": 0.42,
+        "minInclusivo": true,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "0.22-0.42"
+    },
+    "_meta": {
+      "Ano": 2015,
+      "Fonte": "Recommendations for Cardiac Chamber Quantification by Echocardiography in Adults: An Update from the American Society of Echocardiography and the European Association of Cardiovascular Imaging",
+      "Pagina": 17,
+      "PaginaPDF": 17,
+      "TabelaFigura": "Tabela 6; Figura 6",
+      "DOI": "10.1016/j.echo.2014.10.003",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/04/2015_ChamberQuantificationREV.pdf",
+      "Unidade": "adimensional",
+      "CodigoBanco": 95,
+      "VariavelBanco": "VR_ERP",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Espessura Relativa Paredes",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "2 x parede posterior / diametro diastolico do VE",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "O limiar de geometria e >0,42, combinado ao indice de massa VE. Massa normal <=95 g/m2 (F) e <=115 (M) pelo metodo linear. ERP nao tem unidade de comprimento apesar do rotulo da tabela/cadastro."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Espessura Relativa Paredes"
+    ]
+  },
+  "VR_PSAP": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 35,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 35"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "mmHg",
+      "CodigoBanco": 20,
+      "VariavelBanco": "VR_PSAP",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "PSAP",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Estimativa por velocidade maxima de IT + pressao AD, sem obstrucao de saida VD",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Mantido <35 mmHg conforme Figura 3 diastolica; >=35 e criterio do algoritmo, nao diagnostico isolado de HP. Nao confundir pressao sistolica com pressao pulmonar media. Cadastro possui unidade divergente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "PSAP"
+    ]
+  },
+  "VR_VEL_REG_TRICUSPIDE": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 2.8,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 2.8"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Recommendations for the Evaluation of Left Ventricular Diastolic Function by Echocardiography and for Heart Failure With Preserved Ejection Fraction Diagnosis: An Update From the American Society of Echocardiography",
+      "Pagina": 554,
+      "PaginaPDF": 18,
+      "TabelaFigura": "Figura 3",
+      "DOI": "10.1016/j.echo.2025.03.011",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/07/Left-Ventricular-Diastolic-Function.pdf",
+      "Unidade": "m/s",
+      "CodigoBanco": 129,
+      "VariavelBanco": "VR_VEL_REG_TRICUSPIDE",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Velocidade Regurgitação Tricuspide",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Ponto de corte do algoritmo",
+      "Metodo": "Velocidade maxima da regurgitacao tricuspide por Doppler continuo",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Limiar da Figura 3 diastolica, em conjunto com outros sinais. Probabilidade de HP e diagnostico invasivo sao conceitos distintos. Cadastro possui unidade divergente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Velocidade Regurgitação Tricuspide"
+    ]
+  },
+  "VR_VVCI": {
+    "U": {
+      "normal": {
+        "min": 50,
+        "max": null,
+        "minInclusivo": true,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≥ 50"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 160,
+      "PaginaPDF": 20,
+      "TabelaFigura": "Right Atrial Pressure",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "%",
+      "CodigoBanco": 23,
+      "VariavelBanco": "VR_VVCI",
+      "UnidadeBanco": "%",
+      "NomeMedida": "Variação VCI",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Criterio combinado",
+      "Metodo": "Colapso inspiratorio da VCI com sniff/respiracao espontanea",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": ">=50% so favorece pressao AD normal quando associado a diametro <=21 mm. Nao aplicar a ventilacao mecanica ou interpretar isoladamente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Variação VCI"
+    ]
+  },
+  "VR_VEIA_CAVA_EXPIRACAO": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 21,
+        "minInclusivo": null,
+        "maxInclusivo": true
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "≤ 21"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 160,
+      "PaginaPDF": 20,
+      "TabelaFigura": "Right Atrial Pressure",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mm",
+      "CodigoBanco": 223,
+      "VariavelBanco": "VR_VEIA_CAVA_EXPIRACAO",
+      "UnidadeBanco": "mm",
+      "NomeMedida": "Veia cava inferior (expiração)",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Criterio combinado",
+      "Metodo": "Diametro VCI ao fim da expiracao, subcostal",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "<=21 mm deve ser combinado com colapso >=50% para estimar pressao AD normal. Diametro isolado nao define pressao normal."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Veia cava inferior (expiração)"
+    ]
+  },
+  "VR_RESISTENCIA_VASCULAR_PULMONAR": {
+    "U": {
+      "normal": {
+        "min": null,
+        "max": 1.5,
+        "minInclusivo": null,
+        "maxInclusivo": false
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "< 1.5"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 167,
+      "PaginaPDF": 27,
+      "TabelaFigura": "Pulmonary Vascular Resistance",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "UW",
+      "CodigoBanco": 226,
+      "VariavelBanco": "VR_RESISTENCIA_VASCULAR_PULMONAR",
+      "UnidadeBanco": "mrm",
+      "NomeMedida": "Resistência vascular pulmonar",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Estimativa Doppler pela formula de Abbas",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Divergente; nao converter valores de pacientes sem confirmar a unidade real de entrada.",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "ASE 2025 descreve normal <1,5 UW e anormal >2,0 UW. O intervalo intermediario nao foi rotulado como normal. Estimativa nao substitui cateterismo; diferenca em relacao ao <2 alinhado anteriormente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Resistência vascular pulmonar"
+    ]
+  },
+  "VR_PRESSAO_CAPILAR_PULMONAR": {
+    "U": {},
+    "COMENTARIOTEXTO": {
+      "comentario": ""
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 167,
+      "PaginaPDF": 27,
+      "TabelaFigura": "Pulmonary Capillary Wedge Pressure",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "mmHg",
+      "CodigoBanco": 225,
+      "VariavelBanco": "VR_PRESSAO_CAPILAR_PULMONAR",
+      "UnidadeBanco": "mmHg",
+      "NomeMedida": "Pressão capilar pulmonar",
+      "Situacao": "Revisao medica",
+      "TipoReferencia": "Dependente do contexto",
+      "Metodo": "Estimativa ecocardiografica de PCWP",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Fonte descreve normal <12 a 15 mmHg e limita o uso rotineiro da estimativa. Nao ha justificativa para escolher silenciosamente <14. Sem faixa unica; PCWP invasiva >15 mmHg em repouso e criterio de HFpEF na ASE 2025, pagina 540."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Pressão capilar pulmonar"
+    ]
+  },
+  "VR_TEMPO_ACELERACAO_FLUXO_PULMONAR": {
+    "U": {
+      "normal": {
+        "min": 105,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 105"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 157,
+      "PaginaPDF": 17,
+      "TabelaFigura": "RVOT Velocity-Time Integral and Acceleration Time",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "ms",
+      "CodigoBanco": 219,
+      "VariavelBanco": "VR_TEMPO_ACELERACAO_FLUXO_PULMONAR",
+      "UnidadeBanco": "ms",
+      "NomeMedida": "Tempo de aceleração fl. pulmonar (TAC)",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "Tempo do inicio ao pico do fluxo no TSVD por Doppler pulsado",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Normal >105 ms. Interpretacao limitada em FC <60 ou >100 bpm; nao usar isoladamente."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "Tempo de aceleração fl. pulmonar (TAC)"
+    ]
+  },
+  "VR_VTI_VSVD": {
+    "U": {
+      "normal": {
+        "min": 18,
+        "max": null,
+        "minInclusivo": false,
+        "maxInclusivo": null
+      }
+    },
+    "COMENTARIOTEXTO": {
+      "comentario": "> 18"
+    },
+    "_meta": {
+      "Ano": 2025,
+      "Fonte": "Guidelines for the Echocardiographic Assessment of the Right Heart in Adults and Special Considerations in Pulmonary Hypertension: Recommendations from the American Society of Echocardiography",
+      "Pagina": 157,
+      "PaginaPDF": 17,
+      "TabelaFigura": "RVOT Velocity-Time Integral and Acceleration Time",
+      "DOI": "10.1016/j.echo.2025.01.006",
+      "LinkOficial": "https://www.asecho.org/wp-content/uploads/2025/03/PIIS0894731725000379.pdf",
+      "Unidade": "cm",
+      "CodigoBanco": 221,
+      "VariavelBanco": "VR_VTI_VSVD",
+      "UnidadeBanco": "cm",
+      "NomeMedida": "VTI VSVD",
+      "Situacao": "Confirmada",
+      "TipoReferencia": "Intervalo de referencia",
+      "Metodo": "VTI TSVD por Doppler pulsado",
+      "Populacao": "Adultos; nao aplicar automaticamente a criancas, atletas ou populacoes especiais.",
+      "DataRevisao": "2026-09-06",
+      "VersaoEsquema": "2.0",
+      "VinculoBanco": "Codigo ou alternativa exata",
+      "SituacaoUnidadeBanco": "Compativel",
+      "VariaveisAlternativasArquivoOriginal": [],
+      "ObservacaoRevisao": "Normal >18 cm no contexto descrito pela diretriz; dependente do alinhamento e fluxo."
+    },
+    "VARIAVEISALTERNATIVAS": [],
+    "NOMEALTERNATIVO": [
+      "VTI VSVD"
+    ]
+  }
+}

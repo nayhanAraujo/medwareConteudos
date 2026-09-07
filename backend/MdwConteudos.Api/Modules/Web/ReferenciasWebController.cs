@@ -59,7 +59,11 @@ public class ReferenciasWebController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.InnerException?.Message ?? ex.Message });
         }
     }
 

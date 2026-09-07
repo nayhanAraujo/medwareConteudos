@@ -162,8 +162,29 @@ export interface ReferenciasNormalidadesPainel {
     sigla?: string
     totalNormalidades: number
     comentarioTexto?: string | null
+    comentariosPorSexo?: Record<string, string> | null
+    comentariosPorIdade?: Array<{
+      sexo?: string
+      idadeMin?: number
+      idadeMax?: number
+      texto?: string
+    }> | null
   }>
-  comentariosPorVariavel?: Record<string, { codNormalidadeComentario: number; texto: string }>
+  comentariosPorVariavel?: Record<
+    string,
+    {
+      codNormalidadeComentario: number
+      texto: string
+      sexo?: string
+      comentariosPorSexo?: Record<string, string>
+      comentariosPorIdade?: Array<{
+        sexo?: string
+        idadeMin?: number
+        idadeMax?: number
+        texto?: string
+      }>
+    }
+  >
   normalidadesPorVariavel: Record<
     string,
     Array<{
@@ -200,6 +221,51 @@ export interface ReferenciasNormalidadesPainel {
   filtros: { referenciaBusca: string; variavelBusca: string }
 }
 
+export interface NormalidadesPorVariavelPainel {
+  variaveis: Array<{
+    codVariavel: number
+    nome: string
+    variavel?: string | null
+    sigla?: string | null
+    totalNormalidades: number
+    totalReferencias: number
+  }>
+  variavelSelecionada?: {
+    codVariavel: number
+    nome: string
+    variavel?: string | null
+    sigla?: string | null
+    totalNormalidades: number
+    totalReferencias: number
+  } | null
+  estudos: Array<{
+    codReferencia: number
+    titulo: string
+    ano?: number | null
+    comentarioTexto?: string | null
+    comentariosPorSexo?: Record<string, string> | null
+    comentariosPorIdade?: Array<{
+      sexo?: string
+      idadeMin?: number
+      idadeMax?: number
+      texto?: string
+    }> | null
+    normalidades: Array<{
+      codNormalidade: number
+      codVariavel: number
+      codReferencia: number
+      sexo?: string | null
+      valorMin?: number | null
+      valorMax?: number | null
+      idadeMin?: number | null
+      idadeMax?: number | null
+      pagina?: number | null
+      classificacao?: string | null
+    }>
+  }>
+  filtros: { busca: string; variavelId?: number | null }
+}
+
 export interface PadroesClientePainel {
   codCliente: number
   padroes: Array<{
@@ -231,6 +297,13 @@ export interface PadroesClientePainel {
     sigla?: string
     totalFaixas: number
     comentarioTexto?: string | null
+    comentariosPorSexo?: Record<string, string> | null
+    comentariosPorIdade?: Array<{
+      sexo?: string
+      idadeMin?: number
+      idadeMax?: number
+      texto?: string
+    }> | null
   }>
   faixasPorVariavel: Record<
     string,
@@ -246,9 +319,80 @@ export interface PadroesClientePainel {
       classificacao?: string | null
     }>
   >
-  comentariosPorVariavel?: Record<string, { codPadraoComentario: number; texto: string }>
+  comentariosPorVariavel?: Record<
+    string,
+    {
+      codPadraoComentario: number
+      texto: string
+      sexo?: string
+      comentariosPorSexo?: Record<string, string>
+      comentariosPorIdade?: Array<{
+        sexo?: string
+        idadeMin?: number
+        idadeMax?: number
+        texto?: string
+      }>
+    }
+  >
   referencias: Array<{ codigo: number; titulo: string; ano?: number | null }>
   filtros: { variavelBusca: string }
+}
+
+export interface ConversaoUnidadePreview {
+  codVariavel: number
+  nomeVariavel: string
+  codigoVariavel?: string | null
+  unidadeOrigem: string
+  unidadeDestino: string
+  codUnidadeDestino: number
+  codUnidadeOrigemAtual?: number | null
+  fator: number
+  casasDecimais: number
+  atualizarUnidadeVariavel: boolean
+  faixas: Array<{
+    id: number
+    tipo: string
+    sexo?: string | null
+    idadeMin?: number | null
+    idadeMax?: number | null
+    valorMinAtual?: number | null
+    valorMaxAtual?: number | null
+    valorMinNovo?: number | null
+    valorMaxNovo?: number | null
+    classificacao: string
+    incluirDefault: boolean
+  }>
+  comentarios: Array<{
+    id: number
+    tipo: string
+    sexo?: string | null
+    idadeMin: number
+    idadeMax: number
+    textoAtual: string
+    textoNovo?: string | null
+    convertivel: boolean
+    motivo?: string | null
+    classificacao: string
+    incluirDefault: boolean
+  }>
+  naoConvertidos: string[]
+  resumo: {
+    totalFaixas: number
+    faixasIncluidasDefault: number
+    faixasJaDestino: number
+    totalComentarios: number
+    comentariosIncluidosDefault: number
+    comentariosNaoConvertiveis: number
+  }
+}
+
+export interface ConversaoUnidadeApplyResult {
+  faixasAtualizadas: number
+  comentariosAtualizados: number
+  unidadeVariavelAtualizada: boolean
+  codUnidadeDestino: number
+  unidadeDestino: string
+  message: string
 }
 
 export function useVariaveisApi() {
@@ -304,6 +448,20 @@ export function useVariaveisApi() {
     )
   }
 
+  const getNormalidadesPorVariavel = (q: {
+    variavelId?: number
+    busca?: string
+    limite?: number
+  }) => {
+    const params = new URLSearchParams()
+    Object.entries(q).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && String(v).trim() !== '') params.set(k, String(v))
+    })
+    return api.get<{ success: boolean; data: NormalidadesPorVariavelPainel }>(
+      `/api/web/variaveis/referencias-normalidades/por-variavel?${params.toString()}`
+    )
+  }
+
   const vincularNormalidadesReferencia = (body: {
     codReferencia: number
     normalidades: Array<{ codNormalidade: number; pagina?: number | null }>
@@ -327,7 +485,14 @@ export function useVariaveisApi() {
       body
     )
 
-  const salvarComentarioNormalidade = (body: { codVariavel: number; codReferencia: number; texto: string }) =>
+  const salvarComentarioNormalidade = (body: {
+    codVariavel: number
+    codReferencia: number
+    texto: string
+    sexo?: string
+    idadeMin?: number
+    idadeMax?: number
+  }) =>
     api.post<{ success: boolean; message: string }>(`/api/web/variaveis/referencias-normalidades/comentario`, body)
 
   const importarNormalidadesJson = (body: { codReferencia: number }) =>
@@ -394,7 +559,13 @@ export function useVariaveisApi() {
     codClassificacao?: number | null
   }) => api.put<{ success: boolean; message: string }>(`/api/web/variaveis/padroes-cliente/faixas/${codFaixa}`, body)
 
-  const salvarComentarioPadrao = (codPadrao: number, body: { codVariavel: number; texto: string }) =>
+  const salvarComentarioPadrao = (codPadrao: number, body: {
+    codVariavel: number
+    texto: string
+    sexo?: string
+    idadeMin?: number
+    idadeMax?: number
+  }) =>
     api.post<{ success: boolean; message: string }>(`/api/web/variaveis/padroes-cliente/${codPadrao}/comentario`, body)
 
   const getDependencias = (id: number) => api.get<{ success: boolean; data: VariavelDependencias }>(`/api/web/variaveis/${id}/dependencias`)
@@ -426,6 +597,42 @@ export function useVariaveisApi() {
   const previewImportacao = (arquivo: File, codReferencia?: number) => { const form = new FormData(); form.append('arquivo', arquivo); if (codReferencia) form.append('codReferencia', String(codReferencia)); return api.postForm<{ success: boolean; data: ImportacaoVariaveisPreview }>('/api/web/variaveis/importacoes/preview', form) }
   const confirmarImportacao = (arquivo: File, decisoes: ImportacaoVariavelDecisao[], codReferencia?: number) => { const form = new FormData(); form.append('arquivo', arquivo); form.append('decisoes', JSON.stringify(decisoes)); if (codReferencia) form.append('codReferencia', String(codReferencia)); return api.postForm<{ success: boolean; data: ImportacaoVariaveisResultado }>('/api/web/variaveis/importacoes/confirmar', form) }
 
+  const listParesConversaoUnidade = () =>
+    api.get<{ success: boolean; data: Array<{ de: string; para: string; fator: number }> }>(
+      '/api/web/normalidades/converter-unidade/pares'
+    )
+
+  const previewConversaoUnidade = (body: {
+    codVariavel: number
+    codReferencia?: number | null
+    codPadrao?: number | null
+    unidadeOrigem?: string | null
+    unidadeDestino: string
+    casasDecimais?: number | null
+  }) =>
+    api.post<{ success: boolean; data: ConversaoUnidadePreview }>(
+      '/api/web/normalidades/converter-unidade/preview',
+      body
+    )
+
+  const applyConversaoUnidade = (body: {
+    preview: {
+      codVariavel: number
+      codReferencia?: number | null
+      codPadrao?: number | null
+      unidadeOrigem?: string | null
+      unidadeDestino: string
+      casasDecimais?: number | null
+    }
+    faixaIds?: number[]
+    comentarioIds?: number[]
+    atualizarUnidadeVariavel?: boolean
+  }) =>
+    api.post<{ success: boolean; data: ConversaoUnidadeApplyResult; message?: string }>(
+      '/api/web/normalidades/converter-unidade/apply',
+      body
+    )
+
   return {
     listGrupos,
     getMeta,
@@ -436,6 +643,7 @@ export function useVariaveisApi() {
     getDetalhesCompletos,
     getCodigosVinculados,
     getReferenciasNormalidades,
+    getNormalidadesPorVariavel,
     vincularNormalidadesReferencia,
     atualizarNormalidadeReferencia,
     desvincularNormalidadeReferencia,
@@ -450,6 +658,9 @@ export function useVariaveisApi() {
     importarReferenciaPadrao,
     atualizarFaixaPadrao,
     salvarComentarioPadrao,
+    listParesConversaoUnidade,
+    previewConversaoUnidade,
+    applyConversaoUnidade,
     getDependencias, deleteVariavel, alterarGrupo,
     getClassificacoes, createGrupoClassificacao, updateGrupoClassificacao, deleteGrupoClassificacao,
     createClassificacao, updateClassificacao, deleteClassificacao, getVariavelClassificacoes, setVariavelClassificacoes,

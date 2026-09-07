@@ -221,12 +221,28 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         var rows = await conn.QueryAsync<PadraoCommentRow>(@"
-            SELECT CODVARIAVEL AS CodVariavel, TEXTO AS Texto
+            SELECT CODVARIAVEL AS CodVariavel, SEXO AS Sexo, TEXTO AS Texto
             FROM PADRAONORMALIDADECOMENTARIO
             WHERE CODPADRAO = @codPadrao AND CODVARIAVEL IN @ids", new { codPadrao, ids });
-        return rows
-            .Where(r => !string.IsNullOrWhiteSpace(r.Texto))
-            .ToDictionary(r => r.CodVariavel, r => r.Texto!.Trim());
+
+        var result = new Dictionary<int, string>();
+        foreach (var group in rows.Where(r => !string.IsNullOrWhiteSpace(r.Texto)).GroupBy(r => r.CodVariavel))
+        {
+            var map = group.ToDictionary(
+                r => string.IsNullOrWhiteSpace(r.Sexo) ? "A" : r.Sexo!.Trim().ToUpperInvariant(),
+                r => Iso88591SafeText.ForDisplay(r.Texto!.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+            if (map.TryGetValue("A", out var a))
+                result[group.Key] = a;
+            else
+            {
+                var parts = new List<string>();
+                if (map.TryGetValue("F", out var f)) parts.Add($"F: {f}");
+                if (map.TryGetValue("M", out var m)) parts.Add($"M: {m}");
+                if (parts.Count > 0) result[group.Key] = string.Join("; ", parts);
+            }
+        }
+        return result;
     }
 
     private async Task<IReadOnlyList<NormalityRow>> LoadNormalityRowsAsync(CancellationToken ct, IReadOnlyList<int> ids)
@@ -435,12 +451,28 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         var rows = await conn.QueryAsync<CommentRow>(@"
-            SELECT CODVARIAVEL AS CodVariavel, CODREFERENCIA AS CodReferencia, TEXTO AS Texto
+            SELECT CODVARIAVEL AS CodVariavel, CODREFERENCIA AS CodReferencia, SEXO AS Sexo, TEXTO AS Texto
             FROM NORMALIDADECOMENTARIO
             WHERE CODVARIAVEL IN @ids", new { ids });
-        return rows
-            .Where(r => !string.IsNullOrWhiteSpace(r.Texto))
-            .ToDictionary(r => (r.CodVariavel, r.CodReferencia), r => r.Texto!.Trim());
+
+        var result = new Dictionary<(int, int), string>();
+        foreach (var group in rows.Where(r => !string.IsNullOrWhiteSpace(r.Texto)).GroupBy(r => (r.CodVariavel, r.CodReferencia)))
+        {
+            var map = group.ToDictionary(
+                r => string.IsNullOrWhiteSpace(r.Sexo) ? "A" : r.Sexo!.Trim().ToUpperInvariant(),
+                r => Iso88591SafeText.ForDisplay(r.Texto!.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+            if (map.TryGetValue("A", out var a))
+                result[group.Key] = a;
+            else
+            {
+                var parts = new List<string>();
+                if (map.TryGetValue("F", out var f)) parts.Add($"F: {f}");
+                if (map.TryGetValue("M", out var m)) parts.Add($"M: {m}");
+                if (parts.Count > 0) result[group.Key] = string.Join("; ", parts);
+            }
+        }
+        return result;
     }
 
     internal static string FormatDecimal(decimal? value) =>
@@ -481,12 +513,14 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         public int CodVariavel { get; set; }
         public int CodReferencia { get; set; }
+        public string? Sexo { get; set; }
         public string? Texto { get; set; }
     }
 
     private sealed class PadraoCommentRow
     {
         public int CodVariavel { get; set; }
+        public string? Sexo { get; set; }
         public string? Texto { get; set; }
     }
 

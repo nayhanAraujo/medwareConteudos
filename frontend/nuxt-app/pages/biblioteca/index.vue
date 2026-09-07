@@ -133,6 +133,7 @@ const quickRef: BibAction[] = [
   { label: 'Grupos de Variáveis', icon: 'bi bi-collection', nuxtPath: '/grupos' },
   { label: 'Vincular Autores', icon: 'bi bi-person-lines-fill', nuxtPath: '/referencias' },
   { label: 'Tipos de Autores', icon: 'bi bi-tags', nuxtPath: '/autores' },
+  { label: 'Especialidades', icon: 'bi bi-heart-pulse', nuxtPath: '/especialidades' },
   { label: 'Gerenciar Classificações', icon: 'bi bi-tags-fill', nuxtPath: '/variaveis/classificacoes' }
 ]
 
@@ -156,7 +157,8 @@ const modulosRef = [
     iconColor: '#198754',
     actions: [
       { label: 'Nova Referência', nuxtPath: '/referencias/nova' },
-      { label: 'Listar Referências', nuxtPath: '/referencias' }
+      { label: 'Listar Referências', nuxtPath: '/referencias' },
+      { label: 'Especialidades', nuxtPath: '/especialidades' }
     ]
   },
   {
@@ -203,7 +205,8 @@ const placeholderTabs = [
       { title: 'Usuários', desc: 'Gerencie usuários do sistema.', icon: 'bi bi-people', color: '#0d6efd', nuxtPath: '/usuarios' },
       { title: 'Clientes', desc: 'Gerencie clientes cadastrados no sistema.', icon: 'bi bi-building', color: '#198754', nuxtPath: '/configuracoes/clientes' },
       { title: 'Permissões', desc: 'Controle de acesso.', icon: 'bi bi-shield-lock', color: '#dc3545', nuxtPath: '/biblioteca/configuracoes/permissoes' },
-      { title: 'Unidades', desc: 'Unidades de medida.', icon: 'bi bi-rulers', color: '#6c757d', nuxtPath: '/configuracoes' }
+      { title: 'Unidades', desc: 'Unidades de medida.', icon: 'bi bi-rulers', color: '#6c757d', nuxtPath: '/configuracoes' },
+      { title: 'Especialidades', desc: 'Cadastro de especialidades do banco de referências.', icon: 'bi bi-heart-pulse', color: '#e83e8c', nuxtPath: '/especialidades' }
     ]
   }
 ]

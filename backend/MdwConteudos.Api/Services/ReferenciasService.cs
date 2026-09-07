@@ -35,8 +35,21 @@ public sealed record AtualizarNormalidadeReferenciaRequest(
 );
 public sealed record DesvincularNormalidadeReferenciaRequest(int CodNormalidade, int? CodReferencia);
 public sealed record ImportarNormalidadesRequest(int CodReferenciaDestino, int CodReferenciaOrigem);
-public sealed record UpsertNormalidadeComentarioRequest(int CodVariavel, int CodReferencia, string Texto);
-public sealed record DeleteNormalidadeComentarioRequest(int CodVariavel, int CodReferencia);
+public sealed record UpsertNormalidadeComentarioRequest(
+    int CodVariavel,
+    int CodReferencia,
+    string Texto,
+    string? Sexo = "A",
+    int? IdadeMin = -1,
+    int? IdadeMax = -1
+);
+public sealed record DeleteNormalidadeComentarioRequest(
+    int CodVariavel,
+    int CodReferencia,
+    string? Sexo = null,
+    int? IdadeMin = null,
+    int? IdadeMax = null
+);
 
 public interface IReferenciasService
 {
@@ -70,12 +83,29 @@ public interface IReferenciasService
     Task SaveAutoresByReferenciaAsync(int codReferencia, IEnumerable<int> autorIds, CancellationToken ct);
 
     Task<object> GetReferenciasNormalidadesAsync(int? referenciaId, string? referenciaBusca, string? variavelBusca, int limite, CancellationToken ct);
+    Task<object> GetNormalidadesPorVariavelAsync(int? variavelId, string? busca, int limite, CancellationToken ct);
     Task<int> VincularNormalidadesAsync(int codReferencia, IEnumerable<ReferenciaNormalidadeVinculoRequest> normalidades, int codUsuario, CancellationToken ct);
     Task AtualizarNormalidadeReferenciaAsync(AtualizarNormalidadeReferenciaRequest req, int codUsuario, CancellationToken ct);
     Task DesvincularNormalidadeAsync(int codNormalidade, int codUsuario, CancellationToken ct);
     Task<object> ImportarNormalidadesAsync(int codReferenciaDestino, int codReferenciaOrigem, int codUsuario, CancellationToken ct);
-    Task UpsertNormalidadeComentarioAsync(int codVariavel, int codReferencia, string texto, int codUsuario, CancellationToken ct);
-    Task DeleteNormalidadeComentarioAsync(int codVariavel, int codReferencia, CancellationToken ct);
+    Task UpsertNormalidadeComentarioAsync(
+        int codVariavel,
+        int codReferencia,
+        string texto,
+        int codUsuario,
+        CancellationToken ct,
+        string? sexo = "A",
+        int? idadeMin = -1,
+        int? idadeMax = -1
+    );
+    Task DeleteNormalidadeComentarioAsync(
+        int codVariavel,
+        int codReferencia,
+        CancellationToken ct,
+        string? sexo = null,
+        int? idadeMin = null,
+        int? idadeMax = null
+    );
 }
 
 public class ReferenciasService : IReferenciasService
@@ -209,7 +239,7 @@ public class ReferenciasService : IReferenciasService
                 r.CODESPECIALIDADE,
                 r.CODTIPOREF,
                 e.NOME AS ESPECIALIDADE,
-                tr.DESCRICAO AS TIPOREFERENCIA,
+                COALESCE(tr.NOME, tr.DESCRICAO) AS TIPOREFERENCIA,
                 COALESCE((
                     SELECT LIST(a.NOME || COALESCE(' (' || a.ABREVIACAO || ')', ''), ', ')
                     FROM REFERENCIA_AUTORES ra
@@ -249,34 +279,48 @@ public class ReferenciasService : IReferenciasService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync(ct);
 
-        var cod = await conn.ExecuteScalarAsync<int>(
-            @"
-            INSERT INTO REFERENCIA (
-                TITULO, ANO, DESCRICAO, DOI, ISBN, VOLUME, PAGINAS,
-                CODESPECIALIDADE, CODTIPOREF, CODUSUARIO, DTHRULTMODIFICACAO
-            )
-            VALUES (
-                @Titulo, @Ano, @Descricao, @Doi, @Isbn, @Volume, @Paginas,
-                @CodEspecialidade, @CodTipoRef, @CodUsuario, @Now
-            )
-            RETURNING CODREFERENCIA",
-            new
-            {
-                req.Titulo,
-                req.Ano,
-                req.Descricao,
-                req.Doi,
-                req.Isbn,
-                req.Volume,
-                req.Paginas,
-                req.CodEspecialidade,
-                req.CodTipoRef,
-                CodUsuario = codUsuario,
-                Now = DateTime.Now
-            }
-        );
+        var usuario = await ResolveCodUsuarioAsync(conn, codUsuario, ct);
+        var titulo = Clamp(Iso88591SafeText.ForStorage(req.Titulo.Trim()), 255);
+        var descricao = ClampNullable(Iso88591SafeText.ForStorage(req.Descricao), 255);
+        var doi = ClampNullable(Iso88591SafeText.ForStorage(req.Doi), 100);
+        var isbn = ClampNullable(Iso88591SafeText.ForStorage(req.Isbn), 20);
+        var volume = ClampNullable(Iso88591SafeText.ForStorage(req.Volume), 10);
+        var paginas = ClampNullable(Iso88591SafeText.ForStorage(req.Paginas), 20);
 
-        return cod;
+        try
+        {
+            var cod = await conn.ExecuteScalarAsync<int>(
+                @"
+                INSERT INTO REFERENCIA (
+                    TITULO, ANO, DESCRICAO, DOI, ISBN, VOLUME, PAGINAS,
+                    CODESPECIALIDADE, CODTIPOREF, CODUSUARIO, DTHRULTMODIFICACAO
+                )
+                VALUES (
+                    @Titulo, @Ano, @Descricao, @Doi, @Isbn, @Volume, @Paginas,
+                    @CodEspecialidade, @CodTipoRef, @CodUsuario, @Now
+                )
+                RETURNING CODREFERENCIA",
+                new
+                {
+                    Titulo = titulo,
+                    req.Ano,
+                    Descricao = descricao,
+                    Doi = doi,
+                    Isbn = isbn,
+                    Volume = volume,
+                    Paginas = paginas,
+                    CodEspecialidade = req.CodEspecialidade,
+                    CodTipoRef = req.CodTipoRef,
+                    CodUsuario = usuario,
+                    Now = DateTime.Now
+                }
+            );
+            return cod;
+        }
+        catch (FbException ex)
+        {
+            throw new InvalidOperationException(DescribeFirebirdError(ex), ex);
+        }
     }
 
     public async Task UpdateReferenciaAsync(int codReferencia, ReferenciaUpsertRequest req, int codUsuario, CancellationToken ct)
@@ -365,11 +409,19 @@ public class ReferenciasService : IReferenciasService
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync(ct);
-        var rows = await conn.QueryAsync("SELECT CODTIPOREF, DESCRICAO FROM TIPOREFERENCIA ORDER BY DESCRICAO");
+        // Schema atual: TIPOREFERENCIA (sem underscore). NOME é o rótulo curto; DESCRICAO é opcional.
+        var rows = await conn.QueryAsync("SELECT CODTIPOREF, NOME, DESCRICAO FROM TIPOREFERENCIA ORDER BY NOME");
         return rows.Select(r =>
         {
             var d = AsDict(r);
-            return (object)new { codTipoRef = ToInt(d, "CODTIPOREF"), descricao = ToStr(d, "DESCRICAO") ?? "" };
+            var nome = ToStr(d, "NOME") ?? "";
+            var descricao = ToStr(d, "DESCRICAO") ?? "";
+            return (object)new
+            {
+                codTipoRef = ToInt(d, "CODTIPOREF"),
+                nome,
+                descricao = string.IsNullOrWhiteSpace(descricao) ? nome : descricao
+            };
         }).ToList();
     }
 
@@ -578,16 +630,16 @@ public class ReferenciasService : IReferenciasService
             new { cod = codReferencia }
         )).ToHashSet();
 
-        var autores = await ListAutoresAsync(ct);
-        return autores.Select(a =>
+        var rows = await conn.QueryAsync("SELECT CODAUTOR, NOME, ABREVIACAO FROM AUTORES ORDER BY NOME");
+        return rows.Select(r =>
         {
-            var d = AsDict(a);
-            var codAutor = ToInt(d, "codAutor");
+            var d = AsDict(r);
+            var codAutor = ToInt(d, "CODAUTOR");
             return (object)new
             {
                 codAutor,
-                nome = ToStr(d, "nome") ?? "",
-                abreviacao = ToStr(d, "abreviacao"),
+                nome = ToStr(d, "NOME") ?? "",
+                abreviacao = ToStr(d, "ABREVIACAO"),
                 selecionado = associados.Contains(codAutor)
             };
         }).ToList();
@@ -626,7 +678,7 @@ public class ReferenciasService : IReferenciasService
         var pRefs = new DynamicParameters();
         if (!string.IsNullOrWhiteSpace(referenciaBusca))
         {
-            where.Add("(UPPER(r.TITULO) LIKE UPPER(@busca) OR CAST(r.CODREFERENCIA AS VARCHAR(20)) LIKE @busca OR UPPER(COALESCE(r.DESCRICAO, '')) LIKE UPPER(@busca))");
+            where.Add("(UPPER(r.TITULO) LIKE UPPER(@busca) OR CAST(r.CODREFERENCIA AS VARCHAR(20)) LIKE @busca OR UPPER(COALESCE(r.DESCRICAO, '')) LIKE UPPER(@busca) OR CAST(r.ANO AS VARCHAR(10)) LIKE @busca)");
             pRefs.Add("busca", $"%{referenciaBusca.Trim()}%");
         }
 
@@ -719,22 +771,57 @@ public class ReferenciasService : IReferenciasService
                 );
                 var comentariosRows = await conn.QueryAsync(
                     @"
-                    SELECT CODVARIAVEL, CODNORMALIDADECOMENTARIO, TEXTO
+                    SELECT CODVARIAVEL, SEXO, IDADE_MIN, IDADE_MAX, CODNORMALIDADECOMENTARIO, TEXTO
                     FROM NORMALIDADECOMENTARIO
                     WHERE CODREFERENCIA = @cod",
                     new { cod = refSelecionadaId.Value }
                 );
+                var comentariosPorSexoPorVariavel = new Dictionary<int, Dictionary<string, string>>();
+                var comentariosPorIdadePorVariavel = new Dictionary<int, List<object>>();
+                var comentarioRowsPorVariavel = new Dictionary<int, List<(string Sexo, int IdadeMin, int IdadeMax, string Texto)>>();
                 var comentarioTextoPorVariavel = new Dictionary<int, string>();
                 foreach (var row in comentariosRows)
                 {
                     var d = AsDict(row);
                     var codVariavel = ToInt(d, "CODVARIAVEL");
-                    var texto = ToStr(d, "TEXTO") ?? "";
-                    comentarioTextoPorVariavel[codVariavel] = texto;
+                    var sexo = NormalizeSexoComentario(ToStr(d, "SEXO"));
+                    var idadeMin = NormalizeIdadeComentario(ToNullableInt(d, "IDADE_MIN"));
+                    var idadeMax = NormalizeIdadeComentario(ToNullableInt(d, "IDADE_MAX"));
+                    var texto = Iso88591SafeText.ForDisplay(ToStr(d, "TEXTO") ?? "");
+                    if (!comentariosPorSexoPorVariavel.TryGetValue(codVariavel, out Dictionary<string, string>? porSexoExistente) || porSexoExistente is null)
+                    {
+                        porSexoExistente = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        comentariosPorSexoPorVariavel[codVariavel] = porSexoExistente;
+                    }
+                    Dictionary<string, string> porSexo = porSexoExistente;
+                    if (idadeMin < 0 && idadeMax < 0)
+                        porSexo[sexo] = texto;
+
+                    if (!comentariosPorIdadePorVariavel.TryGetValue(codVariavel, out List<object>? porIdadeExistente) || porIdadeExistente is null)
+                    {
+                        porIdadeExistente = [];
+                        comentariosPorIdadePorVariavel[codVariavel] = porIdadeExistente;
+                    }
+                    List<object> porIdade = porIdadeExistente;
+                    porIdade.Add(new { sexo, idadeMin, idadeMax, texto });
+
+                    if (!comentarioRowsPorVariavel.TryGetValue(codVariavel, out List<(string Sexo, int IdadeMin, int IdadeMax, string Texto)>? rowsExistentes) || rowsExistentes is null)
+                    {
+                        rowsExistentes = [];
+                        comentarioRowsPorVariavel[codVariavel] = rowsExistentes;
+                    }
+                    List<(string Sexo, int IdadeMin, int IdadeMax, string Texto)> rowsList = rowsExistentes;
+                    rowsList.Add((sexo, idadeMin, idadeMax, texto));
+                    comentarioTextoPorVariavel[codVariavel] = FormatComentarioDisplayComIdade(rowsList) ?? texto;
                     comentariosPorVariavel[codVariavel.ToString()] = new
                     {
                         codNormalidadeComentario = ToInt(d, "CODNORMALIDADECOMENTARIO"),
-                        texto
+                        texto,
+                        sexo,
+                        idadeMin,
+                        idadeMax,
+                        comentariosPorSexo = porSexo,
+                        comentariosPorIdade = porIdade
                     };
                 }
 
@@ -742,15 +829,19 @@ public class ReferenciasService : IReferenciasService
                 {
                     var d = AsDict(r);
                     var codVariavel = ToInt(d, "CODVARIAVEL");
+                    comentariosPorSexoPorVariavel.TryGetValue(codVariavel, out Dictionary<string, string>? porSexo);
+                    comentariosPorIdadePorVariavel.TryGetValue(codVariavel, out List<object>? porIdade);
                     comentarioTextoPorVariavel.TryGetValue(codVariavel, out string? comentarioTexto);
                     return (object)new
                     {
                         codVariavel,
-                        nomeVariavel = ToStr(d, "NOME") ?? "",
+                        nomeVariavel = Iso88591SafeText.RepairMojibake(ToStr(d, "NOME") ?? ""),
                         variavel = ToStr(d, "VARIAVEL"),
                         sigla = ToStr(d, "SIGLA"),
                         totalNormalidades = ToNullableInt(d, "TOTAL_NORMALIDADES") ?? 0,
-                        comentarioTexto
+                        comentarioTexto,
+                        comentariosPorSexo = porSexo,
+                        comentariosPorIdade = porIdade
                     };
                 }).ToList();
 
@@ -865,6 +956,250 @@ public class ReferenciasService : IReferenciasService
             totalSemReferencia,
             limiteDisponiveis = limite,
             filtros = new { referenciaBusca = referenciaBusca ?? "", variavelBusca = variavelBusca ?? "" }
+        };
+    }
+
+    public async Task<object> GetNormalidadesPorVariavelAsync(
+        int? variavelId,
+        string? busca,
+        int limite,
+        CancellationToken ct
+    )
+    {
+        limite = Math.Clamp(limite, 10, 500);
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync(ct);
+
+        var varsRows = await conn.QueryAsync(
+            @"
+            SELECT v.CODVARIAVEL,
+                   v.NOME,
+                   v.VARIAVEL,
+                   v.SIGLA,
+                   COUNT(*) AS TOTAL_NORMALIDADES,
+                   COUNT(DISTINCT n.CODREFERENCIA) AS TOTAL_REFERENCIAS
+            FROM NORMALIDADE n
+            JOIN VARIAVEIS v ON n.CODVARIAVEL = v.CODVARIAVEL
+            WHERE n.CODREFERENCIA IS NOT NULL
+            GROUP BY v.CODVARIAVEL, v.NOME, v.VARIAVEL, v.SIGLA
+            ORDER BY v.NOME"
+        );
+
+        var rawVars = varsRows.Select(r =>
+        {
+            var d = AsDict((object)r);
+            var nomeBruto = ToStr(d, "NOME") ?? "";
+            return new
+            {
+                codVariavel = ToInt(d, "CODVARIAVEL"),
+                nome = Iso88591SafeText.RepairMojibake(nomeBruto),
+                variavel = ToStr(d, "VARIAVEL"),
+                sigla = ToStr(d, "SIGLA"),
+                totalNormalidades = ToNullableInt(d, "TOTAL_NORMALIDADES") ?? 0,
+                totalReferencias = ToNullableInt(d, "TOTAL_REFERENCIAS") ?? 0,
+                chave = Iso88591SafeText.NomeChave(nomeBruto)
+            };
+        }).ToList();
+
+        var grupos = rawVars
+            .GroupBy(v => v.chave)
+            .Select(g =>
+            {
+                var members = g.OrderBy(m => m.codVariavel).ToList();
+                var canon = members
+                    .OrderByDescending(m => m.totalReferencias)
+                    .ThenByDescending(m => m.totalNormalidades)
+                    .ThenBy(m => m.codVariavel)
+                    .First();
+                var variaveisCod = string.Join(
+                    " · ",
+                    members.Select(m => m.variavel).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase)
+                );
+                return new
+                {
+                    chave = g.Key,
+                    codVariavel = canon.codVariavel,
+                    ids = members.Select(m => m.codVariavel).ToList(),
+                    nome = canon.nome,
+                    variavel = string.IsNullOrWhiteSpace(variaveisCod) ? canon.variavel : variaveisCod,
+                    sigla = canon.sigla,
+                    totalNormalidades = members.Sum(m => m.totalNormalidades),
+                    totalReferencias = members.Sum(m => m.totalReferencias)
+                };
+            })
+            .OrderBy(v => v.nome, StringComparer.Create(new System.Globalization.CultureInfo("pt-BR"), true))
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(busca))
+        {
+            var q = busca.Trim();
+            var qChave = Iso88591SafeText.NomeChave(q);
+            grupos = grupos.Where(v =>
+                (!string.IsNullOrEmpty(qChave) && v.chave.Contains(qChave, StringComparison.Ordinal))
+                || (v.variavel?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (v.sigla?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || v.ids.Any(id => id.ToString().Contains(q, StringComparison.Ordinal))
+            ).ToList();
+        }
+
+        IReadOnlyList<int> selectedIds = [];
+        int? selectedId = variavelId;
+        var selectedGroup = selectedId.HasValue
+            ? grupos.FirstOrDefault(g => g.ids.Contains(selectedId.Value))
+            : null;
+        if (selectedGroup == null)
+            selectedGroup = grupos.FirstOrDefault();
+
+        var variaveis = grupos.Take(limite).Select(g => new
+        {
+            g.codVariavel,
+            g.nome,
+            g.variavel,
+            g.sigla,
+            g.totalNormalidades,
+            g.totalReferencias
+        }).ToList();
+
+        if (selectedGroup != null)
+        {
+            selectedId = selectedGroup.codVariavel;
+            selectedIds = selectedGroup.ids;
+        }
+
+        object? variavelSelecionada = selectedGroup == null
+            ? null
+            : new
+            {
+                selectedGroup.codVariavel,
+                selectedGroup.nome,
+                selectedGroup.variavel,
+                selectedGroup.sigla,
+                selectedGroup.totalNormalidades,
+                selectedGroup.totalReferencias
+            };
+
+        IReadOnlyList<object> estudos = [];
+
+        if (selectedIds.Count > 0)
+        {
+            var normsRows = await conn.QueryAsync(
+                @"
+                SELECT n.CODNORMALIDADE, n.CODVARIAVEL, n.CODREFERENCIA, r.TITULO, r.ANO,
+                       n.SEXO, n.VALORMIN, n.VALORMAX, n.IDADE_MIN, n.IDADE_MAX, n.PAGINA_REFERENCIA,
+                       c.NOME AS CLASSIFICACAO
+                FROM NORMALIDADE n
+                JOIN REFERENCIA r ON r.CODREFERENCIA = n.CODREFERENCIA
+                LEFT JOIN CLASSIFICACOES c ON c.CODCLASSIFICACAO = n.CODCLASSIFICACAO
+                WHERE n.CODVARIAVEL IN @cods AND n.CODREFERENCIA IS NOT NULL
+                ORDER BY r.ANO DESC NULLS LAST, r.TITULO, n.SEXO, c.NOME",
+                new { cods = selectedIds }
+            );
+
+            var comentariosRows = await conn.QueryAsync(
+                @"
+                SELECT CODVARIAVEL, CODREFERENCIA, SEXO, IDADE_MIN, IDADE_MAX, TEXTO
+                FROM NORMALIDADECOMENTARIO
+                WHERE CODVARIAVEL IN @cods",
+                new { cods = selectedIds }
+            );
+            // key: codRef -> rows
+            var comentariosRowsPorRef = new Dictionary<int, List<(string Sexo, int IdadeMin, int IdadeMax, string Texto)>>();
+            var comentariosPorRef = new Dictionary<int, Dictionary<string, string>>();
+            var comentariosPorIdadePorRef = new Dictionary<int, List<object>>();
+            foreach (var crow in comentariosRows)
+            {
+                var cd = AsDict((object)crow);
+                var codRefC = ToInt(cd, "CODREFERENCIA");
+                var sexoC = NormalizeSexoComentario(ToStr(cd, "SEXO"));
+                var idadeMinC = NormalizeIdadeComentario(ToNullableInt(cd, "IDADE_MIN"));
+                var idadeMaxC = NormalizeIdadeComentario(ToNullableInt(cd, "IDADE_MAX"));
+                var textoC = Iso88591SafeText.ForDisplay(ToStr(cd, "TEXTO") ?? "");
+                if (!comentariosPorRef.TryGetValue(codRefC, out Dictionary<string, string>? porSexo) || porSexo is null)
+                {
+                    porSexo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    comentariosPorRef[codRefC] = porSexo;
+                }
+                if (idadeMinC < 0 && idadeMaxC < 0)
+                    porSexo[sexoC] = textoC;
+
+                if (!comentariosPorIdadePorRef.TryGetValue(codRefC, out List<object>? porIdade) || porIdade is null)
+                {
+                    porIdade = [];
+                    comentariosPorIdadePorRef[codRefC] = porIdade;
+                }
+                porIdade!.Add(new { sexo = sexoC, idadeMin = idadeMinC, idadeMax = idadeMaxC, texto = textoC });
+
+                if (!comentariosRowsPorRef.TryGetValue(codRefC, out List<(string Sexo, int IdadeMin, int IdadeMax, string Texto)>? rowsList) || rowsList is null)
+                {
+                    rowsList = [];
+                    comentariosRowsPorRef[codRefC] = rowsList;
+                }
+                rowsList.Add((sexoC, idadeMinC, idadeMaxC, textoC));
+            }
+
+            var byRef = new Dictionary<int, List<object>>();
+            var meta = new Dictionary<int, (string Titulo, int? Ano)>();
+            foreach (var row in normsRows)
+            {
+                var d = AsDict((object)row);
+                var codRef = ToInt(d, "CODREFERENCIA");
+                if (!meta.ContainsKey(codRef))
+                {
+                    meta[codRef] = (
+                        ToStr(d, "TITULO") ?? "",
+                        ToNullableInt(d, "ANO")
+                    );
+                }
+                if (!byRef.ContainsKey(codRef))
+                    byRef[codRef] = new List<object>();
+
+                byRef[codRef].Add(new
+                {
+                    codNormalidade = ToInt(d, "CODNORMALIDADE"),
+                    codVariavel = ToInt(d, "CODVARIAVEL"),
+                    codReferencia = codRef,
+                    sexo = ToStr(d, "SEXO"),
+                    valorMin = ToNullableDouble(d, "VALORMIN"),
+                    valorMax = ToNullableDouble(d, "VALORMAX"),
+                    idadeMin = ToNullableInt(d, "IDADE_MIN"),
+                    idadeMax = ToNullableInt(d, "IDADE_MAX"),
+                    pagina = ToNullableInt(d, "PAGINA_REFERENCIA"),
+                    classificacao = ToStr(d, "CLASSIFICACAO")
+                });
+            }
+
+            estudos = byRef
+                .OrderByDescending(kv => meta[kv.Key].Ano ?? 0)
+                .ThenBy(kv => meta[kv.Key].Titulo)
+                .Select(kv =>
+                {
+                    var (titulo, ano) = meta[kv.Key];
+                    comentariosPorRef.TryGetValue(kv.Key, out Dictionary<string, string>? porSexo);
+                    porSexo ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    comentariosPorIdadePorRef.TryGetValue(kv.Key, out List<object>? porIdade);
+                    comentariosRowsPorRef.TryGetValue(kv.Key, out var rowsList);
+                    return (object)new
+                    {
+                        codReferencia = kv.Key,
+                        titulo,
+                        ano,
+                        comentarioTexto = rowsList is null
+                            ? FormatComentarioDisplay(porSexo)
+                            : FormatComentarioDisplayComIdade(rowsList),
+                        comentariosPorSexo = porSexo,
+                        comentariosPorIdade = porIdade,
+                        normalidades = kv.Value
+                    };
+                })
+                .ToList();
+        }
+
+        return new
+        {
+            variaveis,
+            variavelSelecionada,
+            estudos,
+            filtros = new { busca = busca ?? "", variavelId = selectedId }
         };
     }
 
@@ -1070,14 +1405,26 @@ public class ReferenciasService : IReferenciasService
         };
     }
 
-    public async Task UpsertNormalidadeComentarioAsync(int codVariavel, int codReferencia, string texto, int codUsuario, CancellationToken ct)
+    public async Task UpsertNormalidadeComentarioAsync(
+        int codVariavel,
+        int codReferencia,
+        string texto,
+        int codUsuario,
+        CancellationToken ct,
+        string? sexo = "A",
+        int? idadeMin = -1,
+        int? idadeMax = -1
+    )
     {
         if (codVariavel <= 0 || codReferencia <= 0)
             throw new InvalidOperationException("Informe variável e referência válidas.");
-        var value = (texto ?? "").Trim();
+        var sexoNorm = NormalizeSexoComentario(sexo);
+        var imin = NormalizeIdadeComentario(idadeMin);
+        var imax = NormalizeIdadeComentario(idadeMax);
+        var value = Iso88591SafeText.ForStorage((texto ?? "").Trim());
         if (string.IsNullOrWhiteSpace(value))
         {
-            await DeleteNormalidadeComentarioAsync(codVariavel, codReferencia, ct);
+            await DeleteNormalidadeComentarioAsync(codVariavel, codReferencia, ct, sexoNorm, imin, imax);
             return;
         }
 
@@ -1086,29 +1433,106 @@ public class ReferenciasService : IReferenciasService
         await conn.ExecuteAsync(
             @"
             UPDATE OR INSERT INTO NORMALIDADECOMENTARIO
-                (CODVARIAVEL, CODREFERENCIA, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
+                (CODVARIAVEL, CODREFERENCIA, SEXO, IDADE_MIN, IDADE_MAX, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
             VALUES
-                (@CodVariavel, @CodReferencia, @Texto, @CodUsuario, @Now)
-            MATCHING (CODVARIAVEL, CODREFERENCIA)",
+                (@CodVariavel, @CodReferencia, @Sexo, @IdadeMin, @IdadeMax, @Texto, @CodUsuario, @Now)
+            MATCHING (CODVARIAVEL, CODREFERENCIA, SEXO, IDADE_MIN, IDADE_MAX)",
             new
             {
                 CodVariavel = codVariavel,
                 CodReferencia = codReferencia,
+                Sexo = sexoNorm,
+                IdadeMin = imin,
+                IdadeMax = imax,
                 Texto = value.Length > 500 ? value[..500] : value,
                 CodUsuario = codUsuario,
                 Now = DateTime.Now
             });
     }
 
-    public async Task DeleteNormalidadeComentarioAsync(int codVariavel, int codReferencia, CancellationToken ct)
+    public async Task DeleteNormalidadeComentarioAsync(
+        int codVariavel,
+        int codReferencia,
+        CancellationToken ct,
+        string? sexo = null,
+        int? idadeMin = null,
+        int? idadeMax = null
+    )
     {
         if (codVariavel <= 0 || codReferencia <= 0)
             throw new InvalidOperationException("Informe variável e referência válidas.");
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync(ct);
+        if (string.IsNullOrWhiteSpace(sexo))
+        {
+            await conn.ExecuteAsync(
+                "DELETE FROM NORMALIDADECOMENTARIO WHERE CODVARIAVEL = @codVariavel AND CODREFERENCIA = @codReferencia",
+                new { codVariavel, codReferencia });
+            return;
+        }
+
+        var sexoNorm = NormalizeSexoComentario(sexo);
+        if (idadeMin is null && idadeMax is null)
+        {
+            await conn.ExecuteAsync(
+                "DELETE FROM NORMALIDADECOMENTARIO WHERE CODVARIAVEL = @codVariavel AND CODREFERENCIA = @codReferencia AND SEXO = @sexo",
+                new { codVariavel, codReferencia, sexo = sexoNorm });
+            return;
+        }
+
         await conn.ExecuteAsync(
-            "DELETE FROM NORMALIDADECOMENTARIO WHERE CODVARIAVEL = @codVariavel AND CODREFERENCIA = @codReferencia",
-            new { codVariavel, codReferencia });
+            @"DELETE FROM NORMALIDADECOMENTARIO
+              WHERE CODVARIAVEL = @codVariavel AND CODREFERENCIA = @codReferencia
+                AND SEXO = @sexo AND IDADE_MIN = @idadeMin AND IDADE_MAX = @idadeMax",
+            new
+            {
+                codVariavel,
+                codReferencia,
+                sexo = sexoNorm,
+                idadeMin = NormalizeIdadeComentario(idadeMin),
+                idadeMax = NormalizeIdadeComentario(idadeMax)
+            });
+    }
+
+    private static string NormalizeSexoComentario(string? sexo)
+    {
+        var s = (sexo ?? "A").Trim().ToUpperInvariant();
+        return s is "F" or "M" or "A" ? s : "A";
+    }
+
+    private static int NormalizeIdadeComentario(int? idade) => idade is null or < 0 ? -1 : idade.Value;
+
+    private static string? FormatComentarioDisplay(IReadOnlyDictionary<string, string> porSexo)
+    {
+        if (porSexo.TryGetValue("A", out var a) && !string.IsNullOrWhiteSpace(a))
+            return a;
+        var parts = new List<string>();
+        if (porSexo.TryGetValue("F", out var f) && !string.IsNullOrWhiteSpace(f))
+            parts.Add($"F: {f}");
+        if (porSexo.TryGetValue("M", out var m) && !string.IsNullOrWhiteSpace(m))
+            parts.Add($"M: {m}");
+        return parts.Count > 0 ? string.Join("; ", parts) : null;
+    }
+
+    private static string? FormatComentarioDisplayComIdade(
+        IReadOnlyList<(string Sexo, int IdadeMin, int IdadeMax, string Texto)> rows
+    )
+    {
+        var comIdade = rows.Where(r => r.IdadeMin >= 0 || r.IdadeMax >= 0).ToList();
+        if (comIdade.Count > 0)
+        {
+            return string.Join(
+                "; ",
+                comIdade
+                    .OrderBy(r => r.IdadeMin)
+                    .Select(r => $"{r.IdadeMin}-{r.IdadeMax}: {r.Texto}")
+            );
+        }
+
+        var porSexo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in rows)
+            porSexo[r.Sexo] = r.Texto;
+        return FormatComentarioDisplay(porSexo);
     }
 
     private async Task<(string tipoAnexo, string? link, string? caminho)> ResolveAnexoFileAndTypeAsync(
@@ -1181,7 +1605,61 @@ public class ReferenciasService : IReferenciasService
         if (string.IsNullOrWhiteSpace(req.Titulo))
             throw new InvalidOperationException("Título é obrigatório.");
         if (req.Ano is < 1800 or > 2200)
-            throw new InvalidOperationException("Ano inválido.");
+            throw new InvalidOperationException("Ano inválido. Informe um ano entre 1800 e 2200.");
+    }
+
+    private static async Task<int> ResolveCodUsuarioAsync(FbConnection conn, int codUsuario, CancellationToken ct)
+    {
+        if (codUsuario > 0)
+        {
+            var exists = await conn.ExecuteScalarAsync<int?>(
+                new CommandDefinition(
+                    "SELECT FIRST 1 CODUSUARIO FROM USUARIO WHERE CODUSUARIO = @cod AND STATUS = -1",
+                    new { cod = codUsuario },
+                    cancellationToken: ct));
+            if (exists.HasValue) return exists.Value;
+        }
+
+        var fallback = await conn.ExecuteScalarAsync<int?>(
+            new CommandDefinition(
+                "SELECT FIRST 1 CODUSUARIO FROM USUARIO WHERE STATUS = -1 ORDER BY CODUSUARIO",
+                cancellationToken: ct));
+        if (!fallback.HasValue)
+            throw new InvalidOperationException("Não há usuário ativo no banco para gravar a referência (CODUSUARIO).");
+        return fallback.Value;
+    }
+
+    private static string Clamp(string value, int maxLen)
+        => value.Length <= maxLen ? value : value[..maxLen];
+
+    private static string? ClampNullable(string? value, int maxLen)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLen ? trimmed : trimmed[..maxLen];
+    }
+
+    private static string DescribeFirebirdError(FbException ex)
+    {
+        var msg = ex.Message ?? "";
+        if (msg.Contains("FK_REFERENCIA_ESPECIALIDADE", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("CODESPECIALIDADE", StringComparison.OrdinalIgnoreCase))
+            return "Especialidade inválida para esta referência.";
+        if (msg.Contains("FK_TIPOREF", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("CODTIPOREF", StringComparison.OrdinalIgnoreCase))
+            return "Tipo de referência inválido.";
+        if (msg.Contains("REFERENCIA_CODUSUARIO_FK", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("CODUSUARIO", StringComparison.OrdinalIgnoreCase))
+            return "Usuário da sessão inválido para gravar no banco. Faça login novamente.";
+        if (msg.Contains("transliterat", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("character set", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("charset", StringComparison.OrdinalIgnoreCase))
+            return "O texto contém caracteres que o banco ISO8859_1 não aceita. Remova símbolos especiais e tente de novo.";
+        if (msg.Contains("overflow", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("too long", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("string truncation", StringComparison.OrdinalIgnoreCase))
+            return "Algum campo excedeu o tamanho máximo permitido no banco.";
+        return string.IsNullOrWhiteSpace(msg) ? "Erro ao gravar referência no Firebird." : msg;
     }
 
     private static void ValidateAnexo(AnexoUpsertRequest req)

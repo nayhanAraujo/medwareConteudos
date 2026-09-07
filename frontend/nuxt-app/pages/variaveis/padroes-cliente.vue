@@ -125,9 +125,19 @@
                     <td class="px-3 py-2 text-center">{{ v.totalFaixas }}</td>
                     <td class="px-3 py-2 text-gray-600 truncate max-w-[200px]">{{ v.comentarioTexto || '—' }}</td>
                     <td class="px-3 py-2 text-center">
-                      <DsButton size="sm" variant="secondary" icon="sliders" @click="abrirFaixas(v)">
-                        Editar
-                      </DsButton>
+                      <div class="flex flex-wrap justify-center gap-1">
+                        <DsButton size="sm" variant="secondary" icon="sliders" @click="abrirFaixas(v)">
+                          Editar
+                        </DsButton>
+                        <DsButton
+                          size="sm"
+                          variant="secondary"
+                          icon="arrow-left-right"
+                          @click="abrirConversaoUnidade(v.codVariavel)"
+                        >
+                          Unidade
+                        </DsButton>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -179,27 +189,172 @@
           </tbody>
         </table>
       </div>
-      <div class="mt-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Comentário de normalidade (texto livre)</label>
-        <input
-          v-model="modalComentario"
-          type="text"
-          maxlength="500"
-          class="w-full px-3 py-2 border border-gray-200 rounded-lg"
-          placeholder="Ex.: ≤ 5"
-        />
+      <div class="mt-4 space-y-3">
+        <template v-if="modalComentarioPorIdade">
+          <div
+            v-for="(b, idx) in modalBandasIdade"
+            :key="`${b.idadeMin}-${b.idadeMax}-${idx}`"
+          >
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Comentário idade {{ b.idadeMin }}–{{ b.idadeMax }}
+            </label>
+            <input
+              v-model="b.texto"
+              type="text"
+              maxlength="500"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              placeholder="Ex.: 54-111"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Comentário geral (sem faixa etária)</label>
+            <input
+              v-model="modalComentario"
+              type="text"
+              maxlength="500"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              placeholder="Ex.: 0.8 +/- 0.2"
+            />
+          </div>
+        </template>
+        <template v-else-if="modalComentarioPorSexo">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Comentário feminino (F)</label>
+            <input
+              v-model="modalComentarioF"
+              type="text"
+              maxlength="500"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              placeholder="Ex.: ≤ 36"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Comentário masculino (M)</label>
+            <input
+              v-model="modalComentarioM"
+              type="text"
+              maxlength="500"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              placeholder="Ex.: ≤ 40"
+            />
+          </div>
+        </template>
+        <div v-else>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Comentário de normalidade (texto livre)</label>
+          <input
+            v-model="modalComentario"
+            type="text"
+            maxlength="500"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+            placeholder="Ex.: ≤ 5"
+          />
+        </div>
       </div>
       <DsAlert v-if="!modalFaixas.length" variant="info">Nenhuma faixa para esta variável.</DsAlert>
       <template #footer>
+        <DsButton
+          variant="secondary"
+          icon="arrow-left-right"
+          :disabled="!modalCodVariavel"
+          @click="abrirConversaoUnidade(modalCodVariavel)"
+        >
+          Converter unidade
+        </DsButton>
         <DsButton variant="secondary" @click="salvarComentarioModal">Salvar comentário</DsButton>
         <DsButton variant="secondary" @click="faixasModalOpen = false">Fechar</DsButton>
+      </template>
+    </DsModal>
+
+    <DsModal v-model="convOpen" title="Converter unidade de normalidade (padrão)" size="lg">
+      <div class="space-y-3">
+        <p class="text-sm text-gray-600">
+          Converte faixas e comentários numéricos deste padrão entre unidades equivalentes (mm↔cm, m/s↔cm/s).
+          Faixas que já parecem estar no destino ficam desmarcadas por padrão. A unidade canônica da variável
+          no cadastro global não é alterada neste fluxo.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <DsSelect v-model="convDestino" label="Unidade destino">
+            <option value="cm/s">cm/s</option>
+            <option value="m/s">m/s</option>
+            <option value="cm">cm</option>
+            <option value="mm">mm</option>
+          </DsSelect>
+          <div class="flex items-end">
+            <DsButton variant="secondary" size="sm" :loading="convLoading" @click="carregarPreviewConversao">
+              Gerar preview
+            </DsButton>
+          </div>
+        </div>
+        <DsAlert v-if="convPreview" variant="info">
+          {{ convPreview.unidadeOrigem }} → {{ convPreview.unidadeDestino }} (×{{ convPreview.fator }}).
+          Incluir {{ convFaixaSel.size }} faixa(s) e {{ convComentSel.size }} comentário(s).
+        </DsAlert>
+        <div v-if="convPreview?.faixas?.length" class="overflow-x-auto max-h-56 border rounded-lg">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 sticky top-0">
+              <tr>
+                <th class="px-2 py-1 text-left">Sel</th>
+                <th class="px-2 py-1 text-left">Sexo</th>
+                <th class="px-2 py-1 text-left">Idade</th>
+                <th class="px-2 py-1 text-left">Atual</th>
+                <th class="px-2 py-1 text-left">Novo</th>
+                <th class="px-2 py-1 text-left">Classe</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in convPreview.faixas" :key="f.id" class="border-t">
+                <td class="px-2 py-1">
+                  <input type="checkbox" :checked="convFaixaSel.has(f.id)" @change="toggleConvFaixa(f.id)" />
+                </td>
+                <td class="px-2 py-1">{{ f.sexo || '—' }}</td>
+                <td class="px-2 py-1">{{ f.idadeMin ?? '—' }}–{{ f.idadeMax ?? '—' }}</td>
+                <td class="px-2 py-1">{{ f.valorMinAtual }}–{{ f.valorMaxAtual }}</td>
+                <td class="px-2 py-1 font-medium">{{ f.valorMinNovo }}–{{ f.valorMaxNovo }}</td>
+                <td class="px-2 py-1 text-xs">{{ f.classificacao }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="convPreview?.comentarios?.length" class="overflow-x-auto max-h-40 border rounded-lg">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 sticky top-0">
+              <tr>
+                <th class="px-2 py-1 text-left">Sel</th>
+                <th class="px-2 py-1 text-left">Atual</th>
+                <th class="px-2 py-1 text-left">Novo</th>
+                <th class="px-2 py-1 text-left">Classe</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in convPreview.comentarios" :key="c.id" class="border-t">
+                <td class="px-2 py-1">
+                  <input
+                    type="checkbox"
+                    :disabled="!c.convertivel"
+                    :checked="convComentSel.has(c.id)"
+                    @change="toggleConvComent(c.id)"
+                  />
+                </td>
+                <td class="px-2 py-1">{{ c.textoAtual }}</td>
+                <td class="px-2 py-1 font-medium">{{ c.convertivel ? c.textoNovo : '—' }}</td>
+                <td class="px-2 py-1 text-xs">{{ c.classificacao }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <template #footer>
+        <DsButton variant="secondary" :disabled="!convPreview || convApplying" :loading="convApplying" @click="aplicarConversao">
+          Aplicar conversão
+        </DsButton>
+        <DsButton variant="secondary" @click="convOpen = false">Fechar</DsButton>
       </template>
     </DsModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { PadroesClientePainel } from '~/composables/useVariaveisApi'
+import type { ConversaoUnidadePreview, PadroesClientePainel } from '~/composables/useVariaveisApi'
 
 definePageMeta({ layout: 'default' })
 
@@ -221,6 +376,11 @@ const faixasModalOpen = ref(false)
 const modalVariavelNome = ref('')
 const modalCodVariavel = ref<number | null>(null)
 const modalComentario = ref('')
+const modalComentarioF = ref('')
+const modalComentarioM = ref('')
+const modalComentarioPorSexo = ref(false)
+const modalComentarioPorIdade = ref(false)
+const modalBandasIdade = ref<Array<{ idadeMin: number; idadeMax: number; texto: string }>>([])
 const modalFaixas = ref<
   Array<{
     codFaixa: number
@@ -233,6 +393,26 @@ const modalFaixas = ref<
     classificacao?: string | null
   }>
 >([])
+
+const convOpen = ref(false)
+const convLoading = ref(false)
+const convApplying = ref(false)
+const convDestino = ref('cm/s')
+const convCodVariavel = ref<number | null>(null)
+const convPreview = ref<ConversaoUnidadePreview | null>(null)
+const convFaixaSel = ref<Set<number>>(new Set())
+const convComentSel = ref<Set<number>>(new Set())
+
+function bandasIdadeFromNorms(norms: Array<{ idadeMin?: number | null; idadeMax?: number | null }>) {
+  const map = new Map<string, { idadeMin: number; idadeMax: number }>()
+  for (const n of norms) {
+    const imin = n.idadeMin
+    const imax = n.idadeMax
+    if (imin == null || imax == null || imin < 0 || imax < 0) continue
+    map.set(`${imin}-${imax}`, { idadeMin: imin, idadeMax: imax })
+  }
+  return Array.from(map.values()).sort((a, b) => a.idadeMin - b.idadeMin)
+}
 
 async function loadClientes() {
   try {
@@ -362,12 +542,56 @@ async function excluirPadrao() {
   }
 }
 
-function abrirFaixas(v: { codVariavel: number; nomeVariavel: string; comentarioTexto?: string | null }) {
+function abrirFaixas(v: {
+  codVariavel: number
+  nomeVariavel: string
+  comentarioTexto?: string | null
+  comentariosPorSexo?: Record<string, string> | null
+  comentariosPorIdade?: Array<{
+    sexo?: string
+    idadeMin?: number
+    idadeMax?: number
+    texto?: string
+  }> | null
+}) {
   const regs = painel.value?.faixasPorVariavel?.[String(v.codVariavel)] || []
   modalFaixas.value = regs.map(n => ({ ...n }))
   modalVariavelNome.value = v.nomeVariavel
   modalCodVariavel.value = v.codVariavel
-  modalComentario.value = v.comentarioTexto || ''
+  const por = v.comentariosPorSexo || painel.value?.comentariosPorVariavel?.[String(v.codVariavel)]?.comentariosPorSexo || {}
+  const porIdade = v.comentariosPorIdade || painel.value?.comentariosPorVariavel?.[String(v.codVariavel)]?.comentariosPorIdade || []
+  const bandas = bandasIdadeFromNorms(regs)
+  modalComentarioPorIdade.value = bandas.length > 0 || porIdade.some(c => (c.idadeMin ?? -1) >= 0)
+  const sexosFaixa = new Set(regs.map(r => (r.sexo || '').toUpperCase().startsWith('F') ? 'F' : (r.sexo || '').toUpperCase().startsWith('M') ? 'M' : 'A'))
+  modalComentarioPorSexo.value = !modalComentarioPorIdade.value && !!(por.F || por.M || (sexosFaixa.has('F') && sexosFaixa.has('M')))
+
+  if (modalComentarioPorIdade.value) {
+    const merged = new Map<string, { idadeMin: number; idadeMax: number; texto: string }>()
+    for (const b of bandas) merged.set(`${b.idadeMin}-${b.idadeMax}`, { ...b, texto: '' })
+    for (const c of porIdade.filter(x => (x.idadeMin ?? -1) >= 0)) {
+      const key = `${c.idadeMin}-${c.idadeMax}`
+      merged.set(key, {
+        idadeMin: c.idadeMin!,
+        idadeMax: c.idadeMax ?? c.idadeMin!,
+        texto: c.texto || ''
+      })
+    }
+    modalBandasIdade.value = Array.from(merged.values()).sort((a, b) => a.idadeMin - b.idadeMin)
+    const geral = porIdade.find(c => (c.idadeMin ?? -1) < 0)
+    modalComentario.value = geral?.texto || por.A || ''
+    modalComentarioF.value = ''
+    modalComentarioM.value = ''
+  } else if (modalComentarioPorSexo.value) {
+    modalBandasIdade.value = []
+    modalComentarioF.value = por.F || ''
+    modalComentarioM.value = por.M || ''
+    modalComentario.value = ''
+  } else {
+    modalBandasIdade.value = []
+    modalComentario.value = por.A || v.comentarioTexto || ''
+    modalComentarioF.value = ''
+    modalComentarioM.value = ''
+  }
   faixasModalOpen.value = true
 }
 
@@ -401,18 +625,141 @@ async function salvarFaixa(n: {
 async function salvarComentarioModal() {
   if (!selectedPadraoId.value || !modalCodVariavel.value) return
   try {
-    await variaveisApi.salvarComentarioPadrao(selectedPadraoId.value, {
-      codVariavel: modalCodVariavel.value,
-      texto: modalComentario.value
-    })
+    if (modalComentarioPorIdade.value) {
+      for (const b of modalBandasIdade.value) {
+        await variaveisApi.salvarComentarioPadrao(selectedPadraoId.value, {
+          codVariavel: modalCodVariavel.value,
+          texto: b.texto,
+          sexo: 'A',
+          idadeMin: b.idadeMin,
+          idadeMax: b.idadeMax
+        })
+      }
+      await variaveisApi.salvarComentarioPadrao(selectedPadraoId.value, {
+        codVariavel: modalCodVariavel.value,
+        texto: modalComentario.value,
+        sexo: 'A',
+        idadeMin: -1,
+        idadeMax: -1
+      })
+    } else if (modalComentarioPorSexo.value) {
+      await variaveisApi.salvarComentarioPadrao(selectedPadraoId.value, {
+        codVariavel: modalCodVariavel.value,
+        texto: modalComentarioF.value,
+        sexo: 'F',
+        idadeMin: -1,
+        idadeMax: -1
+      })
+      await variaveisApi.salvarComentarioPadrao(selectedPadraoId.value, {
+        codVariavel: modalCodVariavel.value,
+        texto: modalComentarioM.value,
+        sexo: 'M',
+        idadeMin: -1,
+        idadeMax: -1
+      })
+    } else {
+      await variaveisApi.salvarComentarioPadrao(selectedPadraoId.value, {
+        codVariavel: modalCodVariavel.value,
+        texto: modalComentario.value,
+        sexo: 'A',
+        idadeMin: -1,
+        idadeMax: -1
+      })
+    }
     await swal.toast('Comentário salvo.')
     await load()
     if (modalCodVariavel.value) {
       const v = painel.value?.variaveis?.find(x => x.codVariavel === modalCodVariavel.value)
-      if (v) abrirFaixas({ ...v, comentarioTexto: modalComentario.value })
+      if (v) abrirFaixas(v)
     }
   } catch (err) {
     await swal.toast(err instanceof Error ? err.message : 'Erro ao salvar comentário.', 'error')
+  }
+}
+
+function abrirConversaoUnidade(codVariavel?: number | null) {
+  const codVar = codVariavel ?? modalCodVariavel.value
+  if (!selectedPadraoId.value) {
+    void swal.toast('Selecione um padrão.', 'warning')
+    return
+  }
+  if (!codVar) {
+    void swal.toast('Selecione uma variável.', 'warning')
+    return
+  }
+  convCodVariavel.value = codVar
+  convDestino.value = 'cm/s'
+  convPreview.value = null
+  convFaixaSel.value = new Set()
+  convComentSel.value = new Set()
+  convOpen.value = true
+  void carregarPreviewConversao()
+}
+
+async function carregarPreviewConversao() {
+  if (!convCodVariavel.value || !selectedPadraoId.value) return
+  convLoading.value = true
+  try {
+    const res = await variaveisApi.previewConversaoUnidade({
+      codVariavel: convCodVariavel.value,
+      codPadrao: selectedPadraoId.value,
+      unidadeDestino: convDestino.value
+    })
+    convPreview.value = res.data
+    convFaixaSel.value = new Set(res.data.faixas.filter((f) => f.incluirDefault).map((f) => f.id))
+    convComentSel.value = new Set(res.data.comentarios.filter((c) => c.incluirDefault).map((c) => c.id))
+  } catch (err) {
+    convPreview.value = null
+    await swal.toast(err instanceof Error ? err.message : 'Erro no preview de conversão', 'error')
+  } finally {
+    convLoading.value = false
+  }
+}
+
+function toggleConvFaixa(id: number) {
+  const next = new Set(convFaixaSel.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  convFaixaSel.value = next
+}
+
+function toggleConvComent(id: number) {
+  const next = new Set(convComentSel.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  convComentSel.value = next
+}
+
+async function aplicarConversao() {
+  if (!convPreview.value || !convCodVariavel.value || !selectedPadraoId.value) return
+  const confirm = await swal.confirm(
+    'Aplicar conversão',
+    `Converter ${convFaixaSel.value.size} faixa(s) e ${convComentSel.value.size} comentário(s) de ${convPreview.value.unidadeOrigem} para ${convPreview.value.unidadeDestino} neste padrão?`
+  )
+  if (!confirm?.isConfirmed) return
+  convApplying.value = true
+  try {
+    const res = await variaveisApi.applyConversaoUnidade({
+      preview: {
+        codVariavel: convCodVariavel.value,
+        codPadrao: selectedPadraoId.value,
+        unidadeDestino: convDestino.value
+      },
+      faixaIds: Array.from(convFaixaSel.value),
+      comentarioIds: Array.from(convComentSel.value),
+      atualizarUnidadeVariavel: false
+    })
+    await swal.toast(res.data.message || 'Conversão aplicada.')
+    convOpen.value = false
+    await load()
+    if (modalCodVariavel.value) {
+      const v = painel.value?.variaveis?.find((x) => x.codVariavel === modalCodVariavel.value)
+      if (v) abrirFaixas(v)
+    }
+  } catch (err) {
+    await swal.toast(err instanceof Error ? err.message : 'Erro ao aplicar conversão', 'error')
+  } finally {
+    convApplying.value = false
   }
 }
 

@@ -155,13 +155,25 @@ public class ApiPublicaService : IApiPublicaService
                 ["especialidades"] = ((string?)v.ESPECIALIDADES)?.Split(", ", StringSplitOptions.RemoveEmptyEntries) ?? Array.Empty<string>()
             };
 
-            var comentarios = new Dictionary<int, string?>();
+            var comentarios = new Dictionary<int, List<(string Sexo, int IdadeMin, int IdadeMax, string? Texto)>>();
             foreach (var row in await conn.QueryAsync(
-                         @"SELECT CODREFERENCIA, TEXTO FROM NORMALIDADECOMENTARIO WHERE CODVARIAVEL = @codvariavel",
+                         @"SELECT CODREFERENCIA, SEXO, IDADE_MIN, IDADE_MAX, TEXTO FROM NORMALIDADECOMENTARIO WHERE CODVARIAVEL = @codvariavel",
                          new { codvariavel }))
             {
                 if (row.CODREFERENCIA is null) continue;
-                comentarios[(int)row.CODREFERENCIA] = (string?)row.TEXTO;
+                var codRef = (int)row.CODREFERENCIA;
+                var sexo = ((string?)row.SEXO ?? "A").Trim().ToUpperInvariant();
+                if (sexo is not ("F" or "M" or "A")) sexo = "A";
+                var idadeMin = row.IDADE_MIN is null ? -1 : (int)row.IDADE_MIN;
+                var idadeMax = row.IDADE_MAX is null ? -1 : (int)row.IDADE_MAX;
+                if (idadeMin < 0) idadeMin = -1;
+                if (idadeMax < 0) idadeMax = -1;
+                if (!comentarios.TryGetValue(codRef, out var list))
+                {
+                    list = [];
+                    comentarios[codRef] = list;
+                }
+                list.Add((sexo, idadeMin, idadeMax, Iso88591SafeText.ForDisplay((string?)row.TEXTO)));
             }
 
             var normalidades = (await conn.QueryAsync(@"
@@ -233,7 +245,15 @@ public class ApiPublicaService : IApiPublicaService
                     normalidades,
                     formulas,
                     alternativas,
-                    comentarios = comentarios.Select(kv => new { codigo = kv.Key, texto = kv.Value })
+                    comentarios = comentarios.SelectMany(kv =>
+                        kv.Value.Select(s => new
+                        {
+                            codigo = kv.Key,
+                            sexo = s.Sexo,
+                            idade_min = s.IdadeMin,
+                            idade_max = s.IdadeMax,
+                            texto = s.Texto
+                        }))
                 },
                 timestamp = DateTime.Now.ToString("o")
             });
@@ -634,12 +654,24 @@ public class ApiPublicaService : IApiPublicaService
                 ORDER BY v.VARIAVEL, f.SEXO, f.VALORMIN",
                 new { codPadrao = padraoRow.CodPadrao });
 
-            var comentarios = (await conn.QueryAsync<(string Variavel, string Texto)>(@"
-                SELECT v.VARIAVEL, pc.TEXTO
+            var comentariosRows = await conn.QueryAsync<(string Variavel, string Sexo, string Texto)>(@"
+                SELECT v.VARIAVEL, pc.SEXO, pc.TEXTO
                 FROM PADRAONORMALIDADECOMENTARIO pc
                 JOIN VARIAVEIS v ON v.CODVARIAVEL = pc.CODVARIAVEL
                 WHERE pc.CODPADRAO = @codPadrao",
-                new { codPadrao = padraoRow.CodPadrao })).ToDictionary(x => x.Variavel, x => x.Texto);
+                new { codPadrao = padraoRow.CodPadrao });
+            var comentarios = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (variavel, sexoRaw, texto) in comentariosRows)
+            {
+                var sexo = (sexoRaw ?? "A").Trim().ToUpperInvariant();
+                if (sexo is not ("F" or "M" or "A")) sexo = "A";
+                if (!comentarios.TryGetValue(variavel, out var porSexo))
+                {
+                    porSexo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    comentarios[variavel] = porSexo;
+                }
+                porSexo[sexo] = Iso88591SafeText.ForDisplay(texto);
+            }
 
             var resultado = ClienteNormalidadesBuilder.Build(rows, comentarios);
             return new OkObjectResult(new
@@ -728,11 +760,26 @@ public class ApiPublicaService : IApiPublicaService
         public int PadraoVigente { get; set; }
     }
 
-    private static object MapNormalidadeRow(dynamic row, IReadOnlyDictionary<int, string?>? comentarios = null)
+    private static object MapNormalidadeRow(
+        dynamic row,
+        IReadOnlyDictionary<int, List<(string Sexo, int IdadeMin, int IdadeMax, string? Texto)>>? comentarios = null
+    )
     {
         string? comentarioTexto = null;
-        if (row.CODREFERENCIA is not null && comentarios is not null)
-            comentarios.TryGetValue((int)row.CODREFERENCIA, out comentarioTexto);
+        if (row.CODREFERENCIA is not null && comentarios is not null
+            && comentarios.TryGetValue((int)row.CODREFERENCIA, out var list))
+        {
+            var sexoFaixa = ((string?)row.SEXO ?? "A").Trim().ToUpperInvariant();
+            int idadeMinFaixa = row.IDADE_MIN is null ? -1 : (int)row.IDADE_MIN;
+            int idadeMaxFaixa = row.IDADE_MAX is null ? -1 : (int)row.IDADE_MAX;
+            if (idadeMinFaixa < 0 && idadeMaxFaixa < 0)
+            {
+                idadeMinFaixa = -1;
+                idadeMaxFaixa = -1;
+            }
+
+            comentarioTexto = ResolveComentarioPorSexoIdade(list, sexoFaixa, idadeMinFaixa, idadeMaxFaixa);
+        }
 
         return new
         {
@@ -753,6 +800,55 @@ public class ApiPublicaService : IApiPublicaService
                 autores = (string?)row.AUTORES
             }
         };
+    }
+
+    private static string? ResolveComentarioPorSexoIdade(
+        IReadOnlyList<(string Sexo, int IdadeMin, int IdadeMax, string? Texto)> list,
+        string sexoFaixa,
+        int idadeMinFaixa,
+        int idadeMaxFaixa
+    )
+    {
+        static string? Pick(
+            IReadOnlyList<(string Sexo, int IdadeMin, int IdadeMax, string? Texto)> src,
+            string sexo,
+            int imin,
+            int imax
+        )
+        {
+            var hit = src.FirstOrDefault(c =>
+                c.Sexo.Equals(sexo, StringComparison.OrdinalIgnoreCase)
+                && c.IdadeMin == imin
+                && c.IdadeMax == imax
+                && !string.IsNullOrWhiteSpace(c.Texto));
+            return string.IsNullOrWhiteSpace(hit.Texto) ? null : hit.Texto;
+        }
+
+        var sexo = sexoFaixa is "F" or "M" ? sexoFaixa : "A";
+        var hasAge = idadeMinFaixa >= 0 || idadeMaxFaixa >= 0;
+        var imin = hasAge ? idadeMinFaixa : -1;
+        var imax = hasAge ? idadeMaxFaixa : -1;
+
+        if (hasAge)
+        {
+            var t = Pick(list, sexo, imin, imax);
+            if (t is not null) return t;
+            if (sexo is not "A")
+            {
+                t = Pick(list, "A", imin, imax);
+                if (t is not null) return t;
+            }
+        }
+
+        var t2 = Pick(list, sexo, -1, -1);
+        if (t2 is not null) return t2;
+        if (sexo is not "A")
+        {
+            t2 = Pick(list, "A", -1, -1);
+            if (t2 is not null) return t2;
+        }
+
+        return list.Select(c => c.Texto).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
     }
 
     private static object MapNormalidadeListRow(dynamic row) => new
@@ -875,22 +971,40 @@ public static class ClienteNormalidadesBuilder
 {
     public static Dictionary<string, Dictionary<string, Dictionary<string, object>>> Build(
         IEnumerable<dynamic> rows,
-        IReadOnlyDictionary<string, string>? comentariosPorVariavel = null)
+        IReadOnlyDictionary<string, Dictionary<string, string>>? comentariosPorVariavelSexo = null)
     {
         var resultado = EcodopplerBuilder.Build(rows);
 
-        if (comentariosPorVariavel is null || comentariosPorVariavel.Count == 0)
+        if (comentariosPorVariavelSexo is null || comentariosPorVariavelSexo.Count == 0)
             return resultado;
 
-        foreach (var (variavel, texto) in comentariosPorVariavel)
+        foreach (var (variavel, porSexo) in comentariosPorVariavelSexo)
         {
-            if (string.IsNullOrWhiteSpace(texto)) continue;
+            if (porSexo.Count == 0) continue;
             if (!resultado.ContainsKey(variavel))
                 resultado[variavel] = new Dictionary<string, Dictionary<string, object>>();
-            resultado[variavel]["_comentario_texto"] = new Dictionary<string, object>
+
+            string? display = null;
+            if (porSexo.TryGetValue("A", out var a) && !string.IsNullOrWhiteSpace(a))
+                display = a.Trim();
+            else
             {
-                ["texto"] = texto.Trim()
-            };
+                var parts = new List<string>();
+                if (porSexo.TryGetValue("F", out var f) && !string.IsNullOrWhiteSpace(f)) parts.Add($"F: {f.Trim()}");
+                if (porSexo.TryGetValue("M", out var m) && !string.IsNullOrWhiteSpace(m)) parts.Add($"M: {m.Trim()}");
+                display = parts.Count > 0 ? string.Join("; ", parts) : null;
+            }
+
+            var payload = new Dictionary<string, object>();
+            if (!string.IsNullOrWhiteSpace(display))
+                payload["texto"] = display;
+            foreach (var (sexo, texto) in porSexo)
+            {
+                if (!string.IsNullOrWhiteSpace(texto))
+                    payload[sexo] = texto.Trim();
+            }
+
+            resultado[variavel]["_comentario_texto"] = payload;
         }
 
         return resultado;

@@ -45,6 +45,25 @@ public class ReferenciasNormalidadesWebController : ControllerBase
         }
     }
 
+    [HttpGet("por-variavel")]
+    public async Task<IActionResult> GetPorVariavel(
+        [FromQuery] int? variavelId = null,
+        [FromQuery] string? busca = null,
+        [FromQuery] int limite = 100,
+        CancellationToken ct = default
+    )
+    {
+        try
+        {
+            var data = await _svc.GetNormalidadesPorVariavelAsync(variavelId, busca, limite, ct);
+            return Ok(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPost("vincular")]
     [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Vincular)]
     public async Task<IActionResult> Vincular([FromBody] VincularNormalidadesRequest req, CancellationToken ct = default)
@@ -124,7 +143,16 @@ public class ReferenciasNormalidadesWebController : ControllerBase
     {
         try
         {
-            await _svc.UpsertNormalidadeComentarioAsync(req.CodVariavel, req.CodReferencia, req.Texto, User.GetCodUsuario(), ct);
+            await _svc.UpsertNormalidadeComentarioAsync(
+                req.CodVariavel,
+                req.CodReferencia,
+                req.Texto,
+                User.GetCodUsuario(),
+                ct,
+                req.Sexo,
+                req.IdadeMin,
+                req.IdadeMax
+            );
             return Ok(new { success = true, message = string.IsNullOrWhiteSpace(req.Texto) ? "Comentário removido." : "Comentário salvo." });
         }
         catch (InvalidOperationException ex)
@@ -135,11 +163,18 @@ public class ReferenciasNormalidadesWebController : ControllerBase
 
     [HttpDelete("comentario")]
     [RequirePermission(PermissionDomains.Variaveis, PermissionActions.Excluir)]
-    public async Task<IActionResult> DeleteComentario([FromQuery] int codVariavel, [FromQuery] int codReferencia, CancellationToken ct = default)
+    public async Task<IActionResult> DeleteComentario(
+        [FromQuery] int codVariavel,
+        [FromQuery] int codReferencia,
+        [FromQuery] string? sexo = null,
+        [FromQuery] int? idadeMin = null,
+        [FromQuery] int? idadeMax = null,
+        CancellationToken ct = default
+    )
     {
         try
         {
-            await _svc.DeleteNormalidadeComentarioAsync(codVariavel, codReferencia, ct);
+            await _svc.DeleteNormalidadeComentarioAsync(codVariavel, codReferencia, ct, sexo, idadeMin, idadeMax);
             return Ok(new { success = true, message = "Comentário removido." });
         }
         catch (InvalidOperationException ex)

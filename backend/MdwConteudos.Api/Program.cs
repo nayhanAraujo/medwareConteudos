@@ -110,6 +110,7 @@ builder.Services.AddScoped<IImportacaoVariaveisService, ImportacaoVariaveisServi
 builder.Services.AddScoped<IReferenciasService, ReferenciasService>();
 builder.Services.AddScoped<IPadroesClienteNormalidadeService, PadroesClienteNormalidadeService>();
 builder.Services.AddScoped<INormalidadesJsonImportService, NormalidadesJsonImportService>();
+builder.Services.AddScoped<INormalidadeUnidadeConversaoService, NormalidadeUnidadeConversaoService>();
 builder.Services.AddScoped<IConversionAnalysisService, ConversionAnalysisService>();
 builder.Services.AddScoped<ScriptsService>();
 builder.Services.AddPermissionsModule();

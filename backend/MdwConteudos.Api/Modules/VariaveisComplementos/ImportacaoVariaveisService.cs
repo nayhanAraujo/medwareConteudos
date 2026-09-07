@@ -158,12 +158,24 @@ public sealed class ImportacaoVariaveisService(IFirebirdConnectionFactory db) : 
 
                 foreach (var comment in itemNormals
                              .Where(normal => normal.CodReferencia.HasValue && !string.IsNullOrWhiteSpace(normal.Comentario))
-                             .GroupBy(normal => new { normal.CodReferencia, Texto = normal.Comentario!.Trim() })
+                             .GroupBy(normal => new
+                             {
+                                 normal.CodReferencia,
+                                 Sexo = string.IsNullOrWhiteSpace(normal.Sexo) ? "A" : normal.Sexo.Trim().ToUpperInvariant() switch
+                                 {
+                                     "F" or "FEMININO" => "F",
+                                     "M" or "MASCULINO" => "M",
+                                     _ => "A"
+                                 },
+                                 Texto = Iso88591SafeText.ForStorage(normal.Comentario!.Trim())
+                             })
+                             .Where(group => !string.IsNullOrWhiteSpace(group.Key.Texto))
                              .Select(group => group.Key))
                 {
+                    var texto = comment.Texto.Length > 500 ? comment.Texto[..500] : comment.Texto;
                     await conn.ExecuteAsync(new CommandDefinition(
-                        "UPDATE OR INSERT INTO NORMALIDADECOMENTARIO (CODVARIAVEL,CODREFERENCIA,TEXTO,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@targetId,@CodReferencia,@Texto,@codUsuario,@now) MATCHING (CODVARIAVEL,CODREFERENCIA)",
-                        new { targetId, comment.CodReferencia, comment.Texto, codUsuario, now = DateTime.Now }, tx, cancellationToken: ct));
+                        "UPDATE OR INSERT INTO NORMALIDADECOMENTARIO (CODVARIAVEL,CODREFERENCIA,SEXO,IDADE_MIN,IDADE_MAX,TEXTO,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@targetId,@CodReferencia,@Sexo,-1,-1,@Texto,@codUsuario,@now) MATCHING (CODVARIAVEL,CODREFERENCIA,SEXO,IDADE_MIN,IDADE_MAX)",
+                        new { targetId, comment.CodReferencia, comment.Sexo, Texto = texto, codUsuario, now = DateTime.Now }, tx, cancellationToken: ct));
                     commentsInserted++;
                 }
             }

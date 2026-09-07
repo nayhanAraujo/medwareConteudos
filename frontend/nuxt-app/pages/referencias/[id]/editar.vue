@@ -4,13 +4,13 @@
     <DsPageShell>
       <div v-if="loading" class="text-center py-8 text-gray-500">Carregando referência...</div>
       <DsAlert v-else-if="errorMsg" variant="error">{{ errorMsg }}</DsAlert>
-      <ReferenciaForm v-else :form="form" :especialidades="especialidades" :tipos="tipos" @submit="onSubmit">
+      <ReferenciasReferenciaForm v-else :form="form" :especialidades="especialidades" :tipos="tipos" @submit="onSubmit">
         <template #actions>
-          <DsButton variant="secondary" icon="arrow-left" to="/referencias">Voltar</DsButton>
+          <DsButton variant="secondary" icon="arrow-left" to="/biblioteca">Voltar para Biblioteca</DsButton>
           <DsButton variant="secondary" icon="paperclip" :to="`/referencias/${id}/anexos`">Anexos</DsButton>
           <DsButton type="submit" icon="check-circle" :loading="saving" :disabled="saving">Salvar Alterações</DsButton>
         </template>
-      </ReferenciaForm>
+      </ReferenciasReferenciaForm>
     </DsPageShell>
   </div>
 </template>
@@ -28,7 +28,7 @@ const loading = ref(true)
 const saving = ref(false)
 const errorMsg = ref('')
 const especialidades = ref<Array<{ codEspecialidade: number; nome: string }>>([])
-const tipos = ref<Array<{ codTipoRef: number; descricao: string }>>([])
+const tipos = ref<Array<{ codTipoRef: number; nome?: string; descricao: string }>>([])
 const form = reactive({
   titulo: '',
   ano: '',

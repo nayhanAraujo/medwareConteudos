@@ -14,7 +14,16 @@ public interface IPadroesClienteNormalidadeService
     Task<int> CreateFaixaAsync(int codPadrao, UpsertFaixaPadraoRequest req, int codUsuario, CancellationToken ct);
     Task UpdateFaixaAsync(int codFaixa, UpsertFaixaPadraoRequest req, int codUsuario, CancellationToken ct);
     Task DeleteFaixaAsync(int codFaixa, CancellationToken ct);
-    Task UpsertComentarioAsync(int codPadrao, int codVariavel, string texto, int codUsuario, CancellationToken ct);
+    Task UpsertComentarioAsync(
+        int codPadrao,
+        int codVariavel,
+        string texto,
+        int codUsuario,
+        CancellationToken ct,
+        string? sexo = "A",
+        int? idadeMin = -1,
+        int? idadeMax = -1
+    );
 }
 
 public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidadeService
@@ -97,11 +106,51 @@ public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidad
         var faixas = (await conn.QueryAsync<FaixaPadraoDto>(faixasSql, new { selectedId, variavelFilter })).AsList();
 
         var comentarios = (await conn.QueryAsync<ComentarioPadraoDto>(@"
-            SELECT CODVARIAVEL AS CodVariavel, TEXTO AS Texto, CODPADRAOCOMENTARIO AS CodPadraoComentario
+            SELECT CODVARIAVEL AS CodVariavel, SEXO AS Sexo, IDADE_MIN AS IdadeMin, IDADE_MAX AS IdadeMax,
+                   TEXTO AS Texto, CODPADRAOCOMENTARIO AS CodPadraoComentario
             FROM PADRAONORMALIDADECOMENTARIO
             WHERE CODPADRAO = @selectedId", new { selectedId })).AsList();
 
-        var comentariosPorVariavel = comentarios.ToDictionary(c => c.CodVariavel.ToString(), c => c);
+        var comentariosPorVariavel = new Dictionary<string, ComentarioPadraoDto>();
+        var comentariosPorSexoPorVariavel = new Dictionary<int, Dictionary<string, string>>();
+        var comentariosPorIdadePorVariavel = new Dictionary<int, List<ComentarioPadraoIdadeDto>>();
+        var rowsPorVariavel = new Dictionary<int, List<(string Sexo, int IdadeMin, int IdadeMax, string Texto)>>();
+        foreach (var c in comentarios)
+        {
+            var sexo = string.IsNullOrWhiteSpace(c.Sexo) ? "A" : c.Sexo.Trim().ToUpperInvariant();
+            if (sexo is not ("F" or "M" or "A")) sexo = "A";
+            var idadeMin = c.IdadeMin < 0 ? -1 : c.IdadeMin;
+            var idadeMax = c.IdadeMax < 0 ? -1 : c.IdadeMax;
+            if (!comentariosPorSexoPorVariavel.TryGetValue(c.CodVariavel, out var porSexo))
+            {
+                porSexo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                comentariosPorSexoPorVariavel[c.CodVariavel] = porSexo;
+            }
+            var textoDisplay = Iso88591SafeText.ForDisplay(c.Texto);
+            if (idadeMin < 0 && idadeMax < 0)
+                porSexo[sexo] = textoDisplay;
+
+            if (!comentariosPorIdadePorVariavel.TryGetValue(c.CodVariavel, out var porIdade))
+            {
+                porIdade = [];
+                comentariosPorIdadePorVariavel[c.CodVariavel] = porIdade;
+            }
+            porIdade.Add(new ComentarioPadraoIdadeDto
+            {
+                Sexo = sexo,
+                IdadeMin = idadeMin,
+                IdadeMax = idadeMax,
+                Texto = textoDisplay
+            });
+
+            if (!rowsPorVariavel.TryGetValue(c.CodVariavel, out var rowsList))
+            {
+                rowsList = [];
+                rowsPorVariavel[c.CodVariavel] = rowsList;
+            }
+            rowsList.Add((sexo, idadeMin, idadeMax, textoDisplay));
+            comentariosPorVariavel[c.CodVariavel.ToString()] = c;
+        }
         var faixasPorVariavel = faixas
             .GroupBy(f => f.CodVariavel)
             .ToDictionary(
@@ -124,7 +173,9 @@ public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidad
             .Select(g =>
             {
                 var first = g.First();
-                comentariosPorVariavel.TryGetValue(g.Key.ToString(), out var com);
+                comentariosPorSexoPorVariavel.TryGetValue(g.Key, out var porSexo);
+                comentariosPorIdadePorVariavel.TryGetValue(g.Key, out var porIdade);
+                rowsPorVariavel.TryGetValue(g.Key, out var rowsList);
                 return new VariavelPadraoDto
                 {
                     CodVariavel = g.Key,
@@ -132,17 +183,28 @@ public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidad
                     Variavel = first.Variavel,
                     Sigla = first.Sigla,
                     TotalFaixas = g.Count(),
-                    ComentarioTexto = com?.Texto
+                    ComentarioTexto = rowsList is null
+                        ? FormatComentarioDisplay(porSexo)
+                        : FormatComentarioDisplayComIdade(rowsList),
+                    ComentariosPorSexo = porSexo,
+                    ComentariosPorIdade = porIdade
                 };
             })
             .OrderBy(v => v.NomeVariavel)
             .ToList();
 
         // Variáveis só com comentário (sem faixa)
-        foreach (var com in comentarios.Where(c => !faixasPorVariavel.ContainsKey(c.CodVariavel.ToString())))
+        var commentOnlyIds = comentariosPorSexoPorVariavel.Keys
+            .Concat(comentariosPorIdadePorVariavel.Keys)
+            .Distinct()
+            .Where(id => !faixasPorVariavel.ContainsKey(id.ToString()));
+        foreach (var codVar in commentOnlyIds)
         {
+            comentariosPorSexoPorVariavel.TryGetValue(codVar, out var porSexo);
+            comentariosPorIdadePorVariavel.TryGetValue(codVar, out var porIdade);
+            rowsPorVariavel.TryGetValue(codVar, out var rowsList);
             var varInfo = await conn.QueryFirstOrDefaultAsync<(string Nome, string? Variavel, string? Sigla)>(@"
-                SELECT NOME, VARIAVEL, SIGLA FROM VARIAVEIS WHERE CODVARIAVEL = @id", new { id = com.CodVariavel });
+                SELECT NOME, VARIAVEL, SIGLA FROM VARIAVEIS WHERE CODVARIAVEL = @id", new { id = codVar });
             if (string.IsNullOrWhiteSpace(varInfo.Nome)) continue;
             if (variavelFilter != null
                 && !varInfo.Nome.Contains(variavelBusca!, StringComparison.OrdinalIgnoreCase)
@@ -152,14 +214,18 @@ public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidad
 
             variaveis.Add(new VariavelPadraoDto
             {
-                CodVariavel = com.CodVariavel,
+                CodVariavel = codVar,
                 NomeVariavel = varInfo.Nome,
                 Variavel = varInfo.Variavel,
                 Sigla = varInfo.Sigla,
                 TotalFaixas = 0,
-                ComentarioTexto = com.Texto
+                ComentarioTexto = rowsList is null
+                    ? FormatComentarioDisplay(porSexo)
+                    : FormatComentarioDisplayComIdade(rowsList),
+                ComentariosPorSexo = porSexo,
+                ComentariosPorIdade = porIdade
             });
-            faixasPorVariavel[com.CodVariavel.ToString()] = [];
+            faixasPorVariavel[codVar.ToString()] = [];
         }
 
         var referenciasLookup = await LoadReferenciasLookupAsync(conn);
@@ -171,9 +237,28 @@ public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidad
             PadraoSelecionado = selected,
             Variaveis = variaveis,
             FaixasPorVariavel = faixasPorVariavel,
-            ComentariosPorVariavel = comentariosPorVariavel.ToDictionary(
-                kv => kv.Key,
-                kv => new ComentarioPadraoResumoDto { CodPadraoComentario = kv.Value.CodPadraoComentario, Texto = kv.Value.Texto }),
+            ComentariosPorVariavel = comentariosPorIdadePorVariavel.Keys
+                .Concat(comentariosPorSexoPorVariavel.Keys)
+                .Distinct()
+                .ToDictionary(
+                    id => id.ToString(),
+                    id =>
+                    {
+                        comentariosPorSexoPorVariavel.TryGetValue(id, out var porSexo);
+                        porSexo ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        comentariosPorIdadePorVariavel.TryGetValue(id, out var porIdade);
+                        rowsPorVariavel.TryGetValue(id, out var rowsList);
+                        return new ComentarioPadraoResumoDto
+                        {
+                            CodPadraoComentario = comentariosPorVariavel.TryGetValue(id.ToString(), out var c) ? c.CodPadraoComentario : 0,
+                            Texto = rowsList is null
+                                ? FormatComentarioDisplay(porSexo) ?? ""
+                                : FormatComentarioDisplayComIdade(rowsList) ?? "",
+                            Sexo = porSexo.ContainsKey("A") ? "A" : porSexo.Keys.FirstOrDefault() ?? "A",
+                            ComentariosPorSexo = porSexo,
+                            ComentariosPorIdade = porIdade
+                        };
+                    }),
             Referencias = referenciasLookup,
             Filtros = new() { VariavelBusca = variavelBusca ?? "" }
         };
@@ -401,34 +486,83 @@ public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidad
         if (affected == 0) throw new InvalidOperationException("Faixa não encontrada.");
     }
 
-    public async Task UpsertComentarioAsync(int codPadrao, int codVariavel, string texto, int codUsuario, CancellationToken ct)
+    public async Task UpsertComentarioAsync(
+        int codPadrao,
+        int codVariavel,
+        string texto,
+        int codUsuario,
+        CancellationToken ct,
+        string? sexo = "A",
+        int? idadeMin = -1,
+        int? idadeMax = -1
+    )
     {
         if (codVariavel < 1) throw new InvalidOperationException("Variável inválida.");
         await using var conn = await _db.OpenConnectionAsync(ct);
         await EnsurePadraoExistsAsync(conn, codPadrao);
 
+        var sexoNorm = NormalizeSexoComentario(sexo);
+        var imin = idadeMin is null or < 0 ? -1 : idadeMin.Value;
+        var imax = idadeMax is null or < 0 ? -1 : idadeMax.Value;
         var agora = DateTime.UtcNow;
-        var trimmed = (texto ?? "").Trim();
+        var trimmed = Iso88591SafeText.ForStorage((texto ?? "").Trim());
         if (string.IsNullOrEmpty(trimmed))
         {
             await conn.ExecuteAsync(
-                "DELETE FROM PADRAONORMALIDADECOMENTARIO WHERE CODPADRAO = @codPadrao AND CODVARIAVEL = @codVariavel",
-                new { codPadrao, codVariavel });
+                @"DELETE FROM PADRAONORMALIDADECOMENTARIO
+                  WHERE CODPADRAO = @codPadrao AND CODVARIAVEL = @codVariavel
+                    AND SEXO = @sexoNorm AND IDADE_MIN = @imin AND IDADE_MAX = @imax",
+                new { codPadrao, codVariavel, sexoNorm, imin, imax });
             return;
         }
 
-        var updated = await conn.ExecuteAsync(@"
-            UPDATE PADRAONORMALIDADECOMENTARIO SET TEXTO = @trimmed, CODUSUARIO = @codUsuario, DTHRULTMODIFICACAO = @agora
-            WHERE CODPADRAO = @codPadrao AND CODVARIAVEL = @codVariavel",
-            new { codPadrao, codVariavel, trimmed, codUsuario, agora });
+        if (trimmed.Length > 500) trimmed = trimmed[..500];
 
-        if (updated == 0)
+        await conn.ExecuteAsync(@"
+            UPDATE OR INSERT INTO PADRAONORMALIDADECOMENTARIO
+                (CODPADRAO, CODVARIAVEL, SEXO, IDADE_MIN, IDADE_MAX, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
+            VALUES
+                (@codPadrao, @codVariavel, @sexoNorm, @imin, @imax, @trimmed, @codUsuario, @agora)
+            MATCHING (CODPADRAO, CODVARIAVEL, SEXO, IDADE_MIN, IDADE_MAX)",
+            new { codPadrao, codVariavel, sexoNorm, imin, imax, trimmed, codUsuario, agora });
+    }
+
+    private static string NormalizeSexoComentario(string? sexo)
+    {
+        var s = (sexo ?? "A").Trim().ToUpperInvariant();
+        return s is "F" or "M" or "A" ? s : "A";
+    }
+
+    private static string? FormatComentarioDisplay(IReadOnlyDictionary<string, string>? porSexo)
+    {
+        if (porSexo is null || porSexo.Count == 0) return null;
+        if (porSexo.TryGetValue("A", out var a) && !string.IsNullOrWhiteSpace(a))
+            return a;
+        var parts = new List<string>();
+        if (porSexo.TryGetValue("F", out var f) && !string.IsNullOrWhiteSpace(f))
+            parts.Add($"F: {f}");
+        if (porSexo.TryGetValue("M", out var m) && !string.IsNullOrWhiteSpace(m))
+            parts.Add($"M: {m}");
+        return parts.Count > 0 ? string.Join("; ", parts) : null;
+    }
+
+    private static string? FormatComentarioDisplayComIdade(
+        IReadOnlyList<(string Sexo, int IdadeMin, int IdadeMax, string Texto)> rows
+    )
+    {
+        var comIdade = rows.Where(r => r.IdadeMin >= 0 || r.IdadeMax >= 0).ToList();
+        if (comIdade.Count > 0)
         {
-            await conn.ExecuteAsync(@"
-                INSERT INTO PADRAONORMALIDADECOMENTARIO (CODPADRAO, CODVARIAVEL, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
-                VALUES (@codPadrao, @codVariavel, @trimmed, @codUsuario, @agora)",
-                new { codPadrao, codVariavel, trimmed, codUsuario, agora });
+            return string.Join(
+                "; ",
+                comIdade.OrderBy(r => r.IdadeMin).Select(r => $"{r.IdadeMin}-{r.IdadeMax}: {r.Texto}")
+            );
         }
+
+        var porSexo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in rows)
+            porSexo[r.Sexo] = r.Texto;
+        return FormatComentarioDisplay(porSexo);
     }
 
     private static async Task EnsurePadraoExistsAsync(System.Data.Common.DbConnection conn, int codPadrao)
@@ -463,8 +597,8 @@ public sealed class PadroesClienteNormalidadeService : IPadroesClienteNormalidad
             new { codPadrao, codReferencia, codUsuario, agora }, tx);
 
         var comentarios = await conn.ExecuteAsync(@"
-            INSERT INTO PADRAONORMALIDADECOMENTARIO (CODPADRAO, CODVARIAVEL, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
-            SELECT @codPadrao, CODVARIAVEL, TEXTO, @codUsuario, @agora
+            INSERT INTO PADRAONORMALIDADECOMENTARIO (CODPADRAO, CODVARIAVEL, SEXO, IDADE_MIN, IDADE_MAX, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
+            SELECT @codPadrao, CODVARIAVEL, SEXO, IDADE_MIN, IDADE_MAX, TEXTO, @codUsuario, @agora
             FROM NORMALIDADECOMENTARIO
             WHERE CODREFERENCIA = @codReferencia",
             new { codPadrao, codReferencia, codUsuario, agora }, tx);
@@ -553,6 +687,8 @@ public sealed class VariavelPadraoDto
     public string? Sigla { get; set; }
     public int TotalFaixas { get; set; }
     public string? ComentarioTexto { get; set; }
+    public Dictionary<string, string>? ComentariosPorSexo { get; set; }
+    public List<ComentarioPadraoIdadeDto>? ComentariosPorIdade { get; set; }
 }
 
 public sealed class FaixaPadraoDto
@@ -588,14 +724,28 @@ public sealed class FaixaPadraoResumoDto
 public sealed class ComentarioPadraoDto
 {
     public int CodVariavel { get; set; }
+    public string Sexo { get; set; } = "A";
+    public int IdadeMin { get; set; } = -1;
+    public int IdadeMax { get; set; } = -1;
     public string Texto { get; set; } = "";
     public int CodPadraoComentario { get; set; }
+}
+
+public sealed class ComentarioPadraoIdadeDto
+{
+    public string Sexo { get; set; } = "A";
+    public int IdadeMin { get; set; } = -1;
+    public int IdadeMax { get; set; } = -1;
+    public string Texto { get; set; } = "";
 }
 
 public sealed class ComentarioPadraoResumoDto
 {
     public int CodPadraoComentario { get; set; }
     public string Texto { get; set; } = "";
+    public string Sexo { get; set; } = "A";
+    public Dictionary<string, string>? ComentariosPorSexo { get; set; }
+    public List<ComentarioPadraoIdadeDto>? ComentariosPorIdade { get; set; }
 }
 
 public sealed class ReferenciaLookupDto

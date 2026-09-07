@@ -146,18 +146,20 @@ public sealed class NormalidadesJsonImportService : INormalidadesJsonImportServi
             var comentario = ReadComentario(prop.Value);
             if (!string.IsNullOrWhiteSpace(comentario))
             {
+                var texto = Iso88591SafeText.ForStorage(comentario.Trim());
+                if (texto.Length > 500) texto = texto[..500];
                 await conn.ExecuteAsync(
                     @"
                     UPDATE OR INSERT INTO NORMALIDADECOMENTARIO
-                        (CODVARIAVEL, CODREFERENCIA, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
+                        (CODVARIAVEL, CODREFERENCIA, SEXO, IDADE_MIN, IDADE_MAX, TEXTO, CODUSUARIO, DTHRULTMODIFICACAO)
                     VALUES
-                        (@CodVariavel, @CodReferencia, @Texto, @CodUsuario, @Now)
-                    MATCHING (CODVARIAVEL, CODREFERENCIA)",
+                        (@CodVariavel, @CodReferencia, 'A', -1, -1, @Texto, @CodUsuario, @Now)
+                    MATCHING (CODVARIAVEL, CODREFERENCIA, SEXO, IDADE_MIN, IDADE_MAX)",
                     new
                     {
                         CodVariavel = codVariavel.Value,
                         CodReferencia = codReferencia,
-                        Texto = comentario.Trim(),
+                        Texto = texto,
                         CodUsuario = codUsuario,
                         Now = DateTime.Now
                     },
