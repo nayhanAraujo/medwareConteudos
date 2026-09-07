@@ -18,6 +18,11 @@ public sealed class PublicacaoController(PublicacaoService service) : Controller
         => await Handle(() => service.List(page, scriptId, ct));
 
     [RequirePermission(PermissionDomains.Assistente, PermissionActions.Visualizar)]
+    [HttpGet("pacotes/{id:int}/scripts")]
+    public async Task<IActionResult> PackageScripts(int id, [FromQuery] int page = 1, [FromQuery] string? search = null, CancellationToken ct = default)
+        => await Handle(() => service.PackageScripts(id, page, search, ct));
+
+    [RequirePermission(PermissionDomains.Assistente, PermissionActions.Visualizar)]
     [HttpPost("origens")]
     public async Task<IActionResult> Origins([FromBody] int[] ids, CancellationToken ct)
         => await Handle(async () => await service.TargetOrigins(ids.Distinct().Take(100).ToArray(), ct));
@@ -31,6 +36,16 @@ public sealed class PublicacaoController(PublicacaoService service) : Controller
     [HttpPut("pacotes/{id:int}")]
     public async Task<IActionResult> Mapping(int id, [FromBody] MappingRequest request, CancellationToken ct)
         => await Handle(async () => { await service.SaveMapping(id, request.Especialidades, ct); return new { ok = true }; });
+
+    [RequirePermission(PermissionDomains.Assistente, PermissionActions.Vincular)]
+    [HttpPut("pacotes/{package:int}/scripts/{script:int}")]
+    public async Task<IActionResult> ScriptMapping(int package, int script, [FromBody] MappingRequest request, CancellationToken ct)
+        => await Handle(async () => { await service.SaveScriptMapping(package, script, request.Especialidades, ct); return new { ok = true }; });
+
+    [RequirePermission(PermissionDomains.Assistente, PermissionActions.Vincular)]
+    [HttpPut("pacotes/{package:int}/scripts")]
+    public async Task<IActionResult> BulkScriptMapping(int package, [FromBody] BulkMappingRequest request, CancellationToken ct)
+        => await Handle(async () => { await service.SaveBulkScriptMapping(package, request.Scripts, request.Especialidades, ct); return new { ok = true }; });
 
     [RequirePermission(PermissionDomains.Assistente, PermissionActions.Aprovar)]
     [HttpPost("scripts/{id:int}/repetir")]
@@ -59,5 +74,6 @@ public sealed class PublicacaoController(PublicacaoService service) : Controller
     }
 
     public sealed record MappingRequest(int[] Especialidades);
+    public sealed record BulkMappingRequest(int[] Scripts, int[] Especialidades);
     public sealed record ReconcileRequest(int Destino, int? MrdDestino = null);
 }

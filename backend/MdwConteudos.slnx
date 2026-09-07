@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Aplicação/">
+    <Project Path="ConversorHtml.Domain/ConversorHtml.Domain.csproj" />
+    <Project Path="ConversorHtml.Application/ConversorHtml.Application.csproj" />
+    <Project Path="MdwConteudos.Api/MdwConteudos.Api.csproj" />
+  </Folder>
+  <Folder Name="/Testes/">
+    <Project Path="ConversorHtml.Tests/ConversorHtml.Tests.csproj" />
+  </Folder>
+</Solution>

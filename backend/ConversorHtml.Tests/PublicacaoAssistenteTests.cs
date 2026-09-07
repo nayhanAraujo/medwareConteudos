@@ -51,6 +51,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
         await Migrate(target, "publicacao-assistente.sql");
         await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (10,'Consulta')");
         await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (20,'Local')");
+        await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (30,'Ecocardiografia')");
         service = new PublicacaoService(new SourceFactory(sourceCs), new TargetFactory(targetCs), Options.Create(new PublicacaoOptions { Enabled = true, SourceKey = "test" }));
         await service.SaveMapping(1, [10], default);
     }
@@ -149,17 +150,33 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
         await source.ExecuteAsync("INSERT INTO SCRIPTLAUDOMRD VALUES (1,1,'modelo.mrd',@bytes,'T')", new { bytes = "Medware Designer Report 1.0 test"u8.ToArray() });
         await service.ProcessNext(default);
         await using var target = new FbConnection(targetCs);
-        await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (30,'Nova')");
+        await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (40,'Nova')");
         await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO_ESPECIALIDADE VALUES (1,20)");
         await target.ExecuteAsync("INSERT INTO PAGFOTOS_ESPECIALIDADE VALUES (1,20)");
-        await service.SaveMapping(1, [30], default);
+        await service.SaveMapping(1, [40], default);
         await service.ProcessNext(default);
-        Assert.Equal(new[] { 20, 30 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
-        Assert.Equal(new[] { 20, 30 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM PAGFOTOS_ESPECIALIDADE ORDER BY 1"));
+        Assert.Equal(new[] { 20, 40 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
+        Assert.Equal(new[] { 20, 40 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM PAGFOTOS_ESPECIALIDADE ORDER BY 1"));
         await source.ExecuteAsync("DELETE FROM SCRIPTLAUDOMRD");
         await service.ProcessNext(default);
         Assert.Equal(1, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM PAGFOTOS"));
         Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO_PAGFOTOS"));
+    }
+
+    [FirebirdPublicationFact]
+    public async Task ScriptSpecificMappingOverridesPackageMapping()
+    {
+        await Seed();
+        await service.SaveScriptMapping(1, 1, [30], default);
+        await service.ProcessNext(default);
+        await using var target = new FbConnection(targetCs);
+        Assert.Equal(new[] { 30 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
+        await service.SaveMapping(1, [10, 20], default);
+        await service.ProcessNext(default);
+        Assert.Equal(new[] { 30 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
+        await service.SaveScriptMapping(1, 1, [], default);
+        await service.ProcessNext(default);
+        Assert.Equal(new[] { 10, 20 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
     }
 
     [FirebirdPublicationFact]

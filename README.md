@@ -23,6 +23,14 @@ dotnet run
 
 A API lê o `.env` da raiz detectada da stack (`FIREBIRD_*`, `SECRET_KEY`, `API_JWT_*`).
 
+Para restaurar, compilar ou testar todo o backend de uma vez, use a solução:
+
+```powershell
+dotnet restore backend\MdwConteudos.slnx
+dotnet build backend\MdwConteudos.slnx
+dotnet test backend\MdwConteudos.slnx
+```
+
 ### 2. Nuxt (porta 3000)
 
 ```powershell
@@ -75,6 +83,35 @@ Manual do agente HTML: [`backend/manual_scripts_html_UX.md`](backend/manual_scri
 Manual modo texto: [`backend/AGENTE-MODELOS-MODO-TEXTO.md`](backend/AGENTE-MODELOS-MODO-TEXTO.md).  
 Instalação completa, produção e troubleshooting: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
+### 6. Publicação no Assistente
+
+Rota Nuxt: `/scripts/publicacao`. API: `/api/web/assistente/publicacao`.
+
+O módulo publica scripts do banco **REFERENCIAS/Conteúdos** no banco **ASSISTENTE**, mantendo os modelos do Assistente sincronizados a partir da origem. A associação principal é `pacote -> especialidades`; quando um pacote mistura especialidades, a tela permite definir uma regra específica `script -> especialidades`, que substitui o padrão do pacote apenas para aquele script.
+
+Regras principais:
+
+- scripts Laudos UX podem ser publicados sem MRD;
+- scripts Laudos Flex exigem MRD padrão;
+- ao inativar a origem, o script e o MRD vinculado são inativados no Assistente;
+- exclusão local no Assistente suspende a publicação até retomada;
+- edição local de título, tipo e estrutura de scripts sincronizados é bloqueada.
+
+Configuração:
+
+```json
+"PublicacaoAssistente": {
+  "Enabled": true,
+  "SourceKey": "conteudos-principal"
+}
+```
+
+Migrações Firebird:
+
+- `backend/sql/publicacao-conteudos.sql` no banco REFERENCIAS novo;
+- `backend/sql/publicacao-assistente.sql` no banco ASSISTENTE;
+- `backend/sql/publicacao-conteudos-script-mapa.sql` em bancos REFERENCIAS que já tinham recebido a publicação inicial antes do mapeamento por script.
+
 ## Endpoints principais
 
 | Área | Prefixo |
@@ -83,6 +120,7 @@ Instalação completa, produção e troubleshooting: [`docs/DEPLOY.md`](docs/DEP
 | API interna (sem JWT) | `/api/v1` |
 | Conversor Studio (HTML / TXT) | `/api/conversions` |
 | Laudo por voz (Studio) | `/api/voice/sessions` |
+| Publicação no Assistente | `/api/web/assistente/publicacao` |
 | Web (Nuxt + JWT usuário) | `/api/web` |
 | Swagger | `/swagger` |
 
@@ -91,10 +129,12 @@ Instalação completa, produção e troubleshooting: [`docs/DEPLOY.md`](docs/DEP
 ```
 <raiz-do-projeto>/
 ├── backend/
+│   ├── MdwConteudos.slnx          # Solução .NET completa do backend
 │   ├── MdwConteudos.Api/          # ASP.NET Core 10 (inclui /api/conversions)
 │   ├── ConversorHtml.Application/ # Conversão imagem → HTML ou TXT
 │   ├── ConversorHtml.Domain/
 │   ├── agent-bridge/              # Cursor Composer bridge (convert.mjs, voice.mjs)
+│   ├── sql/                       # Migrações Firebird da stack nova
 │   └── AGENTE-LAUDO-POR-VOZ.md
 ├── frontend/nuxt-app/             # Nuxt + hub + /studio (Conversor)
 ├── docs/CUTOVER.md
@@ -108,6 +148,7 @@ Instalação completa, produção e troubleshooting: [`docs/DEPLOY.md`](docs/DEP
 - Auth / usuários (SHA-256, JWT web)
 - API pública (`routes/api.py`) — paridade de rotas
 - Web: variáveis, fórmulas, modelos, scripts, relatórios, referências, impressos, conteúdos, painéis, usuários e cadastros-base
+- Assistente: cadastros, importação/exportação de modelos, vínculos, agrupamento por especialidade e publicação sincronizada a partir dos pacotes/scripts do Conteúdos
 - IA legada (Agente PubMed/Grok e Oráculo/XML): **fora do escopo**
 - Conversor Azure OpenAI: **fora do escopo**
 - Upload/importação legada `uploaddll`: **fora do escopo**

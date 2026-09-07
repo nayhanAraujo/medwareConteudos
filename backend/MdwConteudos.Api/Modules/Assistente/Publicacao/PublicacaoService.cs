@@ -32,8 +32,9 @@ public sealed class PublicacaoService(
         await using var target = await targetFactory.OpenConnectionAsync(ct);
         var packages = await source.QueryAsync(new CommandDefinition("SELECT CODPACOTE AS Id, NOME AS Nome FROM PACOTES ORDER BY NOME", cancellationToken: ct));
         var mappings = await source.QueryAsync(new CommandDefinition("SELECT CODPACOTE AS Pacote, CODESPECIALIDADE AS Especialidade FROM ASS_PACOTE_MAPA", cancellationToken: ct));
+        var scriptMappings = await source.QueryAsync(new CommandDefinition("SELECT CODSCRIPTLAUDO AS Script, CODESPECIALIDADE AS Especialidade FROM ASS_SCRIPT_MAPA", cancellationToken: ct));
         var specialties = await target.QueryAsync(new CommandDefinition("SELECT CODESPECIALIDADE AS Id, DESCRICAO AS Nome FROM ESPECIALIDADE ORDER BY DESCRICAO", cancellationToken: ct));
-        return new { enabled = true, packages, mappings, specialties };
+        return new { enabled = true, packages, mappings, scriptMappings, specialties };
     }
 
     public async Task<object> List(int page, int? scriptId, CancellationToken ct, int[]? ids = null)
@@ -60,11 +61,7 @@ public sealed class PublicacaoService(
     public async Task SaveMapping(int package, int[] ids, CancellationToken ct)
     {
         RequireEnabled();
-        ids = ids.Distinct().ToArray();
-        await using var target = await targetFactory.OpenConnectionAsync(ct);
-        foreach (var id in ids)
-            if (id <= 0 || await target.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM ESPECIALIDADE WHERE CODESPECIALIDADE=@id", new { id }, cancellationToken: ct)) != 1)
-                throw new InvalidOperationException($"Especialidade inexistente: {id}.");
+        ids = await ValidateSpecialties(ids, ct);
         await using var source = await sourceFactory.OpenConnectionAsync(ct);
         await using var tx = await source.BeginTransactionAsync(ct);
         if (await source.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM PACOTES WHERE CODPACOTE=@package", new { package }, tx, cancellationToken: ct)) != 1)
@@ -72,6 +69,91 @@ public sealed class PublicacaoService(
         await source.ExecuteAsync(new CommandDefinition("DELETE FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@package", new { package }, tx, cancellationToken: ct));
         foreach (var id in ids)
             await source.ExecuteAsync(new CommandDefinition("INSERT INTO ASS_PACOTE_MAPA (CODPACOTE,CODESPECIALIDADE) VALUES (@package,@id)", new { package, id }, tx, cancellationToken: ct));
+        await tx.CommitAsync(ct);
+    }
+
+    public async Task<object> PackageScripts(int package, int page, string? search, CancellationToken ct)
+    {
+        if (!Enabled) return new { items = Array.Empty<object>(), total = 0 };
+        RequireEnabled();
+        await using var source = await sourceFactory.OpenConnectionAsync(ct);
+        var where = new List<string> { "s.CODPACOTE=@package" };
+        var parameters = new DynamicParameters(new { package, skip = (Math.Max(1, page) - 1) * 30 });
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            where.Add("(UPPER(s.NOME) CONTAINING UPPER(@search) OR CAST(s.CODSCRIPTLAUDO AS VARCHAR(20)) CONTAINING @search)");
+            parameters.Add("search", search.Trim());
+        }
+        var whereSql = string.Join(" AND ", where);
+        var total = await source.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) FROM SCRIPTLAUDO s WHERE {whereSql}", parameters, cancellationToken: ct));
+        var rows = (await source.QueryAsync<PackageScriptRow>(new CommandDefinition($"""
+            SELECT FIRST 30 SKIP @skip s.CODSCRIPTLAUDO AS Id, s.NOME AS Nome, s.SISTEMA AS Sistema,
+            s.LINGUAGEM AS Linguagem, s.ATIVO AS Ativo, q.ESTADO AS Estado, q.CODDESTINO AS CodDestino
+            FROM SCRIPTLAUDO s LEFT JOIN ASS_PUBLICACAO q ON q.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO
+            WHERE {whereSql}
+            ORDER BY s.NOME
+            """, parameters, cancellationToken: ct))).ToList();
+        var ids = rows.Select(x => x.Id).ToArray();
+        var packageSpecialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@package ORDER BY CODESPECIALIDADE", new { package }, cancellationToken: ct))).ToArray();
+        var specificRows = ids.Length == 0
+            ? []
+            : (await source.QueryAsync<ScriptMappingRow>(new CommandDefinition("SELECT CODSCRIPTLAUDO AS Script, CODESPECIALIDADE AS Especialidade FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO IN @ids ORDER BY CODESPECIALIDADE", new { ids }, cancellationToken: ct))).ToList();
+        var specificByScript = specificRows.GroupBy(x => x.Script).ToDictionary(g => g.Key, g => g.Select(x => x.Especialidade).ToArray());
+        var items = rows.Select(row =>
+        {
+            specificByScript.TryGetValue(row.Id, out var specific);
+            var effective = specific is { Length: > 0 } ? specific : packageSpecialties;
+            return new
+            {
+                row.Id,
+                row.Nome,
+                row.Sistema,
+                row.Linguagem,
+                row.Ativo,
+                row.Estado,
+                row.CodDestino,
+                UsaRegraEspecifica = specific is { Length: > 0 },
+                EspecialidadesEspecificas = specific ?? [],
+                EspecialidadesEfetivas = effective
+            };
+        }).ToArray();
+        return new { items, total, packageSpecialties };
+    }
+
+    public async Task SaveScriptMapping(int package, int script, int[] ids, CancellationToken ct)
+    {
+        RequireEnabled();
+        ids = await ValidateSpecialties(ids, ct);
+        await using var source = await sourceFactory.OpenConnectionAsync(ct);
+        await using var tx = await source.BeginTransactionAsync(ct);
+        if (await source.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@script AND CODPACOTE=@package", new { script, package }, tx, cancellationToken: ct)) != 1)
+            throw new InvalidOperationException("Script inexistente neste pacote.");
+        await source.ExecuteAsync(new CommandDefinition("DELETE FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO=@script", new { script }, tx, cancellationToken: ct));
+        foreach (var id in ids)
+            await source.ExecuteAsync(new CommandDefinition("INSERT INTO ASS_SCRIPT_MAPA (CODSCRIPTLAUDO,CODESPECIALIDADE) VALUES (@script,@id)", new { script, id }, tx, cancellationToken: ct));
+        if (ids.Length == 0)
+            await source.ExecuteAsync(new CommandDefinition("EXECUTE PROCEDURE ASS_ENFILEIRAR(@script)", new { script }, tx, cancellationToken: ct));
+        await tx.CommitAsync(ct);
+    }
+
+    public async Task SaveBulkScriptMapping(int package, int[] scripts, int[] ids, CancellationToken ct)
+    {
+        RequireEnabled();
+        scripts = scripts.Distinct().Where(x => x > 0).ToArray();
+        if (scripts.Length == 0) throw new InvalidOperationException("Selecione pelo menos um script.");
+        ids = await ValidateSpecialties(ids, ct);
+        await using var source = await sourceFactory.OpenConnectionAsync(ct);
+        await using var tx = await source.BeginTransactionAsync(ct);
+        var existing = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODSCRIPTLAUDO FROM SCRIPTLAUDO WHERE CODPACOTE=@package AND CODSCRIPTLAUDO IN @scripts", new { package, scripts }, tx, cancellationToken: ct))).ToHashSet();
+        if (existing.Count != scripts.Length) throw new InvalidOperationException("Um ou mais scripts nao pertencem ao pacote selecionado.");
+        foreach (var script in scripts)
+        {
+            await source.ExecuteAsync(new CommandDefinition("DELETE FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO=@script", new { script }, tx, cancellationToken: ct));
+            foreach (var id in ids)
+                await source.ExecuteAsync(new CommandDefinition("INSERT INTO ASS_SCRIPT_MAPA (CODSCRIPTLAUDO,CODESPECIALIDADE) VALUES (@script,@id)", new { script, id }, tx, cancellationToken: ct));
+            if (ids.Length == 0)
+                await source.ExecuteAsync(new CommandDefinition("EXECUTE PROCEDURE ASS_ENFILEIRAR(@script)", new { script }, tx, cancellationToken: ct));
+        }
         await tx.CommitAsync(ct);
     }
 
@@ -219,8 +301,10 @@ public sealed class PublicacaoService(
             """, new { id }, tx, cancellationToken: ct));
         if (row is null) return null;
         if (row.Active != 1) return new Payload(row.Title, 0, null, null, null, [], null, false);
-        var specialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@Package", row, tx, cancellationToken: ct))).ToArray();
-        if (specialties.Length == 0) throw new InvalidOperationException("Associe o pacote a pelo menos uma especialidade antes de publicar.");
+        var specialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO=@id", new { id }, tx, cancellationToken: ct))).ToArray();
+        if (specialties.Length == 0)
+            specialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@Package", row, tx, cancellationToken: ct))).ToArray();
+        if (specialties.Length == 0) throw new InvalidOperationException("Associe o script ou o pacote a pelo menos uma especialidade antes de publicar.");
         var versions = (await source.QueryAsync<VersionFiles>(new CommandDefinition("""
             SELECT CODVERSAO AS Id, ARQUIVO_JSON AS Json, ARQUIVO_DLL AS Dll
             FROM SCRIPTVERSOES WHERE CODSCRIPTLAUDO=@id AND ATIVO='T'
@@ -338,7 +422,32 @@ public sealed class PublicacaoService(
     }
 
     private static byte[] Bytes(object? value) => value switch { byte[] b => b, string s => Encoding.UTF8.GetBytes(s), _ => [] };
+    private async Task<int[]> ValidateSpecialties(int[] ids, CancellationToken ct)
+    {
+        ids = ids.Distinct().Where(x => x > 0).ToArray();
+        await using var target = await targetFactory.OpenConnectionAsync(ct);
+        foreach (var id in ids)
+            if (await target.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM ESPECIALIDADE WHERE CODESPECIALIDADE=@id", new { id }, cancellationToken: ct)) != 1)
+                throw new InvalidOperationException($"Especialidade inexistente: {id}.");
+        return ids;
+    }
+
     private sealed record Job(int Id, long Revision, int Attempts);
+    private sealed class PackageScriptRow
+    {
+        public int Id { get; set; }
+        public string Nome { get; set; } = "";
+        public string? Sistema { get; set; }
+        public string? Linguagem { get; set; }
+        public int Ativo { get; set; }
+        public string? Estado { get; set; }
+        public int? CodDestino { get; set; }
+    }
+    private sealed class ScriptMappingRow
+    {
+        public int Script { get; set; }
+        public int Especialidade { get; set; }
+    }
     private sealed class SourceScript
     {
         public string Title { get; set; } = "";

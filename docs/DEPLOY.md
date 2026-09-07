@@ -12,7 +12,7 @@ Guia único do que instalar e configurar para rodar a stack nova em **desenvolvi
 | Frontend Nuxt | `frontend/nuxt-app` | **3000** (dev) | Hub + `/studio` (conversor HTML ou TXT) |
 | Bridge Node (Studio) | `backend/agent-bridge` | — | Conversão imagem → HTML ou TXT via `@cursor/sdk` |
 | Firebird REFERENCIAS | `.env` / `Firebird:*` | 3052 | Login, scripts, cadastros web |
-| Firebird ASSISTENTE | `AssistantFirebird:*` | 3050 | Módulo `/assistente/*` |
+| Firebird ASSISTENTE | `AssistantFirebird:*` | 3050 | Módulo `/assistente/*` e publicação sincronizada |
 
 Em produção, o Nuxt costuma ser servido como build estático ou SSR (`node .output/server/index.mjs`), com **reverse proxy** encaminhando `/api-dotnet` para a API .NET (o proxy do `nuxt.config.ts` só vale em `npm run dev`).
 
@@ -70,9 +70,8 @@ npm ci --omit=dev
 ### 3. API .NET (restore)
 
 ```powershell
-cd backend\MdwConteudos.Api
-dotnet restore
-dotnet build -c Release
+dotnet restore backend\MdwConteudos.slnx
+dotnet build backend\MdwConteudos.slnx -c Release
 ```
 
 Publicação:
@@ -113,6 +112,35 @@ Variáveis comuns:
 | `ASSISTENTE_FIREBIRD_PASSWORD` | Senha |
 
 Alternativa: seção `AssistantFirebird` em `appsettings.json` ou `appsettings.Production.local.json`.
+
+### Publicação Conteúdos -> Assistente
+
+Quando `PublicacaoAssistente:Enabled` estiver ativo, a API mantém scripts do banco REFERENCIAS sincronizados no banco ASSISTENTE pela rota `/scripts/publicacao`.
+
+Configuração:
+
+```json
+{
+  "PublicacaoAssistente": {
+    "Enabled": true,
+    "SourceKey": "conteudos-principal"
+  }
+}
+```
+
+| Campo | Descrição |
+|-------|-----------|
+| `Enabled` | Liga o worker e os endpoints de publicação |
+| `SourceKey` | Identificador estável da origem gravado no ASSISTENTE; não trocar depois de publicar |
+
+Regras de publicação:
+
+- o padrão é mapear `pacote -> especialidades do Assistente`;
+- scripts individuais podem ter regra própria `script -> especialidades`, usada no lugar do padrão do pacote;
+- Laudos UX podem publicar sem MRD; Laudos Flex exigem MRD padrão;
+- inativação na origem inativa também o MRD vinculado;
+- exclusão local no Assistente suspende a publicação até retomada;
+- vínculos locais extras do Assistente são preservados.
 
 ### Config local da API (recomendado em servidor)
 
@@ -185,10 +213,48 @@ Studio: `http://localhost:3000/studio/converter`
 - [ ] .NET 10 runtime/SDK no servidor
 - [ ] Node.js **22+** no PATH (obrigatório se usar conversor Cursor)
 - [ ] Firebird acessível (REFERENCIAS + ASSISTENTE, se usar `/assistente`)
+- [ ] Migrações Firebird aplicadas nos bancos usados pela API
 - [ ] `.env` ou variáveis de ambiente configuradas
 - [ ] `CURSOR_API_KEY` definida (se `Conversion.Provider` = `Cursor`)
 - [ ] `WebAuth:DevUserEnabled` = `false` em produção
 - [ ] `WebAuth:JwtSecret` com segredo forte (não usar o default de dev)
+- [ ] `PublicacaoAssistente:SourceKey` definido antes de habilitar publicação
+
+### Migrações Firebird
+
+Execute sempre com backup prévio dos bancos.
+
+Banco REFERENCIAS/Conteúdos:
+
+```powershell
+isql -user SYSDBA -password masterkey <CONEXAO_REFERENCIAS> -i backend\sql\publicacao-conteudos.sql
+```
+
+Banco ASSISTENTE:
+
+```powershell
+isql -user SYSDBA -password masterkey <CONEXAO_ASSISTENTE> -i backend\sql\publicacao-assistente.sql
+```
+
+Para ambientes que já receberam `publicacao-conteudos.sql` antes da criação do mapeamento por script, aplique também:
+
+```powershell
+isql -user SYSDBA -password masterkey <CONEXAO_REFERENCIAS> -i backend\sql\publicacao-conteudos-script-mapa.sql
+```
+
+Objetos esperados no REFERENCIAS:
+
+- `ASS_PACOTE_MAPA`
+- `ASS_SCRIPT_MAPA`
+- `ASS_PUBLICACAO`
+- triggers `ASS_*_EVENTO`
+
+Objetos esperados no ASSISTENTE:
+
+- `CON_PUBLICACAO`
+- `CON_PUBLICACAO_ESP`
+- `CON_PUBLICACAO_MRD_ESP`
+- triggers/guards de publicação local
 
 ### Build e artefatos
 
@@ -227,6 +293,15 @@ Teste funcional:
 2. Banner “API de conversão online”
 3. Enviar imagem, escolher **HTML** ou **TXT modo texto** no modal e aguardar conversão (pode levar **até 5 minutos**; timeout configurável em `Cursor:TimeoutSeconds`)
 4. TXT gerado pode ser importado em LaudosUX (`/Script/Editar` → Importar)
+
+Teste publicação no Assistente:
+
+1. Abrir `/scripts/publicacao`
+2. Selecionar um pacote e marcar as especialidades padrão do Assistente
+3. Salvar o padrão e aguardar a fila sincronizar
+4. Para pacote misto, configurar regra específica em um script e validar que ele publica apenas nas especialidades selecionadas
+5. Usar “Voltar ao padrão” e validar que o script herda novamente as especialidades do pacote
+6. Conferir o destino em `/assistente/scripts`
 
 Teste laudo por voz (do zero, sem imagem):
 
