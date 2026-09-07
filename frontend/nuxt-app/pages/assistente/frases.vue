@@ -1,6 +1,6 @@
 <template>
   <div>
-    <DsPageHeader title="Frases" subtitle="Banco de frases organizado por grupos" icon="chat-left-text">
+    <DsPageHeader title="Banco de frases" subtitle="Banco de frases organizado por grupos" icon="chat-left-text">
       <template #actions>
         <DsButton variant="secondary" size="sm" to="/assistente">Voltar</DsButton>
         <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="folder-plus" @click="openGroupEditor()">Novo grupo</DsButton>

@@ -1,7 +1,7 @@
 <template>
   <div>
     <DsPageHeader
-      title="Visualizar Conteúdos"
+      title="Gerenciamento de conteudos e banco do assistente"
       subtitle="Escolha o tipo de conteúdo que deseja gerenciar"
       icon="box-seam"
     />
@@ -58,12 +58,11 @@ const cards: ContentCard[] = [
   },
   {
     type: 'mensagens_personalizadas',
-    title: 'Banco de frases',
-    desc: 'Gerência de frases',
+    title: 'Frases do Assistente',
+    desc: 'Banco de frases e grupos do Assistente',
     icon: 'quote',
     themeName: 'green',
-    nuxtPath: '/conteudos/banco-de-frases',
-    flaskPath: '/conteudos/banco_de_frases'
+    nuxtPath: '/assistente/frases'
   },
   {
     type: 'painel_api',

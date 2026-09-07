@@ -6,7 +6,7 @@ Documento para **outro agente** executar em etapas, sem parar o desenvolvimento.
 
 **Decisão aplicada:** manter o checkout atual e resolver a raiz pela presença de `backend/MdwConteudos.Api` e `frontend/nuxt-app`. `Conteudos_migracao` permanece apenas como nome do repositório remoto.
 
-**Status em 07/09/2026:** implementação concluída no working tree; compilação e testes funcionais aguardam validação manual do responsável pelo projeto.
+**Status em 07/09/2026:** implementação concluída no working tree; solução compilada com sucesso e testes automatizados aprovados. Os testes funcionais com arquivos e bancos continuam pendentes.
 
 **Ordem obrigatória:** Fase 1 → 2 → 3 → 4 → 5 (cada fase depende da anterior).
 
@@ -318,7 +318,7 @@ Recomendação: **1 PR por fase** para revisão incremental.
 
 ## Próximos passos (média prioridade — plano futuro)
 
-- Criar `backend/MdwConteudos.sln`
+- [x] Criar solução do backend (`backend/MdwConteudos.slnx`)
 - Extrair controllers de `ConteudosWebService.cs` / `AgenteWebService.cs`
 - Refatorar `CadastrosControllers.cs` (1 controller por arquivo)
 - Renomear `ConversorHtml.Tests` → `MdwConteudos.Tests`

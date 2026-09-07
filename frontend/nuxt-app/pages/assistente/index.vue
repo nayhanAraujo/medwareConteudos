@@ -46,7 +46,7 @@ const modules = [
   { key: 'procedimentos', title: 'Procedimentos / TUSS', description: 'Procedimentos e vínculos com scripts e frases.', icon: 'clipboard2-pulse', themeName: 'blue' as DsThemeName, to: '/assistente/procedimentos' },
   { key: 'scripts', title: 'Scripts de laudo', description: 'Scripts legados, DLL e JSON.', icon: 'code-square', themeName: 'purple' as DsThemeName, to: '/assistente/scripts' },
   { key: 'paginasFotos', title: 'Modelos MRD', description: 'Páginas de impressão e fotos.', icon: 'file-earmark-richtext', themeName: 'slate' as DsThemeName, to: '/assistente/paginas-fotos' },
-  { key: 'frases', title: 'Frases e grupos', description: 'Banco de frases organizado por grupos.', icon: 'chat-left-text', themeName: 'orange' as DsThemeName, to: '/assistente/frases' },
+  { key: 'frases', title: 'Banco de frases', description: 'Banco de frases organizado por grupos.', icon: 'chat-left-text', themeName: 'orange' as DsThemeName, to: '/assistente/frases' },
   { key: 'especialidades', title: 'Especialidades', description: 'Catálogo de especialidades médicas.', icon: 'heart-pulse', themeName: 'rose' as DsThemeName, to: '/assistente/especialidades' },
   { key: 'referencias', title: 'Referências', description: 'Textos e referências por especialidade.', icon: 'journal-medical', themeName: 'green' as DsThemeName, to: '/assistente/referencias' },
   { key: 'esquemas', title: 'Esquemas', description: 'Esquemas gerais e de fotografias.', icon: 'diagram-3', themeName: 'purple' as DsThemeName, to: '/assistente/esquemas' },
