@@ -200,7 +200,10 @@ const saving = ref(false)
 const versao = ref<ScriptVersionDetailDto | null>(null)
 const totalVersoes = ref(0)
 
-const pageTitle = computed(() => (versao.value ? `Versão ${versao.value.numeroVersao}` : `Versão ${codversao}`))
+const pageTitle = computed(() => {
+  if (!versao.value) return `Versão ${codversao}`
+  return `${versao.value.nomeScript} — Versão ${versao.value.numeroVersao}`
+})
 const isActive = computed(() => (versao.value?.ativo || '').toUpperCase() === 'T')
 const isApproved = computed(() => versao.value?.aprovado === 'T')
 const hasMrd = computed(() => (versao.value?.mrdList.length || 0) > 0)

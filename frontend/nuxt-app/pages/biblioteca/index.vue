@@ -128,6 +128,7 @@ const quickRef: BibAction[] = [
   { label: 'Nova Referência', icon: 'bi bi-journal-plus', nuxtPath: '/referencias/nova' },
   { label: 'Importar JSON / C#', icon: 'bi bi-upload', nuxtPath: '/variaveis/importar' },
   { label: 'Novo Script', icon: 'bi bi-code-slash', nuxtPath: '/scripts/sistema' },
+  { label: 'Listar Pacotes', icon: 'bi bi-box-seam', nuxtPath: '/pacotes' },
   { label: 'Novo Pacote', icon: 'bi bi-box-fill', nuxtPath: '/pacotes' },
   { label: 'Agente de Extração', icon: 'bi bi-robot', flaskPath: '/agente/processar_documento' },
   { label: 'Grupos de Variáveis', icon: 'bi bi-collection', nuxtPath: '/grupos' },
@@ -167,6 +168,7 @@ const modulosRef = [
     icon: 'bi bi-collection-play-fill',
     iconColor: '#6c757d',
     actions: [
+      { label: 'Listar Pacotes', nuxtPath: '/pacotes' },
       { label: 'Listar Scripts', nuxtPath: '/scripts/sistema' },
       { label: 'Novo Script', nuxtPath: '/scripts/sistema' },
       { label: 'E-mails de Notificação', nuxtPath: '/scripts/emails-notificacao' }

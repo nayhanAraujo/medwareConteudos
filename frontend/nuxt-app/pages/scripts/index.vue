@@ -46,7 +46,7 @@
           </div>
         </div>
 
-        <div v-if="viewMode === 'list'" class="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 mb-4">
+        <div class="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 mb-4">
           <div class="flex flex-wrap justify-between items-center gap-3">
             <div class="flex items-center gap-3">
               <label class="flex items-center gap-2 text-sm font-medium">
@@ -56,6 +56,9 @@
               <span class="text-sm text-gray-600">{{ selectedCountLabel }}</span>
             </div>
             <div class="flex flex-wrap gap-2">
+              <DsButton v-if="canEditScripts" variant="secondary" size="sm" icon="box-arrow-right" :disabled="!selectedScriptIds.length" @click="openTransfer(selectedScriptIds)">
+                Transferir pacote
+              </DsButton>
               <DsButton variant="secondary" size="sm" :disabled="!hasJsonSelected" @click="exportSelected('json')">JSON</DsButton>
               <DsButton variant="secondary" size="sm" :disabled="!hasDllSelected" @click="exportSelected('dll')">DLL</DsButton>
               <DsButton variant="secondary" size="sm" :disabled="!hasMrdSelected" @click="exportSelected('mrd')">MRD</DsButton>
@@ -73,7 +76,10 @@
             :key="item.codScriptLaudo"
             class="rounded-xl border border-gray-200 bg-white hover:shadow-ds transition-shadow flex flex-col overflow-hidden"
           >
-            <div class="aspect-[16/9] bg-ds-surface overflow-hidden">
+            <div class="relative aspect-[16/9] bg-ds-surface overflow-hidden">
+              <label class="absolute left-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white/95 shadow-sm" :aria-label="`Selecionar ${item.nome}`">
+                <input v-model="selectedScriptIds" type="checkbox" class="rounded" :value="item.codScriptLaudo" @change="syncSelectAll" />
+              </label>
               <img
                 v-if="item.imagensDisplay?.[0]?.caminho"
                 :src="mediaUrl(item.imagensDisplay[0].caminho)"
@@ -98,7 +104,7 @@
               </p>
               <div class="flex justify-between items-center gap-1.5 pt-0.5">
                 <DsButton variant="secondary" size="sm" icon="info-circle-fill" @click="detailModalId = item.codScriptLaudo">Detalhes</DsButton>
-                <ScriptsScriptActionsDropdown :item="item" />
+                <ScriptsScriptActionsDropdown :item="item" @transfer="openTransfer([item.codScriptLaudo])" />
               </div>
             </div>
           </article>
@@ -134,7 +140,7 @@
             <td>
               <div class="flex gap-2 justify-end">
                 <DsButton variant="ghost" size="sm" icon="info-circle-fill" @click="detailModalId = item.codScriptLaudo" />
-                <ScriptsScriptActionsDropdown :item="item" />
+                <ScriptsScriptActionsDropdown :item="item" @transfer="openTransfer([item.codScriptLaudo])" />
               </div>
             </td>
           </tr>
@@ -214,6 +220,40 @@
           <DsButton variant="secondary" @click="detailModalId = null">Fechar</DsButton>
         </template>
       </DsModal>
+
+      <DsModal v-model="transferModalOpen" title="Transferir scripts para outro pacote" size="lg" :close-on-backdrop="!transferBusy">
+        <div class="space-y-4">
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+            <p><strong>Pacote atual:</strong> {{ pacoteNome }}</p>
+            <p><strong>Scripts selecionados:</strong> {{ transferScriptIds.length }}</p>
+          </div>
+          <DsSelect v-model="transferDestination" label="Pacote de destino" :disabled="transferBusy">
+            <option value="">Selecione um pacote</option>
+            <option v-for="option in destinationPackages" :key="option.codPacote" :value="String(option.codPacote)">
+              {{ option.nome }}
+            </option>
+          </DsSelect>
+          <p v-if="transferPreviewLoading" class="text-sm text-gray-500">Verificando impacto no Assistente...</p>
+          <template v-else-if="transferPreview">
+            <DsAlert v-if="transferPreview.specificMappings.length" variant="warning">
+              {{ specificRuleMessage }} Essas regras serão preservadas e continuarão substituindo o padrão do pacote.
+            </DsAlert>
+            <DsAlert v-if="!transferPreview.destinationMapped" variant="warning">
+              O pacote de destino não possui especialidades padrão configuradas no Assistente. Scripts sem regra específica ficarão pendentes até o mapeamento ser configurado.
+            </DsAlert>
+            <DsAlert v-if="transferPreview.destinationMapped && !transferPreview.specificMappings.length" variant="info">
+              Os scripts passarão a usar as especialidades padrão do pacote de destino na próxima sincronização.
+            </DsAlert>
+          </template>
+          <DsAlert v-if="transferPreviewError" variant="error">{{ transferPreviewError }}</DsAlert>
+        </div>
+        <template #footer>
+          <DsButton variant="secondary" :disabled="transferBusy" @click="transferModalOpen = false">Cancelar</DsButton>
+          <DsButton icon="box-arrow-right" :loading="transferBusy" :disabled="!canConfirmTransfer" @click="confirmTransfer">
+            Transferir
+          </DsButton>
+        </template>
+      </DsModal>
     </template>
   </div>
 </template>
@@ -224,6 +264,7 @@ definePageMeta({ layout: 'default' })
 const route = useRoute()
 const auth = useAuthStore()
 const canCreateScripts = computed(() => auth.can('scripts', 'criar'))
+const canEditScripts = computed(() => auth.can('scripts', 'editar'))
 const canApproveScripts = computed(() => auth.can('scripts', 'aprovar'))
 const canImportAssistente = computed(() => auth.can('assistente', 'importar'))
 const scriptsApi = useScriptsApi()
@@ -247,6 +288,27 @@ const filtros = reactive({ nome: String(route.query.nome || ''), aprovado: '', a
 const swal = useSwal()
 const filterModalOpen = ref(false)
 const detailModalId = ref<number | null>(null)
+const packages = ref<import('~/composables/useScriptsApi').PacoteDto[]>([])
+const transferModalOpen = ref(false)
+const transferDestination = ref('')
+const transferScriptIds = ref<number[]>([])
+const transferPreview = ref<import('~/composables/useScriptsApi').TransferPackageInfo | null>(null)
+const transferPreviewLoading = ref(false)
+const transferPreviewError = ref('')
+const transferBusy = ref(false)
+
+const destinationPackages = computed(() => packages.value.filter((x) => String(x.codPacote) !== pacote.value))
+const canConfirmTransfer = computed(() => !!transferDestination.value && !!transferPreview.value && !transferPreviewLoading.value && !transferPreviewError.value && !transferBusy.value)
+const specificRuleMessage = computed(() => {
+  if (!transferPreview.value?.specificMappings.length) return ''
+  const grouped = new Map<number, string[]>()
+  for (const mapping of transferPreview.value.specificMappings) {
+    const values = grouped.get(mapping.scriptId) ?? []
+    values.push(mapping.specialtyName || `#${mapping.specialtyId}`)
+    grouped.set(mapping.scriptId, values)
+  }
+  return `${grouped.size} script${grouped.size === 1 ? '' : 's'} possui${grouped.size === 1 ? '' : 'em'} regra específica (${[...grouped.entries()].map(([id, specialties]) => `#${id}: ${specialties.join(', ')}`).join('; ')}).`
+})
 
 const detailItem = computed(() =>
   items.value.find((x) => x.codScriptLaudo === detailModalId.value) ?? null
@@ -372,7 +434,69 @@ async function exportSelected(tipo: 'json' | 'dll' | 'mrd') {
   await swal.toast(`Exportação ${tipo.toUpperCase()} iniciada (${targets.length}).`, 'success')
 }
 
-onMounted(() => load(1))
+function openTransfer(ids: number[]) {
+  transferScriptIds.value = [...new Set(ids)].filter((id) => items.value.some((item) => item.codScriptLaudo === id))
+  if (!transferScriptIds.value.length) return
+  transferDestination.value = ''
+  transferPreview.value = null
+  transferPreviewError.value = ''
+  transferModalOpen.value = true
+}
+
+let transferPreviewRevision = 0
+async function loadTransferPreview() {
+  const revision = ++transferPreviewRevision
+  transferPreview.value = null
+  transferPreviewError.value = ''
+  transferPreviewLoading.value = false
+  if (!transferDestination.value || !transferScriptIds.value.length) return
+  transferPreviewLoading.value = true
+  try {
+    const response = await scriptsApi.validatePackageTransfer({
+      pacoteOrigem: Number(pacote.value),
+      pacoteDestino: Number(transferDestination.value),
+      codigosScripts: transferScriptIds.value
+    })
+    if (revision === transferPreviewRevision) transferPreview.value = response.data
+  } catch (error) {
+    if (revision === transferPreviewRevision)
+      transferPreviewError.value = error instanceof Error ? error.message : 'Não foi possível validar a transferência.'
+  } finally {
+    if (revision === transferPreviewRevision) transferPreviewLoading.value = false
+  }
+}
+
+async function confirmTransfer() {
+  if (!canConfirmTransfer.value) return
+  transferBusy.value = true
+  try {
+    const response = await scriptsApi.transferPackage({
+      pacoteOrigem: Number(pacote.value),
+      pacoteDestino: Number(transferDestination.value),
+      codigosScripts: transferScriptIds.value
+    })
+    const transferred = response.data.transferredCount
+    transferModalOpen.value = false
+    selectedScriptIds.value = []
+    selectAll.value = false
+    const remainingTotal = Math.max(0, totalItems.value - transferred)
+    const targetPage = Math.max(1, Math.min(page.value, Math.ceil(remainingTotal / 10)))
+    await load(targetPage)
+    await swal.toast(`${transferred} script${transferred === 1 ? '' : 's'} transferido${transferred === 1 ? '' : 's'} com sucesso.`, 'success')
+  } catch (error) {
+    await swal.error('Erro ao transferir scripts', error instanceof Error ? error.message : 'Tente novamente.')
+  } finally {
+    transferBusy.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    packages.value = (await scriptsApi.getPacotes()).data
+  } catch { /* A listagem principal exibirá o erro relevante, se houver. */ }
+  await load(1)
+})
 watch(() => route.query, () => load(1))
 watch(() => [filtros.aprovado, filtros.ativo], () => load(1))
+watch(transferDestination, loadTransferPreview)
 </script>

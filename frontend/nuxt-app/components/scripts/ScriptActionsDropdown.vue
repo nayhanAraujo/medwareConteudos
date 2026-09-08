@@ -29,6 +29,9 @@
       >
         <i class="bi bi-pencil-fill text-blue-600" /> Editar
       </DsDropdownItem>
+      <DsDropdownItem v-if="canEdit" @click="emit('transfer', item); close()">
+        <i class="bi bi-box-arrow-right text-blue-600" /> Transferir para outro pacote
+      </DsDropdownItem>
       <DsDropdownDivider v-if="canEdit || canCreate" />
       <DsDropdownItem
         v-if="canEdit"
@@ -89,6 +92,7 @@
 import type { ScriptListItem } from '~/composables/useScriptsApi'
 
 const props = defineProps<{ item: ScriptListItem }>()
+const emit = defineEmits<{ transfer: [item: ScriptListItem] }>()
 const auth = useAuthStore()
 const api = useScriptsApi()
 const swal = useSwal()

@@ -115,6 +115,24 @@ export interface PagedScripts {
   totalItems: number
 }
 
+export interface ScriptSpecificMapping {
+  scriptId: number
+  specialtyId: number
+  specialtyName?: string
+}
+
+export interface TransferPackageInfo {
+  scriptCount: number
+  destinationMapped: boolean
+  specificMappings: ScriptSpecificMapping[]
+}
+
+export interface TransferPackageResult {
+  transferredCount: number
+  destinationMapped: boolean
+  specificRuleScriptIds: number[]
+}
+
 export interface VersaoFormFiles {
   arquivo_json?: File | null
   arquivo_dll?: File | null
@@ -150,6 +168,12 @@ export function useScriptsApi() {
   const updateScript = (id: number, form: FormData) =>
     api.putForm<{ success: boolean }>(`/api/web/scripts/${id}`, form)
 
+  const validatePackageTransfer = (body: { pacoteOrigem: number; pacoteDestino: number; codigosScripts: number[] }) =>
+    api.post<{ data: TransferPackageInfo }>('/api/web/scripts/transferir-pacote/validar', body)
+
+  const transferPackage = (body: { pacoteOrigem: number; pacoteDestino: number; codigosScripts: number[] }) =>
+    api.post<{ data: TransferPackageResult }>('/api/web/scripts/transferir-pacote', body)
+
   const toggleAtivo = (id: number) => api.post(`/api/web/scripts/${id}/toggle-ativo`)
   const toggleAprovacao = (id: number) => api.post(`/api/web/scripts/${id}/toggle-aprovacao`)
 
@@ -172,6 +196,7 @@ export function useScriptsApi() {
   }
 
   const deleteMrd = (codScriptMrd: number) => api.del(`/api/web/scripts/mrd/${codScriptMrd}`)
+  const deleteScriptImage = (codArquivo: number) => api.del(`/api/web/scripts/anexos/${codArquivo}`)
 
   const listVersoes = (id: number, filters?: { numeroVersao?: string; aprovado?: string; ativo?: string }) => {
     const params = new URLSearchParams()
@@ -281,6 +306,8 @@ export function useScriptsApi() {
     verificarNome,
     createScript,
     updateScript,
+    validatePackageTransfer,
+    transferPackage,
     toggleAtivo,
     toggleAprovacao,
     getVariaveis,
@@ -288,6 +315,7 @@ export function useScriptsApi() {
     getMrd,
     addMrd,
     deleteMrd,
+    deleteScriptImage,
     listVersoes,
     getVersaoCreateMeta,
     getVersao,

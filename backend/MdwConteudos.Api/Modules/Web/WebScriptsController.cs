@@ -55,6 +55,36 @@ public class WebScriptsController : ControllerBase
         return Ok(new { success = true, exists });
     }
 
+    [HttpPost("transferir-pacote/validar")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Editar)]
+    public async Task<IActionResult> ValidatePackageTransfer([FromBody] TransferPackageRequest req)
+    {
+        try
+        {
+            var data = await _scripts.GetTransferPackageInfoAsync(req.PacoteOrigem, req.PacoteDestino, req.CodigosScripts);
+            return Ok(new { success = true, data });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("transferir-pacote")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Editar)]
+    public async Task<IActionResult> TransferPackage([FromBody] TransferPackageRequest req)
+    {
+        try
+        {
+            var data = await _scripts.TransferPackageAsync(req.PacoteOrigem, req.PacoteDestino, req.CodigosScripts);
+            return Ok(new { success = true, data });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost]
     [RequirePermission(PermissionDomains.Scripts, PermissionActions.Criar)]
     [RequestSizeLimit(100_000_000)]
@@ -157,6 +187,21 @@ public class WebScriptsController : ControllerBase
     {
         await _scripts.DeleteMrdAsync(codScriptMrd);
         return Ok(new { success = true });
+    }
+
+    [HttpDelete("anexos/{codArquivo:int}")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Editar)]
+    public async Task<IActionResult> DeleteScriptImage(int codArquivo)
+    {
+        try
+        {
+            await _scripts.DeleteScriptImageAsync(codArquivo);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id:int}/versoes")]
@@ -500,6 +545,7 @@ public class WebScriptsController : ControllerBase
     }
 
     public record VerificarNomeRequest(string Nome, int? ExcludeId);
+    public record TransferPackageRequest(int PacoteOrigem, int PacoteDestino, List<int>? CodigosScripts);
     public record SaveVariaveisRequest(List<int>? CodVariaveis);
     private static async Task<VersaoFormInput> MapVersaoFormAsync(VersaoFormDto form)
     {

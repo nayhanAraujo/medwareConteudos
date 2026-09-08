@@ -25,6 +25,7 @@
 </template>
 
 <script setup lang="ts">
+import ScriptVersaoForm from '~/components/scripts/ScriptVersaoForm.vue'
 import type { ScriptVersionDetailDto, ScriptVersionFileDto, VersaoFormFiles } from '~/composables/useScriptsApi'
 import type { VersaoFormModel } from '~/components/scripts/ScriptVersaoForm.vue'
 
@@ -51,7 +52,7 @@ const form = ref<VersaoFormModel>({
 })
 
 const pageTitle = computed(() =>
-  versao.value ? `Editar ${versao.value.numeroVersao}` : `Editar versão ${codversao}`
+  versao.value ? `Editar ${versao.value.nomeScript} — Versão ${versao.value.numeroVersao}` : `Editar versão ${codversao}`
 )
 
 onMounted(async () => {

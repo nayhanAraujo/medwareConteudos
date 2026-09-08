@@ -199,6 +199,28 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     }
 
     [FirebirdPublicationFact]
+    public async Task ChangingPackageUsesDestinationDefaultAndPreservesSpecificMapping()
+    {
+        await Seed();
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO PACOTES VALUES (2,'Ecocardiografia')");
+        await service.SaveMapping(2, [30], default);
+        await service.ProcessNext(default);
+        await using var target = new FbConnection(targetCs);
+        Assert.Equal(new[] { 10 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
+
+        await source.ExecuteAsync("UPDATE SCRIPTLAUDO SET CODPACOTE=2 WHERE CODSCRIPTLAUDO=1");
+        await service.ProcessNext(default);
+        Assert.Equal(new[] { 30 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
+
+        await service.SaveScriptMapping(2, 1, [20], default);
+        await service.ProcessNext(default);
+        await source.ExecuteAsync("UPDATE SCRIPTLAUDO SET CODPACOTE=1 WHERE CODSCRIPTLAUDO=1");
+        await service.ProcessNext(default);
+        Assert.Equal(new[] { 20 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
+    }
+
+    [FirebirdPublicationFact]
     public async Task PackageScriptsFiltersByActiveStatus()
     {
         await Seed();

@@ -24,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import ScriptVersaoForm from '~/components/scripts/ScriptVersaoForm.vue'
 import type { VersaoCreateMetaDto, VersaoFormFiles } from '~/composables/useScriptsApi'
 import type { VersaoFormModel } from '~/components/scripts/ScriptVersaoForm.vue'
 

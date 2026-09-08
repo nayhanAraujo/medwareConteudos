@@ -18,15 +18,18 @@ public class ScriptsService
     private readonly string? _legacyRoot;
     private readonly IConfiguration _config;
     private readonly ILogger<ScriptsService> _logger;
+    private readonly IAssistantFirebirdConnectionFactory _assistantFactory;
 
     public ScriptsService(
         IConfiguration config,
         ILogger<ScriptsService> logger,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        IAssistantFirebirdConnectionFactory assistantFactory)
     {
         _config = config;
         _connectionString = EnvFileLoader.GetFirebirdConnectionString(config);
         _logger = logger;
+        _assistantFactory = assistantFactory;
         _migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
         _staticUploadsRoot = MigrationRootResolver.StaticUploadsRoot(_migrationRoot);
         _legacyRoot = MigrationRootResolver.ResolveLegacyRoot(config, _migrationRoot, env.ContentRootPath);
@@ -49,6 +52,119 @@ public class ScriptsService
         var rows = await conn.QueryAsync<PacoteDto>(
             "SELECT CODPACOTE AS CodPacote, NOME AS Nome, DESCRICAO AS Descricao FROM PACOTES ORDER BY NOME");
         return rows.ToList();
+    }
+
+    public async Task<TransferPackageInfo> GetTransferPackageInfoAsync(
+        int sourcePackage, int destinationPackage, IReadOnlyCollection<int>? scriptIds)
+    {
+        var ids = NormalizeTransferIds(scriptIds);
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        await ValidateTransferAsync(conn, null, sourcePackage, destinationPackage, ids);
+
+        var specificMappings = Array.Empty<ScriptSpecificMapping>();
+        var destinationMapped = true;
+        if (_config.GetValue<bool>("PublicacaoAssistente:Enabled"))
+        {
+            specificMappings = (await conn.QueryAsync<ScriptSpecificMapping>(@"
+                SELECT CODSCRIPTLAUDO AS ScriptId, CODESPECIALIDADE AS SpecialtyId
+                FROM ASS_SCRIPT_MAPA
+                WHERE CODSCRIPTLAUDO IN @ids
+                ORDER BY CODSCRIPTLAUDO, CODESPECIALIDADE", new { ids })).ToArray();
+            destinationMapped = await conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@destinationPackage",
+                new { destinationPackage }) > 0;
+            specificMappings = await AddSpecialtyNamesAsync(specificMappings);
+        }
+
+        return new TransferPackageInfo(ids.Length, destinationMapped, specificMappings);
+    }
+
+    private async Task<ScriptSpecificMapping[]> AddSpecialtyNamesAsync(ScriptSpecificMapping[] mappings)
+    {
+        if (mappings.Length == 0) return mappings;
+        try
+        {
+            await using var assistant = await _assistantFactory.OpenConnectionAsync();
+            var ids = mappings.Select(x => x.SpecialtyId).Distinct().ToArray();
+            var names = (await assistant.QueryAsync<SpecialtyNameRow>(@"
+                SELECT CODESPECIALIDADE AS Id, DESCRICAO AS Name
+                FROM ESPECIALIDADE
+                WHERE CODESPECIALIDADE IN @ids", new { ids }))
+                .ToDictionary(x => x.Id, x => x.Name);
+            return mappings.Select(mapping => names.TryGetValue(mapping.SpecialtyId, out var name)
+                ? mapping with { SpecialtyName = name }
+                : mapping).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Não foi possível buscar os nomes das especialidades do Assistente na prévia de transferência.");
+            return mappings;
+        }
+    }
+
+    public async Task<TransferPackageResult> TransferPackageAsync(
+        int sourcePackage, int destinationPackage, IReadOnlyCollection<int>? scriptIds)
+    {
+        var ids = NormalizeTransferIds(scriptIds);
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        try
+        {
+            await ValidateTransferAsync(conn, tx, sourcePackage, destinationPackage, ids);
+            var publicationEnabled = _config.GetValue<bool>("PublicacaoAssistente:Enabled");
+            var specificScriptIds = publicationEnabled
+                ? (await conn.QueryAsync<int>(@"
+                    SELECT DISTINCT CODSCRIPTLAUDO FROM ASS_SCRIPT_MAPA
+                    WHERE CODSCRIPTLAUDO IN @ids", new { ids }, tx)).ToArray()
+                : [];
+            var destinationMapped = !publicationEnabled
+                || await conn.ExecuteScalarAsync<int>(
+                    "SELECT COUNT(*) FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@destinationPackage",
+                    new { destinationPackage }, tx) > 0;
+
+            var affected = await conn.ExecuteAsync(@"
+                UPDATE SCRIPTLAUDO SET CODPACOTE=@destinationPackage
+                WHERE CODPACOTE=@sourcePackage AND CODSCRIPTLAUDO IN @ids",
+                new { sourcePackage, destinationPackage, ids }, tx);
+            if (affected != ids.Length)
+                throw new InvalidOperationException("Não foi possível transferir todos os scripts selecionados.");
+
+            await tx.CommitAsync();
+            return new TransferPackageResult(affected, destinationMapped, specificScriptIds);
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
+    }
+
+    private static int[] NormalizeTransferIds(IReadOnlyCollection<int>? scriptIds)
+    {
+        var ids = (scriptIds ?? []).Where(x => x > 0).Distinct().ToArray();
+        if (ids.Length == 0) throw new InvalidOperationException("Selecione ao menos um script para transferir.");
+        if (ids.Length > 50) throw new InvalidOperationException("Transfira no máximo 50 scripts por vez.");
+        return ids;
+    }
+
+    private static async Task ValidateTransferAsync(
+        FbConnection conn, IDbTransaction? tx, int sourcePackage, int destinationPackage, int[] ids)
+    {
+        if (sourcePackage <= 0 || destinationPackage <= 0)
+            throw new InvalidOperationException("Informe os pacotes de origem e destino.");
+        if (sourcePackage == destinationPackage)
+            throw new InvalidOperationException("O pacote de destino deve ser diferente do pacote atual.");
+        if (await conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM PACOTES WHERE CODPACOTE IN (@sourcePackage,@destinationPackage)",
+                new { sourcePackage, destinationPackage }, tx) != 2)
+            throw new InvalidOperationException("Pacote de origem ou destino não encontrado.");
+        if (await conn.ExecuteScalarAsync<int>(@"
+                SELECT COUNT(*) FROM SCRIPTLAUDO
+                WHERE CODPACOTE=@sourcePackage AND CODSCRIPTLAUDO IN @ids",
+                new { sourcePackage, ids }, tx) != ids.Length)
+            throw new InvalidOperationException("Um ou mais scripts não pertencem ao pacote de origem.");
     }
 
     public async Task<PagedScriptsResponse> ListScriptsAsync(
@@ -125,7 +241,7 @@ public class ScriptsService
                 WHERE sv.CODSCRIPTLAUDO = @cod ORDER BY v.NOME", new { cod })).ToList();
 
             var arquivos = (await conn.QueryAsync<ScriptFileDto>(@"
-                SELECT TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
+                SELECT CODARQUIVO AS CodArquivo, TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
                 FROM SCRIPTARQUIVOS WHERE CODSCRIPTLAUDO = @cod ORDER BY NOME_ARQUIVO", new { cod })).ToList();
 
             int? codVersao = null;
@@ -147,7 +263,7 @@ public class ScriptsService
             if (codVersao.HasValue)
             {
                 var arqVersao = (await conn.QueryAsync<ScriptFileDto>(@"
-                    SELECT TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
+                    SELECT CODARQUIVO AS CodArquivo, TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
                     FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO = @cod ORDER BY DATA_UPLOAD DESC",
                     new { cod = codVersao.Value })).ToList();
                 var iv = arqVersao.Where(a => a.Tipo == "IMAGEM").ToList();
@@ -221,7 +337,7 @@ public class ScriptsService
         var vars = (await conn.QueryAsync<int>(
             "SELECT CODVARIAVEL FROM SCRIPTLAUDO_VARIAVEL WHERE CODSCRIPTLAUDO = @id", new { id })).ToList();
         var arquivos = (await conn.QueryAsync<ScriptFileDto>(@"
-            SELECT TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
+            SELECT CODARQUIVO AS CodArquivo, TIPO AS Tipo, CAMINHO AS Caminho, NOME_ARQUIVO AS NomeArquivo
             FROM SCRIPTARQUIVOS WHERE CODSCRIPTLAUDO = @id", new { id })).ToList();
         var mrd = await ListMrdAsync(conn, id);
         return new ScriptDetailDto(
@@ -657,13 +773,16 @@ public class ScriptsService
         }
     }
 
-    private async Task<IReadOnlyList<ScriptVersionMrdDto>> ListVersaoMrdAsync(FbConnection conn, int codVersao)
+    private async Task<IReadOnlyList<ScriptVersionMrdDto>> ListVersaoMrdAsync(
+        FbConnection conn,
+        int codVersao,
+        IDbTransaction? tx = null)
     {
         var rows = await conn.QueryAsync(@"
             SELECT CODVERSAOMRD, NOME_ARQUIVO, PADRAO, ORDEM
             FROM SCRIPTVERSAOMRD
             WHERE CODVERSAO = @codVersao
-            ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODVERSAOMRD", new { codVersao });
+            ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODVERSAOMRD", new { codVersao }, tx);
         return rows.Select(r =>
         {
             var d = (IDictionary<string, object>)r;
@@ -872,7 +991,7 @@ public class ScriptsService
             await SetVersaoMrdPadraoAsync(conn, tx, codVersao, input.MrdPadraoCod.Value);
         else
         {
-            var remaining = await ListVersaoMrdAsync(conn, codVersao);
+            var remaining = await ListVersaoMrdAsync(conn, codVersao, tx);
             if (remaining.Count > 0 && remaining.All(m => !m.Padrao))
                 await SetVersaoMrdPadraoAsync(conn, tx, codVersao, remaining[0].CodVersaoMrd);
         }
@@ -1152,7 +1271,7 @@ public class ScriptsService
         var rows = await conn.QueryAsync(@"
             SELECT NOME_ARQUIVO, ARQUIVO_MRD, PADRAO FROM SCRIPTLAUDOMRD
             WHERE CODSCRIPTLAUDO = @scriptId
-            ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODSCRIPTMRD", new { scriptId });
+            ORDER BY CASE WHEN PADRAO = 'T' THEN 0 ELSE 1 END, ORDEM, CODSCRIPTMRD", new { scriptId }, tx);
         foreach (var r in rows)
         {
             var d = (IDictionary<string, object>)r;
@@ -1182,10 +1301,38 @@ public class ScriptsService
     private static async Task InsertVersaoHistoricoAsync(FbConnection conn, FbTransaction tx, int codVersao,
         string tipo, string descricao, string? usuario)
     {
+        var codHistorico = await conn.ExecuteScalarAsync<int>(
+            "SELECT COALESCE(MAX(CODHISTORICO), 0) + 1 FROM SCRIPTVERSAOHISTORICO",
+            transaction: tx);
+
         await conn.ExecuteAsync(@"
-            INSERT INTO SCRIPTVERSAOHISTORICO (CODVERSAO_DESTINO, TIPO_ALTERACAO, DESCRICAO, USUARIO)
-            VALUES (@codVersao, @tipo, @desc, @user)",
-            new { codVersao, tipo, desc = descricao, user = usuario }, tx);
+            INSERT INTO SCRIPTVERSAOHISTORICO (CODHISTORICO, CODVERSAO_DESTINO, TIPO_ALTERACAO, DESCRICAO, USUARIO, DATA_ALTERACAO)
+            VALUES (@codHistorico, @codVersao, @tipo, @desc, @user, CURRENT_TIMESTAMP)",
+            new { codHistorico, codVersao, tipo, desc = descricao, user = string.IsNullOrWhiteSpace(usuario) ? "Sistema" : usuario }, tx);
+    }
+
+    public async Task DeleteScriptImageAsync(int codArquivo)
+    {
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        var row = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT CAMINHO, TIPO FROM SCRIPTARQUIVOS WHERE CODARQUIVO = @codArquivo", new { codArquivo });
+        if (row == null) throw new InvalidOperationException("Imagem não encontrada.");
+        var data = (IDictionary<string, object>)row;
+        if (!string.Equals(data["TIPO"]?.ToString(), "IMAGEM", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("O arquivo selecionado não é uma imagem.");
+
+        var caminho = data["CAMINHO"]?.ToString();
+        await conn.ExecuteAsync("DELETE FROM SCRIPTARQUIVOS WHERE CODARQUIVO = @codArquivo", new { codArquivo });
+        if (!string.IsNullOrWhiteSpace(caminho))
+        {
+            var path = ResolveLegacyPath(caminho);
+            if (File.Exists(path))
+            {
+                try { File.Delete(path); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Erro ao excluir imagem física do script {CodArquivo}", codArquivo); }
+            }
+        }
     }
 
     private async Task<(string path, string name)> SaveVersaoDiskFileAsync(UploadedFile file, string folder, string prefix)
@@ -1485,6 +1632,14 @@ public class ScriptsService
         return null;
     }
 }
+
+public record ScriptSpecificMapping(int ScriptId, int SpecialtyId)
+{
+    public string? SpecialtyName { get; init; }
+}
+public record TransferPackageInfo(int ScriptCount, bool DestinationMapped, IReadOnlyList<ScriptSpecificMapping> SpecificMappings);
+public record TransferPackageResult(int TransferredCount, bool DestinationMapped, IReadOnlyList<int> SpecificRuleScriptIds);
+public sealed record SpecialtyNameRow(int Id, string Name);
 
 public class ScriptFormInput
 {

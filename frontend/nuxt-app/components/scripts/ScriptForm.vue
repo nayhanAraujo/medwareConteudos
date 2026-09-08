@@ -66,9 +66,12 @@
           <img :src="img.url" :alt="img.nome" class="rounded-xl border object-cover w-full max-h-36" />
           <small class="text-gray-500 block truncate text-xs mt-1">{{ img.nome }}</small>
         </div>
-        <div v-for="img in existingImagens || []" :key="img.caminho">
+        <div v-for="img in existingImagens || []" :key="img.codArquivo">
           <img :src="mediaUrl(img.caminho)" :alt="img.nomeArquivo" class="rounded-xl border object-cover w-full max-h-36" />
-          <small class="text-gray-500 block truncate text-xs mt-1">{{ img.nomeArquivo }}</small>
+          <div class="mt-1 flex items-center gap-1">
+            <small class="min-w-0 flex-1 truncate text-xs text-gray-500">{{ img.nomeArquivo }}</small>
+            <DsButton type="button" variant="ghost" size="sm" icon="trash" @click="emit('deleteExistingImage', img)" />
+          </div>
         </div>
       </div>
     </div>
@@ -109,6 +112,7 @@ export interface ScriptFormModel {
 }
 
 export interface ScriptImagePreview {
+  codArquivo: number
   caminho: string
   nomeArquivo: string
 }
@@ -126,6 +130,7 @@ const emit = defineEmits<{
   submit: []
   cancel: []
   files: [Record<string, File | FileList | null>]
+  deleteExistingImage: [ScriptImagePreview]
 }>()
 
 const { SISTEMAS } = useScriptsNav()

@@ -14,13 +14,14 @@
         @submit="salvar"
         @cancel="voltar"
         @files="(f) => (fileRefs = f)"
+        @delete-existing-image="excluirImagem"
       />
     </DsPageShell>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { ScriptFormModel } from '~/components/scripts/ScriptForm.vue'
+import type { ScriptFormModel, ScriptImagePreview } from '~/components/scripts/ScriptForm.vue'
 import { buildScriptFormData } from '~/utils/scriptFormData'
 
 definePageMeta({ layout: 'default' })
@@ -35,7 +36,7 @@ const loading = ref(false)
 const loadingData = ref(true)
 const pacotes = ref<{ codPacote: number; nome: string }[]>([])
 const fileRefs = ref<Record<string, File | FileList | null>>({})
-const existingImagens = ref<{ caminho: string; nomeArquivo: string }[]>([])
+const existingImagens = ref<ScriptImagePreview[]>([])
 
 const form = ref<ScriptFormModel>({
   nome: '',
@@ -72,8 +73,8 @@ onMounted(async () => {
   }
   const imgs = Array.isArray(s.imagens) ? (s.imagens as Array<Record<string, unknown>>) : []
   existingImagens.value = imgs
-    .map((x) => ({ caminho: String(x.caminho || ''), nomeArquivo: String(x.nomeArquivo || '') }))
-    .filter((x) => !!x.caminho)
+    .map((x) => ({ codArquivo: Number(x.codArquivo || 0), caminho: String(x.caminho || ''), nomeArquivo: String(x.nomeArquivo || '') }))
+    .filter((x) => x.codArquivo > 0 && !!x.caminho)
   loadingData.value = false
 })
 
@@ -88,6 +89,18 @@ async function salvar() {
     await swal.toast(e instanceof Error ? e.message : 'Erro', 'error')
   } finally {
     loading.value = false
+  }
+}
+
+async function excluirImagem(imagem: ScriptImagePreview) {
+  const { isConfirmed } = (await swal.confirm('Excluir imagem?', `A imagem ${imagem.nomeArquivo} será removida permanentemente.`)) || {}
+  if (!isConfirmed) return
+  try {
+    await scriptsApi.deleteScriptImage(imagem.codArquivo)
+    existingImagens.value = existingImagens.value.filter((item) => item.codArquivo !== imagem.codArquivo)
+    await swal.toast('Imagem excluída com sucesso.', 'success')
+  } catch (error: unknown) {
+    await swal.error('Erro ao excluir imagem', error instanceof Error ? error.message : 'Tente novamente.')
   }
 }
 

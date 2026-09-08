@@ -3,7 +3,7 @@
     <DsPageHeader :title="pageTitle" icon="layers" />
     <DsPageShell>
       <div class="flex flex-wrap gap-2 mb-4">
-        <DsButton variant="success" size="sm" icon="plus-circle" :to="`/scripts/${id}/versoes/nova`">Nova Versão</DsButton>
+        <DsButton v-if="canCreate" variant="success" size="sm" icon="plus-circle" :to="`/scripts/${id}/versoes/nova`">Nova Versão</DsButton>
         <DsButton variant="secondary" size="sm" icon="arrow-left-right" :to="`/scripts/${id}/comparar-versoes`">Comparar versões</DsButton>
         <DsButton variant="secondary" size="sm" :to="voltarPath">Voltar</DsButton>
       </div>
@@ -45,14 +45,15 @@
           </td>
           <td>
             <DsBadge v-if="v.ativo === 'T'" variant="success">Ativa</DsBadge>
-            <DsButton v-else variant="secondary" size="sm" @click="ativar(v.codVersao)">Ativar</DsButton>
+            <DsButton v-else-if="canActivate" variant="secondary" size="sm" @click="ativar(v.codVersao)">Ativar</DsButton>
+            <DsBadge v-else variant="warning">Inativa</DsBadge>
           </td>
           <td>
             <div class="flex flex-wrap gap-1">
               <DsButton variant="ghost" size="sm" :to="`/scripts/${id}/versoes/${v.codVersao}`">Detalhes</DsButton>
-              <DsButton variant="ghost" size="sm" :to="`/scripts/${id}/versoes/${v.codVersao}/editar`">Editar</DsButton>
+              <DsButton v-if="canEdit" variant="ghost" size="sm" :to="`/scripts/${id}/versoes/${v.codVersao}/editar`">Editar</DsButton>
               <DsButton
-                v-if="v.aprovado !== 'T'"
+                v-if="canApprove && v.aprovado !== 'T'"
                 variant="ghost"
                 size="sm"
                 @click="aprovar(v.codVersao)"
@@ -77,6 +78,7 @@ const route = useRoute()
 const id = Number(route.params.id)
 const scriptsApi = useScriptsApi()
 const swal = useSwal()
+const auth = useAuthStore()
 
 const versoes = ref<VersaoDto[]>([])
 const loading = ref(false)
@@ -85,6 +87,10 @@ const voltarPath = ref('/scripts')
 const filtroNumero = ref('')
 const filtroAprovado = ref('')
 const filtroAtivo = ref('')
+const canCreate = computed(() => auth.can('scripts', 'criar'))
+const canEdit = computed(() => auth.can('scripts', 'editar'))
+const canApprove = computed(() => auth.can('scripts', 'aprovar'))
+const canActivate = computed(() => auth.can('scripts', 'ativar'))
 
 function formatDate(d?: string) {
   if (!d) return '—'
