@@ -30,10 +30,24 @@ public static class AssistenteScriptEncoding
 
         return tipoScript switch
         {
-            3 => PrepareJsonContent(content),
+            3 => PrepareJsonContent(content, "O JSON do script de origem é inválido."),
             1 or 2 => PrepareDllContent(content),
             _ => throw new AssistenteImportacaoException("Tipo de script inválido.")
         };
+    }
+
+    public static string PrepareMrdFromReferencias(short tipoScript, string fileName, byte[] content)
+    {
+        if (tipoScript != 3)
+            return AssistenteImportacaoValidator.PrepareMrd(fileName, content);
+
+        if (content.Length == 0)
+            throw new AssistenteImportacaoException("O conteúdo do MRD de origem está vazio.");
+
+        if (content.LongLength > AssistenteImportacaoValidator.MaxFileSize)
+            throw new AssistenteImportacaoException("O arquivo MRD deve ter no máximo 20 MB.");
+
+        return PrepareJsonContent(content, "O JSON do MRD de origem é inválido.");
     }
 
     private static string PrepareDllContent(byte[] bytes)
@@ -49,7 +63,7 @@ public static class AssistenteScriptEncoding
         return ToBase64Structure(bytes);
     }
 
-    private static string PrepareJsonContent(byte[] bytes)
+    private static string PrepareJsonContent(byte[] bytes, string invalidMessage)
     {
         try
         {
@@ -59,7 +73,7 @@ public static class AssistenteScriptEncoding
         }
         catch (Exception ex) when (ex is JsonException or DecoderFallbackException)
         {
-            throw new AssistenteImportacaoException("O JSON do script de origem é inválido.");
+            throw new AssistenteImportacaoException(invalidMessage);
         }
     }
 }

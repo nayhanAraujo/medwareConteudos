@@ -37,25 +37,86 @@ public sealed class PublicacaoService(
         return new { enabled = true, packages, mappings, scriptMappings, specialties };
     }
 
-    public async Task<object> List(int page, int? scriptId, CancellationToken ct, int[]? ids = null)
+    public async Task<object> List(int page, int? scriptId, CancellationToken ct, int[]? ids = null, string? search = null, int? package = null, string? state = null, int? approved = null)
     {
         if (!Enabled) return new { items = Array.Empty<object>(), total = 0 };
         RequireEnabled();
         await using var source = await sourceFactory.OpenConnectionAsync(ct);
-        var where = scriptId.HasValue ? "WHERE q.CODSCRIPTLAUDO=@scriptId" : ids is not null ? "WHERE q.CODSCRIPTLAUDO IN @ids" : "";
-        var args = new { skip = (Math.Max(1, page) - 1) * 30, scriptId, ids };
-        var items = await source.QueryAsync(new CommandDefinition($"""
-            SELECT FIRST 30 SKIP @skip q.CODSCRIPTLAUDO AS Id, s.NOME AS Nome,
+        var where = new List<string>();
+        var args = new DynamicParameters();
+        if (scriptId.HasValue) { where.Add("q.CODSCRIPTLAUDO=@scriptId"); args.Add("scriptId", scriptId.Value); }
+        if (ids is not null) { where.Add("q.CODSCRIPTLAUDO IN @ids"); args.Add("ids", ids); }
+        if (package.HasValue) { where.Add("s.CODPACOTE=@package"); args.Add("package", package.Value); }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            where.Add("(UPPER(s.NOME) CONTAINING UPPER(@search) OR CAST(q.CODSCRIPTLAUDO AS VARCHAR(20)) CONTAINING @search)");
+            args.Add("search", search.Trim());
+        }
+        var whereSql = where.Count == 0 ? "" : $"WHERE {string.Join(" AND ", where)}";
+        var rows = (await source.QueryAsync<PublicationRow>(new CommandDefinition($"""
+            SELECT q.CODSCRIPTLAUDO AS Id, s.NOME AS Nome, s.CODPACOTE AS PackageId, p.NOME AS PackageName, s.SISTEMA AS Sistema,
+            s.APROVADO AS ScriptApproved, s.APROVADO_POR AS ScriptApprovedBy, s.DATA_VERIFICACAO AS ScriptApprovalDate,
+            (SELECT FIRST 1 v.CODVERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionId,
+            (SELECT FIRST 1 v.NUMERO_VERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionNumber,
+            (SELECT FIRST 1 v.APROVADO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApproved,
+            (SELECT FIRST 1 v.APROVADO_POR FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApprovedBy,
+            (SELECT FIRST 1 v.DATA_APROVACAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApprovalDate,
             q.REVISAO, q.ESTADO, q.TENTATIVAS, q.ERRO, q.PUBLICADO_EM, q.CODDESTINO
             FROM ASS_PUBLICACAO q LEFT JOIN SCRIPTLAUDO s ON s.CODSCRIPTLAUDO=q.CODSCRIPTLAUDO
-            {where} ORDER BY q.REVISAO DESC
-            """, args, cancellationToken: ct));
+            LEFT JOIN PACOTES p ON p.CODPACOTE=s.CODPACOTE
+            {whereSql} ORDER BY q.REVISAO DESC
+            """, args, cancellationToken: ct))).ToList();
+        if (ids is null)
+        {
+            var sourceWhere = new List<string> { "NOT EXISTS (SELECT 1 FROM ASS_PUBLICACAO q WHERE q.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO)", "s.ATIVO=1" };
+            if (scriptId.HasValue) sourceWhere.Add("s.CODSCRIPTLAUDO=@scriptId");
+            if (package.HasValue) sourceWhere.Add("s.CODPACOTE=@package");
+            if (!string.IsNullOrWhiteSpace(search))
+                sourceWhere.Add("(UPPER(s.NOME) CONTAINING UPPER(@search) OR CAST(s.CODSCRIPTLAUDO AS VARCHAR(20)) CONTAINING @search)");
+            var sourceWhereSql = string.Join(" AND ", sourceWhere);
+            var unqueued = (await source.QueryAsync<PublicationRow>(new CommandDefinition($"""
+                SELECT s.CODSCRIPTLAUDO AS Id, s.NOME AS Nome, s.CODPACOTE AS PackageId, p.NOME AS PackageName, s.SISTEMA AS Sistema,
+                s.APROVADO AS ScriptApproved, s.APROVADO_POR AS ScriptApprovedBy, s.DATA_VERIFICACAO AS ScriptApprovalDate,
+                (SELECT FIRST 1 v.CODVERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionId,
+                (SELECT FIRST 1 v.NUMERO_VERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionNumber,
+                (SELECT FIRST 1 v.APROVADO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApproved,
+                (SELECT FIRST 1 v.APROVADO_POR FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApprovedBy,
+                (SELECT FIRST 1 v.DATA_APROVACAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApprovalDate,
+                CAST(0 AS BIGINT) AS REVISAO, CAST('aguardando_aprovacao' AS VARCHAR(20)) AS ESTADO, 0 AS TENTATIVAS,
+                CAST(NULL AS VARCHAR(1000)) AS ERRO, CAST(NULL AS TIMESTAMP) AS PUBLICADO_EM, CAST(NULL AS INTEGER) AS CODDESTINO
+                FROM SCRIPTLAUDO s LEFT JOIN PACOTES p ON p.CODPACOTE=s.CODPACOTE
+                WHERE {sourceWhereSql}
+                """, args, cancellationToken: ct))).Where(row => !ToPublicationItem(row, []).AprovadoPublicacao);
+            rows.AddRange(unqueued);
+        }
         await using var target = await targetFactory.OpenConnectionAsync(ct);
         var suspended = (await target.QueryAsync<int>(new CommandDefinition("SELECT CODORIGEM FROM CON_PUBLICACAO WHERE ORIGEM=@Origin AND SUSPENSO=1", new { Origin }, cancellationToken: ct))).ToHashSet();
-        foreach (IDictionary<string, object> item in items)
-            if (suspended.Contains(Convert.ToInt32(item["ID"]))) item["ESTADO"] = "suspenso";
-        var total = await source.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) FROM ASS_PUBLICACAO q {where}", args, cancellationToken: ct));
-        return new { items, total };
+        var projected = rows.Select(row => ToPublicationItem(row, suspended)).ToList();
+        if (approved is 0 or 1)
+            projected = projected.Where(x => x.AprovadoPublicacao == (approved == 1)).ToList();
+        var summary = projected.GroupBy(x => x.Estado).ToDictionary(x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(state))
+            projected = projected.Where(x => string.Equals(x.Estado, state.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+        var total = projected.Count;
+        var skip = (Math.Max(1, page) - 1) * 30;
+        var pageItems = projected.Skip(skip).Take(30).ToArray();
+        var destinationIds = pageItems.Where(x => x.CodDestino.HasValue).Select(x => x.CodDestino!.Value).Distinct().ToArray();
+        if (destinationIds.Length > 0)
+        {
+            var destinationSpecialties = (await target.QueryAsync<DestinationSpecialtyRow>(new CommandDefinition("""
+                SELECT se.CODSCRIPTLAUDO AS ScriptId, e.DESCRICAO AS Specialty
+                FROM SCRIPTLAUDO_ESPECIALIDADE se
+                JOIN ESPECIALIDADE e ON e.CODESPECIALIDADE=se.CODESPECIALIDADE
+                WHERE se.CODSCRIPTLAUDO IN @destinationIds
+                ORDER BY e.DESCRICAO
+                """, new { destinationIds }, cancellationToken: ct)))
+                .GroupBy(x => x.ScriptId)
+                .ToDictionary(x => x.Key, x => x.Select(y => y.Specialty).Where(y => !string.IsNullOrWhiteSpace(y)).ToArray());
+            pageItems = pageItems.Select(item => item.CodDestino.HasValue && destinationSpecialties.TryGetValue(item.CodDestino.Value, out var specialties)
+                ? item with { EspecialidadesDestino = specialties! }
+                : item).ToArray();
+        }
+        return new { items = pageItems, total, summary };
     }
 
     public async Task SaveMapping(int package, int[] ids, CancellationToken ct)
@@ -72,13 +133,14 @@ public sealed class PublicacaoService(
         await tx.CommitAsync(ct);
     }
 
-    public async Task<object> PackageScripts(int package, int page, string? search, CancellationToken ct)
+    public async Task<object> PackageScripts(int package, int page, string? search, int ativo, CancellationToken ct)
     {
         if (!Enabled) return new { items = Array.Empty<object>(), total = 0 };
         RequireEnabled();
+        if (ativo is not 0 and not 1) throw new InvalidOperationException("Filtro de status invalido.");
         await using var source = await sourceFactory.OpenConnectionAsync(ct);
-        var where = new List<string> { "s.CODPACOTE=@package" };
-        var parameters = new DynamicParameters(new { package, skip = (Math.Max(1, page) - 1) * 30 });
+        var where = new List<string> { "s.CODPACOTE=@package", "s.ATIVO=@ativo" };
+        var parameters = new DynamicParameters(new { package, ativo, skip = (Math.Max(1, page) - 1) * 30 });
         if (!string.IsNullOrWhiteSpace(search))
         {
             where.Add("(UPPER(s.NOME) CONTAINING UPPER(@search) OR CAST(s.CODSCRIPTLAUDO AS VARCHAR(20)) CONTAINING @search)");
@@ -88,7 +150,13 @@ public sealed class PublicacaoService(
         var total = await source.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) FROM SCRIPTLAUDO s WHERE {whereSql}", parameters, cancellationToken: ct));
         var rows = (await source.QueryAsync<PackageScriptRow>(new CommandDefinition($"""
             SELECT FIRST 30 SKIP @skip s.CODSCRIPTLAUDO AS Id, s.NOME AS Nome, s.SISTEMA AS Sistema,
-            s.LINGUAGEM AS Linguagem, s.ATIVO AS Ativo, q.ESTADO AS Estado, q.CODDESTINO AS CodDestino
+            s.LINGUAGEM AS Linguagem, s.ATIVO AS Ativo, s.APROVADO AS ScriptApproved, s.APROVADO_POR AS ScriptApprovedBy, s.DATA_VERIFICACAO AS ScriptApprovalDate,
+            (SELECT FIRST 1 v.CODVERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionId,
+            (SELECT FIRST 1 v.NUMERO_VERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionNumber,
+            (SELECT FIRST 1 v.APROVADO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApproved,
+            (SELECT FIRST 1 v.APROVADO_POR FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApprovedBy,
+            (SELECT FIRST 1 v.DATA_APROVACAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionApprovalDate,
+            q.ESTADO AS Estado, q.CODDESTINO AS CodDestino
             FROM SCRIPTLAUDO s LEFT JOIN ASS_PUBLICACAO q ON q.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO
             WHERE {whereSql}
             ORDER BY s.NOME
@@ -112,6 +180,11 @@ public sealed class PublicacaoService(
                 row.Ativo,
                 row.Estado,
                 row.CodDestino,
+                AprovadoPublicacao = row.EffectiveApproved,
+                AprovacaoOrigem = row.ApprovalOrigin,
+                AprovadoPor = row.EffectiveApprovedBy,
+                DataAprovacao = row.EffectiveApprovalDate,
+                NumeroVersaoAtiva = row.VersionNumber,
                 UsaRegraEspecifica = specific is { Length: > 0 },
                 EspecialidadesEspecificas = specific ?? [],
                 EspecialidadesEfetivas = effective
@@ -270,11 +343,21 @@ public sealed class PublicacaoService(
         try
         {
             var payload = await Load(source, tx, job.Id, ct);
-            var result = await Publish(job, payload, ct);
-            await source.ExecuteAsync(new CommandDefinition("""
-                UPDATE ASS_PUBLICACAO SET ESTADO=@State, CODDESTINO=@Id, ERRO=NULL,
-                PUBLICADO_EM=CURRENT_TIMESTAMP WHERE CODSCRIPTLAUDO=@SourceId
-                """, new { result.State, result.Id, SourceId = job.Id }, tx, cancellationToken: ct));
+            if (payload is { Active: true, Approved: false })
+            {
+                await source.ExecuteAsync(new CommandDefinition("""
+                    UPDATE ASS_PUBLICACAO SET ESTADO='aguardando_aprovacao', ERRO=@Error,
+                    PUBLICADO_EM=NULL WHERE CODSCRIPTLAUDO=@SourceId
+                    """, new { Error = ApprovalError(payload), SourceId = job.Id }, tx, cancellationToken: ct));
+            }
+            else
+            {
+                var result = await Publish(job, payload, ct);
+                await source.ExecuteAsync(new CommandDefinition("""
+                    UPDATE ASS_PUBLICACAO SET ESTADO=@State, CODDESTINO=@Id, ERRO=NULL,
+                    PUBLICADO_EM=CURRENT_TIMESTAMP WHERE CODSCRIPTLAUDO=@SourceId
+                    """, new { result.State, result.Id, SourceId = job.Id }, tx, cancellationToken: ct));
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
@@ -297,20 +380,27 @@ public sealed class PublicacaoService(
     {
         var row = await source.QueryFirstOrDefaultAsync<SourceScript>(new CommandDefinition("""
             SELECT NOME AS Title, SISTEMA AS SystemName, LINGUAGEM AS Language, CODPACOTE AS Package,
-            ATIVO AS Active, ARQUIVO_JSON AS Json, DLL AS Dll FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id
+            ATIVO AS Active, APROVADO AS Approved, APROVADO_POR AS ApprovedBy, DATA_VERIFICACAO AS ApprovalDate,
+            ARQUIVO_JSON AS Json, DLL AS Dll FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id
             """, new { id }, tx, cancellationToken: ct));
         if (row is null) return null;
-        if (row.Active != 1) return new Payload(row.Title, 0, null, null, null, [], null, false);
-        var specialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO=@id", new { id }, tx, cancellationToken: ct))).ToArray();
-        if (specialties.Length == 0)
-            specialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@Package", row, tx, cancellationToken: ct))).ToArray();
-        if (specialties.Length == 0) throw new InvalidOperationException("Associe o script ou o pacote a pelo menos uma especialidade antes de publicar.");
         var versions = (await source.QueryAsync<VersionFiles>(new CommandDefinition("""
-            SELECT CODVERSAO AS Id, ARQUIVO_JSON AS Json, ARQUIVO_DLL AS Dll
+            SELECT CODVERSAO AS Id, NUMERO_VERSAO AS Number, APROVADO AS Approved, APROVADO_POR AS ApprovedBy, DATA_APROVACAO AS ApprovalDate,
+            ARQUIVO_JSON AS Json, ARQUIVO_DLL AS Dll
             FROM SCRIPTVERSOES WHERE CODSCRIPTLAUDO=@id AND ATIVO='T'
             """, new { id }, tx, cancellationToken: ct))).ToList();
         if (versions.Count > 1) throw new InvalidOperationException("O script possui mais de uma versao ativa.");
         var version = versions.SingleOrDefault();
+        var approved = version is null ? IsApproved(row.Approved) : IsApproved(version.Approved);
+        var approvalOrigin = version is null ? "script" : "versao_ativa";
+        var approvedBy = version?.ApprovedBy ?? row.ApprovedBy;
+        var approvalDate = version?.ApprovalDate ?? row.ApprovalDate;
+        if (row.Active != 1) return new Payload(row.Title, 0, null, null, null, [], version?.Id, false, approved, approvalOrigin, approvedBy, approvalDate, version?.Number);
+        if (!approved) return new Payload(row.Title, 0, null, null, null, [], version?.Id, true, false, approvalOrigin, approvedBy, approvalDate, version?.Number);
+        var specialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO=@id", new { id }, tx, cancellationToken: ct))).ToArray();
+        if (specialties.Length == 0)
+            specialties = (await source.QueryAsync<int>(new CommandDefinition("SELECT CODESPECIALIDADE FROM ASS_PACOTE_MAPA WHERE CODPACOTE=@Package", row, tx, cancellationToken: ct))).ToArray();
+        if (specialties.Length == 0) throw new InvalidOperationException("Associe o script ou o pacote a pelo menos uma especialidade antes de publicar.");
         var ux = string.Equals(row.SystemName?.Trim(), "Laudos UX", StringComparison.OrdinalIgnoreCase);
         if (!ux && !string.Equals(row.SystemName?.Trim(), "Laudos Flex", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Somente Laudos UX ou Laudos Flex podem ser publicados.");
@@ -325,7 +415,8 @@ public sealed class PublicacaoService(
         return new Payload(AssistenteImportacaoValidator.ValidateTitle(row.Title, "Titulo do script", 252), type,
             AssistenteScriptEncoding.PrepareFromReferencias(type, bytes),
             mrd is null ? null : AssistenteImportacaoValidator.ValidateTitle(Path.GetFileNameWithoutExtension(mrd.Name), "Titulo MRD", 128),
-            mrd is null ? null : AssistenteImportacaoValidator.PrepareMrd(mrd.Name, Bytes(mrd.Content)), specialties, version?.Id, true);
+            mrd is null ? null : AssistenteScriptEncoding.PrepareMrdFromReferencias(type, mrd.Name, Bytes(mrd.Content)), specialties, version?.Id, true,
+            true, approvalOrigin, approvedBy, approvalDate, version?.Number);
     }
 
     private async Task<(string State, int? Id)> Publish(Job job, Payload? payload, CancellationToken ct)
@@ -422,6 +513,36 @@ public sealed class PublicacaoService(
     }
 
     private static byte[] Bytes(object? value) => value switch { byte[] b => b, string s => Encoding.UTF8.GetBytes(s), _ => [] };
+    private static bool IsApproved(object? value)
+    {
+        if (value is null or DBNull) return false;
+        if (value is bool b) return b;
+        if (value is IConvertible convertible && value is not string)
+        {
+            try { return convertible.ToInt32(null) != 0; }
+            catch { /* fall back to string normalization */ }
+        }
+        var s = value.ToString()?.Trim().ToUpperInvariant();
+        return s is "T" or "1" or "TRUE" or "S" or "Y";
+    }
+
+    private static string ApprovalError(Payload payload) => payload.ApprovalOrigin == "versao_ativa"
+        ? $"Aguardando aprovacao da versao ativa {payload.VersionNumber ?? ""}.".Trim()
+        : "Aguardando aprovacao do script.";
+
+    private static PublicationItem ToPublicationItem(PublicationRow row, HashSet<int> suspended)
+    {
+        var hasVersion = row.VersionId.HasValue;
+        var approved = hasVersion ? IsApproved(row.VersionApproved) : IsApproved(row.ScriptApproved);
+        var state = suspended.Contains(row.Id) ? "suspenso" : row.Estado;
+        if (!approved && state != "suspenso")
+            state = "aguardando_aprovacao";
+        var approvalOrigin = hasVersion ? "versao_ativa" : "script";
+        return new PublicationItem(row.Id, row.Nome, state, row.Erro, row.PublicadoEm, row.CodDestino, row.PackageId, row.PackageName, row.Sistema,
+            approved, approvalOrigin, hasVersion ? row.VersionApprovedBy : row.ScriptApprovedBy,
+            hasVersion ? row.VersionApprovalDate : row.ScriptApprovalDate, row.VersionNumber, row.Revisao, row.Tentativas);
+    }
+
     private async Task<int[]> ValidateSpecialties(int[] ids, CancellationToken ct)
     {
         ids = ids.Distinct().Where(x => x > 0).ToArray();
@@ -440,8 +561,20 @@ public sealed class PublicacaoService(
         public string? Sistema { get; set; }
         public string? Linguagem { get; set; }
         public int Ativo { get; set; }
+        public object? ScriptApproved { get; set; }
+        public string? ScriptApprovedBy { get; set; }
+        public DateTime? ScriptApprovalDate { get; set; }
+        public int? VersionId { get; set; }
+        public string? VersionNumber { get; set; }
+        public object? VersionApproved { get; set; }
+        public string? VersionApprovedBy { get; set; }
+        public DateTime? VersionApprovalDate { get; set; }
         public string? Estado { get; set; }
         public int? CodDestino { get; set; }
+        public bool EffectiveApproved => VersionId.HasValue ? IsApproved(VersionApproved) : IsApproved(ScriptApproved);
+        public string ApprovalOrigin => VersionId.HasValue ? "versao_ativa" : "script";
+        public string? EffectiveApprovedBy => VersionId.HasValue ? VersionApprovedBy : ScriptApprovedBy;
+        public DateTime? EffectiveApprovalDate => VersionId.HasValue ? VersionApprovalDate : ScriptApprovalDate;
     }
     private sealed class ScriptMappingRow
     {
@@ -455,12 +588,19 @@ public sealed class PublicacaoService(
         public string? Language { get; set; }
         public int? Package { get; set; }
         public int Active { get; set; }
+        public object? Approved { get; set; }
+        public string? ApprovedBy { get; set; }
+        public DateTime? ApprovalDate { get; set; }
         public object? Json { get; set; }
         public object? Dll { get; set; }
     }
     private sealed class VersionFiles
     {
         public int Id { get; set; }
+        public string? Number { get; set; }
+        public object? Approved { get; set; }
+        public string? ApprovedBy { get; set; }
+        public DateTime? ApprovalDate { get; set; }
         public object? Json { get; set; }
         public object? Dll { get; set; }
     }
@@ -469,7 +609,41 @@ public sealed class PublicacaoService(
         public string Name { get; set; } = "";
         public object? Content { get; set; }
     }
-    private sealed record Payload(string Title, short Type, string? Content, string? MrdTitle, string? MrdContent, int[] Specialties, int? Version, bool Active);
+    private sealed record Payload(string Title, short Type, string? Content, string? MrdTitle, string? MrdContent, int[] Specialties, int? Version, bool Active,
+        bool Approved, string ApprovalOrigin, string? ApprovedBy, DateTime? ApprovalDate, string? VersionNumber);
+    private sealed class PublicationRow
+    {
+        public int Id { get; set; }
+        public string? Nome { get; set; }
+        public string Estado { get; set; } = "";
+        public string? Erro { get; set; }
+        public DateTime? PublicadoEm { get; set; }
+        public int? CodDestino { get; set; }
+        public int? PackageId { get; set; }
+        public string? PackageName { get; set; }
+        public string? Sistema { get; set; }
+        public object? ScriptApproved { get; set; }
+        public string? ScriptApprovedBy { get; set; }
+        public DateTime? ScriptApprovalDate { get; set; }
+        public int? VersionId { get; set; }
+        public string? VersionNumber { get; set; }
+        public object? VersionApproved { get; set; }
+        public string? VersionApprovedBy { get; set; }
+        public DateTime? VersionApprovalDate { get; set; }
+        public long Revisao { get; set; }
+        public int Tentativas { get; set; }
+    }
+    private sealed record PublicationItem(int Id, string? Nome, string Estado, string? Erro, DateTime? PublicadoEm, int? CodDestino,
+        int? PackageId, string? PackageName, string? Sistema, bool AprovadoPublicacao, string AprovacaoOrigem, string? AprovadoPor,
+        DateTime? DataAprovacao, string? NumeroVersaoAtiva, long Revisao, int Tentativas)
+    {
+        public string[] EspecialidadesDestino { get; init; } = [];
+    }
+    private sealed class DestinationSpecialtyRow
+    {
+        public int ScriptId { get; set; }
+        public string Specialty { get; set; } = "";
+    }
     private sealed class Control
     {
         public int? Id { get; set; }

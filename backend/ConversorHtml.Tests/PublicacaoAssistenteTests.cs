@@ -2,6 +2,7 @@ using Dapper;
 using FirebirdSql.Data.FirebirdClient;
 using FirebirdSql.Data.Isql;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Modules.Assistente.Publicacao;
 
@@ -30,8 +31,8 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
         await source.OpenAsync();
         foreach (var sql in new[] {
             "CREATE TABLE PACOTES (CODPACOTE INTEGER PRIMARY KEY,NOME VARCHAR(100))",
-            "CREATE TABLE SCRIPTLAUDO (CODSCRIPTLAUDO INTEGER PRIMARY KEY,NOME VARCHAR(252),SISTEMA VARCHAR(50),LINGUAGEM VARCHAR(20),CODPACOTE INTEGER,ATIVO INTEGER,ARQUIVO_JSON BLOB SUB_TYPE BINARY,DLL BLOB SUB_TYPE BINARY)",
-            "CREATE TABLE SCRIPTVERSOES (CODVERSAO INTEGER PRIMARY KEY,CODSCRIPTLAUDO INTEGER,ATIVO CHAR(1),ARQUIVO_JSON BLOB SUB_TYPE BINARY,ARQUIVO_DLL BLOB SUB_TYPE BINARY)",
+            "CREATE TABLE SCRIPTLAUDO (CODSCRIPTLAUDO INTEGER PRIMARY KEY,NOME VARCHAR(252),SISTEMA VARCHAR(50),LINGUAGEM VARCHAR(20),CODPACOTE INTEGER,ATIVO INTEGER,ARQUIVO_JSON BLOB SUB_TYPE BINARY,DLL BLOB SUB_TYPE BINARY,APROVADO INTEGER,APROVADO_POR VARCHAR(100),DATA_VERIFICACAO TIMESTAMP)",
+            "CREATE TABLE SCRIPTVERSOES (CODVERSAO INTEGER PRIMARY KEY,CODSCRIPTLAUDO INTEGER,ATIVO CHAR(1),ARQUIVO_JSON BLOB SUB_TYPE BINARY,ARQUIVO_DLL BLOB SUB_TYPE BINARY,APROVADO CHAR(1),APROVADO_POR VARCHAR(100),DATA_APROVACAO TIMESTAMP,NUMERO_VERSAO VARCHAR(20))",
             "CREATE TABLE SCRIPTLAUDOMRD (CODSCRIPTMRD INTEGER PRIMARY KEY,CODSCRIPTLAUDO INTEGER,NOME_ARQUIVO VARCHAR(128),ARQUIVO_MRD BLOB SUB_TYPE BINARY,PADRAO CHAR(1))",
             "CREATE TABLE SCRIPTVERSAOMRD (CODVERSAOMRD INTEGER PRIMARY KEY,CODVERSAO INTEGER,NOME_ARQUIVO VARCHAR(128),ARQUIVO_MRD BLOB SUB_TYPE BINARY,PADRAO CHAR(1))" })
             await source.ExecuteAsync(sql);
@@ -82,7 +83,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     {
         await Seed();
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTVERSOES (CODVERSAO,CODSCRIPTLAUDO,ATIVO) VALUES (1,1,'T')");
+        await source.ExecuteAsync("INSERT INTO SCRIPTVERSOES (CODVERSAO,CODSCRIPTLAUDO,ATIVO,APROVADO,APROVADO_POR,DATA_APROVACAO,NUMERO_VERSAO) VALUES (1,1,'T','T','Teste',CURRENT_TIMESTAMP,'V1')");
         await service.ProcessNext(default);
         Assert.Equal("falha", await source.ExecuteScalarAsync<string>("SELECT ESTADO FROM ASS_PUBLICACAO"));
         await source.ExecuteAsync("UPDATE SCRIPTVERSOES SET ARQUIVO_JSON=@bytes", new { bytes = "{\"active\":true}"u8.ToArray() });
@@ -103,7 +104,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     [FirebirdPublicationFact]
     public async Task SourceDeletionPreservesDestinationAndMrd()
     {
-        await Seed();
+        await SeedFlex();
         await using var source = new FbConnection(sourceCs);
         await source.ExecuteAsync("INSERT INTO SCRIPTLAUDOMRD VALUES (1,1,'modelo.mrd',@bytes,'T')", new { bytes = "Medware Designer Report 1.0 test"u8.ToArray() });
         await service.ProcessNext(default);
@@ -113,6 +114,18 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
         await service.ProcessNext(default);
         Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT STATUS FROM SCRIPTLAUDO"));
         Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT STATUS FROM PAGFOTOS"));
+    }
+
+    [FirebirdPublicationFact]
+    public async Task UxPublishesLinkedJsonMrd()
+    {
+        await Seed();
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDOMRD VALUES (1,1,'modelo.json',@bytes,'T')", new { bytes = "{\"mrd\":true}"u8.ToArray() });
+        await service.ProcessNext(default);
+        await using var target = new FbConnection(targetCs);
+        Assert.Equal("{\"mrd\":true}", await target.ExecuteScalarAsync<string>("SELECT ESTRUTURAPAGFOTOS FROM PAGFOTOS"));
+        Assert.Equal(1, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO_PAGFOTOS"));
     }
 
     [FirebirdPublicationFact]
@@ -139,7 +152,13 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     private async Task Seed()
     {
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL)", new { bytes = "{}"u8.ToArray() });
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "{}"u8.ToArray() });
+    }
+
+    private async Task SeedFlex()
+    {
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos Flex',NULL,1,1,NULL,@bytes,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "dll"u8.ToArray() });
     }
 
     [FirebirdPublicationFact]
@@ -147,7 +166,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     {
         await Seed();
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDOMRD VALUES (1,1,'modelo.mrd',@bytes,'T')", new { bytes = "Medware Designer Report 1.0 test"u8.ToArray() });
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDOMRD VALUES (1,1,'modelo.json',@bytes,'T')", new { bytes = "{\"mrd\":true}"u8.ToArray() });
         await service.ProcessNext(default);
         await using var target = new FbConnection(targetCs);
         await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (40,'Nova')");
@@ -177,6 +196,71 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
         await service.SaveScriptMapping(1, 1, [], default);
         await service.ProcessNext(default);
         Assert.Equal(new[] { 10, 20 }, await target.QueryAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE ORDER BY 1"));
+    }
+
+    [FirebirdPublicationFact]
+    public async Task PackageScriptsFiltersByActiveStatus()
+    {
+        await Seed();
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (2,'Consulta inativa','Laudos UX',NULL,1,0,@bytes,NULL,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "{}"u8.ToArray() });
+        var active = JsonSerializer.SerializeToElement(await service.PackageScripts(1, 1, null, 1, default));
+        var inactive = JsonSerializer.SerializeToElement(await service.PackageScripts(1, 1, null, 0, default));
+        Assert.Equal(1, active.GetProperty("total").GetInt32());
+        Assert.Equal(1, inactive.GetProperty("total").GetInt32());
+        Assert.Equal(1, active.GetProperty("items")[0].GetProperty("Id").GetInt32());
+        Assert.Equal(2, inactive.GetProperty("items")[0].GetProperty("Id").GetInt32());
+    }
+
+    [FirebirdPublicationFact]
+    public async Task NotApprovedScriptWaitsForApprovalAndThenPublishes()
+    {
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,0,NULL,NULL)", new { bytes = "{}"u8.ToArray() });
+        await service.ProcessNext(default);
+        Assert.Equal("aguardando_aprovacao", await source.ExecuteScalarAsync<string>("SELECT ESTADO FROM ASS_PUBLICACAO"));
+        await using var target = new FbConnection(targetCs);
+        Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO"));
+        await source.ExecuteAsync("UPDATE SCRIPTLAUDO SET APROVADO=1, APROVADO_POR='Teste', DATA_VERIFICACAO=CURRENT_TIMESTAMP");
+        await service.ProcessNext(default);
+        Assert.Equal("sincronizado", await source.ExecuteScalarAsync<string>("SELECT ESTADO FROM ASS_PUBLICACAO"));
+        Assert.Equal(1, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO"));
+    }
+
+    [FirebirdPublicationFact]
+    public async Task ListIncludesUnqueuedNotApprovedScriptsInAwaitingApprovalSummary()
+    {
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,0,NULL,NULL)", new { bytes = "{}"u8.ToArray() });
+        var result = JsonSerializer.SerializeToElement(await service.List(1, null, default));
+        Assert.Equal(1, result.GetProperty("total").GetInt32());
+        Assert.Equal(1, result.GetProperty("summary").GetProperty("aguardando_aprovacao").GetInt32());
+        Assert.Equal("aguardando_aprovacao", result.GetProperty("items")[0].GetProperty("Estado").GetString());
+    }
+
+    [FirebirdPublicationFact]
+    public async Task ListIncludesDestinationSpecialties()
+    {
+        await Seed();
+        await service.ProcessNext(default);
+        var result = JsonSerializer.SerializeToElement(await service.List(1, null, default));
+        var specialties = result.GetProperty("items")[0].GetProperty("EspecialidadesDestino").EnumerateArray().Select(x => x.GetString()).ToArray();
+        Assert.Equal(new[] { "Consulta" }, specialties);
+    }
+
+    [FirebirdPublicationFact]
+    public async Task ActiveVersionApprovalOverridesScriptApproval()
+    {
+        await Seed();
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTVERSOES (CODVERSAO,CODSCRIPTLAUDO,ATIVO,ARQUIVO_JSON,APROVADO,NUMERO_VERSAO) VALUES (1,1,'T',@bytes,'F','V1')", new { bytes = "{\"active\":true}"u8.ToArray() });
+        await service.ProcessNext(default);
+        Assert.Equal("aguardando_aprovacao", await source.ExecuteScalarAsync<string>("SELECT ESTADO FROM ASS_PUBLICACAO"));
+        await using var target = new FbConnection(targetCs);
+        Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO"));
+        await source.ExecuteAsync("UPDATE SCRIPTVERSOES SET APROVADO='T', APROVADO_POR='Teste', DATA_APROVACAO=CURRENT_TIMESTAMP");
+        await service.ProcessNext(default);
+        Assert.Equal("{\"active\":true}", await target.ExecuteScalarAsync<string>("SELECT ESTRUTURASCRIPT FROM SCRIPTLAUDO"));
     }
 
     [FirebirdPublicationFact]

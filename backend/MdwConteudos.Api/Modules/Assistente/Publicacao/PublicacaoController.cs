@@ -14,13 +14,15 @@ public sealed class PublicacaoController(PublicacaoService service) : Controller
 
     [RequirePermission(PermissionDomains.Assistente, PermissionActions.Visualizar)]
     [HttpGet("scripts")]
-    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int? scriptId = null, CancellationToken ct = default)
-        => await Handle(() => service.List(page, scriptId, ct));
+    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int? scriptId = null,
+        [FromQuery] string? search = null, [FromQuery] int? pacote = null, [FromQuery] string? estado = null,
+        [FromQuery] int? aprovado = null, CancellationToken ct = default)
+        => await Handle(() => service.List(page, scriptId, ct, search: search, package: pacote, state: estado, approved: aprovado));
 
     [RequirePermission(PermissionDomains.Assistente, PermissionActions.Visualizar)]
     [HttpGet("pacotes/{id:int}/scripts")]
-    public async Task<IActionResult> PackageScripts(int id, [FromQuery] int page = 1, [FromQuery] string? search = null, CancellationToken ct = default)
-        => await Handle(() => service.PackageScripts(id, page, search, ct));
+    public async Task<IActionResult> PackageScripts(int id, [FromQuery] int page = 1, [FromQuery] string? search = null, [FromQuery] int ativo = 1, CancellationToken ct = default)
+        => await Handle(() => service.PackageScripts(id, page, search, ativo, ct));
 
     [RequirePermission(PermissionDomains.Assistente, PermissionActions.Visualizar)]
     [HttpPost("origens")]

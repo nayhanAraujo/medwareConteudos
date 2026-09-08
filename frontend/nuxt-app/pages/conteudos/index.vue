@@ -58,7 +58,7 @@ const cards: ContentCard[] = [
   },
   {
     type: 'mensagens_personalizadas',
-    title: 'Frases do Assistente',
+    title: 'Grupo de frases',
     desc: 'Banco de frases e grupos do Assistente',
     icon: 'quote',
     themeName: 'green',
