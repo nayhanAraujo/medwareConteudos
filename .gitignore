@@ -38,6 +38,7 @@ uploads/
 # -----------------------------------------------------------------------------
 .dotnet/
 .codex-build/
+.homologacao/
 backend/MdwConteudos.Api/bin-check/
 backend/MdwConteudos.Api/bin-temp/
 backend/MdwConteudos.Api/bin-verify/

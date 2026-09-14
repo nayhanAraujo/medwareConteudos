@@ -112,12 +112,14 @@ public class ReferenciasService : IReferenciasService
 {
     private readonly string _connectionString;
     private readonly string _staticUploadsRoot;
+    private readonly string? _sandboxFilesRoot;
 
     public ReferenciasService(IConfiguration config, IWebHostEnvironment env)
     {
         _connectionString = EnvFileLoader.GetFirebirdConnectionString(config);
         var migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
         _staticUploadsRoot = MigrationRootResolver.StaticUploadsRoot(migrationRoot);
+        _sandboxFilesRoot = HomologacaoGuard.IsEnabled(config) ? migrationRoot : null;
     }
 
     private IDbConnection CreateConnection() => new FbConnection(_connectionString);
@@ -1567,6 +1569,13 @@ public class ReferenciasService : IReferenciasService
     {
         try
         {
+            if (_sandboxFilesRoot is not null)
+            {
+                var copied = HomologacaoGuard.ResolveCopiedFile(_sandboxFilesRoot, caminho)
+                    ?? HomologacaoGuard.ResolveCopiedFile(_sandboxFilesRoot, link);
+                if (copied is not null) File.Delete(copied);
+                return;
+            }
             if (!string.IsNullOrWhiteSpace(caminho))
             {
                 if (Path.IsPathRooted(caminho))

@@ -1,5 +1,3 @@
-using System.IO.Compression;
-using System.Text;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
@@ -13,6 +11,7 @@ public class ApiScriptOperations
     private readonly string _staticRoot;
     private readonly string _uploadRoot;
     private readonly string? _legacyRoot;
+    private readonly bool _sandbox;
 
     private const string ScriptListSelect = @"
         SELECT s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
@@ -27,6 +26,7 @@ public class ApiScriptOperations
         IWebHostEnvironment env)
     {
         _db = db;
+        _sandbox = HomologacaoGuard.IsEnabled(config);
         _migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
         _staticRoot = MigrationRootResolver.StaticRoot(_migrationRoot);
         _uploadRoot = MigrationRootResolver.UploadsRoot(_migrationRoot, create: false);
@@ -44,6 +44,10 @@ public class ApiScriptOperations
     {
         var where = extra?.ToList() ?? new List<string>();
         var p = new DynamicParameters();
+        sistema = sistema?.Trim();
+        aprovado = aprovado?.Trim();
+        ativo = ativo?.Trim();
+        pacote = pacote?.Trim();
         if (sistema is "Laudos UX" or "Laudos Flex") { where.Add("s.SISTEMA = @sistema"); p.Add("sistema", sistema); }
         if (aprovado is "0" or "1") { where.Add("s.APROVADO = @aprovado"); p.Add("aprovado", int.Parse(aprovado)); }
         if (ativo is "0" or "1") { where.Add("s.ATIVO = @ativo"); p.Add("ativo", int.Parse(ativo)); }
@@ -95,7 +99,7 @@ public class ApiScriptOperations
                 ["caminho_relativo_api"] = $"/apiconteudos/v1/scripts/{cod}/imagem?indice=0"
             };
         }
-        return (item, BuildWorkflowKey(item));
+        return (item, ApiV1Contract.WorkflowKey(item));
     }
 
     public async Task<(string? Path, Dictionary<string, string>? Meta)> ResolveScriptImagemAsync(
@@ -231,7 +235,7 @@ public class ApiScriptOperations
             ["linguagem"] = (string?)row.LINGUAGEM ?? "",
             ["sistema"] = (string?)row.SISTEMA ?? "",
             ["aprovado"] = Convert.ToBoolean(row.APROVADO),
-            ["data_verificacao"] = FormatDate(row.DATA_VERIFICACAO),
+            ["data_verificacao"] = ApiV1Contract.FormatDate((object?)row.DATA_VERIFICACAO),
             ["ativo"] = Convert.ToBoolean(row.ATIVO),
             ["aprovado_por"] = (string?)row.APROVADO_POR ?? "",
             ["pacote_nome"] = (string?)row.NOME_PACOTE ?? "",
@@ -250,20 +254,6 @@ public class ApiScriptOperations
         item["qtd_mrd"] = mrds.Count;
         item["mrd_fonte"] = mrdFonte;
         return item;
-    }
-
-    private static string? FormatDate(object? value)
-    {
-        if (value is null or DBNull) return null;
-        if (value is DateTime dt) return dt.ToString("o");
-        return value.ToString();
-    }
-
-    private static string? BuildWorkflowKey(Dictionary<string, object?> item)
-    {
-        if (!item.TryGetValue("codscriptlaudo", out var cod) || cod is null) return null;
-        if (!item.TryGetValue("data_verificacao", out var dv) || dv is null or "") return null;
-        return $"{cod}|{dv}";
     }
 
     private static async Task<(int? CodVersao, string? NumeroVersao)> GetVersaoAtivaAsync(
@@ -328,7 +318,7 @@ public class ApiScriptOperations
                 ["nome_arquivo"] = (string?)r.NOME_ARQUIVO ?? $"MRD_{r.CODVERSAOMRD}",
                 ["padrao"] = ((string?)r.PADRAO ?? "F").Trim().ToUpperInvariant() == "T",
                 ["ordem"] = r.ORDEM
-            }).ToList(), "SCRIPTVERSAOMRD");
+            }).ToList(), ApiV1Contract.MrdSource(true));
         }
 
         var srows = await conn.QueryAsync(@"
@@ -342,11 +332,12 @@ public class ApiScriptOperations
             ["nome_arquivo"] = (string?)r.NOME_ARQUIVO ?? $"MRD_{r.CODSCRIPTMRD}",
             ["padrao"] = ((string?)r.PADRAO ?? "F").Trim().ToUpperInvariant() == "T",
             ["ordem"] = r.ORDEM
-        }).ToList(), "SCRIPTLAUDOMRD");
+        }).ToList(), ApiV1Contract.MrdSource(false));
     }
 
     private string? ResolveArquivoCaminhoDisco(string? caminhoBruto)
     {
+        if (_sandbox) return HomologacaoGuard.ResolveCopiedFile(_migrationRoot, caminhoBruto);
         var caminho = (caminhoBruto ?? "").Trim();
         if (string.IsNullOrEmpty(caminho)) return null;
         if (File.Exists(caminho)) return Path.GetFullPath(caminho);
@@ -503,26 +494,10 @@ public class ApiScriptOperations
     }
 
     private static string SanitizeFileName(string? nome, int cod)
-    {
-        var sane = string.Concat((nome ?? "").Select(c => char.IsLetterOrDigit(c) || c is ' ' or '_' or '-' ? c : '_')).Trim();
-        sane = HttpHeaderSanitizer.ToAscii(sane).Replace(' ', '_');
-        return string.IsNullOrWhiteSpace(sane) ? $"script_{cod}" : sane;
-    }
+        => ApiV1Contract.ScriptBaseName(nome, cod);
 
     private static IActionResult ZipResponse(IEnumerable<(string Name, byte[] Data)> files, string zipBaseName, string? numeroVersao, bool activeVersion)
-    {
-        using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))
-        {
-            foreach (var (name, data) in files)
-            {
-                var entry = zip.CreateEntry(name);
-                using var s = entry.Open();
-                s.Write(data, 0, data.Length);
-            }
-        }
-        return new ScriptDownloadFileResult(ms.ToArray(), $"{zipBaseName}.zip", numeroVersao, activeVersion);
-    }
+        => ApiV1Contract.CreateScriptZip(files, zipBaseName, numeroVersao, activeVersion);
 
     private static IActionResult NotFoundMsg(string error, int cod) =>
         new NotFoundObjectResult(new { success = false, error, codscriptlaudo = cod });
@@ -536,9 +511,9 @@ public class ScriptDownloadFileResult : FileContentResult
     public ScriptDownloadFileResult(byte[] bytes, string fileName, string? numeroVersao, bool activeVersion)
         : base(bytes, "application/zip")
     {
-        FileDownloadName = HttpHeaderSanitizer.ToAscii(fileName);
+        FileDownloadName = fileName;
         Suffix = BuildSuffix(numeroVersao, activeVersion);
-        Source = activeVersion ? "SCRIPTVERSOES" : "SCRIPTLAUDO";
+        Source = activeVersion ? "SCRIPT_VERSOES" : "SCRIPTLAUDO";
     }
 
     public string Suffix { get; }

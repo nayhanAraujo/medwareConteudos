@@ -10,6 +10,9 @@ public static class MigrationRootResolver
 
     public static string ResolveMigrationRoot(IConfiguration? config = null, string? startDir = null)
     {
+        if (config is not null && HomologacaoGuard.IsEnabled(config))
+            return HomologacaoGuard.ResolveFilesRoot(config);
+
         var start = Path.GetFullPath(startDir ?? AppContext.BaseDirectory);
         var configured = config?["LegacyPaths:RepoRoot"];
 
@@ -36,6 +39,9 @@ public static class MigrationRootResolver
         string migrationRoot,
         string? startDir = null)
     {
+        // Nunca reencontra assets ou uploads originais por descoberta ancestral.
+        if (config is not null && HomologacaoGuard.IsEnabled(config)) return null;
+
         var configured = config?["LegacyPaths:RepoRoot"];
         if (!string.IsNullOrWhiteSpace(configured))
         {

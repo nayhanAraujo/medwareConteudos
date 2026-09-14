@@ -18,7 +18,7 @@ public class ApiPublicaController : ControllerBase
     [Produces("application/json")]
     [SwaggerOperation(
         Summary = "Obter token JWT",
-        Description = "Envie a senha de parceiro (`API_JWT_PASSWORD`) em JSON. Retorna JWT válido no dia atual (UTC) por até 24h. **Não exige Authorize.**",
+        Description = "Envie a senha de parceiro (`API_JWT_PASSWORD`) em JSON. Retorna JWT válido no dia atual (UTC) pela tolerância configurada no servidor (padrão: 24h). **Não exige Authorize.**",
         Tags = new[] { "Sistema" })]
     [SwaggerResponse(200, "Token gerado com sucesso", typeof(TokenSuccessDoc))]
     [SwaggerResponse(400, "Senha não informada ou JSON inválido", typeof(ApiErrorDoc))]
@@ -94,7 +94,7 @@ public class ApiPublicaController : ControllerBase
         Summary = "Normalidades ecodoppler (query)",
         Description = "Retorna mapa de normalidades ecocardiográficas por variável/sexo/zona para a referência informada.",
         Tags = new[] { "Normalidades" })]
-    [SwaggerResponse(200, "Mapa de normalidades ecocardiográficas", typeof(Dictionary<string, Dictionary<string, Dictionary<string, object>>>))]
+    [SwaggerResponse(200, "Mapa de normalidades ecocardiográficas", typeof(Dictionary<string, Dictionary<string, Dictionary<string, NormalidadeFaixaDoc>>>))]
     [SwaggerResponse(400, "Parâmetro referencia inválido", typeof(ApiErrorDoc))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(404, "Referência não encontrada", typeof(ApiErrorDoc))]
@@ -111,7 +111,7 @@ public class ApiPublicaController : ControllerBase
         Summary = "Normalidades ecodoppler (path)",
         Description = "Mesmo retorno de `/normalidades_ecodopplercardiograma`, com referência na URL.",
         Tags = new[] { "Normalidades" })]
-    [SwaggerResponse(200, "Mapa de normalidades ecocardiográficas", typeof(Dictionary<string, Dictionary<string, Dictionary<string, object>>>))]
+    [SwaggerResponse(200, "Mapa de normalidades ecocardiográficas", typeof(Dictionary<string, Dictionary<string, Dictionary<string, NormalidadeFaixaDoc>>>))]
     [SwaggerResponse(400, "Parâmetro referencia inválido", typeof(ApiErrorDoc))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(404, "Referência não encontrada", typeof(ApiErrorDoc))]
@@ -134,8 +134,8 @@ public class ApiPublicaController : ControllerBase
     [SwaggerOperation(
         Summary = "Listar fórmulas",
         Description = "Retorna fórmulas agrupadas por variável, com equações por linguagem.",
-        Tags = new[] { "Variáveis" })]
-    [SwaggerResponse(200, "Fórmulas agrupadas por variável", typeof(Dictionary<string, List<object>>))]
+        Tags = new[] { "Fórmulas" })]
+    [SwaggerResponse(200, "Fórmulas agrupadas por variável", typeof(Dictionary<string, List<FormulaFuncaoDoc>>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> Formulas(CancellationToken ct) => _api.GetFormulasAsync(ct);
@@ -146,7 +146,7 @@ public class ApiPublicaController : ControllerBase
     [SwaggerOperation(
         Summary = "Listar referências bibliográficas",
         Tags = new[] { "Referências" })]
-    [SwaggerResponse(200, "Lista de referências", typeof(ApiListDoc<ReferenciaResumoDoc>))]
+    [SwaggerResponse(200, "Lista de referências", typeof(ApiListDoc<ReferenciaItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> Referencias(
@@ -174,8 +174,8 @@ public class ApiPublicaController : ControllerBase
     [SwaggerOperation(
         Summary = "Listar especialidades",
         Description = "Especialidades médicas com contagem de variáveis vinculadas.",
-        Tags = new[] { "Referências" })]
-    [SwaggerResponse(200, "Lista de especialidades", typeof(ApiListDoc<object>))]
+        Tags = new[] { "Especialidades" })]
+    [SwaggerResponse(200, "Lista de especialidades", typeof(ApiListDoc<EspecialidadeItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> Especialidades(CancellationToken ct) => _api.GetEspecialidadesAsync(ct);
@@ -187,7 +187,8 @@ public class ApiPublicaController : ControllerBase
         Summary = "Listar relatórios",
         Description = "Lista relatórios cadastrados (metadados; use download para o arquivo).",
         Tags = new[] { "Relatórios" })]
-    [SwaggerResponse(200, "Lista de relatórios", typeof(ApiListDoc<object>))]
+    [SwaggerResponse(200, "Lista de relatórios", typeof(ApiListDoc<RelatorioItemDoc>))]
+    [SwaggerResponse(400, "Filtro ativo ou multiselecao inválido", typeof(ApiErrorDoc))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> Relatorios(
@@ -208,7 +209,7 @@ public class ApiPublicaController : ControllerBase
         Tags = new[] { "Relatórios" })]
     [SwaggerResponse(200, "Arquivo do relatório (binário)")]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
-    [SwaggerResponse(404, "Relatório não encontrado", typeof(ResourceNotFoundDoc))]
+    [SwaggerResponse(404, "Relatório não encontrado", typeof(RelatorioNotFoundDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> DownloadRelatorio(
         [SwaggerParameter(Description = "CODRELATORIO", Required = true)] int codrelatorio,
@@ -224,7 +225,7 @@ public class ApiPublicaController : ControllerBase
             "Lista modelos de laudo. Com `incluir_arquivos=1` (padrão), inclui imagens, PDFs e MRDs " +
             "(prioriza versão ATIVA quando existir). Use `incluir_arquivos=0` para resposta enxuta.",
         Tags = new[] { "Scripts" })]
-    [SwaggerResponse(200, "Lista de scripts", typeof(ApiListDoc<object>))]
+    [SwaggerResponse(200, "Lista de scripts", typeof(ApiListDoc<ScriptItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> Scripts(
@@ -245,7 +246,7 @@ public class ApiPublicaController : ControllerBase
             "Retorna o script mais recente com `data_verificacao` preenchida (mesmos filtros de GET /scripts). " +
             "Resposta 204 se nenhum atender. Inclui `workflow_key` para deduplicação (n8n).",
         Tags = new[] { "Scripts" })]
-    [SwaggerResponse(200, "Script encontrado", typeof(object))]
+    [SwaggerResponse(200, "Script encontrado", typeof(ScriptUltimoVerificadoDoc))]
     [SwaggerResponse(204, "Nenhum script verificado atende aos filtros")]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
@@ -262,11 +263,11 @@ public class ApiPublicaController : ControllerBase
     [HttpGet("api/v1/scripts/{codscriptlaudo:int}/imagem")]
     [SwaggerOperation(
         Summary = "Imagem do script",
-        Description = "Retorna arquivo de interface (PNG/JPG). `indice=0` é a primeira imagem da listagem.",
+        Description = "Retorna arquivo de interface (PNG/JPG/GIF/WebP/BMP). `indice=0` é a primeira imagem da listagem.",
         Tags = new[] { "Scripts" })]
-    [SwaggerResponse(200, "Imagem (image/png ou image/jpeg)")]
+    [SwaggerResponse(200, "Imagem binária (tipo de mídia conforme extensão)")]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
-    [SwaggerResponse(404, "Script ou imagem não encontrada", typeof(ResourceNotFoundDoc))]
+    [SwaggerResponse(404, "Script ou imagem não encontrada", typeof(ScriptErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> ScriptImagem(
         [SwaggerParameter(Description = "CODSCRIPTLAUDO", Required = true)] int codscriptlaudo,
@@ -279,14 +280,15 @@ public class ApiPublicaController : ControllerBase
     [SwaggerOperation(
         Summary = "Download de arquivos do script",
         Description =
-            "Baixa JSON/DLL/MRD conforme sistema. Preferência à versão ATIVA em SCRIPTVERSOES. " +
+            "Baixa pacote ZIP contendo JSON/DLL/MRD conforme sistema. Preferência à versão ATIVA em SCRIPTVERSOES. " +
             "Parâmetro `tipo`: json, dll, mrd, mrd_todos (arquivo único em ZIP). " +
             "Sem `tipo`: pacote padrão (UX=JSON+MRD, Flex=DLL+MRD) em ZIP. " +
             "Headers: X-Script-Download-Suffix, X-Script-Download-Source.",
         Tags = new[] { "Scripts" })]
-    [SwaggerResponse(200, "Arquivo ou ZIP (application/octet-stream ou application/zip)")]
+    [SwaggerResponse(200, "Pacote ZIP (application/zip)")]
+    [SwaggerResponse(400, "Sistema incompatível com o tipo solicitado", typeof(ScriptErrorDoc))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
-    [SwaggerResponse(404, "Script ou arquivo não encontrado", typeof(ResourceNotFoundDoc))]
+    [SwaggerResponse(404, "Script ou arquivo não encontrado", typeof(ScriptErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> DownloadScript(
         [SwaggerParameter(Description = "CODSCRIPTLAUDO", Required = true)] int codscriptlaudo,
@@ -300,7 +302,8 @@ public class ApiPublicaController : ControllerBase
         Summary = "Listar painéis",
         Description = "Lista painéis Power BI/API (sem binário PBIX; use download). **Somente /apiconteudos/v1.**",
         Tags = new[] { "Painéis" })]
-    [SwaggerResponse(200, "Lista de painéis", typeof(ApiListDoc<object>))]
+    [SwaggerResponse(200, "Lista de painéis", typeof(ApiListDoc<PainelItemDoc>))]
+    [SwaggerResponse(400, "Filtro tipo ou ativo inválido", typeof(ApiErrorDoc))]
     [SwaggerResponse(401, "JWT ausente ou inválido", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> Paineis(
@@ -317,7 +320,7 @@ public class ApiPublicaController : ControllerBase
         Tags = new[] { "Painéis" })]
     [SwaggerResponse(200, "Arquivo PBIX (application/octet-stream)")]
     [SwaggerResponse(401, "JWT ausente ou inválido", typeof(ApiErrorDoc))]
-    [SwaggerResponse(404, "Painel ou PBIX não encontrado", typeof(ResourceNotFoundDoc))]
+    [SwaggerResponse(404, "Painel ou PBIX não encontrado", typeof(PainelNotFoundDoc))]
     [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> DownloadPainel(
         [SwaggerParameter(Description = "CODPAINEL", Required = true)] int codpainel,
@@ -350,9 +353,10 @@ public class ApiPublicaController : ControllerBase
         Summary = "Normalidades do padrão do cliente",
         Description = "Retorna mapa de normalidades do padrão vigente ou do código informado em `padrao`.",
         Tags = new[] { "Normalidades" })]
-    [SwaggerResponse(200, "Mapa de normalidades do cliente")]
+    [SwaggerResponse(200, "Mapa de normalidades do cliente", typeof(ClienteNormalidadesDoc))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(404, "Cliente ou padrão não encontrado", typeof(ApiErrorDoc))]
+    [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> ClienteNormalidades(
         [SwaggerParameter(Description = "CODCLIENTE (numérico)", Required = true)] string clienteKey,
         [FromQuery, SwaggerParameter(Description = "Código do padrão (ex.: ECO_ADULTO); omitir = vigente")] string? padrao,
@@ -366,9 +370,10 @@ public class ApiPublicaController : ControllerBase
         Summary = "Listar padrões de normalidade do cliente",
         Description = "Metadados dos padrões ativos do cliente.",
         Tags = new[] { "Normalidades" })]
-    [SwaggerResponse(200, "Lista de padrões")]
+    [SwaggerResponse(200, "Lista de padrões", typeof(ApiListDoc<ClientePadraoItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
     [SwaggerResponse(404, "Cliente não encontrado", typeof(ApiErrorDoc))]
+    [SwaggerResponse(500, "Erro interno do servidor", typeof(ApiErrorDoc))]
     public Task<IActionResult> ClientePadroesNormalidade(
         [SwaggerParameter(Description = "CODCLIENTE (numérico)", Required = true)] string clienteKey,
         CancellationToken ct) =>

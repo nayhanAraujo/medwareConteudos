@@ -24,6 +24,12 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     apiServerBase: process.env.NUXT_API_SERVER_BASE || process.env.DOTNET_API_BASE || 'http://localhost:5080',
+    docsApiBase: process.env.NUXT_DOCS_API_BASE || process.env.NUXT_API_SERVER_BASE || 'http://localhost:5080',
+    docsSandboxBase: process.env.NUXT_DOCS_SANDBOX_BASE || 'http://localhost:5081',
+    docsPublicBase: process.env.NUXT_DOCS_PUBLIC_BASE || 'http://localhost:5080',
+    docsSandboxPublicBase: process.env.NUXT_DOCS_SANDBOX_PUBLIC_BASE || 'http://localhost:5081',
+    docsSandboxInstanceId: process.env.NUXT_DOCS_SANDBOX_INSTANCE_ID || '',
+    docsSupportUrl: process.env.NUXT_DOCS_SUPPORT_URL || '',
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api-dotnet'
     }

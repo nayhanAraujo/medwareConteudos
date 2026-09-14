@@ -14,6 +14,7 @@ using MdwConteudos.Api.Modules.Assistente.Publicacao;
 using MdwConteudos.Api.Modules.Auth;
 using MdwConteudos.Api.Modules.Cadastros;
 using MdwConteudos.Api.Modules.Dashboard;
+using MdwConteudos.Api.Modules.Documentation;
 using MdwConteudos.Api.Modules.FirebirdAdmin;
 using MdwConteudos.Api.Modules.FormulasModelos;
 using MdwConteudos.Api.Modules.PaineisCadastros;
@@ -33,7 +34,8 @@ builder.Configuration.AddJsonFile(
     $"appsettings.{builder.Environment.EnvironmentName}.local.json",
     optional: true,
     reloadOnChange: true);
-EnvFileLoader.LoadFromRepoRoot(builder.Configuration, builder.Environment.ContentRootPath);
+EnvFileLoader.LoadFromRepoRoot(builder.Configuration, builder.Environment.ContentRootPath, builder.Environment.EnvironmentName);
+HomologacaoGuard.Configure(builder);
 const string DefaultWebJwtSecret = "mdw-web-dev-secret-change-me-2026-local-migration-only";
 
 builder.Services.Configure<FirebirdOptions>(builder.Configuration.GetSection(FirebirdOptions.SectionName));
@@ -125,12 +127,29 @@ builder.Services.AddRelatoriosComplementos();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddRequestTimeouts();
 
-builder.Services.AddControllers().AddJsonOptions(o =>
+builder.Services.AddPortalOpenApiMetadata();
+builder.Services.AddControllers(options => options.Filters.Add<LegacyApiValidationFilter>()).AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(
         System.Text.Json.JsonNamingPolicy.CamelCase));
+});
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    var originalFactory = options.InvalidModelStateResponseFactory;
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        if (context.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor action
+            && action.ControllerTypeInfo.AsType() == typeof(ApiPublicaController))
+            return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(new
+            {
+                success = false,
+                error = "Parâmetros inválidos",
+                message = "Confira os tipos e os campos obrigatórios da requisição."
+            });
+        return originalFactory(context);
+    };
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -139,7 +158,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc(SwaggerDocPaths.Parceiros, new OpenApiInfo
     {
         Title = "MDW Conteúdos — API Parceiros",
-        Version = "v1",
+        Version = "1.0.0",
         Description =
             "Base **/apiconteudos/v1** com autenticação JWT.\n\n" +
             "**Como usar:**\n" +
@@ -151,7 +170,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc(SwaggerDocPaths.ApiInterna, new OpenApiInfo
     {
         Title = "MDW Conteúdos — API Interna",
-        Version = "v1",
+        Version = "1.0.0",
         Description =
             "Base **/api/v1** sem autenticação. Uso interno (laudos HTML, integrações locais). " +
             "Parceiros externos devem usar **/apiconteudos/v1** com JWT."
@@ -159,7 +178,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc(SwaggerDocPaths.Web, new OpenApiInfo
     {
         Title = "MDW Conteúdos — Web Admin",
-        Version = "v1",
+        Version = "1.0.0",
         Description =
             "API do sistema web migrado (cadastros, scripts, usuários). " +
             "Requer JWT de login web (`POST /api/web/auth/login`), não o JWT de parceiros."
@@ -180,19 +199,7 @@ builder.Services.AddSwaggerGen(c =>
         };
     });
 
-    c.AddSecurityDefinition("PartnerJwt", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Description =
-            "JWT de parceiro. Obtenha em POST /apiconteudos/v1/token. " +
-            "Informe: Bearer {token}",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
-    c.OperationFilter<PartnerJwtOperationFilter>();
-    c.OperationFilter<ApiPublicaExamplesOperationFilter>();
+    c.AddPortalOpenApi();
 });
 
 var jwtSecret = builder.Configuration["WebAuth:JwtSecret"];
@@ -223,11 +230,13 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .AllowCredentials()));
 
 var app = builder.Build();
+HomologacaoGuard.Validate(app);
 using (var scope = app.Services.CreateScope())
 {
     var permissions = scope.ServiceProvider.GetRequiredService<IPermissionService>();
     await permissions.EnsureSchemaAsync();
 }
+await HomologacaoTestUser.EnsureAsync(app);
 app.UseCors();
 app.UseRequestTimeouts();
 var migrationRoot = MigrationRootResolver.ResolveMigrationRoot(builder.Configuration, builder.Environment.ContentRootPath);
@@ -255,20 +264,27 @@ if (legacyStaticDir is not null && Directory.Exists(legacyStaticDir))
     });
 }
 app.UseMiddleware<ApiPartnerJwtMiddleware>();
-app.UseSwagger();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseMiddleware<DocumentationAccessMiddleware>();
+app.UseMiddleware<HomologacaoEffectsMiddleware>();
+app.UseSwagger(options => options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_0);
 app.UseSwaggerUI(c =>
 {
     c.DocumentTitle = "MDW Conteúdos — Documentação API";
     c.RoutePrefix = "swagger";
     c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.Parceiros}/swagger.json", "API Parceiros (JWT)");
-    c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.ApiInterna}/swagger.json", "API Interna (/api/v1 + conversions)");
-    c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.Web}/swagger.json", "Web Admin (/api/web)");
     c.DisplayRequestDuration();
-    c.EnableTryItOutByDefault();
+    c.SupportedSubmitMethods(Swashbuckle.AspNetCore.SwaggerUI.SubmitMethod.Get);
 });
-app.MapGet("/apiconteudos/docs", () => Results.Redirect("/swagger/index.html?urls.primaryName=API%20Parceiros%20(JWT)"));
-app.UseAuthentication();
-app.UseAuthorization();
+app.MapGet("/apiconteudos/docs", () => Results.Redirect(
+    app.Configuration["Documentation:PortalUrl"] ?? "http://localhost:3000/apiconteudos/docs"));
+app.MapGet("/api/documentacao/contexto", () => Results.Ok(new
+{
+    environment = app.Environment.EnvironmentName,
+    allowWrites = app.Environment.IsEnvironment("Homologacao") && app.Configuration.GetValue<bool>("Documentation:AllowWrites"),
+    instanceId = app.Configuration["Documentation:InstanceId"] ?? ""
+}));
 app.MapControllers();
 app.Run();
 

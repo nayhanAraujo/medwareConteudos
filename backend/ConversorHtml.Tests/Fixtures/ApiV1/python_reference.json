@@ -1,0 +1,1377 @@
+{
+  "source": "../routes/api.py (AST; no application import)",
+  "pyjwt": "2.11.0",
+  "password": "senha-fixture",
+  "tolerance_hours": 4,
+  "auth": [
+    {
+      "name": "raw-short-key",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.ZIkQ5dUOQkhXNrmEt6WzwZ02zau-V1bJp8CDmECkE0Y",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "missing-header",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": null,
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Não autorizado",
+        "message": "Header Authorization com Bearer JWT é obrigatório"
+      }
+    },
+    {
+      "name": "empty-header",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Não autorizado",
+        "message": "Header Authorization com Bearer JWT é obrigatório"
+      }
+    },
+    {
+      "name": "whitespace-header",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "   ",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Não autorizado",
+        "message": "Token JWT não informado"
+      }
+    },
+    {
+      "name": "malformed",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "a.b.c",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "wrong-signature",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.1zVvLBKUSFEh--0wSPMVm1NPyko2NgejWllgkO9i-OA",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "HS384-rejected",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.TxFQNRDDE_RuAXquNOcgnCfuWbbYLX6ElZPSZm5xxSWOErykiZbYq30U1fEF_2vh",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "HS512-rejected",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.50oPbwQJ_DzPghdlLyJhjtoZIQcwALZZhjNqzs7P_0_2VzBQkR0mB0uJx0snLZFV3A94qZlUcF9P7Ir2FZ3-fA",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "none-rejected",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "raw-token",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.ZIkQ5dUOQkhXNrmEt6WzwZ02zau-V1bJp8CDmECkE0Y",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "trimmed-bearer",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "  Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.ZIkQ5dUOQkhXNrmEt6WzwZ02zau-V1bJp8CDmECkE0Y  ",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "naive-utc",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTE6NTk6NTkifQ.meWzWJPgFo1lPDNbaL6EE2I-wwpHiOOHzjItbVDyQmk",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "offset-minus-three",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMDk6MDA6MDAtMDM6MDAifQ.64AcL1Hums-nqH-16jBkw462Sit6Kuo_PnR1cQw9Prg",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "offset-plus-three",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTU6MDA6MDArMDM6MDAifQ.eUNR-f5LQZrUMijJizv8ine6XaiVhEccTL1A-QbOFoI",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "microseconds",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTE6NTk6NTkuMTIzNDU2WiJ9.Fq7ySVPhidlmyAxIBbX7qgETOYQcdRXZWtqtEic30NI",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "submicrosecond-truncation",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDAuMDAwMDAwMVoifQ.6ivqdEZxYEEQZxvakdEMBRN6zFa132Shy4-MeaR-oSA",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "future",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDAuMDAwMDAxWiJ9.DmwTVMfxfk4T6co1gWJUU1KSoMUlWQYiKkuGPOyIHHM",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "Data/hora do token não pode ser no futuro"
+      }
+    },
+    {
+      "name": "tolerance-boundary",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMDg6MDA6MDBaIn0.qnbdhdaLg5Rpb-YwZElOnSPZvyDgEsqQHpuwYwucRgg",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "tolerance-exceeded",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMDc6NTk6NTkuOTk5OTk5WiJ9.J45INB8uIysPyLeOYHjhFrdL3HZiF8zCoB8fUJTw3IA",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token expirado",
+        "message": "Data/hora do token fora do intervalo permitido (máx. 4h)"
+      }
+    },
+    {
+      "name": "wrong-password",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6ImVycmFkYSIsImRhdGFob3JhIjoiMjAyNi0wOS0wOFQxMjowMDowMFoifQ.VSDpT7ZreuvxnZ6ceTN6VFWjX72ywA7nKh4fmtfjN8I",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Não autorizado",
+        "message": "Senha no token não confere"
+      }
+    },
+    {
+      "name": "password-alias",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6IiIsImRhdGFob3JhIjoiMjAyNi0wOS0wOFQxMjowMDowMFoiLCJwYXNzd29yZCI6InNlbmhhLWZpeHR1cmUifQ.Pkg0Mcd2kVLm6f6NgiW8qG5Hr7qkA2WXZvjnyG_5tQA",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "password-primary-wins",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6ImVycmFkYSIsImRhdGFob3JhIjoiMjAyNi0wOS0wOFQxMjowMDowMFoiLCJwYXNzd29yZCI6InNlbmhhLWZpeHR1cmUifQ.g_O_GnMI9FJo4mWvNkyYEwXELEuzKQBefR_OabWnCg0",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Não autorizado",
+        "message": "Senha no token não confere"
+      }
+    },
+    {
+      "name": "datetime-alias",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IiIsImRhdGV0aW1lIjoiMjAyNi0wOS0wOFQxMjowMDowMFoifQ.JTboYoq3hwq38rfezcpdKrkf5M2UjCrMxBXWDRTb1xA",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "datetime-primary-wins",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6Imludlx1MDBlMWxpZGEiLCJkYXRldGltZSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.FrWxW6og80S7dOtY6btWVoxb0kw0p6UStSz0MMYIzDc",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "Data/hora no token em formato inválido"
+      }
+    },
+    {
+      "name": "datetime-missing",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6bnVsbH0.LcgML_cnL_mhWf0z42vPdx4tcRRgPbKjQfUZWDAyvuU",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "Campo datahora (ou datetime) é obrigatório no payload do JWT"
+      }
+    },
+    {
+      "name": "datetime-number",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6MTJ9.0aUg-B1SrE9ZwhdHs2nO19XySSNAZJMBaJ4nTUCbhs4",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "Data/hora no token em formato inválido"
+      }
+    },
+    {
+      "name": "exp-future",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiZXhwIjoxNzg4ODY4ODAxfQ.nADJATa-pQ6P80WtOPlsH-VvojCYyK7JxwDCnjNULqA",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "exp-boundary",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiZXhwIjoxNzg4ODY4ODAwfQ.h3O5UAtKmqiqL-cJ-XRs4yHK-ZoApu9iBbCjQFOz5J4",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token expirado",
+        "message": "O JWT está expirado"
+      }
+    },
+    {
+      "name": "exp-past",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiZXhwIjoxNzg4ODY4Nzk5fQ.-L7gOACeChxh_zQ16pu0v1NDMbVXgYJra-_whwWWccU",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token expirado",
+        "message": "O JWT está expirado"
+      }
+    },
+    {
+      "name": "exp-string",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiZXhwIjoiMTc4ODg2ODgwMSJ9.m9nulKrAExyHPd8RyKnTeompW8PlWY0F9VF_dSfEH1E",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "exp-float-truncated",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiZXhwIjoxNzg4ODY4ODAwLjl9.PhJmzTvqIrAViC0sAL9jwzT9_oLBC5tss-XBDGBoIDU",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token expirado",
+        "message": "O JWT está expirado"
+      }
+    },
+    {
+      "name": "exp-invalid",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiZXhwIjoiYW1hbmhcdTAwZTMifQ.r9ScyFwpVXJ3p-pe6xoPl-Uby0l57yCI94W30btYaM8",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "nbf-future",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwibmJmIjoxNzg4ODY4ODAxfQ.e_JvNNgMBUk2EEYDQizDsUnWhOHxvu6NVhrUTGQH6zg",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "iat-future",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiaWF0IjoxNzg4ODY4ODAxfQ.mj_M-GahOR8pRyXMNxaWmC_ZLA-_OE2qmdViPW7PCrE",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "unexpected-audience",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwiYXVkIjoicGFydG5lciJ9.4FyjKPUaxOUyn6jE-qDPloEJ4vpRcgz1oFj1F1annsY",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "invalid-subject",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwic3ViIjoxfQ.98PrC6vSEaRdwu1ByK_6mrLeVX2qIOg3KyoL0Qc9XVc",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "invalid-jti",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIiwianRpIjoxfQ.UtaK-PSKdu8thqqC_e5Ezhj3jCAZeIZTXnDXbc8_Exo",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "JWT malformado ou assinatura inválida"
+      }
+    },
+    {
+      "name": "previous-utc-day",
+      "now": "2026-09-08T00:30:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDdUMjM6NTk6NTlaIn0.9RybvezvQ8KKssSjz0t3HCaMxtWQjbrfD-6HX3oueIg",
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Token inválido",
+        "message": "Data/hora do token deve ser do dia atual"
+      }
+    },
+    {
+      "name": "offset-previous-local-day-current-utc",
+      "now": "2026-09-08T00:30:00+00:00",
+      "secret": "curta",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDdUMjE6MzA6MDAtMDM6MDAifQ.I02PAvO-pQReynZzfn0zZ-kD7-uvQ1I4FVlodi0EyHo",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "utf8-short",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "çã🔑",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.RzrdoUdAFJUQ4YteEb8zDlJhOo6MW0YQqclSeeEevUY",
+      "status": 200,
+      "body": null
+    },
+    {
+      "name": "long-raw",
+      "now": "2026-09-08T12:00:00+00:00",
+      "secret": "ssssssssssssssssssssssssssssssssssssssss",
+      "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.v5pL-AatI6L41MCS9LKLxr6YawKJ3hruSrpVueW5VAQ",
+      "status": 200,
+      "body": null
+    }
+  ],
+  "dates": [
+    {
+      "microseconds": 0,
+      "iso": "2026-09-08T09:10:11",
+      "workflow_key": "42|2026-09-08T09:10:11"
+    },
+    {
+      "microseconds": 1,
+      "iso": "2026-09-08T09:10:11.000001",
+      "workflow_key": "42|2026-09-08T09:10:11.000001"
+    },
+    {
+      "microseconds": 100000,
+      "iso": "2026-09-08T09:10:11.100000",
+      "workflow_key": "42|2026-09-08T09:10:11.100000"
+    },
+    {
+      "microseconds": 123456,
+      "iso": "2026-09-08T09:10:11.123456",
+      "workflow_key": "42|2026-09-08T09:10:11.123456"
+    },
+    {
+      "microseconds": 999999,
+      "iso": "2026-09-08T09:10:11.999999",
+      "workflow_key": "42|2026-09-08T09:10:11.999999"
+    }
+  ],
+  "ecodoppler": [
+    {
+      "name": "first-unclassified-wins",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          null,
+          "Fonte",
+          2020
+        ],
+        [
+          "VR_AO",
+          "M",
+          10,
+          20,
+          null,
+          null,
+          12,
+          null,
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            },
+            "low": {
+              "min": 0,
+              "max": 25,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "moderated": {
+              "min": 25,
+              "max": 50,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "elevated": {
+              "min": 50,
+              "max": 75,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "high": {
+              "min": 75,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "null-min-no-zones",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          null,
+          20,
+          null,
+          null,
+          12,
+          null,
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": null,
+              "max": 20,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "null-max-no-zones",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          10,
+          null,
+          null,
+          null,
+          12,
+          null,
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 10,
+              "max": null,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "zero-metadata-empty-sex",
+      "rows": [
+        [
+          "VR_AO",
+          "",
+          0,
+          100,
+          null,
+          null,
+          0,
+          null,
+          "",
+          0
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "U": {
+            "default": {
+              "min": 0,
+              "max": 100,
+              "_meta": {}
+            },
+            "low": {
+              "min": 0,
+              "max": 25,
+              "_meta": {}
+            },
+            "moderated": {
+              "min": 25,
+              "max": 50,
+              "_meta": {}
+            },
+            "elevated": {
+              "min": 50,
+              "max": 75,
+              "_meta": {}
+            },
+            "high": {
+              "min": 75,
+              "max": 100,
+              "_meta": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classified-overwrites-default",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          null,
+          "Fonte",
+          2020
+        ],
+        [
+          "VR_AO",
+          "M",
+          10,
+          20,
+          null,
+          null,
+          12,
+          "Normal",
+          "Fonte",
+          2020
+        ],
+        [
+          "VR_AO",
+          "M",
+          30,
+          40,
+          null,
+          null,
+          12,
+          null,
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 10,
+              "max": 20,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            },
+            "low": {
+              "min": 10,
+              "max": 12.5,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "moderated": {
+              "min": 12.5,
+              "max": 15,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "elevated": {
+              "min": 15,
+              "max": 17.5,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "high": {
+              "min": 17.5,
+              "max": 20,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classified-last-wins",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          10,
+          null,
+          null,
+          12,
+          "MODERADO",
+          "Fonte",
+          2020
+        ],
+        [
+          "VR_AO",
+          "M",
+          10,
+          20,
+          null,
+          null,
+          12,
+          "MODERADO",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "moderated": {
+              "min": 10,
+              "max": 20,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "no-quartiles-with-explicit-zone",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          null,
+          "Fonte",
+          2020
+        ],
+        [
+          "VR_AO",
+          "M",
+          10,
+          20,
+          null,
+          null,
+          12,
+          "Alto",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            },
+            "high": {
+              "min": 10,
+              "max": 20,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-Normal",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "Normal",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            },
+            "low": {
+              "min": 0,
+              "max": 25,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "moderated": {
+              "min": 25,
+              "max": 50,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "elevated": {
+              "min": 50,
+              "max": 75,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "high": {
+              "min": 75,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-Leve",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "Leve",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            },
+            "low": {
+              "min": 0,
+              "max": 25,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "moderated": {
+              "min": 25,
+              "max": 50,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "elevated": {
+              "min": 50,
+              "max": 75,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "high": {
+              "min": 75,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-Moderado",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "Moderado",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "moderated": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-Grave",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "Grave",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            },
+            "low": {
+              "min": 0,
+              "max": 25,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "moderated": {
+              "min": 25,
+              "max": 50,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "elevated": {
+              "min": 50,
+              "max": 75,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "high": {
+              "min": 75,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-Baixo",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "Baixo",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "low": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-Elevado",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "Elevado",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "elevated": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-Alto",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "Alto",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "high": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-MODERADA",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "MODERADA",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "default": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            },
+            "low": {
+              "min": 0,
+              "max": 25,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "moderated": {
+              "min": 25,
+              "max": 50,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "elevated": {
+              "min": 50,
+              "max": 75,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            },
+            "high": {
+              "min": 75,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-LOW",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "LOW",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "low": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-MODERATED",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "MODERATED",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "moderated": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-ELEVATED",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "ELEVATED",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "elevated": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "classification-HIGH",
+      "rows": [
+        [
+          "VR_AO",
+          "M",
+          0,
+          100,
+          null,
+          null,
+          12,
+          "HIGH",
+          "Fonte",
+          2020
+        ]
+      ],
+      "expected": {
+        "VR_AO": {
+          "M": {
+            "high": {
+              "min": 0,
+              "max": 100,
+              "_meta": {
+                "Pagina": 12,
+                "Fonte": "Fonte",
+                "Ano": 2020
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "download_headers": [
+    {
+      "active": false,
+      "version": null,
+      "expected": {
+        "X-Script-Download-Suffix": "padrão",
+        "X-Script-Download-Source": "SCRIPTLAUDO"
+      }
+    },
+    {
+      "active": true,
+      "version": null,
+      "expected": {
+        "X-Script-Download-Suffix": "ativa",
+        "X-Script-Download-Source": "SCRIPT_VERSOES"
+      }
+    },
+    {
+      "active": true,
+      "version": "1.2 / RC",
+      "expected": {
+        "X-Script-Download-Suffix": "1.2___RC",
+        "X-Script-Download-Source": "SCRIPT_VERSOES"
+      }
+    }
+  ],
+  "legacy_hashed_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZW5oYSI6InNlbmhhLWZpeHR1cmUiLCJkYXRhaG9yYSI6IjIwMjYtMDktMDhUMTI6MDA6MDBaIn0.Wu9DtegfywHwx0b7zx_ubuUZ_fmCX4uGVOGz2y4FVnU"
+}

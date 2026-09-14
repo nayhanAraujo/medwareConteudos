@@ -2,8 +2,23 @@ namespace MdwConteudos.Api.Infrastructure;
 
 public static class EnvFileLoader
 {
-    public static void LoadFromRepoRoot(IConfigurationBuilder config, string contentRoot)
+    public static void LoadFromRepoRoot(IConfigurationBuilder config, string contentRoot, string? environmentName = null)
     {
+        environmentName ??= Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+                            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if (string.Equals(environmentName, HomologacaoGuard.EnvironmentName, StringComparison.OrdinalIgnoreCase))
+        {
+            // CreateBuilder já adicionou providers de ambiente. Removê-los é necessário:
+            // simplesmente deixar de chamar AddEnvironmentVariables não basta.
+            foreach (var source in config.Sources.OfType<Microsoft.Extensions.Configuration.EnvironmentVariables.EnvironmentVariablesConfigurationSource>().ToArray())
+                config.Sources.Remove(source);
+            foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+                if (HomologacaoGuard.IsDangerousEnvironmentVariable((string)entry.Key))
+                    Environment.SetEnvironmentVariable((string)entry.Key, null);
+            config.AddInMemoryCollection(new Dictionary<string, string?> { ["Homologacao:IsolatedEnvironment"] = "true" });
+            return; // Não procura nem importa .env, inclusive os ancestrais.
+        }
+
         var dir = contentRoot;
         for (var i = 0; i < 6; i++)
         {
@@ -32,6 +47,22 @@ public static class EnvFileLoader
 
     public static string GetFirebirdConnectionString(IConfiguration config)
     {
+        if (HomologacaoGuard.IsEnabled(config))
+        {
+            // Nenhum fallback para ambiente, senha padrão ou BD original neste perfil.
+            if (!int.TryParse(config["Firebird:Port"], out var homolPort) || homolPort is < 1 or > 65535)
+                throw new InvalidOperationException("Homologacao: Firebird:Port inválida.");
+            return new FirebirdSql.Data.FirebirdClient.FbConnectionStringBuilder
+            {
+                DataSource = config["Firebird:Host"] ?? "",
+                Port = homolPort,
+                Database = config["Firebird:Database"] ?? "",
+                UserID = config["Firebird:User"] ?? "",
+                Password = config["Firebird:Password"] ?? "",
+                Charset = config["Firebird:Charset"] ?? "UTF8"
+            }.ToString();
+        }
+
         var host = Environment.GetEnvironmentVariable("FIREBIRD_HOST") ?? config["Firebird:Host"] ?? "127.0.0.1";
         var port = Environment.GetEnvironmentVariable("FIREBIRD_PORT") ?? config["Firebird:Port"] ?? "3052";
         var db = Environment.GetEnvironmentVariable("FIREBIRD_DB")

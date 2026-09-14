@@ -1609,6 +1609,7 @@ public class ScriptsService
 
     private string ResolveLegacyPath(string? caminho)
     {
+        if (HomologacaoGuard.IsEnabled(_config)) return HomologacaoGuard.ResolveCopiedFile(_migrationRoot, caminho) ?? "";
         if (string.IsNullOrWhiteSpace(caminho)) return "";
         var raw = caminho.Trim().Replace('/', Path.DirectorySeparatorChar);
         if (Path.IsPathFullyQualified(raw)) return Path.GetFullPath(raw);

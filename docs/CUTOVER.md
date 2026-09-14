@@ -3,7 +3,7 @@
 ## Estratégia
 
 1. Manter **Flask** em produção (`C:\MedwareConteudo`, NSSM) até cada módulo ter paridade validada.
-2. Validar a nova stack a partir da raiz do checkout contra o mesmo Firebird e `.env`.
+2. Validar a API pública em cópias isoladas de Firebird e arquivos, seguindo [API_HOMOLOGACAO.md](API_HOMOLOGACAO.md); não executar testes de escrita nos originais.
 3. Redirecionar tráfego por módulo (reverse proxy ou IIS URL Rewrite).
 
 ## Escopo desta migração
@@ -19,6 +19,7 @@
 |--------------|---------|
 | `/login`, `/api/web/*`, páginas Nuxt | `http://localhost:3000` (Nuxt) + API `http://localhost:5080` |
 | Rotas explicitamente fora do escopo e módulos ainda não homologados | `http://localhost:5000` |
+| `/apiconteudos/docs`, `/api/documentacao/*` | Nuxt SSR, antes das regras genéricas de API |
 | `/apiconteudos/v1/*` (após validação) | `http://localhost:5080` |
 
 ## Pipeline Azure (rascunho)
@@ -28,7 +29,7 @@ Adicionar estágios ao `azure-pipelines.yml` **somente após** homologação:
 1. `dotnet publish` → `backend/MdwConteudos.Api`
 2. `npm ci && npm run build` → `frontend/nuxt-app`
 3. NSSM: segundo serviço `MedwareConteudoApi` (Kestrel :5080)
-4. Servir Nuxt estático via IIS ou `node .output/server/index.mjs`
+4. Executar Nuxt SSR com `node .output/server/index.mjs`; o portal exige os handlers Nitro, não somente arquivos estáticos. Ver [API_PORTAL.md](API_PORTAL.md).
 
 ## Rollback
 

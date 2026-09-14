@@ -1,10 +1,8 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using System.Globalization;
 using System.Text;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using MdwConteudos.Api.Configuration;
 using MdwConteudos.Api.Infrastructure;
 
@@ -40,17 +38,19 @@ public class ApiPublicaService : IApiPublicaService
     private readonly IFirebirdConnectionFactory _db;
     private readonly ApiPartnerOptions _opts;
     private readonly ApiScriptOperations _scripts;
+    private readonly TimeProvider _time;
 
-    public ApiPublicaService(IFirebirdConnectionFactory db, IOptions<ApiPartnerOptions> opts, ApiScriptOperations scripts)
+    public ApiPublicaService(IFirebirdConnectionFactory db, IOptions<ApiPartnerOptions> opts, ApiScriptOperations scripts, TimeProvider? timeProvider = null)
     {
         _db = db;
         _opts = opts.Value;
         _scripts = scripts;
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IActionResult> ObterTokenAsync(TokenRequest? body, CancellationToken ct)
     {
-        var senha = body?.Senha ?? body?.Password;
+        var senha = string.IsNullOrEmpty(body?.Senha) ? body?.Password : body.Senha;
         if (string.IsNullOrEmpty(senha))
             return new BadRequestObjectResult(new { success = false, error = "Senha não informada", message = "Envie um JSON com o campo \"senha\"" });
         if (string.IsNullOrEmpty(_opts.JwtPassword))
@@ -58,19 +58,13 @@ public class ApiPublicaService : IApiPublicaService
         if (senha != _opts.JwtPassword)
             return new UnauthorizedObjectResult(new { success = false, error = "Não autorizado", message = "Senha inválida" });
 
-        var datahora = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-        var key = new SymmetricSecurityKey(ApiJwtKeyHelper.GetKeyBytes(_opts.JwtSecret));
-        var token = new JwtSecurityToken(claims: new[]
-        {
-            new Claim("senha", _opts.JwtPassword),
-            new Claim("datahora", datahora)
-        }, signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
-        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+        var datahora = _time.GetUtcNow().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+        var jwt = ApiJwtKeyHelper.CreateToken(new { senha = _opts.JwtPassword, datahora }, _opts.JwtSecret);
         return new OkObjectResult(new
         {
             success = true,
             token = jwt,
-            expires_info = $"Válido no dia atual (UTC) e por até {_opts.JwtDatetimeToleranceHours}h. Gere um novo token quando necessário."
+            expires_info = $"Válido no dia atual (UTC) e por até {_opts.JwtDatetimeToleranceHours.ToString(CultureInfo.InvariantCulture)}h. Gere um novo token quando necessário."
         });
     }
 
@@ -80,11 +74,11 @@ public class ApiPublicaService : IApiPublicaService
         {
             await using var conn = await _db.OpenConnectionAsync(ct);
             await conn.ExecuteScalarAsync<int>("SELECT 1 FROM RDB$DATABASE");
-            return new OkObjectResult(new { success = true, status = "healthy", database = "connected", timestamp = DateTime.Now.ToString("o") });
+            return new OkObjectResult(new { success = true, status = "healthy", database = "connected", timestamp = ApiV1Contract.DateTimeIso(DateTime.Now) });
         }
         catch (Exception ex)
         {
-            return new ObjectResult(new { success = false, status = "unhealthy", database = "disconnected", error = ex.Message, timestamp = DateTime.Now.ToString("o") }) { StatusCode = 500 };
+            return new ObjectResult(new { success = false, status = "unhealthy", database = "disconnected", error = ex.Message, timestamp = ApiV1Contract.DateTimeIso(DateTime.Now) }) { StatusCode = 500 };
         }
     }
 
@@ -121,7 +115,7 @@ public class ApiPublicaService : IApiPublicaService
                 ["especialidades"] = ((string?)r.ESPECIALIDADES)?.Split(", ", StringSplitOptions.RemoveEmptyEntries) ?? Array.Empty<string>(),
                 ["nomes_clinicos"] = ((string?)r.NOMES_CLINICOS)?.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? Array.Empty<string>()
             }).ToList();
-            return new OkObjectResult(ApiResponse.Ok(list, list.Count));
+            return new OkObjectResult(ApiV1Contract.Ok(list, list.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -144,7 +138,12 @@ public class ApiPublicaService : IApiPublicaService
             if (v is null)
             {
                 var exemplo = await conn.QueryAsync("SELECT CODVARIAVEL, NOME FROM VARIAVEIS ORDER BY CODVARIAVEL ROWS 10");
-                return new NotFoundObjectResult(new { success = false, error = "Variável não encontrada", codvariavel_buscado = codvariavel, variaveis_exemplo = exemplo });
+                return new NotFoundObjectResult(new
+                {
+                    success = false, error = "Variável não encontrada", codvariavel_buscado = codvariavel,
+                    dica = "Confira se o servidor está usando o banco correto (APP_ENV e FIREBIRD_DB). Use GET /api/v1/variaveis para listar variáveis disponíveis.",
+                    variaveis_exemplo = exemplo.Select(row => new { codvariavel = (int)row.CODVARIAVEL, nome = (string?)row.NOME }).ToList()
+                });
             }
 
             var variavel = new Dictionary<string, object?>
@@ -255,7 +254,7 @@ public class ApiPublicaService : IApiPublicaService
                             texto = s.Texto
                         }))
                 },
-                timestamp = DateTime.Now.ToString("o")
+                timestamp = ApiV1Contract.DateTimeIso(DateTime.Now)
             });
         }
         catch (Exception ex) { return Err500(ex); }
@@ -289,7 +288,7 @@ public class ApiPublicaService : IApiPublicaService
             await using var conn = await _db.OpenConnectionAsync(ct);
             var rows = await conn.QueryAsync(sql, p);
             var list = rows.Select(MapNormalidadeListRow).ToList();
-            return new OkObjectResult(ApiResponse.Ok(list, list.Count));
+            return new OkObjectResult(ApiV1Contract.Ok(list, list.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -365,7 +364,7 @@ public class ApiPublicaService : IApiPublicaService
             await using var conn = await _db.OpenConnectionAsync(ct);
             var rows = await conn.QueryAsync(sql, p);
             var list = rows.Select(r => new { codigo = (int)r.CODREFERENCIA, titulo = (string?)r.TITULO, ano = r.ANO, descricao = (string?)r.DESCRICAO, especialidade = (string?)r.ESPECIALIDADE, autores = (string?)r.AUTORES }).ToList();
-            return new OkObjectResult(ApiResponse.Ok(list, list.Count));
+            return new OkObjectResult(ApiV1Contract.Ok(list, list.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -386,22 +385,18 @@ public class ApiPublicaService : IApiPublicaService
                     total_especialidades = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ESPECIALIDADE"),
                     variaveis_com_normalidade = await conn.ExecuteScalarAsync<int>("SELECT COUNT(DISTINCT CODVARIAVEL) FROM NORMALIDADE"),
                     variaveis_com_formula = await conn.ExecuteScalarAsync<int>(@"
-                        SELECT COUNT(*) FROM (
-                            SELECT CODVARIAVEL FROM FORMULA_VARIAVEL
-                            UNION
-                            SELECT CODVARIAVEL FROM FORMULAS WHERE CODVARIAVEL IS NOT NULL
-                        ) X")
+                        SELECT COUNT(DISTINCT CODVARIAVEL) FROM FORMULA_VARIAVEL")
                 },
-                variaveis_por_especialidade = await conn.QueryAsync(@"
+                variaveis_por_especialidade = ApiV1Contract.SistemaEspecialidades(await conn.QueryAsync(@"
                     SELECT e.NOME as especialidade, COUNT(DISTINCT v.CODVARIAVEL) as total
                     FROM ESPECIALIDADE e
                     LEFT JOIN VARIAVEL_ESPECIALIDADE ve ON e.CODESPECIALIDADE = ve.CODESPECIALIDADE
                     LEFT JOIN VARIAVEIS v ON ve.CODVARIAVEL = v.CODVARIAVEL
-                    GROUP BY e.NOME ORDER BY total DESC"),
+                    GROUP BY e.NOME ORDER BY total DESC")),
                 versao_api = "1.0",
-                ultima_atualizacao = DateTime.Now.ToString("o")
+                ultima_atualizacao = ApiV1Contract.DateTimeIso(DateTime.Now)
             };
-            return new OkObjectResult(ApiResponse.Ok(info));
+            return new OkObjectResult(ApiV1Contract.Ok(info));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -417,7 +412,7 @@ public class ApiPublicaService : IApiPublicaService
                 LEFT JOIN VARIAVEL_ESPECIALIDADE ve ON e.CODESPECIALIDADE = ve.CODESPECIALIDADE
                 GROUP BY e.CODESPECIALIDADE, e.NOME, e.DESCRICAO ORDER BY e.NOME");
             var list = rows.Select(r => new { codigo = (int)r.CODESPECIALIDADE, nome = (string?)r.NOME, descricao = (string?)r.DESCRICAO, total_variaveis = Convert.ToInt32(r.TOTAL_VARIAVEIS) }).ToList();
-            return new OkObjectResult(ApiResponse.Ok(list, list.Count));
+            return new OkObjectResult(ApiV1Contract.Ok(list, list.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -426,13 +421,18 @@ public class ApiPublicaService : IApiPublicaService
     {
         try
         {
+            ativo = ativo?.Trim();
+            multiselecao = multiselecao?.Trim();
+            nome = nome?.Trim();
+            modulo = modulo?.Trim();
+            formato = formato?.Trim();
             if (!string.IsNullOrEmpty(ativo) && ativo is not "0" and not "1")
-                return new BadRequestObjectResult(new { success = false, error = "Parâmetro inválido", message = "Use ativo=1 ou ativo=0" });
+                return new BadRequestObjectResult(new { success = false, error = "Parâmetro inválido", message = "Use ativo=1 para relatórios ativos ou ativo=0 para inativos" });
 
             int? msVal = null;
             if (!string.IsNullOrEmpty(multiselecao))
             {
-                if (multiselecao is not "0" and not "1") return new BadRequestObjectResult(new { success = false, error = "Parâmetro inválido", message = "Use multiselecao=1 ou 0" });
+                if (multiselecao is not "0" and not "1") return new BadRequestObjectResult(new { success = false, error = "Parâmetro inválido", message = "Use multiselecao=1 (com multiseleção) ou multiselecao=0 (sem)" });
                 msVal = int.Parse(multiselecao);
             }
 
@@ -445,8 +445,9 @@ public class ApiPublicaService : IApiPublicaService
             if (!string.IsNullOrEmpty(formato)) { where.Add("FORMATO = @formato"); p.Add("formato", formato.ToUpperInvariant()); }
             if (codsistema.HasValue) { where.Add("CODMODULO IN (SELECT SM.CODMODULO FROM SISTEMA_MODULO SM WHERE SM.CODSISTEMA = @cs)"); p.Add("cs", codsistema); }
 
-            var sql = $@"SELECT CODRELATORIO, NOME, MODULO, FORMATO, DTHRCRIACAO, ATIVO, TEM_MULTISELECAO FROM RELATORIOS
-                         WHERE {string.Join(" AND ", where)} ORDER BY DTHRCRIACAO DESC";
+            var sql = $@"SELECT r.CODRELATORIO, r.NOME, r.MODULO, r.FORMATO, r.DTHRCRIACAO, r.ATIVO, r.TEM_MULTISELECAO
+                         FROM RELATORIOS r JOIN RELATORIOVALIDACOES rv ON rv.CODRELATORIO = r.CODRELATORIO
+                         WHERE {string.Join(" AND ", where)} ORDER BY r.DTHRCRIACAO DESC";
             await using var conn = await _db.OpenConnectionAsync(ct);
             var rows = await conn.QueryAsync(sql, p);
             var list = rows.Select(r => new
@@ -455,11 +456,11 @@ public class ApiPublicaService : IApiPublicaService
                 nome = (string?)r.NOME,
                 modulo = (string?)r.MODULO,
                 formato = (string?)r.FORMATO,
-                dthrcriacao = r.DTHRCRIACAO is DateTime dt ? dt.ToString("o") : r.DTHRCRIACAO?.ToString(),
+                dthrcriacao = ApiV1Contract.FormatDate((object?)r.DTHRCRIACAO),
                 ativo = r.ATIVO,
                 tem_multiselecao = Convert.ToBoolean(r.TEM_MULTISELECAO)
             }).ToList();
-            return new OkObjectResult(ApiResponse.Ok(list, list.Count));
+            return new OkObjectResult(ApiV1Contract.Ok(list, list.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -472,10 +473,8 @@ public class ApiPublicaService : IApiPublicaService
             var row = await conn.QueryFirstOrDefaultAsync("SELECT NOME, FORMATO, CONTEUDO FROM RELATORIOS WHERE CODRELATORIO = @id", new { id = codrelatorio });
             if (row is null) return new NotFoundObjectResult(new { success = false, error = "Relatório não encontrado", codrelatorio });
             var bytes = BlobHelper.ToBytes(row.CONTEUDO) ?? Array.Empty<byte>();
-            var ext = ((string?)row.FORMATO ?? "bin").ToLowerInvariant();
-            var nome = (string?)row.NOME ?? $"relatorio_{codrelatorio}";
-            var filename = $"{nome}.{ext}".Replace(" ", "_");
-            return new FileContentResult(bytes, "application/octet-stream") { FileDownloadName = filename };
+            var filename = ApiV1Contract.RelatorioFileName((string?)row.NOME, (string?)row.FORMATO, codrelatorio);
+            return new FileContentResult(bytes, "application/octet-stream; charset=utf-8") { FileDownloadName = filename };
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -486,7 +485,7 @@ public class ApiPublicaService : IApiPublicaService
         {
             var incluir = ApiScriptOperations.ParseIncluirArquivos(incluirArquivos);
             var list = await _scripts.ListScriptsAsync(sistema, aprovado, ativo, pacote, incluir, ct);
-            return new OkObjectResult(ApiResponse.Ok(list, list.Count));
+            return new OkObjectResult(ApiV1Contract.Ok(list, list.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -504,7 +503,7 @@ public class ApiPublicaService : IApiPublicaService
                 success = true,
                 data = item,
                 workflow_key = workflowKey,
-                timestamp = DateTime.Now.ToString("o")
+                timestamp = ApiV1Contract.DateTimeIso(DateTime.Now)
             });
         }
         catch (Exception ex) { return Err500(ex); }
@@ -590,7 +589,7 @@ public class ApiPublicaService : IApiPublicaService
                     pacotes
                 });
             }
-            return new OkObjectResult(ApiResponse.Ok(paineis, paineis.Count));
+            return new OkObjectResult(ApiV1Contract.Ok(paineis, paineis.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -625,7 +624,7 @@ public class ApiPublicaService : IApiPublicaService
                 DTHRULTMODIFICACAO = CURRENT_TIMESTAMP WHERE CODNORMALIDADE=@id",
                 new { vmin = body.ValorMin, vmax = body.ValorMax, sexo = body.Sexo, imin = body.IdadeMin, imax = body.IdadeMax, id = codnormalidade });
             if (rows == 0) return new NotFoundObjectResult(new { success = false, error = "Normalidade não encontrada" });
-            return new OkObjectResult(ApiResponse.OkMessage("Normalidade atualizada com sucesso."));
+            return new OkObjectResult(ApiV1Contract.OkMessage("Normalidade atualizada com sucesso"));
         }
         catch (Exception ex) { return Err500(ex); }
     }
@@ -909,6 +908,69 @@ public static class BlobHelper
 
 public static class EcodopplerBuilder
 {
+    // Keep the public Python mapping independent from modern client classifications.
+    public static Dictionary<string, Dictionary<string, Dictionary<string, object>>> Build(IEnumerable<dynamic> rows)
+    {
+        var result = new Dictionary<string, Dictionary<string, Dictionary<string, object>>>();
+        foreach (var row in rows)
+        {
+            var variable = (string)row.VARIAVEL;
+            var sex = string.IsNullOrEmpty((string?)row.SEXO) ? "U" : (string)row.SEXO;
+            if (!result.TryGetValue(variable, out var sexes)) result[variable] = sexes = new();
+            if (!sexes.TryGetValue(sex, out var zones)) sexes[sex] = zones = new();
+            var classification = (string?)row.CLASSIFICACAO;
+            // Unclassified rows keep the first default in the SQL ordering.
+            if (string.IsNullOrEmpty(classification) && zones.ContainsKey("default")) continue;
+            var meta = new Dictionary<string, object?>();
+            if (row.PAGINA_REFERENCIA is not null && Convert.ToDouble(row.PAGINA_REFERENCIA) != 0)
+                meta["Pagina"] = Convert.ToDouble(row.PAGINA_REFERENCIA);
+            if (!string.IsNullOrEmpty((string?)row.REFERENCIA_TITULO)) meta["Fonte"] = (string)row.REFERENCIA_TITULO;
+            if (row.REFERENCIA_ANO is not null && Convert.ToInt32(row.REFERENCIA_ANO) != 0) meta["Ano"] = row.REFERENCIA_ANO;
+            zones[MapLegacyZone(classification)] = new Dictionary<string, object>
+            {
+                ["min"] = row.VALORMIN is null ? null! : Convert.ToDouble(row.VALORMIN),
+                ["max"] = row.VALORMAX is null ? null! : Convert.ToDouble(row.VALORMAX),
+                ["_meta"] = meta
+            };
+        }
+
+        foreach (var sexes in result.Values)
+        foreach (var zones in sexes.Values)
+        {
+            if (zones.Count != 1 || !zones.TryGetValue("default", out var value)
+                || value is not Dictionary<string, object> range || range["min"] is null || range["max"] is null)
+                continue;
+            var min = Convert.ToDouble(range["min"]);
+            var max = Convert.ToDouble(range["max"]);
+            var originalMeta = (Dictionary<string, object?>)range["_meta"];
+            // Python calculated quartiles inherit Fonte/Pagina, but never Ano.
+            var meta = originalMeta.Where(pair => pair.Key != "Ano").ToDictionary(pair => pair.Key, pair => pair.Value);
+            var names = new[] { "low", "moderated", "elevated", "high" };
+            for (var index = 0; index < names.Length; index++)
+                zones[names[index]] = new Dictionary<string, object>
+                {
+                    ["min"] = index == 0 ? min : min + (max - min) * (index * 0.25),
+                    ["max"] = index == 3 ? max : min + (max - min) * ((index + 1) * 0.25),
+                    ["_meta"] = new Dictionary<string, object?>(meta)
+                };
+        }
+        return result;
+    }
+
+    public static string MapLegacyZone(string? classification)
+    {
+        var name = (classification ?? "").ToUpperInvariant();
+        if (name.Contains("BAIXO") || name.Contains("LOW")) return "low";
+        if (name.Contains("MODERADO") || name.Contains("MODERATED")) return "moderated";
+        if (name.Contains("ELEVADO") || name.Contains("ELEVATED")) return "elevated";
+        if (name.Contains("ALTO") || name.Contains("HIGH")) return "high";
+        return "default";
+    }
+}
+
+// This mapper deliberately retains the modern Normal/Leve/Moderado/Grave contract.
+internal static class ClienteNormalidadesZonasBuilder
+{
     public static Dictionary<string, Dictionary<string, Dictionary<string, object>>> Build(IEnumerable<dynamic> rows)
     {
         var resultado = new Dictionary<string, Dictionary<string, Dictionary<string, object>>>();
@@ -939,6 +1001,7 @@ public static class EcodopplerBuilder
             {
                 if (zonas.ContainsKey("default") && zonas.Count == 1 && zonas["default"] is Dictionary<string, object> def)
                 {
+                    if (def["min"] is null || def["max"] is null) continue;
                     var min = Convert.ToDouble(def["min"]);
                     var max = Convert.ToDouble(def["max"]);
                     foreach (var (zn, data) in CalcZonas(min, max, def.GetValueOrDefault("_meta") as Dictionary<string, object?>))
@@ -973,7 +1036,7 @@ public static class ClienteNormalidadesBuilder
         IEnumerable<dynamic> rows,
         IReadOnlyDictionary<string, Dictionary<string, string>>? comentariosPorVariavelSexo = null)
     {
-        var resultado = EcodopplerBuilder.Build(rows);
+        var resultado = ClienteNormalidadesZonasBuilder.Build(rows);
 
         if (comentariosPorVariavelSexo is null || comentariosPorVariavelSexo.Count == 0)
             return resultado;

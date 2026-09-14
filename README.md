@@ -6,6 +6,8 @@ Ficam deliberadamente no legado: `uploads/uploaddll`, automação E2E e os módu
 
 ## Pré-requisitos
 
+**Portal da API:** `/apiconteudos/docs`. Configuração, acesso e proxy em [docs/API_PORTAL.md](docs/API_PORTAL.md); preparação segura de cópias em [docs/API_HOMOLOGACAO.md](docs/API_HOMOLOGACAO.md).
+
 - .NET 10 SDK
 - Node.js 18+ (frontend Nuxt); **Node.js 22+** obrigatório para o conversor Studio (`backend/agent-bridge`)
 - Firebird (bancos configurados em `bd/` ou por variáveis de ambiente)

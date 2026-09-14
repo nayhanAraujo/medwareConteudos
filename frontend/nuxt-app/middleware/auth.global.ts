@@ -2,7 +2,7 @@ export default defineNuxtRouteMiddleware((to) => {
   const auth = useAuthStore()
   auth.loadFromStorage()
 
-  const publicPaths = ['/login', '/forgot-password']
+  const publicPaths = ['/login', '/forgot-password', '/apiconteudos/docs']
   const isPublicApproval = /^\/scripts\/aprovar\/[^/]+$/.test(to.path)
   if (publicPaths.includes(to.path) || isPublicApproval) {
     if (auth.isAuthenticated && to.path === '/login') {

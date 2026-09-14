@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Microsoft.OpenApi;
+using MdwConteudos.Api.Modules.ApiPublica;
 using MdwConteudos.Api.Modules.ApiPublica.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -9,147 +10,78 @@ public class ApiPublicaExamplesOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
-        if (context.MethodInfo.DeclaringType?.Name != "ApiPublicaController")
-            return;
+        if (context.MethodInfo.DeclaringType != typeof(ApiPublicaController)) return;
+        var action = context.MethodInfo.Name;
+        if (operation.RequestBody?.Content?.TryGetValue("application/json", out var request) == true)
+            request.Example = action switch
+            {
+                "Token" => ApiPublicaOpenApiExamples.TokenRequest,
+                "UpdateNormalidade" => ApiPublicaOpenApiExamples.UpdateNormalidadeRequest,
+                _ => null
+            };
 
-        SetRequestExample(operation, context.MethodInfo.Name);
-        SetResponseExamples(operation, context.MethodInfo.Name);
-    }
-
-    private static void SetRequestExample(OpenApiOperation operation, string action)
-    {
-        if (operation.RequestBody?.Content == null)
-            return;
-
-        var example = action switch
+        if (operation.Responses is null) return;
+        foreach (var (code, response) in operation.Responses)
         {
-            "Token" => ApiPublicaOpenApiExamples.TokenRequest,
-            "UpdateNormalidade" => ApiPublicaOpenApiExamples.UpdateNormalidadeRequest,
-            _ => null
-        };
-        if (example == null)
-            return;
-
-        foreach (var media in operation.RequestBody.Content.Values)
-            media.Example = example;
-    }
-
-    private static void SetResponseExamples(OpenApiOperation operation, string action)
-    {
-        if (operation.Responses is null)
-            return;
-
-        var map = GetResponseMap(action);
-        foreach (var (code, example) in map)
-        {
-            if (!operation.Responses.TryGetValue(code, out var response))
+            if (code == "204")
+            {
+                response.Content?.Clear();
                 continue;
-            var media = EnsureJsonContent(response);
-            if (media is not null)
-                media.Example = example;
-        }
-
-        if (action is not ("Token" or "Health") &&
-            operation.Responses.TryGetValue("401", out var unauthorized))
-        {
-            var media = EnsureJsonContent(unauthorized);
-            if (media is not null)
-                media.Example = ApiPublicaOpenApiExamples.Unauthorized401;
-        }
-    }
-
-    private static Dictionary<string, JsonNode> GetResponseMap(string action) =>
-        action switch
-        {
-            "Token" => new()
-            {
-                ["200"] = ApiPublicaOpenApiExamples.TokenOk,
-                ["400"] = ApiPublicaOpenApiExamples.Token400,
-                ["401"] = ApiPublicaOpenApiExamples.Token401,
-                ["503"] = ApiPublicaOpenApiExamples.Token503
-            },
-            "Health" => new()
-            {
-                ["200"] = ApiPublicaOpenApiExamples.HealthOk,
-                ["500"] = ApiPublicaOpenApiExamples.Health500
-            },
-            "Variaveis" or "Normalidades" or "Referencias" or "Especialidades" or "Relatorios"
-                or "Scripts" or "Paineis" => new()
-            {
-                ["200"] = action switch
-                {
-                    "Variaveis" => ApiPublicaOpenApiExamples.VariaveisOk,
-                    "Normalidades" => ApiPublicaOpenApiExamples.NormalidadesOk,
-                    _ => ApiPublicaOpenApiExamples.VariaveisOk
-                },
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "VariavelDetalhe" => new()
-            {
-                ["200"] = ApiPublicaOpenApiExamples.VariavelDetalheOk,
-                ["404"] = ApiPublicaOpenApiExamples.Variavel404,
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "Ecodoppler" or "EcodopplerPorRef" => new()
-            {
-                ["200"] = ApiPublicaOpenApiExamples.EcodopplerOk,
-                ["400"] = ApiPublicaOpenApiExamples.Ecodoppler400,
-                ["404"] = ApiPublicaOpenApiExamples.Ecodoppler404,
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "Formulas" => new()
-            {
-                ["200"] = ApiPublicaOpenApiExamples.FormulasOk,
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "SistemaInfo" => new()
-            {
-                ["200"] = ApiPublicaOpenApiExamples.SistemaInfoOk,
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "UpdateNormalidade" => new()
-            {
-                ["200"] = ApiPublicaOpenApiExamples.UpdateNormalidadeOk,
-                ["400"] = ApiPublicaOpenApiExamples.UpdateNormalidade400,
-                ["404"] = ApiPublicaOpenApiExamples.UpdateNormalidade404,
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "DownloadRelatorio" => new()
-            {
-                ["404"] = ApiPublicaOpenApiExamples.Resource404("Relatório não encontrado"),
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "ScriptImagem" or "DownloadScript" => new()
-            {
-                ["404"] = ApiPublicaOpenApiExamples.Resource404("Script não encontrado"),
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "ScriptUltimoVerificado" => new()
-            {
-                ["204"] = ApiPublicaOpenApiExamples.Empty,
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            "DownloadPainel" => new()
-            {
-                ["404"] = ApiPublicaOpenApiExamples.Resource404("Painel não encontrado"),
-                ["500"] = ApiPublicaOpenApiExamples.Error500
-            },
-            _ => new()
-            {
-                ["500"] = ApiPublicaOpenApiExamples.Error500
             }
-        };
-
-    private static OpenApiMediaType? EnsureJsonContent(IOpenApiResponse response)
-    {
-        var content = response.Content;
-        if (content is null)
-            return null;
-        if (!content.TryGetValue("application/json", out var media))
-        {
-            media = new OpenApiMediaType();
-            content["application/json"] = media;
+            // Never manufacture JSON for bodyless responses or binary success content.
+            var example = Example(action, code);
+            if (example is null || response.Content is null) continue;
+            foreach (var (mediaType, media) in response.Content)
+                if (mediaType == "application/json") media.Example = example.DeepClone();
         }
-        return media;
     }
+
+    private static JsonNode? Example(string action, string code) => code switch
+    {
+        "200" => action switch
+        {
+            "Token" => ApiPublicaOpenApiExamples.TokenOk,
+            "Health" => ApiPublicaOpenApiExamples.HealthOk,
+            "Variaveis" => ApiPublicaOpenApiExamples.VariaveisOk,
+            "VariavelDetalhe" => ApiPublicaOpenApiExamples.VariavelDetalheOk,
+            "Normalidades" => ApiPublicaOpenApiExamples.NormalidadesOk,
+            "Ecodoppler" or "EcodopplerPorRef" => ApiPublicaOpenApiExamples.EcodopplerOk,
+            "Formulas" => ApiPublicaOpenApiExamples.FormulasOk,
+            "Referencias" => ApiPublicaOpenApiExamples.ReferenciasOk,
+            "Especialidades" => ApiPublicaOpenApiExamples.EspecialidadesOk,
+            "Relatorios" => ApiPublicaOpenApiExamples.RelatoriosOk,
+            "Scripts" => ApiPublicaOpenApiExamples.ScriptsOk,
+            "ScriptUltimoVerificado" => ApiPublicaOpenApiExamples.ScriptUltimoVerificadoOk,
+            "Paineis" => ApiPublicaOpenApiExamples.PaineisOk,
+            "SistemaInfo" => ApiPublicaOpenApiExamples.SistemaInfoOk,
+            "UpdateNormalidade" => ApiPublicaOpenApiExamples.UpdateNormalidadeOk,
+            "ClienteNormalidades" => ApiPublicaOpenApiExamples.ClienteNormalidadesOk,
+            "ClientePadroesNormalidade" => ApiPublicaOpenApiExamples.ClientePadroesOk,
+            _ => null
+        },
+        "400" => action switch
+        {
+            "Token" => ApiPublicaOpenApiExamples.Token400,
+            "UpdateNormalidade" => ApiPublicaOpenApiExamples.UpdateNormalidade400,
+            "Ecodoppler" or "EcodopplerPorRef" => ApiPublicaOpenApiExamples.Ecodoppler400,
+            "DownloadScript" => ApiPublicaOpenApiExamples.Script400,
+            "Relatorios" or "Paineis" => ApiPublicaOpenApiExamples.Filtro400,
+            _ => null
+        },
+        "401" => action == "Token" ? ApiPublicaOpenApiExamples.Token401 : ApiPublicaOpenApiExamples.Unauthorized401,
+        "404" => action switch
+        {
+            "VariavelDetalhe" => ApiPublicaOpenApiExamples.Variavel404,
+            "Ecodoppler" or "EcodopplerPorRef" => ApiPublicaOpenApiExamples.Ecodoppler404,
+            "UpdateNormalidade" => ApiPublicaOpenApiExamples.UpdateNormalidade404,
+            "DownloadRelatorio" => ApiPublicaOpenApiExamples.Relatorio404,
+            "DownloadScript" or "ScriptImagem" => ApiPublicaOpenApiExamples.Script404,
+            "DownloadPainel" => ApiPublicaOpenApiExamples.Painel404,
+            "ClienteNormalidades" or "ClientePadroesNormalidade" => ApiPublicaOpenApiExamples.Cliente404,
+            _ => null
+        },
+        "500" => action == "Health" ? ApiPublicaOpenApiExamples.Health500 : ApiPublicaOpenApiExamples.Error500,
+        "503" => ApiPublicaOpenApiExamples.Token503,
+        _ => null
+    };
 }

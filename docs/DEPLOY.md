@@ -6,6 +6,8 @@ Guia único do que instalar e configurar para rodar a stack nova em **desenvolvi
 
 ## Visão geral
 
+O portal `/apiconteudos/docs` exige Nuxt SSR/Nitro e regras específicas antes dos prefixos genéricos: [configuração do portal](API_PORTAL.md). Para testes de escrita, usar exclusivamente [homologação isolada](API_HOMOLOGACAO.md).
+
 | Componente | Pasta | Porta padrão | Função |
 |------------|-------|--------------|--------|
 | API ASP.NET Core | `backend/MdwConteudos.Api` | **5080** | REST (`/api/web`, `/api/conversions`, `/apiconteudos/v1`) |
