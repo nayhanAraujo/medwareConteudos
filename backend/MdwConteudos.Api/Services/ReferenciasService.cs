@@ -518,27 +518,38 @@ public class ReferenciasService : IReferenciasService
     public async Task<int> CreateAnexoAsync(int codReferencia, AnexoUpsertRequest req, UploadedFileContent? file, int codUsuario, CancellationToken ct)
     {
         ValidateAnexo(req);
-        var (tipoAnexo, link, caminho) = await ResolveAnexoFileAndTypeAsync(req.Link, file, null, null);
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync(ct);
-        var cod = await conn.ExecuteScalarAsync<int>(
-            @"
-            INSERT INTO ANEXOS (CODREFERENCIA, DESCRICAO, NOME, LINK, CAMINHO, TIPO_ANEXO, CODUSUARIO, DTHRULTMODIFICACAO)
-            VALUES (@CodReferencia, @Descricao, @Nome, @Link, @Caminho, @TipoAnexo, @CodUsuario, @Now)
-            RETURNING CODANEXO",
-            new
-            {
-                CodReferencia = codReferencia,
-                req.Descricao,
-                req.Nome,
-                Link = link,
-                Caminho = caminho,
-                TipoAnexo = tipoAnexo,
-                CodUsuario = codUsuario,
-                Now = DateTime.Now
-            }
-        );
-        return cod;
+        var usuario = await ResolveCodUsuarioAsync(conn, codUsuario, ct);
+        var (tipoAnexo, link, caminho) = await ResolveAnexoFileAndTypeAsync(req.Link, file, null, null);
+        var descricao = Iso88591SafeText.ForStorage(req.Descricao.Trim());
+        var nome = Iso88591SafeText.ForStorage(req.Nome.Trim());
+
+        try
+        {
+            var cod = await conn.ExecuteScalarAsync<int>(
+                @"
+                INSERT INTO ANEXOS (CODREFERENCIA, DESCRICAO, NOME, LINK, CAMINHO, TIPO_ANEXO, CODUSUARIO, DTHRULTMODIFICACAO)
+                VALUES (@CodReferencia, @Descricao, @Nome, @Link, @Caminho, @TipoAnexo, @CodUsuario, @Now)
+                RETURNING CODANEXO",
+                new
+                {
+                    CodReferencia = codReferencia,
+                    Descricao = descricao,
+                    Nome = nome,
+                    Link = link,
+                    Caminho = caminho,
+                    TipoAnexo = tipoAnexo,
+                    CodUsuario = usuario,
+                    Now = DateTime.Now
+                }
+            );
+            return cod;
+        }
+        catch (FbException ex)
+        {
+            throw new InvalidOperationException(DescribeFirebirdError(ex), ex);
+        }
     }
 
     public async Task<int> UpdateAnexoAsync(int codAnexo, AnexoUpsertRequest req, UploadedFileContent? file, int codUsuario, CancellationToken ct)
@@ -546,44 +557,52 @@ public class ReferenciasService : IReferenciasService
         ValidateAnexo(req);
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync(ct);
+        var usuario = await ResolveCodUsuarioAsync(conn, codUsuario, ct);
 
         var current = await conn.QueryFirstOrDefaultAsync(
             "SELECT CODREFERENCIA, CAMINHO, LINK FROM ANEXOS WHERE CODANEXO = @cod",
             new { cod = codAnexo }
         );
         if (current is null) throw new InvalidOperationException("Anexo não encontrado.");
-        var dc = AsDict(current);
+        var dc = AsDict((object)current);
         var codReferencia = ToInt(dc, "CODREFERENCIA");
-        var oldCaminho = ToStr(dc, "CAMINHO");
-        var oldLink = ToStr(dc, "LINK");
+        string? oldCaminho = ToStr(dc, "CAMINHO");
+        string? oldLink = ToStr(dc, "LINK");
 
-        var resolved = await ResolveAnexoFileAndTypeAsync(req.Link, file, oldCaminho, oldLink);
-        var tipoAnexo = resolved.tipoAnexo;
-        var link = resolved.link;
-        var caminho = resolved.caminho;
-        var affected = await conn.ExecuteAsync(
-            @"
-            UPDATE ANEXOS SET
-                DESCRICAO = @Descricao,
-                NOME = @Nome,
-                LINK = @Link,
-                CAMINHO = @Caminho,
-                TIPO_ANEXO = @TipoAnexo,
-                CODUSUARIO = @CodUsuario,
-                DTHRULTMODIFICACAO = @Now
-            WHERE CODANEXO = @CodAnexo",
-            new
-            {
-                req.Descricao,
-                req.Nome,
-                Link = link,
-                Caminho = caminho,
-                TipoAnexo = tipoAnexo,
-                CodUsuario = codUsuario,
-                Now = DateTime.Now,
-                CodAnexo = codAnexo
-            }
-        );
+        var (tipoAnexo, link, caminho) = await ResolveAnexoFileAndTypeAsync(req.Link, file, oldCaminho, oldLink);
+        var descricao = Iso88591SafeText.ForStorage(req.Descricao.Trim());
+        var nome = Iso88591SafeText.ForStorage(req.Nome.Trim());
+        int affected;
+        try
+        {
+            affected = await conn.ExecuteAsync(
+                @"
+                UPDATE ANEXOS SET
+                    DESCRICAO = @Descricao,
+                    NOME = @Nome,
+                    LINK = @Link,
+                    CAMINHO = @Caminho,
+                    TIPO_ANEXO = @TipoAnexo,
+                    CODUSUARIO = @CodUsuario,
+                    DTHRULTMODIFICACAO = @Now
+                WHERE CODANEXO = @CodAnexo",
+                new
+                {
+                    Descricao = descricao,
+                    Nome = nome,
+                    Link = link,
+                    Caminho = caminho,
+                    TipoAnexo = tipoAnexo,
+                    CodUsuario = usuario,
+                    Now = DateTime.Now,
+                    CodAnexo = codAnexo
+                }
+            );
+        }
+        catch (FbException ex)
+        {
+            throw new InvalidOperationException(DescribeFirebirdError(ex), ex);
+        }
         if (affected == 0) throw new InvalidOperationException("Anexo não encontrado.");
         return codReferencia;
     }
@@ -1555,6 +1574,7 @@ public class ReferenciasService : IReferenciasService
 
             DeletePhysicalFile(oldCaminho, oldLink);
             var fileName = $"{Guid.NewGuid():N}{ext}";
+            Directory.CreateDirectory(_staticUploadsRoot);
             var fullPath = Path.Combine(_staticUploadsRoot, fileName);
             await File.WriteAllBytesAsync(fullPath, file.Content);
             link = $"/static/uploads/{fileName}";

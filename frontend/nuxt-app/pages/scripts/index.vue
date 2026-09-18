@@ -210,6 +210,21 @@
           <h6 class="font-semibold mb-2"><i class="bi bi-images me-1" />Imagens</h6>
           <DsCarousel v-if="detailSlides.length" :slides="detailSlides" class="mb-4" />
           <p v-else class="text-gray-500 text-sm mb-4">Nenhuma imagem.</p>
+          <h6 class="font-semibold mb-2"><i class="bi bi-file-earmark-pdf me-1" />PDFs</h6>
+          <ul v-if="detailItem.pdfsDisplay?.length" class="mb-4 space-y-2 text-sm">
+            <li v-for="pdf in detailItem.pdfsDisplay" :key="pdf.caminho">
+              <a
+                :href="mediaUrl(pdf.caminho)"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex max-w-full items-center gap-2 text-blue-600 hover:underline"
+              >
+                <i class="bi bi-file-earmark-pdf text-rose-600" />
+                <span class="truncate">{{ pdf.nomeArquivo }}</span>
+              </a>
+            </li>
+          </ul>
+          <p v-else class="text-gray-500 text-sm mb-4">Nenhum PDF.</p>
           <h6 class="font-semibold mb-2"><i class="bi bi-boxes me-1" />Variáveis</h6>
           <ul v-if="detailItem.variaveis?.length" class="text-sm space-y-1 mb-4">
             <li v-for="v in detailItem.variaveis" :key="v.variavel"><code>{{ v.variavel }}</code> ({{ v.nome }})</li>

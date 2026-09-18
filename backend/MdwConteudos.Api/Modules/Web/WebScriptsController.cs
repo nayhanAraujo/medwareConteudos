@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Modules.Permissions;
+using MdwConteudos.Api.Services;
 
 namespace MdwConteudos.Api.Modules.Web;
 
@@ -93,7 +94,7 @@ public class WebScriptsController : ControllerBase
         try
         {
             var input = await MapFormAsync(form);
-            var id = await _scripts.CreateScriptAsync(input);
+            var id = await _scripts.CreateScriptAsync(input, User.GetCodUsuario());
             return Ok(new { success = true, codScriptLaudo = id });
         }
         catch (InvalidOperationException ex)
@@ -110,7 +111,7 @@ public class WebScriptsController : ControllerBase
         try
         {
             var input = await MapFormAsync(form);
-            await _scripts.UpdateScriptAsync(id, input);
+            await _scripts.UpdateScriptAsync(id, input, User.GetCodUsuario());
             return Ok(new { success = true });
         }
         catch (InvalidOperationException ex)

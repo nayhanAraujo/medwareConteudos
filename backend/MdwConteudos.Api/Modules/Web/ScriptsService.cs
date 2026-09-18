@@ -374,7 +374,7 @@ public class ScriptsService
         return found.HasValue;
     }
 
-    public async Task<int> CreateScriptAsync(ScriptFormInput input)
+    public async Task<int> CreateScriptAsync(ScriptFormInput input, int codUsuario)
     {
         ValidateForm(input, isNew: true);
         await using var conn = (FbConnection)CreateConnection();
@@ -405,13 +405,13 @@ public class ScriptsService
                 Dll = input.ArquivoDll
             }, tx);
 
-        await SaveAttachmentsAsync(conn, tx, cod, input);
+        await SaveAttachmentsAsync(conn, tx, cod, input, codUsuario);
         await SaveMrdFilesAsync(conn, tx, cod, input.Sistema, input.MrdFiles, isFirst: true);
         await tx.CommitAsync();
         return cod;
     }
 
-    public async Task UpdateScriptAsync(int id, ScriptFormInput input)
+    public async Task UpdateScriptAsync(int id, ScriptFormInput input, int codUsuario)
     {
         ValidateForm(input, isNew: false);
         await using var conn = (FbConnection)CreateConnection();
@@ -446,28 +446,36 @@ public class ScriptsService
             await conn.ExecuteAsync("UPDATE SCRIPTLAUDO SET DLL=@b WHERE CODSCRIPTLAUDO=@id",
                 new { id, b = input.ArquivoDll }, tx);
 
-        await SaveAttachmentsAsync(conn, tx, id, input);
+        await SaveAttachmentsAsync(conn, tx, id, input, codUsuario);
         if (input.MrdFiles?.Count > 0)
             await SaveMrdFilesAsync(conn, tx, id, input.Sistema, input.MrdFiles, isFirst: false);
 
         await tx.CommitAsync();
     }
 
-    private async Task SaveAttachmentsAsync(FbConnection conn, FbTransaction tx, int cod, ScriptFormInput input)
+    private async Task SaveAttachmentsAsync(
+        FbConnection conn,
+        FbTransaction tx,
+        int cod,
+        ScriptFormInput input,
+        int codUsuario)
     {
+        var dataModificacao = DateTime.Now;
         foreach (var img in input.Imagens ?? [])
         {
             var (path, name) = await SaveDiskFileAsync(img, "interfaces");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPTARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO)
-                VALUES (@cod, 'IMAGEM', @path, @name)", new { cod, path, name }, tx);
+                INSERT INTO SCRIPTARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO, CODUSUARIO, DTHRULTMODIFICACAO)
+                VALUES (@cod, 'IMAGEM', @path, @name, @codUsuario, @dataModificacao)",
+                new { cod, path, name, codUsuario, dataModificacao }, tx);
         }
         foreach (var pdf in input.Pdfs ?? [])
         {
             var (path, name) = await SaveDiskFileAsync(pdf, "impressoes");
             await conn.ExecuteAsync(@"
-                INSERT INTO SCRIPTARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO)
-                VALUES (@cod, 'PDF', @path, @name)", new { cod, path, name }, tx);
+                INSERT INTO SCRIPTARQUIVOS (CODSCRIPTLAUDO, TIPO, CAMINHO, NOME_ARQUIVO, CODUSUARIO, DTHRULTMODIFICACAO)
+                VALUES (@cod, 'PDF', @path, @name, @codUsuario, @dataModificacao)",
+                new { cod, path, name, codUsuario, dataModificacao }, tx);
         }
     }
 
