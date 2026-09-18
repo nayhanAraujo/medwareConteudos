@@ -388,3 +388,144 @@
   font-size: 0.75rem;
   color: var(--color-ds-muted);
 }
+
+/* Modal de alternativas — teleported to body, so it carries .studio-shell + data-theme */
+.studio-shell.studio-alternatives-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.72);
+  color: var(--color-ds-text);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 42rem;
+  max-height: min(90vh, 40rem);
+  overflow: hidden;
+  border-radius: var(--studio-radius);
+  border: 1px solid var(--color-ds-border);
+  background-color: var(--color-ds-surface);
+  color: var(--color-ds-text);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+.studio-shell[data-theme='light'].studio-alternatives-modal .studio-alternatives-modal__panel {
+  background-color: #ffffff;
+  box-shadow: var(--shadow-ds);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__header {
+  flex-shrink: 0;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--color-ds-border);
+  background-color: var(--color-ds-surface-elevated);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-ds-text);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-ds-muted);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__body {
+  flex: 1;
+  min-height: 0;
+  max-height: 24rem;
+  overflow-y: auto;
+  padding: 0.875rem 1rem;
+  background-color: var(--color-ds-surface);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__item {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--studio-radius-sm);
+  border: 1px solid var(--color-ds-border);
+  background-color: var(--color-ds-surface-elevated);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__item:last-child {
+  margin-bottom: 0;
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__item-head {
+  margin-bottom: 0.5rem;
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__item-label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-ds-text);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__item-meta {
+  font-size: 0.75rem;
+  color: var(--color-ds-muted);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__field-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-ds-muted);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__select {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 0.5rem;
+  border-radius: var(--studio-radius-sm);
+  border: 1px solid var(--color-ds-field-border);
+  background-color: var(--color-ds-surface);
+  color: var(--color-ds-text);
+  font-size: 0.875rem;
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__select:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-ds-primary-accent) 35%, transparent);
+  border-color: var(--color-ds-primary-accent);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__select option {
+  background-color: var(--color-ds-surface-elevated);
+  color: var(--color-ds-text);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  padding: 0.875rem 1rem;
+  border-top: 1px solid var(--color-ds-border);
+  background-color: var(--color-ds-surface-elevated);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__count {
+  font-size: 0.75rem;
+  color: var(--color-ds-muted);
+}
+
+.studio-shell.studio-alternatives-modal .studio-alternatives-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

@@ -1122,10 +1122,32 @@ public sealed class FormulasModelosService : IFormulasModelosService
         var rows = details.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(x => x.Split('|')).Where(x => x.Length >= 4).ToArray();
         var simple = rows.Where(x => string.IsNullOrWhiteSpace(x[3])).Select(x => $"({x[0]}: {x[1]} a {x[2]})").ToArray();
-        var classified = rows.Where(x => !string.IsNullOrWhiteSpace(x[3]))
-            .Select(x => $"({x[0]}: " + "{" + $"{x[1]}, {x[2]}, {MdwConteudos.Api.Infrastructure.NormalidadeZonas.MapColor(x[3])} " + "})").ToArray();
+        var classified = rows.Where(x => !string.IsNullOrWhiteSpace(x[3])).ToArray();
+
+        // Se só há faixas classificadas, ainda emite (M:/F:) da faixa verde/normal
+        // para alimentar referenciaNormalidade no JSON Studio.
+        if (simple.Length == 0 && classified.Length > 0)
+        {
+            simple = classified
+                .GroupBy(x => x[0], StringComparer.OrdinalIgnoreCase)
+                .Select(g =>
+                {
+                    var preferred = g.FirstOrDefault(x =>
+                    {
+                        var cor = MdwConteudos.Api.Infrastructure.NormalidadeZonas.MapColor(x[3]);
+                        return string.Equals(cor, "verde", StringComparison.OrdinalIgnoreCase)
+                            || x[3].Contains("Normal", StringComparison.OrdinalIgnoreCase);
+                    }) ?? g.First();
+                    return $"({preferred[0]}: {preferred[1]} a {preferred[2]})";
+                })
+                .ToArray();
+        }
+
+        var classifiedTxt = classified
+            .Select(x => $"({x[0]}: " + "{" + $"{x[1]}, {x[2]}, {MdwConteudos.Api.Infrastructure.NormalidadeZonas.MapColor(x[3])} " + "})")
+            .ToArray();
         var result = simple.Length == 0 ? "" : " " + string.Join(" ", simple);
-        if (classified.Length > 0) result += "  Comentário: " + string.Join(',', classified);
+        if (classifiedTxt.Length > 0) result += "  Comentário: " + string.Join(',', classifiedTxt);
         return result;
     }
 

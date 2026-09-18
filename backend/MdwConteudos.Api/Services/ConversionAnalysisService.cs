@@ -221,26 +221,17 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         var rows = await conn.QueryAsync<PadraoCommentRow>(@"
-            SELECT CODVARIAVEL AS CodVariavel, SEXO AS Sexo, TEXTO AS Texto
+            SELECT CODVARIAVEL AS CodVariavel, SEXO AS Sexo, IDADE_MIN AS IdadeMin, IDADE_MAX AS IdadeMax, TEXTO AS Texto
             FROM PADRAONORMALIDADECOMENTARIO
-            WHERE CODPADRAO = @codPadrao AND CODVARIAVEL IN @ids", new { codPadrao, ids });
+            WHERE CODPADRAO = @codPadrao AND CODVARIAVEL IN @ids
+            ORDER BY CODVARIAVEL, SEXO, IDADE_MIN", new { codPadrao, ids });
 
         var result = new Dictionary<int, string>();
         foreach (var group in rows.Where(r => !string.IsNullOrWhiteSpace(r.Texto)).GroupBy(r => r.CodVariavel))
         {
-            var map = group.ToDictionary(
-                r => string.IsNullOrWhiteSpace(r.Sexo) ? "A" : r.Sexo!.Trim().ToUpperInvariant(),
-                r => Iso88591SafeText.ForDisplay(r.Texto!.Trim()),
-                StringComparer.OrdinalIgnoreCase);
-            if (map.TryGetValue("A", out var a))
-                result[group.Key] = a;
-            else
-            {
-                var parts = new List<string>();
-                if (map.TryGetValue("F", out var f)) parts.Add($"F: {f}");
-                if (map.TryGetValue("M", out var m)) parts.Add($"M: {m}");
-                if (parts.Count > 0) result[group.Key] = string.Join("; ", parts);
-            }
+            var aggregated = AggregateCommentTexts(group.Select(r => new CommentPart(r.Sexo, r.IdadeMin, r.IdadeMax, r.Texto)));
+            if (!string.IsNullOrWhiteSpace(aggregated))
+                result[group.Key] = aggregated;
         }
         return result;
     }
@@ -270,19 +261,25 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     private async Task<IReadOnlyList<FormulaRow>> LoadFormulaRowsAsync(CancellationToken ct, IReadOnlyList<int> ids)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
+        // Só a variável DONA do cálculo (FORMULAS.CODVARIAVEL) recebe Código:/funcao.
+        // FORMULA_VARIAVEL lista dependências (ex.: PESO/ALTURA no cálculo de SUPCOR) —
+        // não deve atribuir a fórmula a essas entradas.
+        // Se CODVARIAVEL da fórmula for nulo, cai no vínculo legado via FORMULA_VARIAVEL.
         var rows = await conn.QueryAsync<FormulaRow>(@"
             SELECT
-                COALESCE(FV.CODVARIAVEL, F.CODVARIAVEL) AS CodVariavel,
+                COALESCE(F.CODVARIAVEL, FV.CODVARIAVEL) AS CodVariavel,
                 F.FORMULA AS Formula,
                 EL.EQUACAO AS Equacao,
                 TL.NOME AS Linguagem,
                 EL.CODREFERENCIA AS CodReferencia
             FROM FORMULAS F
             LEFT JOIN FORMULA_VARIAVEL FV ON FV.CODFORMULA = F.CODFORMULA
+                AND F.CODVARIAVEL IS NULL
                 AND FV.CODVARIAVEL IN @ids
             LEFT JOIN EQUACOESLINGUAGEM EL ON EL.CODFORMULA = F.CODFORMULA
             LEFT JOIN TIPOLINGUAGEM TL ON TL.CODLINGUAGEM = EL.CODLINGUAGEM
-            WHERE F.CODVARIAVEL IN @ids OR FV.CODVARIAVEL IN @ids", new { ids });
+            WHERE F.CODVARIAVEL IN @ids
+               OR (F.CODVARIAVEL IS NULL AND FV.CODVARIAVEL IN @ids)", new { ids });
         return rows.AsList();
     }
 
@@ -311,10 +308,13 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
             if (matched.Count > 0) pool = matched;
         }
 
+        // Prefer FORMULAS.FORMULA; equação algébrica só entra se a linguagem for JavaScript.
         return pool
             .Select(r => new
             {
-                Expression = !string.IsNullOrWhiteSpace(r.Formula) ? r.Formula : r.Equacao,
+                Expression = !string.IsNullOrWhiteSpace(r.Formula)
+                    ? r.Formula
+                    : IsJavaScript(r.Linguagem) ? r.Equacao : null,
                 HasFormula = string.IsNullOrWhiteSpace(r.Formula) ? 0 : 1,
                 JsScore = IsJavaScript(r.Linguagem) ? 2 : 0
             })
@@ -345,7 +345,9 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         var selected = SelectRows(rows, codReferencia);
         var mode = ResolveMode(selected, normalityMode, storedComment);
-        var simple = mode == "simple" || mode == "classificacao" ? BuildSimpleRanges(selected) : "";
+        // Sempre emite (M:/F:) quando há faixas — inclusive no modo texto —
+        // para alimentar referenciaNormalidade no JSON Studio.
+        var simple = selected.Count > 0 ? BuildSimpleRanges(selected) : "";
         var comment = mode switch
         {
             "texto" => BuildTextoComment(storedComment),
@@ -413,8 +415,29 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         {
             var ofSex = rows.Where(r => NormalizeSex(r.Sexo) == sexo).ToList();
             if (ofSex.Count == 0) continue;
-            var min = ofSex.Select(r => r.ValorMin).Where(v => v.HasValue).DefaultIfEmpty().Min();
-            var max = ofSex.Select(r => r.ValorMax).Where(v => v.HasValue).DefaultIfEmpty().Max();
+
+            // Prefere a faixa normal/verde; senão agrega min/max.
+            var preferred = ofSex.FirstOrDefault(r =>
+            {
+                var cor = NormalidadeZonas.MapColor(r.Classificacao);
+                var nome = (r.Classificacao ?? "").Trim();
+                return string.Equals(cor, "verde", StringComparison.OrdinalIgnoreCase)
+                    || nome.Contains("Normal", StringComparison.OrdinalIgnoreCase);
+            });
+
+            decimal? min;
+            decimal? max;
+            if (preferred is not null)
+            {
+                min = preferred.ValorMin;
+                max = preferred.ValorMax;
+            }
+            else
+            {
+                min = ofSex.Select(r => r.ValorMin).Where(v => v.HasValue).DefaultIfEmpty().Min();
+                max = ofSex.Select(r => r.ValorMax).Where(v => v.HasValue).DefaultIfEmpty().Max();
+            }
+
             if (!min.HasValue && !max.HasValue) continue;
             parts.Add($"({sexo}: {FormatDecimal(min)} a {FormatDecimal(max)})");
         }
@@ -451,29 +474,78 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
         var rows = await conn.QueryAsync<CommentRow>(@"
-            SELECT CODVARIAVEL AS CodVariavel, CODREFERENCIA AS CodReferencia, SEXO AS Sexo, TEXTO AS Texto
+            SELECT CODVARIAVEL AS CodVariavel, CODREFERENCIA AS CodReferencia,
+                   SEXO AS Sexo, IDADE_MIN AS IdadeMin, IDADE_MAX AS IdadeMax, TEXTO AS Texto
             FROM NORMALIDADECOMENTARIO
-            WHERE CODVARIAVEL IN @ids", new { ids });
+            WHERE CODVARIAVEL IN @ids
+            ORDER BY CODVARIAVEL, CODREFERENCIA, SEXO, IDADE_MIN", new { ids });
 
+        // Vários comentários por (variável, referência) são válidos (sexo/idade/texto distintos).
+        // Agrega sem ToDictionary rígido para não quebrar a geração do JSON/TXT.
         var result = new Dictionary<(int, int), string>();
         foreach (var group in rows.Where(r => !string.IsNullOrWhiteSpace(r.Texto)).GroupBy(r => (r.CodVariavel, r.CodReferencia)))
         {
-            var map = group.ToDictionary(
-                r => string.IsNullOrWhiteSpace(r.Sexo) ? "A" : r.Sexo!.Trim().ToUpperInvariant(),
-                r => Iso88591SafeText.ForDisplay(r.Texto!.Trim()),
-                StringComparer.OrdinalIgnoreCase);
-            if (map.TryGetValue("A", out var a))
-                result[group.Key] = a;
-            else
-            {
-                var parts = new List<string>();
-                if (map.TryGetValue("F", out var f)) parts.Add($"F: {f}");
-                if (map.TryGetValue("M", out var m)) parts.Add($"M: {m}");
-                if (parts.Count > 0) result[group.Key] = string.Join("; ", parts);
-            }
+            var aggregated = AggregateCommentTexts(group.Select(r => new CommentPart(r.Sexo, r.IdadeMin, r.IdadeMax, r.Texto)));
+            if (!string.IsNullOrWhiteSpace(aggregated))
+                result[group.Key] = aggregated;
         }
         return result;
     }
+
+    /// <summary>
+    /// Junta textos de NORMALIDADECOMENTARIO / PADRAO preservando diferenças por sexo e idade.
+    /// Ex.: "F: &lt;= 36; M: &lt;= 40" ou faixas etárias concatenadas.
+    /// </summary>
+    private static string AggregateCommentTexts(IEnumerable<CommentPart> parts)
+    {
+        var bySex = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in parts)
+        {
+            if (string.IsNullOrWhiteSpace(part.Texto)) continue;
+            var sex = NormalizeSex(part.Sexo);
+            var text = Iso88591SafeText.ForDisplay(part.Texto.Trim());
+            var age = FormatAgeLabel(part.IdadeMin, part.IdadeMax);
+            var entry = string.IsNullOrEmpty(age) ? text : $"{age}: {text}";
+
+            if (!bySex.TryGetValue(sex, out var list))
+            {
+                list = [];
+                bySex[sex] = list;
+            }
+
+            if (!list.Contains(entry, StringComparer.OrdinalIgnoreCase))
+                list.Add(entry);
+        }
+
+        if (bySex.Count == 0) return "";
+
+        if (bySex.TryGetValue("A", out var amboss) && amboss.Count > 0)
+            return string.Join("; ", amboss);
+
+        var combined = new List<string>();
+        if (bySex.TryGetValue("F", out var f) && f.Count > 0)
+            combined.Add(f.Count == 1 ? $"F: {f[0]}" : $"F: {string.Join(" | ", f)}");
+        if (bySex.TryGetValue("M", out var m) && m.Count > 0)
+            combined.Add(m.Count == 1 ? $"M: {m[0]}" : $"M: {string.Join(" | ", m)}");
+
+        foreach (var kv in bySex.Where(kv => kv.Key is not ("A" or "F" or "M" or "-")))
+            combined.Add($"{kv.Key}: {string.Join(" | ", kv.Value)}");
+
+        return string.Join("; ", combined);
+    }
+
+    private static string FormatAgeLabel(decimal? idadeMin, decimal? idadeMax)
+    {
+        static bool Meaningful(decimal? v) => v.HasValue && v.Value >= 0;
+        var hasMin = Meaningful(idadeMin);
+        var hasMax = Meaningful(idadeMax);
+        if (!hasMin && !hasMax) return "";
+        if (hasMin && hasMax) return $"{FormatDecimal(idadeMin)}-{FormatDecimal(idadeMax)}a";
+        if (hasMin) return $">={FormatDecimal(idadeMin)}a";
+        return $"<={FormatDecimal(idadeMax)}a";
+    }
+
+    private readonly record struct CommentPart(string? Sexo, decimal? IdadeMin, decimal? IdadeMax, string? Texto);
 
     internal static string FormatDecimal(decimal? value) =>
         ModoTextoCodigoFormatter.FormatDecimal(value);
@@ -514,6 +586,8 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
         public int CodVariavel { get; set; }
         public int CodReferencia { get; set; }
         public string? Sexo { get; set; }
+        public decimal? IdadeMin { get; set; }
+        public decimal? IdadeMax { get; set; }
         public string? Texto { get; set; }
     }
 
@@ -521,6 +595,8 @@ public sealed class ConversionAnalysisService : IConversionAnalysisService
     {
         public int CodVariavel { get; set; }
         public string? Sexo { get; set; }
+        public decimal? IdadeMin { get; set; }
+        public decimal? IdadeMax { get; set; }
         public string? Texto { get; set; }
     }
 

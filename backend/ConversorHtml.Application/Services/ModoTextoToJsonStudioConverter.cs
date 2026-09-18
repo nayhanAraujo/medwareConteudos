@@ -257,12 +257,15 @@ public static partial class ModoTextoToJsonStudioConverter
         }
 
         var normalidades = ExtrairNormalidades(comentarioRaw, medida);
+        CompletarReferenciasAPartirDasNormalidades(referenciaNormalidade, normalidades, medida);
+        FormatarReferenciasComVirgula(referenciaNormalidade);
+
         var contemMinMax = referenciaNormalidade.Count > 0 || normalidades.Count > 0;
 
         var obj = CriarObjetoBase(coluna, cont);
         obj["casasDecimais"] = casasDecimais.ToString(CultureInfo.InvariantCulture);
         obj["descricao"] = descricao;
-        obj["geraGrafico"] = true;
+        obj["geraGrafico"] = false;
         obj["desenho"] = contemMinMax ? "-1" : "0";
         obj["medida"] = medida;
         obj["nome"] = nome;
@@ -326,20 +329,17 @@ public static partial class ModoTextoToJsonStudioConverter
         var between = Regex.Match(range, @"^(-?[\d.,]+)\s*a\s*(-?[\d.,]+)$", RegexOptions.IgnoreCase);
         if (between.Success)
         {
-            valorMin = NormalizeNumber(between.Groups[1].Value);
-            valorMax = NormalizeNumber(between.Groups[2].Value);
-        }
-        else
-        {
-            valorMin = "";
-            valorMax = "";
+            valorMin = FormatNumberComma(between.Groups[1].Value);
+            valorMax = FormatNumberComma(between.Groups[2].Value);
         }
 
         obj["sexo"] = sexo;
         obj["valorMin"] = valorMin;
         obj["valorMax"] = valorMax;
         obj["unidadeMedida"] = medida;
-        obj["valorExtenso"] = range;
+        obj["valorExtenso"] = string.IsNullOrWhiteSpace(valorMin) && string.IsNullOrWhiteSpace(valorMax)
+            ? ""
+            : $"{valorMin} a  {valorMax}";
         return true;
     }
 
@@ -356,35 +356,26 @@ public static partial class ModoTextoToJsonStudioConverter
 
             var sexo = sexoMatch.Groups[1].Value.ToUpperInvariant();
             var body = sexoMatch.Groups[2].Value;
+            var zonaAntesDasChaves = body.Split('{', 2)[0].Trim().Trim(':').Trim();
+
             foreach (Match faixa in BraceRegex().Matches(body))
             {
-                var parts = faixa.Groups[1].Value.Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
-                if (parts.Length < 2) continue;
+                if (!TryParseFaixaNormalidade(faixa.Groups[1].Value, out var valorMin, out var valorMax, out var rotulo, out var cor))
+                    continue;
 
-                var valorMin = NormalizeNumber(parts[0]);
-                var valorMax = NormalizeNumber(parts[1]);
-                string valorExtenso = "";
-                string cor = "";
-
-                if (parts.Length >= 4)
-                {
-                    valorExtenso = parts[2];
-                    cor = parts[^1];
-                }
-                else if (parts.Length == 3)
-                {
-                    if (IsColorToken(parts[2])) cor = parts[2];
-                    else valorExtenso = parts[2];
-                }
+                if (string.IsNullOrWhiteSpace(rotulo) && !string.IsNullOrWhiteSpace(zonaAntesDasChaves))
+                    rotulo = zonaAntesDasChaves;
+                if (string.IsNullOrWhiteSpace(rotulo) && !string.IsNullOrWhiteSpace(cor))
+                    rotulo = cor;
 
                 result.Add(new JsonObject
                 {
                     ["sexo"] = sexo,
                     ["valorMin"] = valorMin,
                     ["valorMax"] = valorMax,
-                    ["unidadeMedida"] = medida,
-                    ["valorExtenso"] = valorExtenso,
-                    ["cor"] = cor
+                    ["descricao"] = rotulo,
+                    ["cor"] = string.IsNullOrWhiteSpace(cor) ? "preto" : cor,
+                    ["unidadeMedida"] = medida
                 });
             }
         }
@@ -392,10 +383,115 @@ public static partial class ModoTextoToJsonStudioConverter
         return result;
     }
 
+    /// <summary>
+    /// Quando o TXT só traz Comentário (sem (M:/F:)), monta referenciaNormalidade
+    /// a partir das faixas verdes/normais das normalidades.
+    /// </summary>
+    private static void CompletarReferenciasAPartirDasNormalidades(
+        JsonArray referencias,
+        JsonArray normalidades,
+        string medida)
+    {
+        var needsFill = referencias.Count == 0
+            || referencias.All(r =>
+                string.IsNullOrWhiteSpace(r?["valorMin"]?.GetValue<string>())
+                && string.IsNullOrWhiteSpace(r?["valorMax"]?.GetValue<string>()));
+
+        if (!needsFill || normalidades.Count == 0) return;
+
+        referencias.Clear();
+        foreach (var sexo in new[] { "F", "M", "A" })
+        {
+            var bands = normalidades
+                .Where(n => string.Equals(n?["sexo"]?.GetValue<string>(), sexo, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (bands.Count == 0) continue;
+
+            var preferred = bands.FirstOrDefault(IsPreferredNormalidadeBand) ?? bands[0];
+            var min = FormatNumberComma(preferred?["valorMin"]?.GetValue<string>());
+            var max = FormatNumberComma(preferred?["valorMax"]?.GetValue<string>());
+            if (string.IsNullOrWhiteSpace(min) && string.IsNullOrWhiteSpace(max)) continue;
+
+            referencias.Add(new JsonObject
+            {
+                ["sexo"] = sexo,
+                ["valorMin"] = min,
+                ["valorMax"] = max,
+                ["unidadeMedida"] = preferred?["unidadeMedida"]?.GetValue<string>() ?? medida,
+                ["valorExtenso"] = $"{min} a  {max}"
+            });
+        }
+    }
+
+    private static void FormatarReferenciasComVirgula(JsonArray referencias)
+    {
+        foreach (var node in referencias)
+        {
+            if (node is not JsonObject obj) continue;
+            var min = FormatNumberComma(obj["valorMin"]?.GetValue<string>());
+            var max = FormatNumberComma(obj["valorMax"]?.GetValue<string>());
+            obj["valorMin"] = min;
+            obj["valorMax"] = max;
+
+            var extenso = obj["valorExtenso"]?.GetValue<string>() ?? "";
+            if (string.IsNullOrWhiteSpace(extenso) && (!string.IsNullOrWhiteSpace(min) || !string.IsNullOrWhiteSpace(max)))
+                obj["valorExtenso"] = $"{min} a  {max}";
+            else if (!string.IsNullOrWhiteSpace(extenso))
+                obj["valorExtenso"] = Regex.Replace(extenso, @"(-?[\d]+(?:[.,]\d+)?)", m => FormatNumberComma(m.Value));
+        }
+    }
+
+    private static bool IsPreferredNormalidadeBand(JsonNode? node)
+    {
+        var cor = (node?["cor"]?.GetValue<string>() ?? "").Trim().ToLowerInvariant();
+        var descricao = (node?["descricao"]?.GetValue<string>() ?? "").Trim().ToLowerInvariant();
+        return cor is "verde" or "txtverde"
+            || descricao.Contains("verde", StringComparison.Ordinal)
+            || descricao.Contains("normal", StringComparison.Ordinal);
+    }
+
+    private static bool TryParseFaixaNormalidade(
+        string body,
+        out string valorMin,
+        out string valorMax,
+        out string rotulo,
+        out string cor)
+    {
+        valorMin = "";
+        valorMax = "";
+        rotulo = "";
+        cor = "";
+
+        var numbers = NumberTokenRegex().Matches(body)
+            .Select(m => m.Value)
+            .ToList();
+        if (numbers.Count < 2) return false;
+
+        valorMin = FormatNumberDot(numbers[0]);
+        valorMax = FormatNumberDot(numbers[1]);
+
+        var remainder = NumberTokenRegex().Replace(body, " ");
+        var tokens = remainder
+            .Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(t => t.Length > 0)
+            .ToList();
+
+        foreach (var token in tokens)
+        {
+            if (IsColorToken(token)) cor = token.Trim().ToLowerInvariant();
+            else if (string.IsNullOrWhiteSpace(rotulo)) rotulo = token.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(cor) && tokens.Count > 0 && IsColorToken(tokens[^1]))
+            cor = tokens[^1].Trim().ToLowerInvariant();
+
+        return true;
+    }
+
     private static bool IsColorToken(string value)
     {
         var v = value.Trim().ToLowerInvariant();
-        return v is "verde" or "vermelho" or "amarelo" or "laranja" or "azul"
+        return v is "verde" or "vermelho" or "amarelo" or "laranja" or "azul" or "preto"
             or "txtverde" or "txtvermelho" or "txtamarelo" or "txtlaranja" or "txtazul";
     }
 
@@ -405,6 +501,27 @@ public static partial class ModoTextoToJsonStudioConverter
         if (decimal.TryParse(t, NumberStyles.Any, CultureInfo.InvariantCulture, out var n))
             return n.ToString(CultureInfo.InvariantCulture);
         return value?.Trim() ?? "";
+    }
+
+    /// <summary>Normalidades: sempre 2 casas decimais com ponto (ex.: 25.70).</summary>
+    private static string FormatNumberDot(string? value)
+    {
+        var normalized = NormalizeNumber(value ?? "");
+        if (string.IsNullOrWhiteSpace(normalized)) return "";
+        if (decimal.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out var n))
+            return Math.Round(n, 2, MidpointRounding.AwayFromZero).ToString("0.00", CultureInfo.InvariantCulture);
+        return normalized;
+    }
+
+    /// <summary>Referências: sempre 2 casas decimais com vírgula (ex.: 25,70).</summary>
+    private static string FormatNumberComma(string? value)
+    {
+        var normalized = NormalizeNumber(value ?? "");
+        if (string.IsNullOrWhiteSpace(normalized)) return "";
+        if (decimal.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out var n))
+            return Math.Round(n, 2, MidpointRounding.AwayFromZero)
+                .ToString("0.00", CultureInfo.GetCultureInfo("pt-BR"));
+        return (value ?? "").Trim().Replace('.', ',');
     }
 
     private static string FormatNomeEtiqueta(string descricao)
@@ -463,4 +580,7 @@ public static partial class ModoTextoToJsonStudioConverter
 
     [GeneratedRegex(@"\{([^}]+)\}")]
     private static partial Regex BraceRegex();
+
+    [GeneratedRegex(@"-?\d+(?:[.,]\d+)?")]
+    private static partial Regex NumberTokenRegex();
 }

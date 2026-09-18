@@ -38,11 +38,74 @@ Anel (AO): 0.0  mm (M: 19 a 23.4) (F: 17.4 a 21.6)  Comentário: (F: {17.4, 21.6
     }
 
     [Fact]
+    public void Convert_ShouldDisableGeraGraficoOnNumericFields()
+    {
+        var campos = ModoTextoToJsonStudioConverter.BuildCampos(Sample);
+        var numeros = campos.Where(n => n?["tipo"]?.GetValue<string>() == "numero");
+        Assert.All(numeros, n => Assert.False(n!["geraGrafico"]!.GetValue<bool>()));
+    }
+
+    [Fact]
+    public void Convert_ShouldMapCodigoOnlyWhenPresentInTxt()
+    {
+        var campos = ModoTextoToJsonStudioConverter.BuildCampos(Sample);
+        var altura = campos.First(n => n?["nome"]?.GetValue<string>() == "ALTURA");
+        var peso = campos.First(n => n?["nome"]?.GetValue<string>() == "PESO");
+        var sc = campos.First(n => n?["nome"]?.GetValue<string>() == "SUPCOR");
+
+        Assert.Equal("", altura!["funcao"]!.GetValue<string>());
+        Assert.Equal("", peso!["funcao"]!.GetValue<string>());
+        Assert.Contains("0.007184", sc!["funcao"]!.GetValue<string>());
+    }
+
+    [Fact]
     public void Convert_ShouldMapListaToCombo()
     {
         var campos = ModoTextoToJsonStudioConverter.BuildCampos(Sample);
         var ritmo = campos.First(n => n?["nome"]?.GetValue<string>() == "RITMO");
         Assert.Equal("combo", ritmo!["tipo"]!.GetValue<string>());
         Assert.True(ritmo["opcoes"]!.AsArray().Count >= 3);
+    }
+
+    [Fact]
+    public void Convert_ShouldFillReferenciaFromComentarioWhenMissingSimpleRanges()
+    {
+        const string onlyComment = """
+[AORTA]
+Anel (AO): 0.0  mm  Comentário: (F: {25,7, 32,9, verde }),(M: {28,5, 35,9, verde })
+""";
+        var campos = ModoTextoToJsonStudioConverter.BuildCampos(onlyComment);
+        var ao = campos.First(n => n?["nome"]?.GetValue<string>() == "AO");
+        var refs = ao!["referenciaNormalidade"]!.AsArray();
+        var norms = ao["normalidades"]!.AsArray();
+
+        Assert.True(norms.Count >= 2);
+        Assert.Equal(2, refs.Count);
+
+        var f = refs.First(r => r?["sexo"]?.GetValue<string>() == "F");
+        Assert.Equal("25,70", f!["valorMin"]!.GetValue<string>());
+        Assert.Equal("32,90", f["valorMax"]!.GetValue<string>());
+        Assert.Equal("mm", f["unidadeMedida"]!.GetValue<string>());
+        Assert.Contains("25,70 a", f["valorExtenso"]!.GetValue<string>());
+
+        var normF = norms.First(n => n?["sexo"]?.GetValue<string>() == "F");
+        Assert.Equal("25.70", normF!["valorMin"]!.GetValue<string>());
+        Assert.Equal("32.90", normF["valorMax"]!.GetValue<string>());
+        Assert.Equal("verde", normF["descricao"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Convert_ShouldKeepReferenciaWithCommaDecimalsFromSimpleRanges()
+    {
+        const string withRefs = """
+[AORTA]
+Anel (AO): 0.0  mm (M: 28.5 a 35.9) (F: 25.7 a 32.9)
+""";
+        var campos = ModoTextoToJsonStudioConverter.BuildCampos(withRefs);
+        var ao = campos.First(n => n?["nome"]?.GetValue<string>() == "AO");
+        var f = ao!["referenciaNormalidade"]!.AsArray().First(r => r?["sexo"]?.GetValue<string>() == "F");
+        Assert.Equal("25,70", f!["valorMin"]!.GetValue<string>());
+        Assert.Equal("32,90", f["valorMax"]!.GetValue<string>());
+        Assert.Equal("25,70 a  32,90", f["valorExtenso"]!.GetValue<string>());
     }
 }

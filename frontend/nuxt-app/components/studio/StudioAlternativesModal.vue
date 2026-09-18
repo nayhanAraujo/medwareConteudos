@@ -20,6 +20,7 @@ const emit = defineEmits<{
   confirm: [items: Array<{ measureId: string; label: string; codVariavel: number }>]
 }>()
 
+const { theme } = useStudioTheme()
 const selections = ref<Record<string, number | null>>({})
 const saving = ref(false)
 
@@ -65,34 +66,37 @@ function confirm() {
   <Teleport to="body">
     <div
       v-if="open"
-      class="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4"
+      class="studio-shell studio-alternatives-modal"
+      :data-theme="theme"
       @click.self="skip"
     >
-      <div class="studio-card max-h-[min(90vh,40rem)] w-full max-w-2xl overflow-hidden shadow-2xl">
-        <header class="border-b border-ds-border px-4 py-3">
-          <h2 class="text-base font-semibold text-ds-text">Cadastrar variáveis alternativas</h2>
-          <p class="mt-1 text-sm text-ds-muted">
+      <div class="studio-alternatives-modal__panel" role="dialog" aria-modal="true" aria-labelledby="studio-alternatives-title">
+        <header class="studio-alternatives-modal__header">
+          <h2 id="studio-alternatives-title" class="studio-alternatives-modal__title">
+            Cadastrar variáveis alternativas
+          </h2>
+          <p class="studio-alternatives-modal__subtitle">
             Medidas sem correspondência no banco. Opcionalmente, vincule cada uma como alternativa de uma variável existente.
             Você pode cancelar e seguir sem cadastrar.
           </p>
         </header>
 
-        <div class="max-h-[24rem] space-y-3 overflow-y-auto px-4 py-3">
+        <div class="studio-alternatives-modal__body">
           <div
             v-for="measure in measures"
             :key="measure.id"
-            class="rounded-ds-sm border border-ds-border bg-ds-surface-elevated p-3"
+            class="studio-alternatives-modal__item"
           >
-            <div class="mb-2">
-              <strong class="block text-sm text-ds-text">{{ measure.label }}</strong>
-              <span class="text-xs text-ds-muted">
+            <div class="studio-alternatives-modal__item-head">
+              <strong class="studio-alternatives-modal__item-label">{{ measure.label }}</strong>
+              <span class="studio-alternatives-modal__item-meta">
                 {{ measure.originalText || 'Sem trecho original' }}
                 <template v-if="measure.unit"> · {{ measure.unit }}</template>
               </span>
             </div>
-            <label class="block text-xs text-ds-muted mb-1">Variável principal (opcional)</label>
+            <label class="studio-alternatives-modal__field-label">Variável principal (opcional)</label>
             <select
-              class="h-10 w-full rounded-ds-sm border border-ds-field-border bg-ds-surface px-2 text-sm text-ds-text"
+              class="studio-alternatives-modal__select"
               :value="selections[measure.id] ?? ''"
               @change="selections[measure.id] = Number(($event.target as HTMLSelectElement).value) || null"
             >
@@ -108,9 +112,9 @@ function confirm() {
           </div>
         </div>
 
-        <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-ds-border px-4 py-3">
-          <span class="text-xs text-ds-muted">{{ selectedCount }} selecionada(s)</span>
-          <div class="flex flex-wrap gap-2">
+        <footer class="studio-alternatives-modal__footer">
+          <span class="studio-alternatives-modal__count">{{ selectedCount }} selecionada(s)</span>
+          <div class="studio-alternatives-modal__actions">
             <StudioDsButton variant="ghost" :disabled="saving" @click="skip">
               Cancelar / pular
             </StudioDsButton>
