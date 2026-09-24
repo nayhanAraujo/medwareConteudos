@@ -2,7 +2,9 @@
 import type { AnalyzedMeasure, ConversionFormat, ConversionRecord, ReviewedMeasure, VariableNormalidade } from '~/types/conversion'
 import { looksLikeHtml, resolveConversionContent } from '~/utils/conversionFormat'
 
-definePageMeta({ layout: 'studio' })
+definePageMeta({ layout: 'studio', studioAction: 'converter' })
+const auth = useAuthStore()
+const api = useApi()
 const store = useConversionStore()
 const {
   convertImage,
@@ -116,8 +118,8 @@ const verifyApi = async (notify = false) => {
     const health = await checkHealth()
     const online = health.status === 'healthy'
     apiStatus.value = online ? 'online' : 'offline'
-    apiProvider.value = health.provider ?? ''
-    apiSupportsModoTexto.value = Array.isArray(health.formats) && health.formats.includes('modoTexto')
+    apiProvider.value = ''
+    apiSupportsModoTexto.value = online
     if (notify) {
       toast(
         online ? 'API de conversão online.' : 'A API de conversão não está saudável.',
@@ -260,9 +262,7 @@ const hasPendingReview = computed(() =>
 
 const loadVariableOptions = async () => {
   if (variableOptions.value.length) return
-  const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase as string
-  const res = await $fetch<{ success: boolean; data: typeof variableOptions.value }>(`${apiBase}/api/v1/variaveis`)
+  const res = await api.get<{ success: boolean; data: typeof variableOptions.value }>('/api/conversions/variables')
   variableOptions.value = res.data || []
 }
 
@@ -347,10 +347,8 @@ const loadVariableDetails = async (codVariavel: number) => {
     return
   }
   if (variableDetails.value[codVariavel]) return
-  const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase as string
-  const res = await $fetch<{ success: boolean; data?: { normalidades?: VariableNormalidade[] } }>(
-    `${apiBase}/api/v1/variaveis/${codVariavel}`
+  const res = await api.get<{ success: boolean; data?: { normalidades?: VariableNormalidade[] } }>(
+    `/api/conversions/variables/${codVariavel}`
   )
   variableDetails.value[codVariavel] = res.data?.normalidades ?? []
 }
@@ -582,7 +580,7 @@ const handleGenerateReviewedJson = async () => {
   )
   if (!confirmation.isConfirmed) return
 
-  if (unmatchedForAlternatives.value.length > 0) {
+  if (unmatchedForAlternatives.value.length > 0 && auth.can('variaveis', 'criar')) {
     pendingJsonGeneration.value = true
     alternativesModalOpen.value = true
     return
@@ -604,6 +602,10 @@ const onAlternativesConfirm = async (
   pendingJsonGeneration.value = false
 
   if (items.length) {
+    if (!auth.can('variaveis', 'criar')) {
+      toast('Sem permissão para cadastrar alternativas.', 'error')
+      return
+    }
     try {
       for (const item of items) {
         await registerAlternativa(item.codVariavel, item.label)

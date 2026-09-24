@@ -37,12 +37,20 @@ public class PartnerJwtOperationFilter : IOperationFilter
         if (path.StartsWith("/api/v1/", StringComparison.OrdinalIgnoreCase) && isPublicController)
         {
             operation.Security = [];
-            // Token's own invalid-password 401 remains; other aliases have no JWT middleware.
-            if (context.MethodInfo.Name != nameof(ApiPublicaController.Token))
-                operation.Responses?.Remove("401");
+            if (context.ApiDescription.HttpMethod?.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase) == true
+                || path.EndsWith("/token", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith("/health", StringComparison.OrdinalIgnoreCase)) return;
+            operation.Security.Add(Requirement(PartnerScheme, context.Document));
+            operation.Security.Add(Requirement(WebScheme, context.Document));
+            operation.Responses ??= new OpenApiResponses();
+            var schema = context.SchemaGenerator.GenerateSchema(typeof(ApiErrorDoc), context.SchemaRepository);
+            operation.Responses["401"] = ErrorResponse("JWT de parceiro ou web ausente ou inválido", schema);
+            operation.Responses["403"] = ErrorResponse("Usuário web sem permissão para a operação", schema);
             return;
         }
-        if (!path.StartsWith("/api/web/", StringComparison.OrdinalIgnoreCase)) return;
+        if (!path.StartsWith("/api/web/", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith("/api/conversions", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith("/api/voice", StringComparison.OrdinalIgnoreCase)) return;
 
         var metadata = context.ApiDescription.ActionDescriptor.EndpointMetadata.Cast<object>()
             .Concat(context.MethodInfo.GetCustomAttributes(true))

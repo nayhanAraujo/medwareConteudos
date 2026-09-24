@@ -5,6 +5,7 @@ namespace ConversorHtml.Domain.Models;
 public class VoiceSession
 {
     public Guid Id { get; set; }
+    public string OwnerUserId { get; init; } = string.Empty;
     public VoiceSessionMode Mode { get; set; }
     public string CamposScriptJson { get; set; } = "{\"camposScript\":[]}";
     public List<VoiceTranscriptEntry> TranscriptHistory { get; set; } = [];

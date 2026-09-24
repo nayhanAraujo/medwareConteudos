@@ -34,7 +34,7 @@ function prepare() {
     if (p.required && !store.parameters[p.in === 'header' ? 'headers' : p.in]?.[p.name]?.trim()) { formError.value = `Preencha o parâmetro obrigatório ${p.name}.`; return }
   }
   if (store.body.trim() && /json/.test(store.contentType)) { try { JSON.parse(store.body) } catch { formError.value = 'O corpo precisa conter um JSON válido.'; return } }
-  if (store.requiresToken && !store.authorized && !(store.definition === 'web' && auth.token)) { emit('authorize'); return }
+  if (store.requiresToken && !store.authorized && !(store.definition !== 'parceiros' && store.environment === 'atual' && auth.token)) { emit('authorize'); return }
   if (store.writeOperation) confirmation.value?.showModal()
   else void store.execute(auth.token, files.value, false)
 }

@@ -1,6 +1,6 @@
 # Deploy e requisitos de runtime — MDW Conteúdos (Nuxt + .NET)
 
-Guia único do que instalar e configurar para rodar a stack nova em **desenvolvimento** ou em **servidor**. Complementa o [README.md](../README.md) (visão geral) e o [CUTOVER.md](CUTOVER.md) (estratégia de migração Flask → Nuxt).
+Para a nova VM Azure com IIS, siga **[PRODUCAO_IIS.md](PRODUCAO_IIS.md)**, que substitui as instruções de produção abaixo. Este documento conserva referências de desenvolvimento/implantação legada; `.env` não é carregado no ambiente Production. Complementa o [README.md](../README.md) e o [CUTOVER.md](CUTOVER.md).
 
 ---
 
@@ -390,3 +390,6 @@ Usadas por alguns fluxos legados/migrados ([`ScriptsService.cs`](../backend/MdwC
 - [CUTOVER.md](CUTOVER.md) — cutover Flask → Nuxt + proxy IIS
 - [azure-pipelines-migracao.example.yml](azure-pipelines-migracao.example.yml) — rascunho CI (atualizar Node para 22.x se incluir Studio)
 - [manual_scripts_html_UX.md](../backend/manual_scripts_html_UX.md) — regras HTML LaudosUX para o agente
+# Produção IIS: procedimento vigente
+
+Para a nova VM Azure Windows, seguir [PRODUCAO_IIS.md](PRODUCAO_IIS.md) e `tools/production`. Este procedimento substitui as instruções históricas abaixo de NSSM, Kestrel público e cópia manual. O conteúdo abaixo é referência de desenvolvimento/integrações, não configuração aprovada de produção.

@@ -35,18 +35,8 @@ export default defineNuxtConfig({
     }
   },
   nitro: {
-    publicAssets: [
-      {
-        dir: '../../static',
-        baseURL: '/static'
-      },
-      {
-        dir: '../../../uploads',
-        baseURL: '/uploads'
-      }
-    ],
-    // Em `nuxt dev` o Vite não usa nitro.publicAssets — proxy /static → API.
-    // Em produção, publicAssets acima cobre a pasta static/ do repositório.
+    // /static é servido em runtime pela API (proxy IIS em produção).
+    // Não empacotar anexos dos usuários como assets públicos do build.
     devProxy: {
       '/api-dotnet': {
         target: 'http://localhost:5080',

@@ -4,7 +4,7 @@ namespace ConversorHtml.Tests;
 
 public sealed class AssistenteCoreTests
 {
-    private static readonly Assembly ApiAssembly = LoadApiAssembly();
+    private static readonly Assembly ApiAssembly = typeof(MdwConteudos.Api.Configuration.AssistantFirebirdOptions).Assembly;
 
     [Fact]
     public void Codec_PreservaTextoIso88591EmRoundTripBase64()
@@ -39,15 +39,4 @@ public sealed class AssistenteCoreTests
 
     private static Type GetType(string name) => ApiAssembly.GetType(name, throwOnError: true)!;
 
-    private static Assembly LoadApiAssembly()
-    {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "MdwConteudos.Api"))) root = root.Parent;
-        var apiRoot = Path.Combine(root?.FullName ?? throw new InvalidOperationException("Diretório backend não encontrado."),
-            "MdwConteudos.Api", "bin");
-        var path = Directory.EnumerateFiles(apiRoot, "MdwConteudos.Api.dll", SearchOption.AllDirectories)
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault() ?? throw new FileNotFoundException("Assembly MdwConteudos.Api não encontrado.");
-        return Assembly.LoadFrom(path);
-    }
 }

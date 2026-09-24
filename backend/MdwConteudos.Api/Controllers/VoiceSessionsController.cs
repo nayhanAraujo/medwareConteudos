@@ -5,11 +5,17 @@ using ConversorHtml.Domain.Enums;
 using ConversorHtml.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using MdwConteudos.Api.Modules.Permissions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MdwConteudos.Api.Controllers;
 
 [ApiController]
-[AllowAnonymous]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[RequirePermission("studio", "visualizar")]
+[RequirePermission("studio", "voz")]
 [Route("api/voice")]
 public class VoiceSessionsController : ControllerBase
 {
@@ -53,12 +59,16 @@ public class VoiceSessionsController : ControllerBase
     }
 
     [HttpPost("sessions")]
+    [EnableRateLimiting("studio")]
     [RequestSizeLimit(MaxImageSize)]
     public async Task<ActionResult<VoiceSessionResponseDto>> CreateSession(
         [FromForm] string? mode,
         IFormFile? image,
         CancellationToken cancellationToken)
     {
+        var ownerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (User.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(ownerUserId))
+            return Unauthorized();
         _store.RemoveExpired();
 
         var sessionMode = Enum.TryParse<VoiceSessionMode>(mode, ignoreCase: true, out var parsed)
@@ -75,6 +85,7 @@ public class VoiceSessionsController : ControllerBase
         var session = new VoiceSession
         {
             Id = Guid.NewGuid(),
+            OwnerUserId = ownerUserId,
             Mode = sessionMode,
             CamposScriptJson = "{\"camposScript\":[]}",
             CreatedAt = now,
@@ -107,7 +118,7 @@ public class VoiceSessionsController : ControllerBase
     public ActionResult<VoiceSessionResponseDto> GetSession(Guid id)
     {
         _store.RemoveExpired();
-        var session = _store.Get(id);
+        var session = GetOwnedSession(id);
         if (session is null)
         {
             return NotFound(new { message = "Sessão não encontrada ou expirada." });
@@ -117,13 +128,14 @@ public class VoiceSessionsController : ControllerBase
     }
 
     [HttpPost("sessions/{id:guid}/utterance")]
+    [EnableRateLimiting("studio")]
     public async Task<ActionResult<VoiceUtteranceResponseDto>> ApplyUtterance(
         Guid id,
         [FromBody] VoiceUtteranceRequestDto request,
         CancellationToken cancellationToken)
     {
         _store.RemoveExpired();
-        var session = _store.Get(id);
+        var session = GetOwnedSession(id);
         if (session is null)
         {
             return NotFound(new { message = "Sessão não encontrada ou expirada." });
@@ -167,13 +179,14 @@ public class VoiceSessionsController : ControllerBase
     }
 
     [HttpPost("sessions/{id:guid}/generate")]
+    [EnableRateLimiting("studio")]
     public async Task<ActionResult<ConversionResponseDto>> Generate(
         Guid id,
         [FromBody] VoiceGenerateRequestDto request,
         CancellationToken cancellationToken)
     {
         _store.RemoveExpired();
-        var session = _store.Get(id);
+        var session = GetOwnedSession(id);
         if (session is null)
         {
             return NotFound(new { message = "Sessão não encontrada ou expirada." });
@@ -221,6 +234,7 @@ public class VoiceSessionsController : ControllerBase
     }
 
     [HttpPost("transcribe")]
+    [EnableRateLimiting("studio")]
     [RequestSizeLimit(MaxAudioSize)]
     public async Task<ActionResult<TranscribeResponseDto>> Transcribe(IFormFile? audio, CancellationToken cancellationToken)
     {
@@ -249,6 +263,15 @@ public class VoiceSessionsController : ControllerBase
         {
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
         }
+    }
+
+    private VoiceSession? GetOwnedSession(Guid id)
+    {
+        var ownerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (User.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(ownerUserId))
+            return null;
+        var session = _store.Get(id);
+        return session is not null && session.OwnerUserId == ownerUserId ? session : null;
     }
 
     private static VoiceUtteranceIntent ResolveUtteranceIntent(VoiceUtteranceIntent requested, VoiceSession session)

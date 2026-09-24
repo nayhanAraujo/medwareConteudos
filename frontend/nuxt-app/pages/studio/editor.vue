@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ConversionFormat } from '~/types/conversion'
-definePageMeta({ layout: 'studio' })
+definePageMeta({ layout: 'studio', studioAction: 'converter' })
 
 const store = useConversionStore()
 const { validateContent } = useConversionApi()

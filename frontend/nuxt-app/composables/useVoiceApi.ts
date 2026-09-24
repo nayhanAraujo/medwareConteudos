@@ -8,22 +8,18 @@ import type {
 } from '~/types/voice'
 
 export function useVoiceApi() {
-  const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase as string
+  const api = useApi()
 
   const createSession = async (mode: VoiceSessionMode, image?: File): Promise<VoiceSessionResponse> => {
     const formData = new FormData()
     formData.append('mode', mode === 'fromImage' ? 'FromImage' : 'FromScratch')
     if (image) formData.append('image', image)
 
-    return await $fetch<VoiceSessionResponse>(`${apiBase}/api/voice/sessions`, {
-      method: 'POST',
-      body: formData
-    })
+    return await api.postForm<VoiceSessionResponse>('/api/voice/sessions', formData)
   }
 
   const getSession = async (sessionId: string): Promise<VoiceSessionResponse> =>
-    await $fetch<VoiceSessionResponse>(`${apiBase}/api/voice/sessions/${sessionId}`)
+    await api.get<VoiceSessionResponse>(`/api/voice/sessions/${sessionId}`)
 
   const applyUtterance = async (
     sessionId: string,
@@ -31,28 +27,19 @@ export function useVoiceApi() {
     intent: VoiceUtteranceIntent = 'build',
     sttSource: VoiceSttSource = 'browser'
   ): Promise<VoiceUtteranceResponse> =>
-    await $fetch<VoiceUtteranceResponse>(`${apiBase}/api/voice/sessions/${sessionId}/utterance`, {
-      method: 'POST',
-      body: {
-        transcript,
-        intent: intent === 'edit' ? 'edit' : 'build',
-        sttSource: sttSource === 'server' ? 'Server' : 'Browser'
-      }
+    await api.post<VoiceUtteranceResponse>(`/api/voice/sessions/${sessionId}/utterance`, {
+      transcript,
+      intent: intent === 'edit' ? 'edit' : 'build',
+      sttSource: sttSource === 'server' ? 'Server' : 'Browser'
     })
 
   const generateLaudo = async (sessionId: string, format: ConversionFormat): Promise<ConversionResponse> =>
-    await $fetch<ConversionResponse>(`${apiBase}/api/voice/sessions/${sessionId}/generate`, {
-      method: 'POST',
-      body: { format }
-    })
+    await api.post<ConversionResponse>(`/api/voice/sessions/${sessionId}/generate`, { format })
 
   const transcribeAudio = async (audio: Blob, fileName = 'gravacao.webm'): Promise<string> => {
     const formData = new FormData()
     formData.append('audio', audio, fileName)
-    const result = await $fetch<{ transcript: string }>(`${apiBase}/api/voice/transcribe`, {
-      method: 'POST',
-      body: formData
-    })
+    const result = await api.postForm<{ transcript: string }>('/api/voice/transcribe', formData)
     return result.transcript
   }
 

@@ -2,6 +2,8 @@
 
 ## Estratégia
 
+Para instalação independente na nova VM Azure Windows, sem Python, prevalece [PRODUCAO_IIS.md](PRODUCAO_IIS.md). A estratégia abaixo descreve o cenário histórico de convivência com Flask.
+
 1. Manter **Flask** em produção (`C:\MedwareConteudo`, NSSM) até cada módulo ter paridade validada.
 2. Validar a API pública em cópias isoladas de Firebird e arquivos, seguindo [API_HOMOLOGACAO.md](API_HOMOLOGACAO.md); não executar testes de escrita nos originais.
 3. Redirecionar tráfego por módulo (reverse proxy ou IIS URL Rewrite).
@@ -46,3 +48,8 @@ Adicionar estágios ao `azure-pipelines.yml` **somente após** homologação:
 ## Estado de implementação
 
 As APIs e telas migradas podem ser consideradas prontas para iniciar validação somente quando `dotnet build`, `dotnet test` e `npm run build` estiverem aprovados. Isso não substitui testes com o Firebird real nem autoriza o cutover.
+# Corte para nova VM IIS
+
+Seguir [PRODUCAO_IIS.md](PRODUCAO_IIS.md): API IIS loopback:5080, Nuxt Node 22 WinSW, Firebird local e dados fora das releases. NSSM e deploy incremental abaixo são históricos.
+
+Antes do corte: aceite em cópias isoladas, backup gbak+arquivos consistente, restore ensaiado, DNS/TTL planejados, validação sem Apply e smoke HTTPS. Suspender todos os escritores na origem na sincronização final; não manter duas bases divergentes recebendo gravações. Liberar tráfego somente após health live/ready e aceite de autenticação, documentação, anexos e parceiros. Rollback de código não restaura banco; seguir trilhas separadas documentadas.

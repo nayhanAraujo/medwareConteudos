@@ -52,7 +52,7 @@ export const useApiDocsStore = defineStore('api-docs', () => {
   function clearCredentials() { tokens.clear(); credentialRevision.value++; result.value = null }
   function headers(webToken = ''): Record<string, string> {
     const h: Record<string, string> = {}
-    const token = tokens.get(credentialKey()) || (definition.value === 'web' ? webToken : '')
+    const token = tokens.get(credentialKey()) || (definition.value !== 'parceiros' && environment.value === 'atual' ? webToken : '')
     if (token) h.Authorization = `Bearer ${token}`
     if (webToken) h['X-Docs-Web-Authorization'] = `Bearer ${webToken}`
     return h

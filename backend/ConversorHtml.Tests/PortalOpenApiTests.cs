@@ -108,13 +108,13 @@ public sealed class PortalOpenApiTests : IDisposable
     }
 
     [Fact]
-    public void Partner_and_web_security_are_separate_and_anonymous_aliases_have_no_partner_errors()
+    public void Partner_and_web_security_are_separate_and_internal_aliases_require_either_token()
     {
         var partner = _swagger.GetSwagger(SwaggerDocPaths.Parceiros);
         var internalDoc = _swagger.GetSwagger(SwaggerDocPaths.ApiInterna);
         var web = _swagger.GetSwagger(SwaggerDocPaths.Web);
         Assert.Equal(new[] { "PartnerJwt" }, partner.Components!.SecuritySchemes!.Keys);
-        Assert.Empty(internalDoc.Components!.SecuritySchemes!);
+        Assert.Equal(new[] { "PartnerJwt", "WebJwt" }, internalDoc.Components!.SecuritySchemes!.Keys.Order());
         Assert.Equal(new[] { "WebJwt" }, web.Components!.SecuritySchemes!.Keys);
         foreach (var (path, item) in partner.Paths)
         foreach (var op in item.Operations!.Values)
@@ -130,8 +130,13 @@ public sealed class PortalOpenApiTests : IDisposable
         foreach (var (path, item) in internalDoc.Paths.Where(p => p.Key.StartsWith("/api/v1/")))
         foreach (var op in item.Operations!.Values)
         {
-            Assert.Empty(op.Security!);
-            if (!path.EndsWith("/token")) Assert.DoesNotContain("401", op.Responses!.Keys);
+            if (path.EndsWith("/token") || path.EndsWith("/health")) Assert.Empty(op.Security!);
+            else
+            {
+                Assert.Equal(new[] { "PartnerJwt", "WebJwt" }, op.Security!.SelectMany(r => r.Keys).Select(k => k.Reference.Id).Order());
+                Assert.Contains("401", op.Responses!.Keys);
+                Assert.Contains("403", op.Responses.Keys);
+            }
         }
         Assert.Empty(Get(web, "/api/web/auth/login", HttpMethod.Post).Security!);
         Assert.Empty(Get(web, "/api/web/auth/forgot-password", HttpMethod.Post).Security!);

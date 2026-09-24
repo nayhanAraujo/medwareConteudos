@@ -22,6 +22,7 @@ public static class PermissionDomains
     public const string Usuarios = "usuarios";
     public const string Configuracoes = "configuracoes";
     public const string AprovacaoConteudo = "aprovacao-conteudo";
+    public const string Studio = "studio";
 }
 
 public static class PermissionActions
@@ -35,6 +36,8 @@ public static class PermissionActions
     public const string Aprovar = "aprovar";
     public const string Vincular = "vincular";
     public const string Ativar = "ativar";
+    public const string Converter = "converter";
+    public const string Voz = "voz";
 }
 
 public sealed record PermissionCatalogItem(string Chave, string Dominio, string Acao, string Descricao, int Status);
@@ -56,6 +59,7 @@ public static class PermissionsModuleExtensions
 public interface IPermissionService
 {
     Task EnsureSchemaAsync(CancellationToken ct = default);
+    Task ValidateSchemaAsync(CancellationToken ct = default) => throw new NotSupportedException("Schema validation not implemented.");
     Task<IReadOnlyList<PermissionCatalogItem>> GetCatalogAsync(CancellationToken ct = default);
     Task<IReadOnlyList<string>> ListProfilesAsync(CancellationToken ct = default);
     Task<ProfilePermissionState> GetProfileAsync(string perfil, CancellationToken ct = default);
@@ -73,7 +77,8 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
     public async Task EnsureSchemaAsync(CancellationToken ct = default)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        if (!await TableExistsAsync(conn, "PERMISSAO"))
+        var firstInstall = !await TableExistsAsync(conn, "PERMISSAO");
+        if (firstInstall)
         {
             await conn.ExecuteAsync("""
                 CREATE TABLE PERMISSAO (
@@ -124,9 +129,9 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
                 """, item);
         }
 
-        foreach (var perfil in new[] { "usuario", "comum" })
+        foreach (var perfil in firstInstall ? new[] { "usuario", "comum" } : Array.Empty<string>())
         {
-            foreach (var chave in Seed.Where(x => x.Acao == PermissionActions.Visualizar).Select(x => x.Chave))
+            foreach (var chave in Seed.Where(x => x.Acao == PermissionActions.Visualizar && x.Dominio != PermissionDomains.Studio).Select(x => x.Chave))
             {
                 await conn.ExecuteAsync("""
                     UPDATE OR INSERT INTO PERFIL_PERMISSAO (PERFIL, CHAVE, DTHRULTMODIFICACAO)
@@ -135,6 +140,17 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
                     """, new { perfil, chave });
             }
         }
+    }
+
+    public async Task ValidateSchemaAsync(CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenConnectionAsync(ct);
+        foreach (var table in new[] { "PERMISSAO", "PERFIL_PERMISSAO", "USUARIO_PERMISSAO" })
+            if (!await TableExistsAsync(conn, table))
+                throw new InvalidOperationException("Schema de permissões pendente. Execute --migrate-permissions antes de iniciar.");
+        var keys = (await conn.QueryAsync<string>("SELECT CHAVE FROM PERMISSAO WHERE STATUS = -1")).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (Seed.Any(item => !keys.Contains(item.Chave)))
+            throw new InvalidOperationException("Catálogo de permissões desatualizado. Execute --migrate-permissions.");
     }
 
     public async Task<IReadOnlyList<PermissionCatalogItem>> GetCatalogAsync(CancellationToken ct = default)
@@ -331,6 +347,7 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
     {
         var map = new Dictionary<string, string[]>
         {
+            [PermissionDomains.Studio] = [PermissionActions.Visualizar, PermissionActions.Converter, PermissionActions.Voz],
             [PermissionDomains.Biblioteca] = [PermissionActions.Visualizar],
             [PermissionDomains.AprovacaoConteudo] = [PermissionActions.Visualizar, PermissionActions.Aprovar],
             [PermissionDomains.Conteudos] = [PermissionActions.Visualizar, PermissionActions.Criar, PermissionActions.Editar, PermissionActions.Excluir, PermissionActions.Importar, PermissionActions.Exportar, PermissionActions.Ativar],
@@ -391,6 +408,8 @@ public sealed class PermissionAuthorizationFilter(string dominio, string acao, I
 {
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
+        if (context.ActionDescriptor.EndpointMetadata.OfType<IAllowAnonymous>().Any()
+            || context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is not null) return;
         var user = context.HttpContext.User;
         if (user.Identity?.IsAuthenticated != true)
         {
@@ -413,7 +432,7 @@ public sealed class PermissionAuthorizationFilter(string dominio, string acao, I
 
 [ApiController]
 [Route("api/web/permissoes")]
-[Authorize]
+[Authorize(Roles = "admin")]
 public sealed class PermissionsController(IPermissionService permissions) : ControllerBase
 {
     [HttpGet("catalogo")]

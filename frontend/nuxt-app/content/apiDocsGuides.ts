@@ -12,7 +12,7 @@ export const docsGuides: Record<string, { eyebrow: string; title: string; intro:
     eyebrow: 'ACESSO À API', title: 'Autenticação simples. Contextos separados.', intro: 'O token de parceiros e a sessão administrativa têm finalidades diferentes.',
     sections: [
       { title: 'API de Parceiros · JWT', text: 'As operações em /apiconteudos/v1 exigem Bearer JWT, exceto health, token e preflight OPTIONS. O botão Autorizar permite informar um token ou obtê-lo usando a senha de parceiro.', code: 'Authorization: Bearer SEU_TOKEN' },
-      { title: 'API Interna', text: 'Os recursos em /api/v1 preservam o acesso sem JWT do legado. A documentação interna é restrita aos administradores; essa restrição de documentação não altera os contratos das integrações existentes.' },
+      { title: 'API Interna', text: 'Os recursos em /api/v1 exigem JWT de parceiro ou JWT web. Usuários web precisam da permissão correspondente ao domínio e à ação. A documentação interna é restrita aos administradores.' },
       { title: 'Web Admin', text: 'Usa o JWT de login do sistema, obtido em /api/web/auth/login, e as permissões de cada usuário. Um JWT de parceiro não substitui a sessão web. Em homologação, use o token administrativo desse ambiente.' },
       { title: 'Validade e compatibilidade', text: 'A API verifica HS256, assinatura, senha e datahora (ou datetime). Horários devem estar em UTC, no dia atual e dentro da tolerância. A expiração exp é respeitada quando presente. Credenciais do console permanecem somente em memória e não aparecem nos exemplos copiados.' }
     ]

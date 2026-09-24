@@ -1,0 +1,12 @@
+{
+  "AllowedHosts": "REQUIRED_DOMAIN;127.0.0.1;localhost",
+  "DataPaths": { "Root": "REQUIRED_ABSOLUTE_PERSISTENT_ROOT" },
+  "Documentation": { "PortalUrl": "https://REQUIRED_DOMAIN/apiconteudos/docs", "AllowWrites": false },
+  "Security": { "CorsOrigins": ["https://REQUIRED_DOMAIN"], "TrustedProxies": ["127.0.0.1", "::1"] },
+  "Firebird": { "Host": "127.0.0.1", "Port": 3052, "Database": "REQUIRED_ABSOLUTE_DATABASE_PATH", "User": "REQUIRED", "Password": "REQUIRED", "Charset": "ISO8859_1" },
+  "AssistantFirebird": { "Host": "127.0.0.1", "Port": 3050, "Database": "REQUIRED_ABSOLUTE_DATABASE_PATH", "User": "REQUIRED", "Password": "REQUIRED", "Charset": "ISO8859_1" },
+  "WebAuth": { "DevUserEnabled": false, "JwtSecret": "REQUIRED_RANDOM_SECRET_32_OR_MORE", "Issuer": "MdwConteudos", "Audience": "MdwConteudos.Web", "ExpirationMinutes": 30 },
+  "ApiPartner": { "JwtSecret": "REQUIRED_RANDOM_SECRET_32_OR_MORE", "JwtPassword": "REQUIRED" },
+  "Cursor": { "ApiKey": "REQUIRED", "BridgeScriptPath": "REQUIRED_ABSOLUTE_RELEASE_ROOT/api/agent-bridge/convert.mjs", "RepoRoot": "REQUIRED_ABSOLUTE_RELEASE_ROOT", "TimeoutSeconds": 300 },
+  "Voice": { "VoiceBridgeScriptPath": "REQUIRED_ABSOLUTE_RELEASE_ROOT/api/agent-bridge/voice.mjs" }
+}

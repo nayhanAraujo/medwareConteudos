@@ -17,4 +17,9 @@
   <ItemGroup>
     <ProjectReference Include="..\ConversorHtml.Application\ConversorHtml.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Update="appsettings.*.local.json;appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+    <Content Remove="bin-temp/**;bin-check/**;bin-verify*/**;**/*.fdb;**/*.FDB;.env*" />
+    <None Update=".env*;**/*.fdb;**/*.FDB" CopyToPublishDirectory="Never" />
+  </ItemGroup>
 </Project>

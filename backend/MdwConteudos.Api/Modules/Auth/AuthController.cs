@@ -37,13 +37,10 @@ public class AuthController : ControllerBase
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
-    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req, CancellationToken ct)
+    public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req, CancellationToken ct)
     {
-        if (req.NewPassword != req.ConfirmPassword)
-            return BadRequest(ApiResponse.Fail("Validação", "As senhas não coincidem."));
-        var (ok, error) = await _auth.ForgotPasswordAsync(req.Identificacao, req.NewPassword, ct);
-        if (!ok) return BadRequest(ApiResponse.Fail("Erro", error));
-        return Ok(ApiResponse.OkMessage("Senha alterada com sucesso."));
+        return Task.FromResult<IActionResult>(StatusCode(410,
+            ApiResponse.Fail("Indisponível", "Solicite a redefinição da senha a um administrador.", 410)));
     }
 
     [HttpGet("me")]

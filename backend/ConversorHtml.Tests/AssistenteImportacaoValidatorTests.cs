@@ -54,13 +54,7 @@ public sealed class AssistenteImportacaoValidatorTests
 
     private static T Invoke<T>(string method, params object[] args)
     {
-        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name ?? "Release";
-        var assemblyPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "MdwConteudos.Api", "bin", configuration, "net10.0", "MdwConteudos.Api.dll"));
-        if (!File.Exists(assemblyPath))
-            assemblyPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-                "..", "..", "..", "..", "MdwConteudos.Api", "bin", "Release", "net10.0", "MdwConteudos.Api.dll"));
-        var assembly = Assembly.LoadFrom(assemblyPath);
+        var assembly = typeof(MdwConteudos.Api.Configuration.AssistantFirebirdOptions).Assembly;
         var type = assembly.GetType("MdwConteudos.Api.Modules.Assistente.Importacao.AssistenteImportacaoValidator", true)!;
         try { return (T)type.GetMethod(method, BindingFlags.Public | BindingFlags.Static)!.Invoke(null, args)!; }
         catch (TargetInvocationException ex) when (ex.InnerException is not null) { throw ex.InnerException; }

@@ -22,18 +22,20 @@ public class FirebirdConnectionFactory : IFirebirdConnectionFactory
 
     public async Task<FbConnection> OpenConnectionAsync(CancellationToken ct = default)
     {
+        var conn = new FbConnection(_options.BuildConnectionString("UTF8"));
         try
         {
-            var conn = new FbConnection(_options.BuildConnectionString("UTF8"));
             await conn.OpenAsync(ct);
             return conn;
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogWarning(ex, "Falha UTF8, tentando ISO8859_1");
-            var conn = new FbConnection(_options.BuildConnectionString("ISO8859_1"));
-            await conn.OpenAsync(ct);
-            return conn;
+            await conn.DisposeAsync();
+            ct.ThrowIfCancellationRequested();
+            _logger.LogWarning("Falha ao conectar REFERENCIAS com UTF8, tentando ISO8859_1.");
+            var fallback = new FbConnection(_options.BuildConnectionString("ISO8859_1"));
+            try { await fallback.OpenAsync(ct); return fallback; }
+            catch { await fallback.DisposeAsync(); throw; }
         }
     }
 }

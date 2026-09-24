@@ -28,11 +28,13 @@ public class AuthService : IAuthService
 {
     private readonly IFirebirdConnectionFactory _db;
     private readonly WebAuthOptions _auth;
+    private readonly bool _development;
 
-    public AuthService(IFirebirdConnectionFactory db, IOptions<WebAuthOptions> auth)
+    public AuthService(IFirebirdConnectionFactory db, IOptions<WebAuthOptions> auth, IHostEnvironment? environment = null)
     {
         _db = db;
         _auth = auth.Value;
+        _development = environment?.IsDevelopment() == true;
     }
 
     public async Task<LoginResponse> LoginAsync(string identificacao, string senha, CancellationToken ct = default)
@@ -65,24 +67,15 @@ public class AuthService : IAuthService
 
     private bool IsDevUser(string normalizedIdentificacao, string senha)
     {
-        if (!_auth.DevUserEnabled) return false;
+        if (!_development || !_auth.DevUserEnabled) return false;
         if (string.IsNullOrWhiteSpace(_auth.DevUsername) || string.IsNullOrWhiteSpace(_auth.DevPassword)) return false;
         return normalizedIdentificacao == _auth.DevUsername.Trim().ToLowerInvariant()
             && senha == _auth.DevPassword;
     }
 
-    public async Task<(bool Ok, string? Error)> ForgotPasswordAsync(string identificacao, string newPassword, CancellationToken ct = default)
+    public Task<(bool Ok, string? Error)> ForgotPasswordAsync(string identificacao, string newPassword, CancellationToken ct = default)
     {
-        var id = identificacao.Trim().ToLowerInvariant();
-        await using var conn = await _db.OpenConnectionAsync(ct);
-        var exists = await conn.ExecuteScalarAsync<int>("SELECT 1 FROM USUARIO WHERE IDENTIFICACAO = @id", new { id });
-        if (exists != 1) return (false, "Identificação não encontrada.");
-
-        var hash = PasswordHasher.Sha256Hex(newPassword);
-        await conn.ExecuteAsync(
-            "UPDATE USUARIO SET SENHA = @hash, DTHRULTMODIFICACAO = @now WHERE IDENTIFICACAO = @id",
-            new { hash, now = DateTime.Now, id });
-        return (true, null);
+        return Task.FromResult<(bool Ok, string? Error)>((false, "Redefinição anônima de senha desativada."));
     }
 
     public string CreateWebToken(SessionUser user)

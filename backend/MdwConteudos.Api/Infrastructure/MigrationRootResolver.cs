@@ -13,6 +13,14 @@ public static class MigrationRootResolver
         if (config is not null && HomologacaoGuard.IsEnabled(config))
             return HomologacaoGuard.ResolveFilesRoot(config);
 
+        var dataRoot = config?["DataPaths:Root"];
+        if (!string.IsNullOrWhiteSpace(dataRoot))
+        {
+            if (!Path.IsPathFullyQualified(dataRoot))
+                throw new InvalidOperationException("DataPaths:Root deve ser um caminho absoluto.");
+            return Path.GetFullPath(dataRoot);
+        }
+
         var start = Path.GetFullPath(startDir ?? AppContext.BaseDirectory);
         var configured = config?["LegacyPaths:RepoRoot"];
 
@@ -41,6 +49,7 @@ public static class MigrationRootResolver
     {
         // Nunca reencontra assets ou uploads originais por descoberta ancestral.
         if (config is not null && HomologacaoGuard.IsEnabled(config)) return null;
+        if (!string.IsNullOrWhiteSpace(config?["DataPaths:Root"])) return null;
 
         var configured = config?["LegacyPaths:RepoRoot"];
         if (!string.IsNullOrWhiteSpace(configured))

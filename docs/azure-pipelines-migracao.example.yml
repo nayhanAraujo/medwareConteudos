@@ -7,18 +7,19 @@ steps:
       packageType: sdk
       version: 10.x
 
-  - script: |
-      dotnet publish "$(Build.SourcesDirectory)/backend/MdwConteudos.Api/MdwConteudos.Api.csproj" -c Release -o "$(Build.ArtifactStagingDirectory)/api"
-    displayName: Publish API .NET
-
   - task: NodeTool@0
     inputs:
-      versionSpec: '22.x'
+      versionSpec: '22.23.3'
 
-  - script: |
-      cd "$(Build.SourcesDirectory)/frontend/nuxt-app"
-      npm ci
-      npm run build
-    displayName: Build Nuxt
-
-  # Deploy: copiar api/ e .output/ para servidor; configurar NSSM Kestrel + IIS para Nuxt
+  # Agente Windows limpo, sem variáveis secretas; somente HEAD commitado.
+  - task: PowerShell@2
+    displayName: Pacote limpo IIS API e Nuxt SSR
+    inputs:
+      pwsh: true
+      filePath: tools/production/Build-Package.ps1
+      arguments: '-OutputDirectory "$(Build.ArtifactStagingDirectory)/mdw-$(Build.BuildId)"'
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/mdw-$(Build.BuildId)'
+      artifact: mdw-producao-iis
+  # Sem instalação ou execução remota. Seguir PRODUCAO_IIS.md na VM.

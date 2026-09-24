@@ -9,11 +9,15 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using MdwConteudos.Api.Modules.Permissions;
+using MdwConteudos.Api.Modules.ApiPublica;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MdwConteudos.Api.Controllers;
 
 [ApiController]
-[AllowAnonymous]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 [Route("api/conversions")]
 public class ConversionsController : ControllerBase
 {
@@ -48,6 +52,9 @@ public class ConversionsController : ControllerBase
     }
 
     [HttpPost("analyze")]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
+    [EnableRateLimiting("studio")]
     [RequestSizeLimit(MaxFileSize)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxFileSize)]
     [RequestTimeout(300000)]
@@ -82,6 +89,9 @@ public class ConversionsController : ControllerBase
     }
 
     [HttpPost("generate-modo-texto-from-analysis")]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
+    [EnableRateLimiting("studio")]
     public async Task<ActionResult<ConversionResponseDto>> GenerateModoTextoFromAnalysis(
         [FromBody] GenerateModoTextoFromAnalysisRequestDto request,
         CancellationToken cancellationToken)
@@ -119,6 +129,9 @@ public class ConversionsController : ControllerBase
     }
 
     [HttpPost("generate-json-from-analysis")]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
+    [EnableRateLimiting("studio")]
     public async Task<ActionResult<ConversionResponseDto>> GenerateJsonFromAnalysis(
         [FromBody] GenerateModoTextoFromAnalysisRequestDto request,
         CancellationToken cancellationToken)
@@ -159,6 +172,9 @@ public class ConversionsController : ControllerBase
     }
 
     [HttpPost("register-alternativa")]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
+    [RequirePermission("variaveis", "criar")]
     public async Task<IActionResult> RegisterAlternativa(
         [FromBody] RegisterAlternativaRequestDto request,
         CancellationToken cancellationToken)
@@ -175,18 +191,31 @@ public class ConversionsController : ControllerBase
     }
 
     [HttpGet("health")]
+    [AllowAnonymous]
     public IActionResult Health()
     {
         return Ok(new
         {
-            status = "healthy",
-            timestamp = DateTime.UtcNow,
-            provider = _converter.GetType().Name,
-            formats = new[] { "html", "modoTexto", "jsonStudio" }
+            status = "healthy"
         });
     }
 
+    [HttpGet("variables")]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
+    public Task<IActionResult> Variables([FromServices] IApiPublicaService variables, CancellationToken cancellationToken)
+        => variables.GetVariaveisAsync(null, null, cancellationToken);
+
+    [HttpGet("variables/{id:int}")]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
+    public Task<IActionResult> VariableDetails(int id, [FromServices] IApiPublicaService variables, CancellationToken cancellationToken)
+        => variables.GetVariavelDetalhadaAsync(id, cancellationToken);
+
     [HttpPost]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
+    [EnableRateLimiting("studio")]
     [RequestSizeLimit(MaxFileSize)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxFileSize)]
     [RequestTimeout(300000)]
@@ -262,6 +291,8 @@ public class ConversionsController : ControllerBase
     }
 
     [HttpPost("validate")]
+    [RequirePermission("studio", "visualizar")]
+    [RequirePermission("studio", "converter")]
     public ActionResult<ValidationResponseDto> Validate([FromBody] ValidateConversionRequestDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Content))

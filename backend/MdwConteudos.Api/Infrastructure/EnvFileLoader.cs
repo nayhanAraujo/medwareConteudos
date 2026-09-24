@@ -6,6 +6,11 @@ public static class EnvFileLoader
     {
         environmentName ??= Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
                             ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if (string.Equals(environmentName, "Production", StringComparison.OrdinalIgnoreCase))
+        {
+            config.AddEnvironmentVariables();
+            return;
+        }
         if (string.Equals(environmentName, HomologacaoGuard.EnvironmentName, StringComparison.OrdinalIgnoreCase))
         {
             // CreateBuilder já adicionou providers de ambiente. Removê-los é necessário:
@@ -80,7 +85,11 @@ public static class EnvFileLoader
                    ?? config["Firebird:Password"]
                    ?? "masterkey";
         var charset = config["Firebird:Charset"] ?? "UTF8";
-        return $"User={user};Password={pass};Database={db};DataSource={host};Port={port};Charset={charset};";
+        return new FirebirdSql.Data.FirebirdClient.FbConnectionStringBuilder
+        {
+            UserID = user, Password = pass, Database = db, DataSource = host,
+            Port = int.Parse(port), Charset = charset
+        }.ToString();
     }
 
     private static string? FindRepoRoot(string startDir)

@@ -2,6 +2,7 @@
 definePageMeta({ layout: 'studio' })
 
 const router = useRouter()
+const auth = useAuthStore()
 const store = useConversionStore()
 const { toast } = useStudioSwal()
 
@@ -27,11 +28,11 @@ const onFileSelect = (file: File) => {
     />
     <StudioDsPageShell>
       <div class="grid gap-6 lg:grid-cols-3">
-        <StudioDsCard title="Upload de imagem">
+        <StudioDsCard v-if="auth.can('studio', 'converter')" title="Upload de imagem">
           <StudioImageUploadZone @select="onFileSelect" />
         </StudioDsCard>
 
-        <StudioDsCard title="Modo voz">
+        <StudioDsCard v-if="auth.can('studio', 'voz')" title="Modo voz">
           <p class="mb-4 text-sm text-ds-text-secondary">
             Monte ou edite modelos falando em português. Exporte em HTML ou TXT Modo Texto.
           </p>
@@ -49,7 +50,7 @@ const onFileSelect = (file: File) => {
             <li>Revise o resultado no preview e editor</li>
             <li>Baixe o script HTML pronto para uso</li>
           </ol>
-          <div class="mt-4">
+          <div v-if="auth.can('studio', 'converter')" class="mt-4">
             <NuxtLink to="/studio/converter">
               <StudioDsButton icon="bi-arrow-right">
                 Ir para conversão

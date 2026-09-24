@@ -67,14 +67,14 @@ Prefixo público `/apiconteudos/v1`. A coluna Alias indica a mesma operação em
 | GET `/paineis/{codpainel}/download` | não | PBIX binário; 404 |
 | PUT `/normalidades/{codnormalidade}` | sim | limites, sexo e idades → success/message/timestamp; 400/404 |
 
-Os dois endpoints novos por cliente não substituem nenhuma dessas 20 operações. A API interna conserva a ausência de JWT de parceiro por compatibilidade; restringir sua exposição na rede é responsabilidade da implantação.
+Os dois endpoints novos por cliente não substituem nenhuma dessas 20 operações. **Mudança intencional de segurança:** a API interna `/api/v1` agora exige JWT de parceiro ou JWT web com permissão correspondente. Clientes que acessavam anonimamente precisam enviar a credencial; health, token e preflight continuam sendo exceções.
 
 | Área | Contrato preservado/corrigido | Cobertura automatizada / integração |
 | --- | --- | --- |
 | JWT raw | Chave curta, longa e UTF-8; HS256; comparação de assinatura constante | Fixtures Python + HMAC independente .NET + adulteração de cada byte da assinatura |
 | UTC / exp | Naive UTC, offsets ±03:00, microssegundos, futuro, limite de tolerância, virada de dia, exp opcional/exato/string/inválido | 41 casos JWT de referência; xUnit com `TimeProvider` fixo |
 | Hash anterior | Opt-in e prazo UTC explícito; corte exato; assinatura antiga não ignora exp | Teorias xUnit; default fechado e emissão raw mesmo durante janela |
-| Autenticação HTTP | Só segmento `/apiconteudos/v1`; `/api/v1`, health, token e OPTIONS passam sem JWT | Middleware real em `DefaultHttpContext` |
+| Autenticação HTTP | `/apiconteudos/v1` exige JWT parceiro; `/api/v1` aceita parceiro ou web autorizado; health, token e OPTIONS são exceções | Middleware real e testes de permissões |
 | Datas públicas | `datetime.isoformat()`: nenhuma fração se microsegundos zero; senão seis dígitos; não emitir sétimo dígito/fuso para TIMESTAMP naive | Cinco datas Python, ticks submicrosegundo, DateOnly, offset explícito e cultura pt-BR |
 | Scripts / n8n | `workflow_key = codscriptlaudo + '|' + data_verificacao`, sem reformatar texto; nulo sem data/código | Fixtures Python e helper usado pelas operações reais |
 | Metadados MRD | `mrd_fonte`: `SCRIPT_VERSAO_MRD` ou `SCRIPTLAUDO_MRD` | xUnit; nomes SQL migrados continuam `SCRIPTVERSAOMRD` / `SCRIPTLAUDOMRD` |

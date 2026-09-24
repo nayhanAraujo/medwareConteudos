@@ -37,6 +37,9 @@ public class UsersService : IUsersService
 
     public async Task<(bool Ok, string? Error)> CreateAsync(CreateUserRequest req, CancellationToken ct = default)
     {
+        var error = AccountSecurity.Validate(req.Nome, req.Identificacao, req.Perfil, req.Senha, req.ConfirmarSenha, true);
+        if (error is not null) return (false, error);
+        req = req with { Perfil = req.Perfil.Trim().ToLowerInvariant() };
         if (req.Senha != req.ConfirmarSenha) return (false, "As senhas não coincidem.");
         if (req.Senha.Length < 6) return (false, "Senha deve ter no mínimo 6 caracteres.");
         var id = req.Identificacao.Trim().ToLowerInvariant();
@@ -56,6 +59,9 @@ public class UsersService : IUsersService
 
     public async Task<(bool Ok, string? Error)> UpdateAsync(int codUsuario, UpdateUserRequest req, CancellationToken ct = default)
     {
+        var error = AccountSecurity.Validate(req.Nome, req.Identificacao, req.Perfil, req.Senha, req.ConfirmarSenha, false);
+        if (error is not null) return (false, error);
+        req = req with { Perfil = req.Perfil.Trim().ToLowerInvariant() };
         var id = req.Identificacao.Trim().ToLowerInvariant();
         await using var conn = await _db.OpenConnectionAsync(ct);
         var dup = await conn.ExecuteScalarAsync<int>(

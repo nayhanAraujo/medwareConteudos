@@ -19,6 +19,7 @@ export interface PermissionUserItem {
 }
 
 export const permissionModules: PermissionModuleConfig[] = [
+  { domain: 'studio', title: 'Studio', icon: 'bi-magic', actions: ['visualizar', 'converter', 'voz'] },
   { domain: 'biblioteca', title: 'Biblioteca', icon: 'bi-folder2-open', actions: ['visualizar'] },
   { domain: 'aprovacao-conteudo', title: 'Aprovação de Conteúdo', icon: 'bi-file-earmark-check', actions: ['visualizar', 'aprovar'] },
   { domain: 'conteudos', title: 'Conteúdos', icon: 'bi-folder', actions: ['visualizar', 'criar', 'editar', 'excluir', 'importar', 'exportar', 'ativar'] },
@@ -35,6 +36,8 @@ export const permissionModules: PermissionModuleConfig[] = [
 ]
 
 const actionLabels: Record<string, string> = {
+  converter: 'Converter',
+  voz: 'Usar voz',
   visualizar: 'Visualizar',
   criar: 'Criar',
   editar: 'Editar',

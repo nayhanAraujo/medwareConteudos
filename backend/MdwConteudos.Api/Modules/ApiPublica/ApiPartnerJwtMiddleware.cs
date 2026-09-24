@@ -3,6 +3,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Options;
 using MdwConteudos.Api.Configuration;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Permissions;
+using System.Security.Claims;
 
 namespace MdwConteudos.Api.Modules.ApiPublica;
 
@@ -15,7 +17,9 @@ public class ApiPartnerJwtMiddleware
     private static readonly HashSet<string> PublicPaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/apiconteudos/v1/health",
-        "/apiconteudos/v1/token"
+        "/apiconteudos/v1/token",
+        "/api/v1/health",
+        "/api/v1/token"
     };
 
     public ApiPartnerJwtMiddleware(RequestDelegate next, IOptions<ApiPartnerOptions> options, TimeProvider? timeProvider = null)
@@ -27,8 +31,9 @@ public class ApiPartnerJwtMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var path = context.Request.Path.Value ?? "";
-        if (!context.Request.Path.StartsWithSegments("/apiconteudos/v1", StringComparison.OrdinalIgnoreCase))
+        var path = (context.Request.Path.Value ?? "").TrimEnd('/');
+        var internalApi = context.Request.Path.StartsWithSegments("/api/v1", StringComparison.OrdinalIgnoreCase);
+        if (!internalApi && !context.Request.Path.StartsWithSegments("/apiconteudos/v1", StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;
@@ -36,6 +41,25 @@ public class ApiPartnerJwtMiddleware
 
         if (HttpMethods.IsOptions(context.Request.Method) || PublicPaths.Contains(path))
         {
+            await _next(context);
+            return;
+        }
+
+        // Web authentication runs first. Partner payloads never become web identities.
+        if (internalApi && context.User.Identity?.IsAuthenticated == true)
+        {
+            var domain = InternalDomain(path);
+            var action = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)
+                ? PermissionActions.Visualizar : PermissionActions.Editar;
+            var id = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var permissions = context.RequestServices.GetRequiredService<IPermissionService>();
+            if (domain is null || !int.TryParse(id, out var userId)
+                || !await permissions.HasPermissionAsync(userId, context.User.FindFirstValue(ClaimTypes.Role) ?? "", domain, action, context.RequestAborted))
+            {
+                context.Response.StatusCode = 403;
+                await context.Response.WriteAsJsonAsync(new { success = false, error = "Acesso negado", message = "Usuário sem permissão para esta operação." });
+                return;
+            }
             await _next(context);
             return;
         }
@@ -50,6 +74,23 @@ public class ApiPartnerJwtMiddleware
         }
 
         await _next(context);
+    }
+
+    public static string? InternalDomain(string path)
+    {
+        var segment = path.Trim('/').Split('/').ElementAtOrDefault(2)?.ToLowerInvariant();
+        return segment switch
+        {
+            "variaveis" or "normalidades" or "normalidades_ecodopplercardiograma" or "ecodoppler" or "clientes" => PermissionDomains.Variaveis,
+            "formulas" => PermissionDomains.Formulas,
+            "referencias" => PermissionDomains.Referencias,
+            "especialidades" => PermissionDomains.Assistente,
+            "relatorios" => PermissionDomains.Relatorios,
+            "scripts" => PermissionDomains.Scripts,
+            "paineis" => PermissionDomains.Paineis,
+            "info" or "sistema" => PermissionDomains.Biblioteca,
+            _ => null
+        };
     }
 
     private (int Status, object Body)? ValidateJwt(HttpContext context)

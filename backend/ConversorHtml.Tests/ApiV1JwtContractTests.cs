@@ -137,7 +137,6 @@ public class ApiV1JwtContractTests
     }
 
     [Theory]
-    [InlineData("/api/v1/variaveis", "GET")]
     [InlineData("/apiconteudos/v10/variaveis", "GET")]
     [InlineData("/apiconteudos/v1/health", "GET")]
     [InlineData("/apiconteudos/v1/token", "POST")]

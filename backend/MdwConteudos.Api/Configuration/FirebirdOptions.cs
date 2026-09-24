@@ -12,8 +12,10 @@ public class FirebirdOptions
 
     public string BuildConnectionString(string? charsetOverride = null)
     {
-        var db = Database.Replace('\\', '/');
-        var charset = charsetOverride ?? Charset;
-        return $"User={User};Password={Password};Database={Host}/{Port}:{db};Charset={charset};";
+        return new FirebirdSql.Data.FirebirdClient.FbConnectionStringBuilder
+        {
+            DataSource = Host, Port = Port, Database = Database.Replace('\\', '/'),
+            UserID = User, Password = Password, Charset = charsetOverride ?? Charset
+        }.ToString();
     }
 }

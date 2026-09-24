@@ -30,7 +30,7 @@ Configure as variáveis **no processo Nuxt**, não apenas na API. Reinicie o ser
 
 O login web identifica o administrador que pode consultar definições restritas. O botão **Autorizar** configura separadamente a credencial de execução do ambiente/definição. Parceiros aceita colar JWT ou obtê-lo pela senha; Web Admin usa JWT emitido pelo login web do destino.
 
-Em homologação, para abrir Interna/Web Admin, são necessárias **duas identidades**: login administrativo do sistema atual, validado pelo servidor, e JWT web administrativo da cópia, informado em Autorizar. Isso evita reutilizar os segredos de produção na cópia. A definição Interna não requer JWT de parceiro para executar seus aliases, mas sua documentação continua restrita.
+Em homologação, para abrir Interna/Web Admin, são necessárias **duas identidades**: login administrativo do sistema atual, validado pelo servidor, e JWT web administrativo da cópia, informado em Autorizar. Isso evita reutilizar os segredos de produção na cópia. A API Interna exige JWT de parceiro ou JWT web com a permissão da operação; a documentação continua restrita a administradores. No ambiente atual o console pode usar o JWT web da sessão, sem transferi-lo à homologação.
 
 Tokens do console vivem somente em memória e são apagados ao sair do portal; não vão para localStorage, cookies ou estado SSR. A autenticação web existente continua independente. Exemplos copiados substituem credenciais por placeholders.
 

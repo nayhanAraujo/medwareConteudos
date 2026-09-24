@@ -3,7 +3,7 @@ import type { ConversionFormat, ConversionRecord } from '~/types/conversion'
 import type { VoiceUtteranceIntent } from '~/types/voice'
 import { resolveConversionContent } from '~/utils/conversionFormat'
 
-definePageMeta({ layout: 'studio' })
+definePageMeta({ layout: 'studio', studioAction: 'voz' })
 
 const voiceStore = useVoiceSessionStore()
 const conversionStore = useConversionStore()

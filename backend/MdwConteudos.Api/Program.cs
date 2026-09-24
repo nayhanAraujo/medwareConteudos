@@ -28,7 +28,7 @@ using ConversorHtml.Application;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-permissions").ToArray());
 // Override local por máquina (appsettings.*.local.json está no .gitignore)
 builder.Configuration.AddJsonFile(
     $"appsettings.{builder.Environment.EnvironmentName}.local.json",
@@ -36,6 +36,7 @@ builder.Configuration.AddJsonFile(
     reloadOnChange: true);
 EnvFileLoader.LoadFromRepoRoot(builder.Configuration, builder.Environment.ContentRootPath, builder.Environment.EnvironmentName);
 HomologacaoGuard.Configure(builder);
+ProductionSecurity.Configure(builder);
 const string DefaultWebJwtSecret = "mdw-web-dev-secret-change-me-2026-local-migration-only";
 
 builder.Services.Configure<FirebirdOptions>(builder.Configuration.GetSection(FirebirdOptions.SectionName));
@@ -77,7 +78,7 @@ builder.Services.PostConfigure<AssistantFirebirdOptions>(opt =>
 builder.Services.Configure<WebAuthOptions>(builder.Configuration.GetSection(WebAuthOptions.SectionName));
 builder.Services.PostConfigure<WebAuthOptions>(opt =>
 {
-    if (string.IsNullOrWhiteSpace(opt.JwtSecret))
+    if (builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(opt.JwtSecret))
         opt.JwtSecret = DefaultWebJwtSecret;
 });
 
@@ -128,7 +129,11 @@ builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddRequestTimeouts();
 
 builder.Services.AddPortalOpenApiMetadata();
-builder.Services.AddControllers(options => options.Filters.Add<LegacyApiValidationFilter>()).AddJsonOptions(o =>
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<LegacyApiValidationFilter>();
+    options.Filters.Add<ProductionErrorFilter>();
+}).AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
@@ -165,14 +170,14 @@ builder.Services.AddSwaggerGen(c =>
             "1. Chame `POST /apiconteudos/v1/token` com `{\"senha\":\"...\"}` (sem Authorize).\n" +
             "2. Clique em **Authorize** e informe `Bearer <token>`.\n" +
             "3. Use **Try it out** nos demais endpoints.\n\n" +
-            "Os mesmos recursos existem em `/api/v1` **sem JWT** (documento separado na UI)."
+            "Os mesmos recursos existem em `/api/v1` com JWT de parceiro ou web (documento separado na UI)."
     });
     c.SwaggerDoc(SwaggerDocPaths.ApiInterna, new OpenApiInfo
     {
         Title = "MDW Conteúdos — API Interna",
         Version = "1.0.0",
         Description =
-            "Base **/api/v1** sem autenticação. Uso interno (laudos HTML, integrações locais). " +
+            "Base **/api/v1** com JWT de parceiro ou JWT web sujeito às permissões do usuário. " +
             "Parceiros externos devem usar **/apiconteudos/v1** com JWT."
     });
     c.SwaggerDoc(SwaggerDocPaths.Web, new OpenApiInfo
@@ -203,7 +208,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var jwtSecret = builder.Configuration["WebAuth:JwtSecret"];
-if (string.IsNullOrWhiteSpace(jwtSecret))
+if (builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(jwtSecret))
     jwtSecret = DefaultWebJwtSecret;
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -217,26 +222,37 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["WebAuth:Issuer"] ?? "MdwConteudos",
             ValidAudience = builder.Configuration["WebAuth:Audience"] ?? "MdwConteudos.Web",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret ?? "")),
             RoleClaimType = System.Security.Claims.ClaimTypes.Role
         };
     });
 builder.Services.AddAuthorization();
 
-builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .SetIsOriginAllowed(_ => true)
-    .AllowCredentials()));
-
 var app = builder.Build();
+ProductionSecurity.Validate(app);
 HomologacaoGuard.Validate(app);
 using (var scope = app.Services.CreateScope())
 {
     var permissions = scope.ServiceProvider.GetRequiredService<IPermissionService>();
-    await permissions.EnsureSchemaAsync();
+    if (args.Contains("--migrate-permissions", StringComparer.Ordinal))
+    {
+        await permissions.EnsureSchemaAsync();
+        return;
+    }
+    if (app.Environment.IsProduction()) await permissions.ValidateSchemaAsync();
+    else await permissions.EnsureSchemaAsync();
 }
 await HomologacaoTestUser.EnsureAsync(app);
+app.UseForwardedHeaders();
+if (app.Environment.IsProduction())
+{
+    app.UseExceptionHandler(handler => handler.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsJsonAsync(new { success = false, error = "Erro interno", message = "Não foi possível concluir a operação.", traceId = context.TraceIdentifier });
+    }));
+}
+app.UseRouting();
 app.UseCors();
 app.UseRequestTimeouts();
 var migrationRoot = MigrationRootResolver.ResolveMigrationRoot(builder.Configuration, builder.Environment.ContentRootPath);
@@ -263,9 +279,11 @@ if (legacyStaticDir is not null && Directory.Exists(legacyStaticDir))
         RequestPath = "/static-legacy"
     });
 }
-app.UseMiddleware<ApiPartnerJwtMiddleware>();
 app.UseAuthentication();
+app.UseRateLimiter();
+app.UseMiddleware<ApiPartnerJwtMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<StudioConcurrencyMiddleware>();
 app.UseMiddleware<DocumentationAccessMiddleware>();
 app.UseMiddleware<HomologacaoEffectsMiddleware>();
 app.UseSwagger(options => options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_0);
@@ -286,6 +304,7 @@ app.MapGet("/api/documentacao/contexto", () => Results.Ok(new
     instanceId = app.Configuration["Documentation:InstanceId"] ?? ""
 }));
 app.MapControllers();
+ProductionSecurity.MapHealth(app);
 app.Run();
 
 static string? FirstNonEmpty(params string?[] values)
