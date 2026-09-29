@@ -14,7 +14,7 @@ API IIS vinculada exclusivamente a 127.0.0.1:5080; Node a 127.0.0.1:3000. Abrir 
 ./tools/production/Build-Package.ps1 -OutputDirectory D:\Artifacts\mdw-20260923-01
 ```
 
-Executar em agente Windows limpo, SDK .NET 10 e Node **22.23.3**, sem variáveis de aplicação/segredos herdadas. Por padrão o build usa **HEAD commitado**; `-WorkingTree` permite validar alterações pendentes, copiando apenas arquivos conhecidos do Git e não ignorados. Cada execução usa staging novo, testes .NET, dotnet publish, npm ci, testes do portal e Nuxt node-server SSR. O bridge inclui dependências de produção e os três manuais. Configuração base e Production permanecem; .env, arquivos locais, bancos, backups, uploads, homologação e caches ficam excluídos. Assets estáticos de aplicação vão em `static-assets`, separados dos anexos. Manifesto SHA256 e `build-info.json` registram integridade e versões. Proteger transporte e manifesto; o staging temporário fica retido para diagnóstico.
+Executar em agente Windows limpo, SDK .NET 10 e Node **22.20.0** (mesma versão homologada no servidor), sem variáveis de aplicação/segredos herdadas. Por padrão o build usa **HEAD commitado**; `-WorkingTree` permite validar alterações pendentes, copiando apenas arquivos conhecidos do Git e não ignorados. Cada execução usa staging novo, testes .NET, dotnet publish, npm ci, testes do portal e Nuxt node-server SSR. O bridge inclui dependências de produção e os três manuais. Configuração base e Production permanecem; .env, arquivos locais, bancos, backups, uploads, homologação e caches ficam excluídos. Assets estáticos de aplicação vão em `static-assets`, separados dos anexos. Manifesto SHA256 e `build-info.json` registram integridade e versões. Proteger transporte e manifesto; o staging temporário fica retido para diagnóstico.
 
 ## Configurar e validar
 
@@ -86,5 +86,17 @@ Restaurar com gbak modo create **-c** para outro caminho/banco, nunca substituir
 ## Atualização e rollback
 
 Script automatiza primeira instalação. Atualização controlada: preparar release nova, verificar hashes, reproduzir ACLs e copiar JSON restrito; manutenção, parar MdwNuxt/pool API; registrar physicalPaths e salvar `nssm dump MdwNuxt`. Atualizar `Application`, `AppDirectory` e os caminhos dependentes do serviço NSSM para a nova release, mantendo o executável NSSM estável. Reiniciar e executar smoke/aceite. Manter DataPaths:Root. Troca coordenada com tráfego suspenso, não atômica entre IIS e Node.
+
+O pipeline versionado em `/azure-pipelines.yml` automatiza esse fluxo após push em `main`: o build ocorre em agente hospedado limpo, publica um artifact sem segredos e o deployment job usa o pool self-hosted `MedwareConteudo`. O Environment `MdwConteudo-Producao` deve ser criado manualmente no Azure DevOps com aprovação e bloqueio exclusivo. O deploy chama `Deploy-IisRelease.ps1`, cria uma pasta nova em `C:\MdwConteudo\releases`, copia o JSON a partir de `C:\MdwConteudo\secrets`, preserva `C:\MdwConteudo\conteudo`, não altera bindings/certificado/ARR e reverte os caminhos IIS/NSSM se o smoke falhar. O agente do servidor precisa executar elevado; limitar o uso desse pool e do Environment ao pipeline autorizado.
+
+Configuração inicial no Azure DevOps:
+
+1. Criar o pool privado `MedwareConteudo` e instalar nele um agente Windows como serviço na VM de produção. A conta do serviço precisa conseguir controlar somente os sites/pools `MdwConteudo` e `MdwConteudoApi`, o serviço `MdwConteudoNuxt` e os diretórios usados pelo deploy; a versão inicial do script exige token administrativo.
+2. Criar o Environment `MdwConteudo-Producao`, autorizar somente este pipeline e adicionar **Approval** e **Exclusive lock** em *Approvals and checks*.
+3. Criar um pipeline YAML no repositório `Conteudos_migracao`, apontando para `/azure-pipelines.yml`. Não cadastrar senhas Firebird, JWTs ou conteúdo do JSON em variáveis do pipeline.
+4. Executar a primeira rodada manualmente, revisar o artifact e aprovar o Environment. Após o aceite, pushes em `main` iniciam build automaticamente; produção continua aguardando a aprovação configurada.
+5. Confirmar no servidor que `C:\MdwConteudo\secrets\appsettings.Production.local.json` e os bancos em `C:\MdwConteudo\conteudo\bd` são legíveis pelas identidades corretas antes de aprovar o deploy.
+
+O pipeline não observa arquivos do computador local: alterações precisam ser commitadas e enviadas para `main`. Pull requests executam somente a validação; não implantam. O script valida manifesto SHA256, JSON, bancos, Node/NSSM e objetos IIS antes de interromper os componentes. O corte executa smoke tests em API, Nuxt e domínio público; falhas restauram os caminhos e o estado anterior dos componentes.
 
 Rollback de **código**: manutenção, parar serviço/pool, repor physicalPaths/XML/configuração compatível anteriores e testar. Dados intactos. Rollback de **banco** é decisão separada: autorização, perda de escritas desde backup explicitamente aceita e restauração coordenada banco+arquivos sem escritores. Não restaurar banco por falha de smoke. Se código anterior não suporta schema atual, manter manutenção e envolver DBA. Preservar releases antigas pela retenção.

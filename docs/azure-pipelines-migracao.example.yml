@@ -1,5 +1,5 @@
-# Exemplo — NÃO ativar em produção até homologação completa.
-# Anexar como template ou stage separado no pipeline principal.
+# Exemplo histórico de build. O pipeline vigente está em /azure-pipelines.yml
+# e usa tools/production/Deploy-IisRelease.ps1 para atualização com rollback.
 
 steps:
   - task: UseDotNet@2
@@ -9,7 +9,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: '22.23.3'
+      versionSpec: '22.20.0'
 
   # Agente Windows limpo, sem variáveis secretas; somente HEAD commitado.
   - task: PowerShell@2

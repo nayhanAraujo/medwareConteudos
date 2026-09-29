@@ -1,0 +1,102 @@
+name: mdw-conteudo-$(Date:yyyyMMdd).$(Rev:r)
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+# O Environment deve possuir Approval e Exclusive lock no Azure DevOps.
+lockBehavior: sequential
+
+variables:
+  artifactName: mdw-producao-iis
+  productionDomain: conteudo.medware.com.br
+  productionRoot: 'C:\MdwConteudo'
+  productionSecrets: 'C:\MdwConteudo\secrets\appsettings.Production.local.json'
+  nssmPath: 'C:\nssm\nssm-2.24\win64\nssm.exe'
+  nodePath: 'C:\Program Files\nodejs\node.exe'
+
+stages:
+  - stage: Build
+    displayName: Compilar e validar
+    jobs:
+      - job: Package
+        displayName: Gerar pacote IIS
+        pool:
+          vmImage: windows-latest
+        steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 0
+
+          - task: UseDotNet@2
+            displayName: Instalar .NET SDK 10
+            inputs:
+              packageType: sdk
+              version: '10.x'
+
+          - task: NodeTool@0
+            displayName: Instalar Node.js 22
+            inputs:
+              versionSpec: '22.20.0'
+
+          - task: PowerShell@2
+            displayName: Testar e gerar pacote
+            inputs:
+              pwsh: true
+              filePath: tools/production/Build-Package.ps1
+              arguments: >
+                -OutputDirectory "$(Build.ArtifactStagingDirectory)\mdw-producao"
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publicar pacote validado
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)\mdw-producao'
+              artifact: '$(artifactName)'
+
+  - stage: DeployProduction
+    displayName: Implantar em produção
+    dependsOn: Build
+    condition: >
+      and(succeeded(),
+      eq(variables['Build.SourceBranch'], 'refs/heads/main'),
+      ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - deployment: DeployIis
+        displayName: Atualizar IIS e Nuxt
+        environment: 'MdwConteudo-Producao'
+        pool:
+          name: 'MedwareConteudo'
+        workspace:
+          clean: all
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: none
+
+                - task: DownloadPipelineArtifact@2
+                  displayName: Baixar pacote validado
+                  inputs:
+                    artifact: '$(artifactName)'
+                    path: '$(Pipeline.Workspace)\package'
+
+                - task: PowerShell@2
+                  displayName: Aplicar release com rollback
+                  inputs:
+                    pwsh: false
+                    filePath: '$(Pipeline.Workspace)\package\deployment\Deploy-IisRelease.ps1'
+                    arguments: >
+                      -PackageDirectory "$(Pipeline.Workspace)\package"
+                      -ReleaseDirectory "$(productionRoot)\releases\build-$(Build.BuildId)"
+                      -DataDirectory "$(productionRoot)\conteudo"
+                      -SecretsFile "$(productionSecrets)"
+                      -Domain "$(productionDomain)"
+                      -NssmPath "$(nssmPath)"
+                      -NodePath "$(nodePath)"
+                      -RequireReady
