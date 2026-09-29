@@ -1,4 +1,6 @@
 using System.Reflection;
+using FirebirdSql.Data.FirebirdClient;
+using MdwConteudos.Api.Configuration;
 
 namespace ConversorHtml.Tests;
 
@@ -35,6 +37,32 @@ public sealed class AssistenteCoreTests
         var text = options.ToString()!;
         Assert.DoesNotContain("segredo-super-secreto", text);
         Assert.Contains("Password = ***", text);
+    }
+
+    [Fact]
+    public void Opcoes_IncluemClienteNativoQuandoConfigurado()
+    {
+        var library = Path.GetTempFileName();
+        var database = Path.GetTempFileName();
+        try
+        {
+            var options = new AssistantFirebirdOptions
+            {
+                Database = database,
+                Password = "segredo",
+                ClientLibrary = library
+            };
+
+            var parsed = new FbConnectionStringBuilder(options.BuildConnectionString());
+
+            Assert.Equal(Path.GetFullPath(library), parsed.ClientLibrary);
+            Assert.Equal(FbServerType.Embedded, parsed.ServerType);
+        }
+        finally
+        {
+            File.Delete(library);
+            File.Delete(database);
+        }
     }
 
     private static Type GetType(string name) => ApiAssembly.GetType(name, throwOnError: true)!;

@@ -12,6 +12,7 @@ public sealed class AssistantFirebirdOptions
     public string User { get; set; } = "SYSDBA";
     public string Password { get; set; } = string.Empty;
     public string Charset { get; set; } = "ISO8859_1";
+    public string? ClientLibrary { get; set; }
 
     public void ApplyEnvironmentVariables(Func<string, string?>? read = null)
     {
@@ -21,6 +22,7 @@ public sealed class AssistantFirebirdOptions
         User = Read(read, "USER", User);
         Password = Read(read, "PASSWORD", Password);
         Charset = Read(read, "CHARSET", Charset);
+        ClientLibrary = ReadOptional(read, "CLIENT_LIBRARY", ClientLibrary);
 
         var port = read(EnvironmentPrefix + "PORT");
         if (!string.IsNullOrWhiteSpace(port))
@@ -44,8 +46,15 @@ public sealed class AssistantFirebirdOptions
             Password = Password,
             Charset = Charset,
             Dialect = 3,
-            ServerType = FirebirdSql.Data.FirebirdClient.FbServerType.Default
+            // No provider Firebird .NET, Embedded seleciona a implementação
+            // nativa quando ClientLibrary é informada. DataSource/Port continuam
+            // determinando a conexão remota feita pelo fbclient.dll.
+            ServerType = string.IsNullOrWhiteSpace(ClientLibrary)
+                ? FirebirdSql.Data.FirebirdClient.FbServerType.Default
+                : FirebirdSql.Data.FirebirdClient.FbServerType.Embedded
         };
+        if (!string.IsNullOrWhiteSpace(ClientLibrary))
+            builder.ClientLibrary = Path.GetFullPath(ClientLibrary);
         return builder.ToString();
     }
 
@@ -63,12 +72,25 @@ public sealed class AssistantFirebirdOptions
         if (string.IsNullOrWhiteSpace(User)) throw new InvalidOperationException("Usuário do banco Assistente não configurado.");
         if (!string.Equals(Charset, "ISO8859_1", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("O banco Assistente deve utilizar o charset ISO8859_1.");
+        if (!string.IsNullOrWhiteSpace(ClientLibrary))
+        {
+            if (!Path.IsPathFullyQualified(ClientLibrary))
+                throw new InvalidOperationException("A biblioteca cliente do banco Assistente deve usar um caminho absoluto.");
+            if (!File.Exists(ClientLibrary))
+                throw new InvalidOperationException("A biblioteca cliente configurada para o banco Assistente não foi encontrada.");
+        }
     }
 
     public override string ToString() =>
-        $"AssistantFirebirdOptions {{ Host = {Host}, Port = {Port}, Database = {Database}, User = {User}, Charset = {Charset}, Password = *** }}";
+        $"AssistantFirebirdOptions {{ Host = {Host}, Port = {Port}, Database = {Database}, User = {User}, Charset = {Charset}, ClientLibrary = {ClientLibrary ?? "(managed)"}, Password = *** }}";
 
     private static string Read(Func<string, string?> read, string suffix, string current)
+    {
+        var value = read(EnvironmentPrefix + suffix);
+        return string.IsNullOrWhiteSpace(value) ? current : value.Trim();
+    }
+
+    private static string? ReadOptional(Func<string, string?> read, string suffix, string? current)
     {
         var value = read(EnvironmentPrefix + suffix);
         return string.IsNullOrWhiteSpace(value) ? current : value.Trim();

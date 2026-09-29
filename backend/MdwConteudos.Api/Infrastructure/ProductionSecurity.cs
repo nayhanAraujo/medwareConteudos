@@ -64,6 +64,10 @@ public static class ProductionSecurity
             app.Services.GetRequiredService<IOptions<ApiPartnerOptions>>().Value,
             app.Services.GetRequiredService<IOptions<FirebirdOptions>>().Value,
             app.Services.GetRequiredService<IOptions<AssistantFirebirdOptions>>().Value);
+        if (app.Configuration.GetValue<bool>("Security:AllowDefaultFirebirdPassword"))
+            app.Logger.LogWarning("Security:AllowDefaultFirebirdPassword está habilitado. Restrinja o acesso às portas Firebird e planeje a rotação da senha padrão.");
+        if (app.Configuration.GetValue<bool>("Security:AllowLegacyPartnerCredentials"))
+            app.Logger.LogWarning("Security:AllowLegacyPartnerCredentials está habilitado. A API de parceiros mantém credenciais legadas para compatibilidade temporária.");
     }
 
     public static void ValidateConfiguration(IConfiguration config, WebAuthOptions web, ApiPartnerOptions partner,
@@ -71,11 +75,18 @@ public static class ProductionSecurity
     {
         Require(!web.DevUserEnabled, "WebAuth:DevUserEnabled deve estar desabilitado.");
         Require(Secret(web.JwtSecret) && Encoding.UTF8.GetByteCount(web.JwtSecret) >= 32, "WebAuth:JwtSecret deve ser próprio e ter ao menos 32 bytes.");
-        Require(Secret(partner.JwtSecret) && Secret(partner.JwtPassword), "Credenciais próprias da API de parceiros são obrigatórias.");
+        var allowLegacyPartnerCredentials = config.GetValue<bool>("Security:AllowLegacyPartnerCredentials");
+        var acceptedLegacyPartnerPair = allowLegacyPartnerCredentials
+            && string.Equals(partner.JwtSecret, "mdw-api-jwt-conteudos-secret", StringComparison.Ordinal)
+            && string.Equals(partner.JwtPassword, "Medware!111096", StringComparison.Ordinal);
+        Require((Secret(partner.JwtSecret) && Secret(partner.JwtPassword)) || acceptedLegacyPartnerPair,
+            "Credenciais próprias da API de parceiros são obrigatórias; para manter temporariamente o par legado do Python, habilite Security:AllowLegacyPartnerCredentials.");
         Require(web.JwtSecret != partner.JwtSecret && partner.JwtSecret != partner.JwtPassword, "Credenciais devem ser independentes.");
         Require(web.ExpirationMinutes > 0 && partner.JwtDatetimeToleranceHours > 0 && double.IsFinite(partner.JwtDatetimeToleranceHours), "Validades de autenticação inválidas.");
         Require(!string.IsNullOrWhiteSpace(web.Issuer) && !string.IsNullOrWhiteSpace(web.Audience), "Issuer e Audience são obrigatórios.");
-        Require(Secret(db.Password) && Secret(assistant.Password), "Senhas próprias do Firebird são obrigatórias.");
+        var allowDefaultFirebirdPassword = config.GetValue<bool>("Security:AllowDefaultFirebirdPassword");
+        Require(FirebirdSecret(db.Password, allowDefaultFirebirdPassword) && FirebirdSecret(assistant.Password, allowDefaultFirebirdPassword),
+            "Senhas próprias do Firebird são obrigatórias; para manter explicitamente masterkey, habilite Security:AllowDefaultFirebirdPassword.");
         Require(!string.IsNullOrWhiteSpace(db.Host) && !string.IsNullOrWhiteSpace(db.User) && db.Port is > 0 and <= 65535, "Conexão REFERENCIAS incompleta.");
         Require(!string.IsNullOrWhiteSpace(assistant.Host) && !string.IsNullOrWhiteSpace(assistant.User) && assistant.Port is > 0 and <= 65535, "Conexão ASSISTENTE incompleta.");
         Require(Path.IsPathFullyQualified(db.Database) && Path.IsPathFullyQualified(assistant.Database), "Caminhos absolutos dos bancos são obrigatórios.");
@@ -94,6 +105,8 @@ public static class ProductionSecurity
         && !new[] { "masterkey", "mdw-api-jwt-conteudos-secret", "mdw-web-dev-secret-change-me-2026-local-migration-only", "Medware!111096", "altere-para-segredo-forte" }.Contains(value, StringComparer.OrdinalIgnoreCase)
         && !value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
         && !value.StartsWith("homol-", StringComparison.OrdinalIgnoreCase);
+    private static bool FirebirdSecret(string? value, bool allowDefault) =>
+        Secret(value) || (allowDefault && string.Equals(value, "masterkey", StringComparison.OrdinalIgnoreCase));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException("Production: " + message); }
     private static int Positive(IConfiguration config, string key, int fallback)
     {

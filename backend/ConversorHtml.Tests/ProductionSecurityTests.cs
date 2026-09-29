@@ -45,6 +45,29 @@ public class ProductionSecurityTests
         Assert.Throws<InvalidOperationException>(() => Validate(Config(), new() { JwtSecret = new string('x', 40), DevUserEnabled = true }));
     [Fact] public void Known_partner_password_is_rejected() =>
         Assert.Throws<InvalidOperationException>(() => Validate(Config(), partner: new() { JwtSecret = "own-partner-key", JwtPassword = "Medware!111096" }));
+    [Fact] public void Legacy_partner_pair_is_rejected_without_explicit_opt_in() =>
+        Assert.Throws<InvalidOperationException>(() => Validate(Config(), partner: new() { JwtSecret = "mdw-api-jwt-conteudos-secret", JwtPassword = "Medware!111096" }));
+    [Fact] public void Legacy_partner_pair_is_accepted_with_explicit_opt_in() =>
+        Validate(Config("Security:AllowLegacyPartnerCredentials", "true"),
+            partner: new() { JwtSecret = "mdw-api-jwt-conteudos-secret", JwtPassword = "Medware!111096" });
+    [Fact] public void Legacy_partner_opt_in_does_not_allow_arbitrary_placeholder() =>
+        Assert.Throws<InvalidOperationException>(() => Validate(Config("Security:AllowLegacyPartnerCredentials", "true"),
+            partner: new() { JwtSecret = "altere-para-segredo-forte", JwtPassword = "Medware!111096" }));
+    [Fact] public void Legacy_partner_opt_in_does_not_allow_mixed_credentials() =>
+        Assert.Throws<InvalidOperationException>(() => Validate(Config("Security:AllowLegacyPartnerCredentials", "true"),
+            partner: new() { JwtSecret = "own-partner-key", JwtPassword = "Medware!111096" }));
+    [Fact] public void Default_firebird_password_is_rejected_without_explicit_opt_in() =>
+        Assert.Throws<InvalidOperationException>(() => ProductionSecurity.ValidateConfiguration(Config(),
+            new() { JwtSecret = "fixture-web-secret-only-not-for-deployment-123" },
+            new() { JwtSecret = "fixture-partner-secret", JwtPassword = "fixture-password" },
+            new() { Database = Path.Combine(Temp, "REFERENCIAS.FDB"), Password = "masterkey" },
+            new() { Database = Path.Combine(Temp, "ASSISTENTE.FDB"), Password = "masterkey" }));
+    [Fact] public void Default_firebird_password_is_accepted_with_explicit_opt_in() =>
+        ProductionSecurity.ValidateConfiguration(Config("Security:AllowDefaultFirebirdPassword", "true"),
+            new() { JwtSecret = "fixture-web-secret-only-not-for-deployment-123" },
+            new() { JwtSecret = "fixture-partner-secret", JwtPassword = "fixture-password" },
+            new() { Database = Path.Combine(Temp, "REFERENCIAS.FDB"), Password = "masterkey" },
+            new() { Database = Path.Combine(Temp, "ASSISTENTE.FDB"), Password = "masterkey" });
     [Fact] public void Data_root_does_not_require_a_source_checkout() =>
         Assert.Equal(Path.GetFullPath(Temp), MigrationRootResolver.ResolveMigrationRoot(Config(), AppContext.BaseDirectory));
 }

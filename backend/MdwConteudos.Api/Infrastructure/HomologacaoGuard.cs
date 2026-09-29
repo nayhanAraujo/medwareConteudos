@@ -93,7 +93,7 @@ public static class HomologacaoGuard
         readEnvironment ??= Environment.GetEnvironmentVariable;
         foreach (var key in new[] { "FIREBIRD_DB", "FIREBIRD_HOST", "FIREBIRD_PORT", "FIREBIRD_PASSWORD", "LOCAL_DB_PASSWORD",
                      "ASSISTENTE_FIREBIRD_DATABASE", "ASSISTENTE_FIREBIRD_HOST", "ASSISTENTE_FIREBIRD_PORT",
-                     "ASSISTENTE_FIREBIRD_PASSWORD", "API_JWT_SECRET", "API_JWT_PASSWORD" })
+                     "ASSISTENTE_FIREBIRD_PASSWORD", "ASSISTENTE_FIREBIRD_CLIENT_LIBRARY", "API_JWT_SECRET", "API_JWT_PASSWORD" })
             Require(string.IsNullOrEmpty(readEnvironment(key)), "override de ambiente perigoso após Configure");
 
         var workspace = AbsolutePath(config["Homologacao:WorkspaceRoot"]);
@@ -129,7 +129,8 @@ public static class HomologacaoGuard
         var effectiveAssistant = new AssistantFirebirdOptions
         {
             Host = assistant.Host, Port = assistant.Port, Database = assistant.Database,
-            User = assistant.User, Password = assistant.Password, Charset = assistant.Charset
+            User = assistant.User, Password = assistant.Password, Charset = assistant.Charset,
+            ClientLibrary = assistant.ClientLibrary
         };
         effectiveAssistant.ApplyEnvironmentVariables(readEnvironment);
         ValidateConnection(effectiveAssistant.BuildConnectionString(environment.ContentRootPath), assistente, "ASSISTENTE/fábrica");
