@@ -121,7 +121,7 @@ const cards: ContentCard[] = [
     desc: 'Converta imagens de laudos em HTML compatível com LaudosUX',
     icon: 'magic',
     themeName: 'rose',
-    externalUrl: 'http://localhost:3000/studio'
+    nuxtPath: '/studio'
   }
 ]
 
