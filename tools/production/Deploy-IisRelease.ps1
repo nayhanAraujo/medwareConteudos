@@ -46,6 +46,16 @@ function Get-NssmValue([string]$Executable, [string]$Parameter) {
     return $value
 }
 
+function Copy-ReleasePayload([string]$Source, [string]$Destination) {
+    Write-Host "[Deploy] Copiando o artifact para a release..."
+    $global:LASTEXITCODE = 0
+    & robocopy.exe $Source $Destination '/E' '/COPY:DAT' '/DCOPY:T' '/XJ' '/R:2' '/W:2' '/MT:8' '/NFL' '/NDL' '/NJH' '/NJS' '/NP'
+    $exitCode = $LASTEXITCODE
+    # Robocopy usa 0 a 7 para cópias concluídas, inclusive quando há arquivos novos.
+    if ($exitCode -gt 7) { throw "Robocopy falhou ao copiar o artifact (código $exitCode)." }
+    Write-Host "[Deploy] Artifact copiado (robocopy: $exitCode)."
+}
+
 function Wait-ServiceState([string]$Name, [string]$Expected, [int]$TimeoutSeconds = 45) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
@@ -127,6 +137,7 @@ $nssm = FullPath (Resolve-Path -LiteralPath $NssmPath).Path
 $node = FullPath (Resolve-Path -LiteralPath $NodePath).Path
 $releasesRoot = FullPath (Split-Path $release -Parent)
 
+Write-Host '[Deploy] Validando configuração e caminhos de produção...'
 Assert-ChildPath $releasesRoot $release 'ReleaseDirectory'
 try {
     $productionSettings = Get-Content -LiteralPath $secret -Raw | ConvertFrom-Json
@@ -149,6 +160,7 @@ if ($productionSettings.AssistantFirebird.ClientLibrary) {
     }
 }
 
+Write-Host '[Deploy] Validando executáveis Node.js e NSSM...'
 $nodeVersion = (& $node --version 2>&1 | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.') { throw "Node.js 22 obrigatório; encontrado '$nodeVersion'." }
 $nssmVersion = (& $nssm version 2>&1 | Out-String).Trim()
@@ -161,15 +173,24 @@ foreach ($required in @('api\MdwConteudos.Api.dll', 'api\web.config', 'nuxt\serv
 }
 
 # Valida a integridade antes de parar qualquer componente.
-foreach ($entry in (Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json)) {
+$manifestEntries = @(Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json)
+$manifestTotal = $manifestEntries.Count
+$manifestIndex = 0
+Write-Host "[Deploy] Validando integridade de $manifestTotal arquivos do artifact..."
+foreach ($entry in $manifestEntries) {
+    $manifestIndex++
     $path = FullPath (Join-Path $package $entry.Path)
     Assert-ChildPath $package $path 'Entrada do manifesto'
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Arquivo ausente no pacote: $($entry.Path)" }
     if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $entry.SHA256) {
         throw "Falha de integridade no pacote: $($entry.Path)"
     }
+    if (($manifestIndex % 250) -eq 0 -or $manifestIndex -eq $manifestTotal) {
+        Write-Host "[Deploy] Integridade validada: $manifestIndex/$manifestTotal"
+    }
 }
 
+Write-Host '[Deploy] Validando sites, pools, serviço e privilégios do agente...'
 Import-Module WebAdministration
 foreach ($site in @($ApiSite, $PublicSite)) {
     if (-not (Test-Path "IIS:\Sites\$site")) { throw "Site IIS ausente: $site" }
@@ -197,13 +218,13 @@ $old = [ordered]@{
 
 if (-not $PSCmdlet.ShouldProcess($release, 'Criar release, trocar caminhos IIS/NSSM e executar smoke tests com rollback')) { return }
 
+Write-Host "[Deploy] Criando release em $release..."
 New-Item -ItemType Directory -Path $releasesRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $release | Out-Null
 Invoke-Checked 'icacls.exe' @($release, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', "IIS AppPool\${ApiPool}:(OI)(CI)RX", "IIS AppPool\${PublicPool}:(OI)(CI)RX", '*S-1-5-19:(OI)(CI)RX')
-Get-ChildItem -LiteralPath $package -Force | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $release -Recurse -Force
-}
+Copy-ReleasePayload $package $release
 
+Write-Host '[Deploy] Preparando proxy público e configuração restrita da API...'
 $publicDirectory = Join-Path $release 'public'
 New-Item -ItemType Directory -Path $publicDirectory -Force | Out-Null
 $publicConfig = (Get-Content (Join-Path $release 'deployment\templates\public.web.config') -Raw).Replace('__DOMAIN__', $Domain)
@@ -218,14 +239,18 @@ $newNuxtPath = Join-Path $release 'nuxt'
 $newNuxtEntry = Join-Path $newNuxtPath 'server\index.mjs'
 
 try {
+    Write-Host '[Deploy] Parando somente os componentes MDW Conteúdo...'
     Stop-Components
+    Write-Host '[Deploy] Atualizando caminhos IIS e NSSM...'
     Set-ItemProperty "IIS:\Sites\$ApiSite" -Name physicalPath -Value $newApiPath
     Set-ItemProperty "IIS:\Sites\$PublicSite" -Name physicalPath -Value $publicDirectory
     Invoke-Checked $nssm @('set', $NuxtService, 'Application', $node)
     Invoke-Checked $nssm @('set', $NuxtService, 'AppParameters', $newNuxtEntry)
     Invoke-Checked $nssm @('set', $NuxtService, 'AppDirectory', $newNuxtPath)
+    Write-Host '[Deploy] Iniciando componentes MDW Conteúdo...'
     Start-Components
 
+    Write-Host '[Deploy] Executando smoke tests...'
     Test-Http 'http://127.0.0.1:5080/health/live' 'healthy'
     if ($RequireReady) { Test-Http 'http://127.0.0.1:5080/health/ready' 'ready' }
     Test-Http 'http://127.0.0.1:3000/login'
@@ -246,6 +271,7 @@ catch {
     $failure = $_
     Write-Warning "Deploy falhou; iniciando rollback de código: $($failure.Exception.Message)"
     try {
+        Write-Host '[Deploy] Restaurando caminhos anteriores IIS e NSSM...'
         Stop-Components
         Set-ItemProperty "IIS:\Sites\$ApiSite" -Name physicalPath -Value $old.ApiPath
         Set-ItemProperty "IIS:\Sites\$PublicSite" -Name physicalPath -Value $old.PublicPath
