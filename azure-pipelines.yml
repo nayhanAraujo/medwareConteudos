@@ -100,3 +100,4 @@ stages:
                       -NssmPath "$(nssmPath)"
                       -NodePath "$(nodePath)"
                       -RequireReady
+                      -Confirm:$false
