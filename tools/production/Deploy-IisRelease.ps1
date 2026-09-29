@@ -39,11 +39,38 @@ function Invoke-Checked([string]$File, [string[]]$Arguments) {
     }
 }
 
+function Invoke-ExternalWithTimeout([string]$File, [string[]]$Arguments, [string]$Description, [int]$TimeoutSeconds = 30) {
+    $argumentLine = ($Arguments | ForEach-Object {
+        if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
+    }) -join ' '
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $File
+    $startInfo.Arguments = $argumentLine
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) { throw "Não foi possível iniciar $Description." }
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "$Description não respondeu em $TimeoutSeconds segundos."
+    }
+    $output = $process.StandardOutput.ReadToEnd() + [Environment]::NewLine + $process.StandardError.ReadToEnd()
+    $exitCode = $process.ExitCode
+    if ($exitCode -ne 0) {
+        throw "$Description falhou com o código ${exitCode}: $($output.Trim())"
+    }
+    return $output.Trim()
+}
+
 function Get-NssmValue([string]$Executable, [string]$Parameter) {
-    $global:LASTEXITCODE = 0
-    $value = (& $Executable get $NuxtService $Parameter 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) { throw "Não foi possível consultar $Parameter do serviço $NuxtService." }
-    return $value
+    return Invoke-ExternalWithTimeout $Executable @('get', $NuxtService, $Parameter) "NSSM get $Parameter"
+}
+
+function Set-NssmValue([string]$Executable, [string]$Parameter, [string]$Value) {
+    [void](Invoke-ExternalWithTimeout $Executable @('set', $NuxtService, $Parameter, $Value) "NSSM set $Parameter")
 }
 
 function Copy-ReleasePayload([string]$Source, [string]$Destination) {
@@ -160,11 +187,14 @@ if ($productionSettings.AssistantFirebird.ClientLibrary) {
     }
 }
 
-Write-Host '[Deploy] Validando executáveis Node.js e NSSM...'
-$nodeVersion = (& $node --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.') { throw "Node.js 22 obrigatório; encontrado '$nodeVersion'." }
-$nssmVersion = (& $nssm version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $nssmVersion -notmatch '^2\.') { throw "NSSM inválido em $nssm." }
+Write-Host '[Deploy] Consultando versão do Node.js...'
+$nodeVersion = Invoke-ExternalWithTimeout $node @('--version') 'Node.js'
+if ($nodeVersion -notmatch '^v22\.') { throw "Node.js 22 obrigatório; encontrado '$nodeVersion'." }
+Write-Host "[Deploy] Node.js detectado: $nodeVersion"
+Write-Host '[Deploy] Consultando versão do NSSM...'
+$nssmVersion = Invoke-ExternalWithTimeout $nssm @('version') 'NSSM'
+if ($nssmVersion -notmatch '^2\.') { throw "NSSM inválido em $nssm." }
+Write-Host "[Deploy] NSSM detectado: $nssmVersion"
 
 if (Test-Path -LiteralPath $release) { throw 'A release já existe; builds nunca são sobrescritos.' }
 if (-not (Test-Path -LiteralPath (Join-Path $package 'manifest.json') -PathType Leaf)) { throw 'Manifesto ausente.' }
@@ -244,9 +274,9 @@ try {
     Write-Host '[Deploy] Atualizando caminhos IIS e NSSM...'
     Set-ItemProperty "IIS:\Sites\$ApiSite" -Name physicalPath -Value $newApiPath
     Set-ItemProperty "IIS:\Sites\$PublicSite" -Name physicalPath -Value $publicDirectory
-    Invoke-Checked $nssm @('set', $NuxtService, 'Application', $node)
-    Invoke-Checked $nssm @('set', $NuxtService, 'AppParameters', $newNuxtEntry)
-    Invoke-Checked $nssm @('set', $NuxtService, 'AppDirectory', $newNuxtPath)
+    Set-NssmValue $nssm 'Application' $node
+    Set-NssmValue $nssm 'AppParameters' $newNuxtEntry
+    Set-NssmValue $nssm 'AppDirectory' $newNuxtPath
     Write-Host '[Deploy] Iniciando componentes MDW Conteúdo...'
     Start-Components
 
@@ -275,9 +305,9 @@ catch {
         Stop-Components
         Set-ItemProperty "IIS:\Sites\$ApiSite" -Name physicalPath -Value $old.ApiPath
         Set-ItemProperty "IIS:\Sites\$PublicSite" -Name physicalPath -Value $old.PublicPath
-        Invoke-Checked $nssm @('set', $NuxtService, 'Application', $old.NuxtApplication)
-        Invoke-Checked $nssm @('set', $NuxtService, 'AppParameters', $old.NuxtParameters)
-        Invoke-Checked $nssm @('set', $NuxtService, 'AppDirectory', $old.NuxtDirectory)
+        Set-NssmValue $nssm 'Application' $old.NuxtApplication
+        Set-NssmValue $nssm 'AppParameters' $old.NuxtParameters
+        Set-NssmValue $nssm 'AppDirectory' $old.NuxtDirectory
         Restore-ComponentState $old
         if ($old.ApiSiteState -eq 'Started') { Test-Http 'http://127.0.0.1:5080/health/live' 'healthy' }
         if ($old.NuxtServiceState -eq 'Running') { Test-Http 'http://127.0.0.1:3000/login' }
