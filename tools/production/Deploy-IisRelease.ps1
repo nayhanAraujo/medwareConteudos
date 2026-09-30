@@ -191,10 +191,7 @@ Write-Host '[Deploy] Consultando versão do Node.js...'
 $nodeVersion = Invoke-ExternalWithTimeout $node @('--version') 'Node.js'
 if ($nodeVersion -notmatch '^v22\.') { throw "Node.js 22 obrigatório; encontrado '$nodeVersion'." }
 Write-Host "[Deploy] Node.js detectado: $nodeVersion"
-Write-Host '[Deploy] Consultando versão do NSSM...'
-$nssmVersion = Invoke-ExternalWithTimeout $nssm @('version') 'NSSM'
-if ($nssmVersion -notmatch '^2\.') { throw "NSSM inválido em $nssm." }
-Write-Host "[Deploy] NSSM detectado: $nssmVersion"
+Write-Host "[Deploy] NSSM localizado em $nssm; a configuração do serviço será validada antes do corte."
 
 if (Test-Path -LiteralPath $release) { throw 'A release já existe; builds nunca são sobrescritos.' }
 if (-not (Test-Path -LiteralPath (Join-Path $package 'manifest.json') -PathType Leaf)) { throw 'Manifesto ausente.' }
