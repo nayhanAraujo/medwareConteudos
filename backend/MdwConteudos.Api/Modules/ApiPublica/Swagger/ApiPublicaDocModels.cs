@@ -52,6 +52,7 @@ public class VariavelBaseDoc
 public class VariavelItemDoc : VariavelBaseDoc
 {
     [JsonPropertyName("nomes_clinicos")] public List<string> NomesClinicos { get; set; } = [];
+    [JsonPropertyName("alternativas")] public List<string> Alternativas { get; set; } = [];
 }
 public record VariavelDetalheDoc(
     [property: JsonPropertyName("success")] bool Success,

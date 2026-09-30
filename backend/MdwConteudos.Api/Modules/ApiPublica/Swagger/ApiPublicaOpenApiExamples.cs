@@ -48,6 +48,7 @@ public static class ApiPublicaOpenApiExamples
         {
             var item = Variavel;
             item["nomes_clinicos"] = Node(new[] { "Diâmetro aórtico" });
+            item["alternativas"] = Node(new[] { "Aorta" });
             return List(item);
         }
     }
