@@ -94,7 +94,7 @@ stages:
                     filePath: '$(Pipeline.Workspace)\package\deployment\Deploy-IisRelease.ps1'
                     arguments: >
                       -PackageDirectory "$(Pipeline.Workspace)\package"
-                      -ReleaseDirectory "$(productionRoot)\releases\build-$(Build.BuildId)"
+                      -ReleaseDirectory "$(productionRoot)\releases\build-$(Build.BuildId)-tentativa$(System.JobAttempt)"
                       -DataDirectory "$(productionRoot)\conteudo"
                       -SecretsFile "$(productionSecrets)"
                       -Domain "$(productionDomain)"

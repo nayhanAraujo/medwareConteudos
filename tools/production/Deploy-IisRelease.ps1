@@ -93,35 +93,100 @@ function Wait-ServiceState([string]$Name, [string]$Expected, [int]$TimeoutSecond
     throw "Timeout aguardando o serviço $Name ficar $Expected."
 }
 
-function Stop-Components {
-    Stop-Website -Name $PublicSite -ErrorAction SilentlyContinue
-    Stop-WebAppPool -Name $PublicPool -ErrorAction SilentlyContinue
-    if ((Get-Service -Name $NuxtService).Status -ne 'Stopped') {
-        Stop-Service -Name $NuxtService -Force
-        Wait-ServiceState $NuxtService 'Stopped'
+function Invoke-WithRetry([string]$Description, [scriptblock]$Action, [int]$MaxAttempts = 8, [int]$DelaySeconds = 2) {
+    $lastFailure = $null
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            & $Action
+            return
+        }
+        catch {
+            $lastFailure = $_
+            if ($attempt -eq $MaxAttempts) { break }
+            Write-Warning "$Description não ficou disponível (tentativa $attempt/$MaxAttempts): $($_.Exception.Message)"
+            Start-Sleep -Seconds $DelaySeconds
+        }
     }
-    Stop-Website -Name $ApiSite -ErrorAction SilentlyContinue
-    Stop-WebAppPool -Name $ApiPool -ErrorAction SilentlyContinue
+    throw "$Description falhou após $MaxAttempts tentativas: $($lastFailure.Exception.Message)"
+}
+
+function Wait-WebAppPoolState([string]$Name, [string]$Expected, [int]$TimeoutSeconds = 45) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastFailure = $null
+    do {
+        try {
+            if ((Get-WebAppPoolState -Name $Name -ErrorAction Stop).Value -eq $Expected) { return }
+        }
+        catch { $lastFailure = $_.Exception.Message }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+    throw "Timeout aguardando o pool $Name ficar $Expected. $lastFailure"
+}
+
+function Wait-WebsiteState([string]$Name, [string]$Expected, [int]$TimeoutSeconds = 45) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastFailure = $null
+    do {
+        try {
+            if ((Get-Website -Name $Name -ErrorAction Stop).State -eq $Expected) { return }
+        }
+        catch { $lastFailure = $_.Exception.Message }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+    throw "Timeout aguardando o site $Name ficar $Expected. $lastFailure"
+}
+
+function Ensure-WebAppPoolState([string]$Name, [string]$Expected) {
+    $current = (Get-WebAppPoolState -Name $Name -ErrorAction Stop).Value
+    if ($current -ne $Expected) {
+        $command = if ($Expected -eq 'Started') { { Start-WebAppPool -Name $Name -ErrorAction Stop } } else { { Stop-WebAppPool -Name $Name -ErrorAction Stop } }
+        Invoke-WithRetry "Controle do pool IIS $Name" $command
+    }
+    Wait-WebAppPoolState $Name $Expected
+}
+
+function Ensure-WebsiteState([string]$Name, [string]$Expected) {
+    $current = (Get-Website -Name $Name -ErrorAction Stop).State
+    if ($current -ne $Expected) {
+        $command = if ($Expected -eq 'Started') { { Start-Website -Name $Name -ErrorAction Stop } } else { { Stop-Website -Name $Name -ErrorAction Stop } }
+        Invoke-WithRetry "Controle do site IIS $Name" $command
+    }
+    Wait-WebsiteState $Name $Expected
+}
+
+function Ensure-ServiceState([string]$Name, [string]$Expected) {
+    $current = (Get-Service -Name $Name -ErrorAction Stop).Status.ToString()
+    if ($current -ne $Expected) {
+        $command = if ($Expected -eq 'Running') { { Start-Service -Name $Name -ErrorAction Stop } } else { { Stop-Service -Name $Name -Force -ErrorAction Stop } }
+        Invoke-WithRetry "Controle do serviço $Name" $command
+    }
+    Wait-ServiceState $Name $Expected
+}
+
+function Stop-Components {
+    Ensure-WebsiteState $PublicSite 'Stopped'
+    Ensure-WebAppPoolState $PublicPool 'Stopped'
+    Ensure-ServiceState $NuxtService 'Stopped'
+    Ensure-WebsiteState $ApiSite 'Stopped'
+    Ensure-WebAppPoolState $ApiPool 'Stopped'
 }
 
 function Start-Components {
-    if ((Get-WebAppPoolState -Name $ApiPool).Value -ne 'Started') { Start-WebAppPool -Name $ApiPool }
-    if ((Get-Website -Name $ApiSite).State -ne 'Started') { Start-Website -Name $ApiSite }
-    if ((Get-Service -Name $NuxtService).Status -ne 'Running') { Start-Service -Name $NuxtService }
-    Wait-ServiceState $NuxtService 'Running'
-    if ((Get-WebAppPoolState -Name $PublicPool).Value -ne 'Started') { Start-WebAppPool -Name $PublicPool }
-    if ((Get-Website -Name $PublicSite).State -ne 'Started') { Start-Website -Name $PublicSite }
+    Ensure-WebAppPoolState $ApiPool 'Started'
+    Ensure-WebsiteState $ApiSite 'Started'
+    Ensure-ServiceState $NuxtService 'Running'
+    Ensure-WebAppPoolState $PublicPool 'Started'
+    Ensure-WebsiteState $PublicSite 'Started'
 }
 
 function Restore-ComponentState([System.Collections.IDictionary]$State) {
-    if ($State.ApiPoolState -eq 'Started') { Start-WebAppPool -Name $ApiPool }
-    if ($State.ApiSiteState -eq 'Started') { Start-Website -Name $ApiSite }
+    if ($State.ApiPoolState -eq 'Started') { Ensure-WebAppPoolState $ApiPool 'Started' }
+    if ($State.ApiSiteState -eq 'Started') { Ensure-WebsiteState $ApiSite 'Started' }
     if ($State.NuxtServiceState -eq 'Running') {
-        Start-Service -Name $NuxtService
-        Wait-ServiceState $NuxtService 'Running'
+        Ensure-ServiceState $NuxtService 'Running'
     }
-    if ($State.PublicPoolState -eq 'Started') { Start-WebAppPool -Name $PublicPool }
-    if ($State.PublicSiteState -eq 'Started') { Start-Website -Name $PublicSite }
+    if ($State.PublicPoolState -eq 'Started') { Ensure-WebAppPoolState $PublicPool 'Started' }
+    if ($State.PublicSiteState -eq 'Started') { Ensure-WebsiteState $PublicSite 'Started' }
 }
 
 function Test-Http([string]$Url, [string]$ExpectedStatus = $null, [int]$WaitSeconds = 90) {
@@ -312,6 +377,15 @@ catch {
     }
     catch {
         Write-Warning "Rollback também falhou: $($_.Exception.Message)"
+        try {
+            Write-Warning 'Executando uma última recuperação dos componentes MDW após a falha de rollback...'
+            Invoke-WithRetry 'Recuperação final dos componentes MDW' {
+                Restore-ComponentState $old
+            } 3 5
+        }
+        catch {
+            Write-Warning "Recuperação final também falhou: $($_.Exception.Message)"
+        }
     }
     throw $failure
 }
