@@ -1,6 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
 
+const applicationVersion = '1.0.0'
+const releaseBuild = process.env.NUXT_PUBLIC_RELEASE_BUILD?.trim()
+const applicationTitle = `MDW-SGC v${applicationVersion}${releaseBuild ? `+${releaseBuild}` : ''}`
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
@@ -31,7 +35,9 @@ export default defineNuxtConfig({
     docsSandboxInstanceId: process.env.NUXT_DOCS_SANDBOX_INSTANCE_ID || '',
     docsSupportUrl: process.env.NUXT_DOCS_SUPPORT_URL || '',
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api-dotnet'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api-dotnet',
+      applicationVersion,
+      releaseBuild: releaseBuild || null
     }
   },
   nitro: {
@@ -52,7 +58,8 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'MDW - SGC',
+      title: applicationTitle,
+      titleTemplate: (pageTitle) => pageTitle ? `${pageTitle} · ${applicationTitle}` : applicationTitle,
       link: [
         { rel: 'stylesheet', href: 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },

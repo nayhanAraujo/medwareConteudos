@@ -52,6 +52,7 @@ stages:
               filePath: tools/production/Build-Package.ps1
               arguments: >
                 -OutputDirectory "$(Build.ArtifactStagingDirectory)\mdw-producao"
+                -BuildLabel "$(Build.BuildId)"
 
           - task: PublishPipelineArtifact@1
             displayName: Publicar pacote validado

@@ -1,6 +1,10 @@
 #requires -Version 7.0
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$OutputDirectory, [switch]$WorkingTree)
+param(
+    [Parameter(Mandatory)][string]$OutputDirectory,
+    [string]$BuildLabel,
+    [switch]$WorkingTree
+)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $global:LASTEXITCODE = 0
@@ -65,13 +69,19 @@ try {
 } finally { Pop-Location }
 Push-Location "$source/frontend/nuxt-app"
 $oldPreset = $env:NITRO_PRESET
+$oldReleaseBuild = $env:NUXT_PUBLIC_RELEASE_BUILD
 try {
     $env:NITRO_PRESET = 'node-server'
+    if ($BuildLabel) { $env:NUXT_PUBLIC_RELEASE_BUILD = $BuildLabel }
     Invoke-Checked npm.cmd @('ci')
     Invoke-Checked npm.cmd @('run','test:docs')
     Invoke-Checked npm.cmd @('run','build')
     Copy-Item -LiteralPath '.output' -Destination "$output/nuxt" -Recurse
-} finally { $env:NITRO_PRESET = $oldPreset; Pop-Location }
+} finally {
+    $env:NITRO_PRESET = $oldPreset
+    $env:NUXT_PUBLIC_RELEASE_BUILD = $oldReleaseBuild
+    Pop-Location
+}
 Copy-Item -LiteralPath "$source/backend/agent-bridge" -Destination "$output/api/agent-bridge" -Recurse
 Push-Location "$output/api/agent-bridge"
 try { Invoke-Checked npm.cmd @('ci','--omit=dev') } finally { Pop-Location }
@@ -92,7 +102,7 @@ foreach ($required in @('api/MdwConteudos.Api.dll','api/appsettings.json','api/a
     if (-not (Test-Path "$output/$required")) { throw "Incomplete package: $required" }
 }
 $head = & git -C $repo rev-parse HEAD
-@{ Commit=$head; WorkingTree=[bool]$WorkingTree; Node=$nodeVersion; Dotnet=(& dotnet --version); BuiltAtUtc=[DateTime]::UtcNow.ToString('o') } | ConvertTo-Json | Set-Content "$output/build-info.json" -Encoding UTF8
+@{ Commit=$head; BuildLabel=$BuildLabel; WorkingTree=[bool]$WorkingTree; Node=$nodeVersion; Dotnet=(& dotnet --version); BuiltAtUtc=[DateTime]::UtcNow.ToString('o') } | ConvertTo-Json | Set-Content "$output/build-info.json" -Encoding UTF8
 $files = Get-ChildItem $output -Recurse -File | ForEach-Object {
     [pscustomobject]@{ Path=[IO.Path]::GetRelativePath($output,$_.FullName); SHA256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash }
 }
