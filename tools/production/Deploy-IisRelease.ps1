@@ -200,7 +200,8 @@ foreach ($required in @('api\MdwConteudos.Api.dll', 'api\web.config', 'nuxt\serv
 }
 
 # Valida a integridade antes de parar qualquer componente.
-$manifestEntries = @(Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json)
+$manifestEntries = Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json
+if ($null -eq $manifestEntries) { throw 'Manifesto vazio.' }
 $manifestTotal = $manifestEntries.Count
 $manifestIndex = 0
 Write-Host "[Deploy] Validando integridade de $manifestTotal arquivos do artifact..."
