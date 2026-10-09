@@ -20,12 +20,12 @@
     </div>
     <DsInput v-model="model.link_teste" label="Link de teste" type="url" />
     <DsInput v-if="model.sistema === 'Laudos Flex'" v-model="model.caminho_azure" label="Caminho Azure" />
-    <div v-if="model.sistema === 'Laudos UX' && !editMode" class="md:col-span-2">
+    <div v-if="model.sistema === 'Laudos UX'" class="md:col-span-2">
       <DsFileInput
-        label="Arquivo JSON *"
+        :label="editMode ? 'Substituir arquivo JSON' : 'Arquivo JSON *'"
         accept=".json"
         icon="filetype-json"
-        required
+        :required="!editMode"
         @change="onJson"
       />
     </div>
