@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 const applicationVersion = '1.0.0'
 const releaseBuild = process.env.NUXT_PUBLIC_RELEASE_BUILD?.trim()
 const applicationTitle = `MDW-SGC v${applicationVersion}${releaseBuild ? `+${releaseBuild}` : ''}`
+const apiServerBase = process.env.NUXT_API_SERVER_BASE || process.env.DOTNET_API_BASE || 'http://localhost:5080'
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -20,17 +21,17 @@ export default defineNuxtConfig({
     server: {
       proxy: {
         '/static': {
-          target: 'http://localhost:5080',
+          target: apiServerBase,
           changeOrigin: true
         }
       }
     }
   },
   runtimeConfig: {
-    apiServerBase: process.env.NUXT_API_SERVER_BASE || process.env.DOTNET_API_BASE || 'http://localhost:5080',
-    docsApiBase: process.env.NUXT_DOCS_API_BASE || process.env.NUXT_API_SERVER_BASE || 'http://localhost:5080',
+    apiServerBase,
+    docsApiBase: process.env.NUXT_DOCS_API_BASE || apiServerBase,
     docsSandboxBase: process.env.NUXT_DOCS_SANDBOX_BASE || 'http://localhost:5081',
-    docsPublicBase: process.env.NUXT_DOCS_PUBLIC_BASE || 'http://localhost:5080',
+    docsPublicBase: process.env.NUXT_DOCS_PUBLIC_BASE || apiServerBase,
     docsSandboxPublicBase: process.env.NUXT_DOCS_SANDBOX_PUBLIC_BASE || 'http://localhost:5081',
     docsSandboxInstanceId: process.env.NUXT_DOCS_SANDBOX_INSTANCE_ID || '',
     docsSupportUrl: process.env.NUXT_DOCS_SUPPORT_URL || '',
@@ -45,13 +46,13 @@ export default defineNuxtConfig({
     // Não empacotar anexos dos usuários como assets públicos do build.
     devProxy: {
       '/api-dotnet': {
-        target: 'http://localhost:5080',
+        target: apiServerBase,
         changeOrigin: true,
         prependPath: false,
         rewrite: (path: string) => path.replace(/^\/api-dotnet/, '')
       },
       '/static': {
-        target: 'http://localhost:5080/static',
+        target: apiServerBase,
         changeOrigin: true
       }
     }
