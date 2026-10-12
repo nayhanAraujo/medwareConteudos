@@ -59,7 +59,7 @@
               <DsButton v-if="canEditScripts" variant="secondary" size="sm" icon="box-arrow-right" :disabled="!selectedScriptIds.length" @click="openTransfer(selectedScriptIds)">
                 Transferir pacote
               </DsButton>
-              <DsButton variant="secondary" size="sm" :disabled="!hasJsonSelected" @click="exportSelected('json')">JSON</DsButton>
+              <DsButton variant="secondary" size="sm" icon="file-earmark-zip" :loading="exportingJson" :disabled="!hasJsonSelected" @click="exportSelected('json')">{{ exportingJson ? 'Exportando...' : `JSON + MRDs (${jsonSelectedCount})` }}</DsButton>
               <DsButton variant="secondary" size="sm" :disabled="!hasDllSelected" @click="exportSelected('dll')">DLL</DsButton>
               <DsButton variant="secondary" size="sm" :disabled="!hasMrdSelected" @click="exportSelected('mrd')">MRD</DsButton>
             </div>
@@ -353,6 +353,8 @@ const selectedCountLabel = computed(() => {
   return `${n} script${n === 1 ? '' : 's'} selecionado${n === 1 ? '' : 's'}`
 })
 const hasJsonSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos UX' && x.temArquivoJson))
+const jsonSelectedCount = computed(() => selectedItems.value.filter((x) => x.sistema === 'Laudos UX' && x.temArquivoJson).length)
+const exportingJson = ref(false)
 const hasDllSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos Flex' && x.temArquivoDll))
 const hasMrdSelected = computed(() => selectedItems.value.some((x) => x.sistema === 'Laudos Flex' && x.temArquivoMrd))
 
@@ -432,6 +434,7 @@ function limparFiltros() {
 }
 
 async function exportSelected(tipo: 'json' | 'dll' | 'mrd') {
+  if (tipo === 'json' && exportingJson.value) return
   const targets = selectedItems.value.filter((x) => {
     if (tipo === 'json') return x.sistema === 'Laudos UX' && x.temArquivoJson
     if (tipo === 'dll') return x.sistema === 'Laudos Flex' && x.temArquivoDll
@@ -441,9 +444,20 @@ async function exportSelected(tipo: 'json' | 'dll' | 'mrd') {
     await swal.toast(`Nenhum script selecionado para exportação ${tipo.toUpperCase()}.`, 'warning')
     return
   }
+  if (tipo === 'json') {
+    exportingJson.value = true
+    try {
+      await scriptsApi.downloadScriptBatch(targets.map((item) => item.codScriptLaudo))
+      await swal.toast(`Exportados ${targets.length} modelos.`, 'success')
+    } catch (e: unknown) {
+      await swal.error('Erro ao exportar modelos', e instanceof Error ? e.message : 'Tente novamente.')
+    } finally {
+      exportingJson.value = false
+    }
+    return
+  }
   for (const item of targets) {
-    if (tipo === 'json') await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-json`, `${item.nome}.json`)
-    else if (tipo === 'dll') await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-dll`, `${item.nome}.dll`)
+    if (tipo === 'dll') await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-dll`, `${item.nome}.dll`)
     else await scriptsApi.download(`/api/web/scripts/${item.codScriptLaudo}/exportar-mrd`, `${item.nome}.mrd`)
   }
   await swal.toast(`Exportação ${tipo.toUpperCase()} iniciada (${targets.length}).`, 'success')

@@ -10,7 +10,7 @@ using MdwConteudos.Api.Models;
 
 namespace MdwConteudos.Api.Modules.Web;
 
-public class ScriptsService
+public partial class ScriptsService
 {
     private readonly string _connectionString;
     private readonly string _migrationRoot;
@@ -1383,13 +1383,7 @@ public class ScriptsService
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
-        return await conn.ExecuteScalarAsync<byte[]?>(
-            @"SELECT COALESCE(
-                (SELECT FIRST 1 sv.ARQUIVO_JSON FROM SCRIPTVERSOES sv
-                 WHERE sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO AND sv.ATIVO = 'T'
-                 ORDER BY sv.DATA_CRIACAO DESC),
-                s.ARQUIVO_JSON)
-              FROM SCRIPTLAUDO s WHERE s.CODSCRIPTLAUDO = @id", new { id });
+        return (await ResolveScriptExportAsync(conn, id, false))?.Json;
     }
 
     public async Task<byte[]?> ExportDllAsync(int id)

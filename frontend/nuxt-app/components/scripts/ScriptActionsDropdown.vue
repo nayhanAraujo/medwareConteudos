@@ -47,8 +47,9 @@
       >
         <i class="bi bi-plus-circle text-green-600" /> Nova Versão
       </DsDropdownItem>
-      <DsDropdownItem v-if="showExportJson" @click="exportJson(); close()">
-        <i class="bi bi-file-earmark-arrow-down-fill text-gray-600" /> Exportar JSON
+      <DsDropdownItem v-if="showExportJson" :disabled="exportingJson" @click="exportJson">
+        <i :class="exportingJson ? 'bi bi-hourglass-split text-gray-600' : 'bi bi-file-earmark-arrow-down-fill text-gray-600'" />
+        {{ exportingJson ? 'Exportando...' : 'Exportar JSON' }}
       </DsDropdownItem>
       <DsDropdownItem v-if="azureDisponivel" @click="openAzure(); close()">
         <i class="bi bi-git text-orange-500" /> Projeto Azure
@@ -110,8 +111,17 @@ const showExportJson = computed(
   () => props.item.sistema === 'Laudos UX' && props.item.temArquivoJson
 )
 
+const exportingJson = ref(false)
 async function exportJson() {
-  await api.download(`/api/web/scripts/${props.item.codScriptLaudo}/exportar-json`, `${props.item.nome}.json`)
+  if (exportingJson.value) return
+  exportingJson.value = true
+  try {
+    await api.downloadScriptPackage(props.item.codScriptLaudo, props.item.nome)
+  } catch (e: unknown) {
+    await swal.error('Erro ao exportar modelo', e instanceof Error ? e.message : 'Tente novamente.')
+  } finally {
+    exportingJson.value = false
+  }
 }
 async function exportDll() {
   await api.download(`/api/web/scripts/${props.item.codScriptLaudo}/exportar-dll`, `${props.item.nome}.dll`)

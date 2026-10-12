@@ -272,14 +272,28 @@ export function useScriptsApi() {
   const downloadVersaoAnexo = (codArquivo: number, filename: string) =>
     download(`/api/web/scripts/versoes/anexos/${codArquivo}/download`, filename)
 
+  const saveBlob = (blob: Blob, filename: string) => {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   const download = (path: string, filename: string) =>
-    api.getBlob(path).then((blob) => {
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = filename
-      a.click()
-      URL.revokeObjectURL(a.href)
+    api.getBlob(path).then((blob) => saveBlob(blob, filename))
+
+  const downloadScriptPackage = async (id: number, name: string) => {
+    const blob = await api.getBlob(`/api/web/scripts/${id}/exportar-pacote`)
+    saveBlob(blob, `${name}.${blob.type.includes('application/zip') ? 'zip' : 'json'}`)
+  }
+
+  const downloadScriptBatch = async (ids: number[]) => {
+    const blob = await api.getBlob('/api/web/scripts/exportar-lote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids })
     })
+    saveBlob(blob, 'modelos.zip')
+  }
 
   const getEmails = () => api.get<{ emails: string }>('/api/web/scripts/emails-notificacao')
   const saveEmails = (emails: string) => api.post('/api/web/scripts/emails-notificacao', { emails })
@@ -330,6 +344,8 @@ export function useScriptsApi() {
     downloadVersaoMrdZip,
     downloadVersaoAnexo,
     download,
+    downloadScriptPackage,
+    downloadScriptBatch,
     getEmails,
     saveEmails,
     getAprovar,

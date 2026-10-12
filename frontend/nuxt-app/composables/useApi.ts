@@ -55,14 +55,17 @@ export function useApi() {
     return data as T
   }
 
-  async function getBlob(path: string): Promise<Blob> {
+  async function getBlob(path: string, options: RequestInit = {}): Promise<Blob> {
     const headers: Record<string, string> = {}
     if (auth.token) headers.Authorization = `Bearer ${auth.token}`
-    const res = await fetch(apiUrl(path), { headers })
+    const res = await fetch(apiUrl(path), { ...options, headers: { ...headers, ...options.headers } })
     if (res.status === 401 && !path.includes('/api/web/auth/login')) {
       await handleUnauthorized()
     }
-    if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data?.message || data?.error || `Erro HTTP ${res.status}`)
+    }
     return res.blob()
   }
 

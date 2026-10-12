@@ -379,6 +379,31 @@ public class WebScriptsController : ControllerBase
         return File(bytes, "application/json", $"script_{id}.json");
     }
 
+    [HttpGet("{id:int}/exportar-pacote")]
+    [Authorize]
+    public async Task<IActionResult> ExportPackage(int id)
+    {
+        try
+        {
+            var result = await _scripts.ExportScriptPackageAsync(id);
+            return result is null ? NotFound() : File(result.Value.Content, result.Value.Mime, result.Value.Filename);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("exportar-lote")]
+    [Authorize]
+    public async Task<IActionResult> ExportBatch([FromBody] ScriptExportBatchRequest request)
+    {
+        try
+        {
+            return File(await _scripts.ExportScriptBatchAsync(request.Ids), "application/zip", "modelos.zip");
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    public record ScriptExportBatchRequest(int[]? Ids);
+
     [HttpGet("{id:int}/exportar-dll")]
     [Authorize]
     public async Task<IActionResult> ExportDll(int id)
