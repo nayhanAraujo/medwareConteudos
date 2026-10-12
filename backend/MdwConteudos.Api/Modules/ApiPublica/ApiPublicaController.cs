@@ -223,7 +223,8 @@ public class ApiPublicaController : ControllerBase
         Summary = "Listar scripts",
         Description =
             "Lista modelos de laudo. Com `incluir_arquivos=1` (padrão), inclui imagens, PDFs e MRDs " +
-            "(prioriza versão ATIVA quando existir). Use `incluir_arquivos=0` para resposta enxuta.",
+            "(prioriza versão ATIVA quando existir). Use `incluir_arquivos=0` para resposta enxuta. " +
+            "Filtre por linguagem com `linguagem=Csharp` ou `linguagem=HTML`.",
         Tags = new[] { "Scripts" })]
     [SwaggerResponse(200, "Lista de scripts", typeof(ApiListDoc<ScriptItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
@@ -233,9 +234,10 @@ public class ApiPublicaController : ControllerBase
         [FromQuery, SwaggerParameter(Description = "1 = aprovado, 0 = não aprovado")] string? aprovado,
         [FromQuery, SwaggerParameter(Description = "1 = ativo, 0 = inativo")] string? ativo,
         [FromQuery, SwaggerParameter(Description = "CODPACOTE (ex.: 1 Cardiologia, 14 Oftalmologia)")] string? pacote,
+        [FromQuery, SwaggerParameter(Description = "Csharp ou HTML")] string? linguagem,
         [FromQuery, SwaggerParameter(Description = "1 inclui arquivos (padrão); 0 omite imagens/pdfs/mrds")] string? incluir_arquivos,
         CancellationToken ct) =>
-        _api.GetScriptsAsync(sistema, aprovado, ativo, pacote, incluir_arquivos, ct);
+        _api.GetScriptsAsync(sistema, aprovado, ativo, pacote, linguagem, incluir_arquivos, ct);
 
     [HttpGet("apiconteudos/v1/scripts/ultimo-verificado")]
     [HttpGet("api/v1/scripts/ultimo-verificado")]
@@ -255,9 +257,10 @@ public class ApiPublicaController : ControllerBase
         [FromQuery] string? aprovado,
         [FromQuery] string? ativo,
         [FromQuery] string? pacote,
+        [FromQuery] string? linguagem,
         [FromQuery] string? incluir_arquivos,
         CancellationToken ct) =>
-        _api.GetScriptUltimoVerificadoAsync(sistema, aprovado, ativo, pacote, incluir_arquivos, ct);
+        _api.GetScriptUltimoVerificadoAsync(sistema, aprovado, ativo, pacote, linguagem, incluir_arquivos, ct);
 
     [HttpGet("apiconteudos/v1/scripts/{codscriptlaudo:int}/imagem")]
     [HttpGet("api/v1/scripts/{codscriptlaudo:int}/imagem")]

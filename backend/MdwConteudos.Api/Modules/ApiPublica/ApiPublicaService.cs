@@ -22,8 +22,8 @@ public interface IApiPublicaService
     Task<IActionResult> GetEspecialidadesAsync(CancellationToken ct);
     Task<IActionResult> GetRelatoriosAsync(string? ativo, string? multiselecao, string? nome, string? modulo, string? formato, int? codsistema, CancellationToken ct);
     Task<IActionResult> DownloadRelatorioAsync(int codrelatorio, CancellationToken ct);
-    Task<IActionResult> GetScriptsAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? incluirArquivos, CancellationToken ct);
-    Task<IActionResult> GetScriptUltimoVerificadoAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? incluirArquivos, CancellationToken ct);
+    Task<IActionResult> GetScriptsAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, string? incluirArquivos, CancellationToken ct);
+    Task<IActionResult> GetScriptUltimoVerificadoAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, string? incluirArquivos, CancellationToken ct);
     Task<IActionResult> GetScriptImagemAsync(int codscriptlaudo, int indice, CancellationToken ct);
     Task<IActionResult> DownloadScriptAsync(int codscriptlaudo, string? tipo, CancellationToken ct);
     Task<IActionResult> GetPaineisAsync(string? tipo, string? ativo, int? codpacote, CancellationToken ct);
@@ -481,24 +481,24 @@ public class ApiPublicaService : IApiPublicaService
         catch (Exception ex) { return Err500(ex); }
     }
 
-    public async Task<IActionResult> GetScriptsAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? incluirArquivos, CancellationToken ct)
+    public async Task<IActionResult> GetScriptsAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, string? incluirArquivos, CancellationToken ct)
     {
         try
         {
             var incluir = ApiScriptOperations.ParseIncluirArquivos(incluirArquivos);
-            var list = await _scripts.ListScriptsAsync(sistema, aprovado, ativo, pacote, incluir, ct);
+            var list = await _scripts.ListScriptsAsync(sistema, aprovado, ativo, pacote, linguagem, incluir, ct);
             return new OkObjectResult(ApiV1Contract.Ok(list, list.Count));
         }
         catch (Exception ex) { return Err500(ex); }
     }
 
     public async Task<IActionResult> GetScriptUltimoVerificadoAsync(
-        string? sistema, string? aprovado, string? ativo, string? pacote, string? incluirArquivos, CancellationToken ct)
+        string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, string? incluirArquivos, CancellationToken ct)
     {
         try
         {
             var incluir = ApiScriptOperations.ParseIncluirArquivos(incluirArquivos);
-            var (item, workflowKey) = await _scripts.GetUltimoVerificadoAsync(sistema, aprovado, ativo, pacote, incluir, ct);
+            var (item, workflowKey) = await _scripts.GetUltimoVerificadoAsync(sistema, aprovado, ativo, pacote, linguagem, incluir, ct);
             if (item is null) return new StatusCodeResult(204);
             return new OkObjectResult(new
             {

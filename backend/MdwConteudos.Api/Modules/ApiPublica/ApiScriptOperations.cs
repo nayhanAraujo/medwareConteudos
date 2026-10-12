@@ -40,7 +40,7 @@ public class ApiScriptOperations
     }
 
     public static (List<string> Where, DynamicParameters Params) BuildWhere(
-        string? sistema, string? aprovado, string? ativo, string? pacote, IEnumerable<string>? extra = null)
+        string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, IEnumerable<string>? extra = null)
     {
         var where = extra?.ToList() ?? new List<string>();
         var p = new DynamicParameters();
@@ -48,18 +48,25 @@ public class ApiScriptOperations
         aprovado = aprovado?.Trim();
         ativo = ativo?.Trim();
         pacote = pacote?.Trim();
+        linguagem = linguagem?.Trim().ToUpperInvariant() switch
+        {
+            "C#" or "CSHARP" => "C#",
+            "HTML" => "HTML",
+            _ => null
+        };
         if (sistema is "Laudos UX" or "Laudos Flex") { where.Add("s.SISTEMA = @sistema"); p.Add("sistema", sistema); }
         if (aprovado is "0" or "1") { where.Add("s.APROVADO = @aprovado"); p.Add("aprovado", int.Parse(aprovado)); }
         if (ativo is "0" or "1") { where.Add("s.ATIVO = @ativo"); p.Add("ativo", int.Parse(ativo)); }
         if (int.TryParse(pacote, out var codPac)) { where.Add("s.CODPACOTE = @pacote"); p.Add("pacote", codPac); }
+        if (linguagem is not null) { where.Add("UPPER(s.LINGUAGEM) = @linguagem"); p.Add("linguagem", linguagem); }
         if (where.Count == 0) where.Add("1=1");
         return (where, p);
     }
 
     public async Task<List<Dictionary<string, object?>>> ListScriptsAsync(
-        string? sistema, string? aprovado, string? ativo, string? pacote, bool incluirArquivos, CancellationToken ct)
+        string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, bool incluirArquivos, CancellationToken ct)
     {
-        var (where, p) = BuildWhere(sistema, aprovado, ativo, pacote);
+        var (where, p) = BuildWhere(sistema, aprovado, ativo, pacote, linguagem);
         var sql = $"{ScriptListSelect} WHERE {string.Join(" AND ", where)} ORDER BY s.NOME";
         await using var conn = await _db.OpenConnectionAsync(ct);
         var rows = (await conn.QueryAsync(sql, p)).ToList();
@@ -70,9 +77,9 @@ public class ApiScriptOperations
     }
 
     public async Task<(Dictionary<string, object?>? Item, string? WorkflowKey)> GetUltimoVerificadoAsync(
-        string? sistema, string? aprovado, string? ativo, string? pacote, bool incluirArquivos, CancellationToken ct)
+        string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, bool incluirArquivos, CancellationToken ct)
     {
-        var (where, p) = BuildWhere(sistema, aprovado, ativo, pacote, new[] { "s.DATA_VERIFICACAO IS NOT NULL" });
+        var (where, p) = BuildWhere(sistema, aprovado, ativo, pacote, linguagem, new[] { "s.DATA_VERIFICACAO IS NOT NULL" });
         var sql = $@"
             SELECT FIRST 1
             s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,

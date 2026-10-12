@@ -84,16 +84,22 @@ public class ApiV1ScriptContractTests
     [Fact]
     public void Script_filters_are_trimmed_parameterized_and_ignore_invalid_values()
     {
-        var (where, parameters) = ApiScriptOperations.BuildWhere(" Laudos UX ", " 1 ", " 0 ", " 42 ");
-        Assert.Equal(4, where.Count);
+        var (where, parameters) = ApiScriptOperations.BuildWhere(" Laudos UX ", " 1 ", " 0 ", " 42 ", " html ");
+        Assert.Equal(5, where.Count);
         Assert.Equal("Laudos UX", parameters.Get<string>("sistema"));
         Assert.Equal(1, parameters.Get<int>("aprovado"));
         Assert.Equal(0, parameters.Get<int>("ativo"));
         Assert.Equal(42, parameters.Get<int>("pacote"));
-        var invalid = ApiScriptOperations.BuildWhere("unknown", "true", "9", "x' OR 1=1 --");
+        Assert.Equal("HTML", parameters.Get<string>("linguagem"));
+        var csharp = ApiScriptOperations.BuildWhere(null, null, null, null, "csharp");
+        Assert.Equal(new[] { "UPPER(s.LINGUAGEM) = @linguagem" }, csharp.Where);
+        Assert.Equal("C#", csharp.Params.Get<string>("linguagem"));
+        var legacyCsharp = ApiScriptOperations.BuildWhere(null, null, null, null, "C#");
+        Assert.Equal("C#", legacyCsharp.Params.Get<string>("linguagem"));
+        var invalid = ApiScriptOperations.BuildWhere("unknown", "true", "9", "x' OR 1=1 --", "JavaScript");
         Assert.Equal(new[] { "1=1" }, invalid.Where);
         Assert.Empty(invalid.Params.ParameterNames);
-        var latest = ApiScriptOperations.BuildWhere(null, null, null, null, ["s.DATA_VERIFICACAO IS NOT NULL"]);
+        var latest = ApiScriptOperations.BuildWhere(null, null, null, null, null, ["s.DATA_VERIFICACAO IS NOT NULL"]);
         Assert.Equal(new[] { "s.DATA_VERIFICACAO IS NOT NULL" }, latest.Where);
     }
 }
