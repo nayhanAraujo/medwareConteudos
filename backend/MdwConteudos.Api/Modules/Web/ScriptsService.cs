@@ -247,7 +247,9 @@ public class ScriptsService
             int? codVersao = null;
             string? ultimaVersao = null;
             var versaoRow = await conn.QueryFirstOrDefaultAsync(@"
-                SELECT CODVERSAO, NUMERO_VERSAO FROM SCRIPTVERSOES
+                SELECT CODVERSAO, NUMERO_VERSAO,
+                       CASE WHEN ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON
+                FROM SCRIPTVERSOES
                 WHERE CODSCRIPTLAUDO = @cod AND ATIVO = 'T'
                 ORDER BY DATA_CRIACAO DESC ROWS 1", new { cod });
             if (versaoRow != null)
@@ -255,6 +257,7 @@ public class ScriptsService
                 var vd = (IDictionary<string, object>)versaoRow;
                 codVersao = Convert.ToInt32(vd["CODVERSAO"]);
                 ultimaVersao = vd["NUMERO_VERSAO"]?.ToString();
+                if (SafeInt(vd["TEM_JSON"]) == 1) d["TEM_JSON"] = 1;
             }
 
             var imagens = arquivos.Where(a => a.Tipo == "IMAGEM").ToList();
@@ -1381,7 +1384,12 @@ public class ScriptsService
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         return await conn.ExecuteScalarAsync<byte[]?>(
-            "SELECT ARQUIVO_JSON FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @id", new { id });
+            @"SELECT COALESCE(
+                (SELECT FIRST 1 sv.ARQUIVO_JSON FROM SCRIPTVERSOES sv
+                 WHERE sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO AND sv.ATIVO = 'T'
+                 ORDER BY sv.DATA_CRIACAO DESC),
+                s.ARQUIVO_JSON)
+              FROM SCRIPTLAUDO s WHERE s.CODSCRIPTLAUDO = @id", new { id });
     }
 
     public async Task<byte[]?> ExportDllAsync(int id)

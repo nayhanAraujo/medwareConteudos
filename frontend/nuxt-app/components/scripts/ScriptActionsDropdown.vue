@@ -107,7 +107,7 @@ const azureDisponivel = computed(
 )
 const dllDisponivel = computed(() => props.item.sistema === 'Laudos Flex' && props.item.temArquivoDll)
 const showExportJson = computed(
-  () => props.item.sistema === 'Laudos UX' && props.item.temArquivoJson && !props.item.ultimaVersao
+  () => props.item.sistema === 'Laudos UX' && props.item.temArquivoJson
 )
 
 async function exportJson() {
