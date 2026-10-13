@@ -86,17 +86,25 @@ public sealed class ScriptJsonExportTests
             var individualFiles = ReadZip(individual.FileContents);
             Assert.Equal(3, individualFiles.Count);
             Assert.Equal(Encoding.UTF8.GetString(latest), individualFiles["Modelo_2/Modelo.json"]);
-            Assert.Equal("ultima-1", individualFiles["Modelo_2/mrds/versao.mrd"]);
-            Assert.Equal("ultima-2", individualFiles["Modelo_2/mrds/versao_3.mrd"]);
+            Assert.Equal("ultima-1", individualFiles["Modelo_2/mrds/versao.json"]);
+            Assert.Equal("ultima-2", individualFiles["Modelo_2/mrds/versao_3.json"]);
 
             var batch = Assert.IsType<FileContentResult>(await controller.ExportBatch(new([1, 2, 3, 1])));
             Assert.Equal("application/zip", batch.ContentType);
             var files = ReadZip(batch.FileContents);
             Assert.Equal(8, files.Count);
             Assert.Equal(Encoding.UTF8.GetString(principal), files["Modelo_1/Modelo.json"]);
-            Assert.Equal("base-1", files["Modelo_1/mrds/base.mrd"]);
-            Assert.Equal("base-2", files["Modelo_1/mrds/base_2.mrd"]);
-            Assert.Equal("fallback", files["Modelo_3/mrds/.._fallback.mrd"]);
+            Assert.Equal("base-1", files["Modelo_1/mrds/base.json"]);
+            Assert.Equal("base-2", files["Modelo_1/mrds/base_2.json"]);
+            Assert.Equal("fallback", files["Modelo_3/mrds/.._fallback.json"]);
+            foreach (var name in new[] { "RECEITA ESPECIAL", "RECEITA ESPECIAL.mrd", "RECEITA ESPECIAL.json" })
+            {
+                await connection.ExecuteAsync("UPDATE SCRIPTLAUDOMRD SET NOME_ARQUIVO=@name WHERE CODSCRIPTMRD=1", new { name });
+                var mrd = Assert.IsType<FileContentResult>(await controller.ExportMrd(1, 1));
+                Assert.Equal("RECEITA ESPECIAL.json", mrd.FileDownloadName);
+                Assert.Equal("application/json", mrd.ContentType);
+                Assert.Equal("base-1"u8.ToArray(), mrd.FileContents);
+            }
             Assert.DoesNotContain(files.Values, content => content == "nao-incluir");
             Assert.All(files.Keys, path => Assert.DoesNotContain("../", path));
 

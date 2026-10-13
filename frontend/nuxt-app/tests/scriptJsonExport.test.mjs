@@ -55,6 +55,10 @@ test('Individual package selects extension and batch creates one POST and downlo
   globalThis.document = { createElement: () => ({ click() { downloads.push(this.download) } }) }
   try {
     const api = useScriptsApi()
+    for (const name of ['RECEITA ESPECIAL', 'RECEITA ESPECIAL.mrd', 'RECEITA ESPECIAL.json']) {
+      await api.download('/api/web/scripts/1/exportar-mrd', name)
+      assert.equal(downloads.pop(), 'RECEITA ESPECIAL.json')
+    }
     await api.downloadScriptPackage(1, 'Modelo')
     assert.deepEqual(downloads, ['Modelo.json'])
     mime = 'application/zip'

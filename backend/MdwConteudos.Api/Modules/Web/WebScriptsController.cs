@@ -419,7 +419,7 @@ public class WebScriptsController : ControllerBase
     {
         var r = await _scripts.ExportMrdAsync(id, codScriptMrd);
         if (r == null) return NotFound();
-        return File(r.Value.content, "application/octet-stream", r.Value.filename);
+        return File(r.Value.content, r.Value.mime, r.Value.filename);
     }
 
     [HttpGet("{id:int}/projeto-azure")]

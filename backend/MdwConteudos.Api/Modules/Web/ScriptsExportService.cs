@@ -6,6 +6,8 @@ namespace MdwConteudos.Api.Modules.Web;
 
 public partial class ScriptsService
 {
+    private static string JsonMrdFilename(string name) =>
+        Path.ChangeExtension(SafeExportName(name, "arquivo"), ".json");
     private sealed record ExportMrd(int Id, string Name, byte[] Content);
     private sealed record ScriptExport(int Id, string Name, string System, byte[]? Json, List<ExportMrd> Mrds);
 
@@ -106,6 +108,7 @@ public partial class ScriptsService
                 foreach (var mrd in script.Mrds)
                 {
                     var filename = SafeExportName(mrd.Name, $"arquivo_{mrd.Id}.mrd");
+                    if (script.System == "Laudos UX") filename = JsonMrdFilename(filename);
                     var original = filename;
                     var suffix = 0;
                     while (!names.Add(filename))

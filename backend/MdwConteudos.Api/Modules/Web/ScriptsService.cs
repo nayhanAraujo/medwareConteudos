@@ -1394,10 +1394,13 @@ public partial class ScriptsService
             "SELECT DLL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @id", new { id });
     }
 
-    public async Task<(byte[] content, string filename)?> ExportMrdAsync(int id, int? codScriptMrd)
+    public async Task<(byte[] content, string filename, string mime)?> ExportMrdAsync(int id, int? codScriptMrd)
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
+        var sistema = await conn.ExecuteScalarAsync<string>(
+            "SELECT SISTEMA FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @id", new { id });
+        var mime = sistema == "Laudos UX" ? "application/json" : "application/octet-stream";
         if (codScriptMrd.HasValue)
         {
             var row = await conn.QueryFirstOrDefaultAsync(@"
@@ -1405,14 +1408,16 @@ public partial class ScriptsService
                 WHERE CODSCRIPTMRD = @m AND CODSCRIPTLAUDO = @id", new { m = codScriptMrd, id });
             if (row == null) return null;
             var d = (IDictionary<string, object>)row;
-            return ((byte[])d["ARQUIVO_MRD"], d["NOME_ARQUIVO"]?.ToString() ?? "arquivo.mrd");
+            var name = d["NOME_ARQUIVO"]?.ToString() ?? "arquivo.mrd";
+            return ((byte[])d["ARQUIVO_MRD"], sistema == "Laudos UX" ? JsonMrdFilename(name) : name, mime);
         }
         var padrao = await conn.QueryFirstOrDefaultAsync(@"
             SELECT NOME_ARQUIVO, ARQUIVO_MRD FROM SCRIPTLAUDOMRD
             WHERE CODSCRIPTLAUDO = @id AND PADRAO = 'T' ROWS 1", new { id });
         if (padrao == null) return null;
         var p = (IDictionary<string, object>)padrao;
-        return ((byte[])p["ARQUIVO_MRD"], p["NOME_ARQUIVO"]?.ToString() ?? "arquivo.mrd");
+        var filename = p["NOME_ARQUIVO"]?.ToString() ?? "arquivo.mrd";
+        return ((byte[])p["ARQUIVO_MRD"], sistema == "Laudos UX" ? JsonMrdFilename(filename) : filename, mime);
     }
 
     public async Task<string?> GetAzureUrlAsync(int id) =>

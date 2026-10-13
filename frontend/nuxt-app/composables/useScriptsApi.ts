@@ -281,7 +281,12 @@ export function useScriptsApi() {
   }
 
   const download = (path: string, filename: string) =>
-    api.getBlob(path).then((blob) => saveBlob(blob, filename))
+    api.getBlob(path).then((blob) => {
+      if (blob.type.split(';')[0] === 'application/json') {
+        filename = filename.replace(/\.(json|mrd)$/i, '') + '.json'
+      }
+      saveBlob(blob, filename)
+    })
 
   const downloadScriptPackage = async (id: number, name: string) => {
     const blob = await api.getBlob(`/api/web/scripts/${id}/exportar-pacote`)
