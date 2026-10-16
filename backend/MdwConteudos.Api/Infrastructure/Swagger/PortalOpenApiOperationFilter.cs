@@ -63,6 +63,10 @@ public sealed class PortalOpenApiOperationFilter : IOperationFilter
                 case nameof(ApiPublicaController.ScriptImagem):
                     Binary(operation, "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "application/octet-stream");
                     break;
+                case nameof(ApiPublicaController.PacoteIcone):
+                    Binary(operation, "image/png");
+                    operation.Responses!["200"].Headers!.Remove("Content-Disposition");
+                    break;
             }
             if (context.MethodInfo.Name == nameof(ApiPublicaController.Ecodoppler))
             {

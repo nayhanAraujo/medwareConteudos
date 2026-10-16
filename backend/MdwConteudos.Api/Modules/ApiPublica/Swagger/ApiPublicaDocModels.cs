@@ -165,6 +165,12 @@ public record RelatorioItemDoc(
     [property: JsonPropertyName("ativo")] int? Ativo,
     [property: JsonPropertyName("tem_multiselecao")] bool TemMultiselecao);
 
+public record PacoteItemDoc(
+    [property: JsonPropertyName("codpacote")] int CodPacote,
+    [property: JsonPropertyName("nome")] string? Nome,
+    [property: JsonPropertyName("descricao")] string? Descricao,
+    [property: JsonPropertyName("icone_url")] string? IconeUrl);
+
 public class ScriptItemDoc
 {
     [JsonPropertyName("codscriptlaudo")] public int Codscriptlaudo { get; set; }
@@ -177,6 +183,7 @@ public class ScriptItemDoc
     [JsonPropertyName("ativo")] public bool Ativo { get; set; }
     [JsonPropertyName("aprovado_por")] public string AprovadoPor { get; set; } = "";
     [JsonPropertyName("pacote_nome")] public string PacoteNome { get; set; } = "";
+    [JsonPropertyName("pacote_icone_url")] public string? PacoteIconeUrl { get; set; }
     [JsonPropertyName("codpacote")] public int? Codpacote { get; set; }
     [JsonPropertyName("numero_versao"), DocOptional] public string? NumeroVersao { get; set; }
     [JsonPropertyName("imagens"), DocOptional] public List<ScriptArquivoDoc> Imagens { get; set; } = [];

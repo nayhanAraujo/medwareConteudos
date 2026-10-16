@@ -5,6 +5,8 @@ namespace MdwConteudos.Api.Modules.ApiPublica.Swagger;
 
 public static class ApiPublicaOpenApiExamples
 {
+    public static JsonNode PacotesOk => List(Node(new { codpacote = 1, nome = "Cardiologia", descricao = (string?)null, icone_url = "/apiconteudos/v1/pacotes/1/icone" }));
+    public static JsonNode Pacote404 => Node(new { success = false, error = "Pacote ou icone nao encontrado" });
     // Entirely synthetic fixtures. Ranges illustrate the wire format, not clinical guidance.
     private const string Ts = "2026-01-15T12:00:00";
     public static JsonNode TokenRequest => Node(new { senha = "<SENHA_DO_PARCEIRO>" });
@@ -139,6 +141,7 @@ public static class ApiPublicaOpenApiExamples
         codscriptlaudo = 20, nome = "Modelo demonstrativo", descricao = "Exemplo sintético",
         linguagem = "JavaScript", sistema = "Laudos UX", aprovado = true, data_verificacao = Ts,
         ativo = true, aprovado_por = "", pacote_nome = "Cardiologia", codpacote = 1,
+        pacote_icone_url = "/apiconteudos/v1/pacotes/1/icone",
         numero_versao = "1.0",
         imagens = new[] { new { nome = "interface-exemplo.png", caminho = "uploads/exemplos/interface-exemplo.png" } },
         pdfs = new[] { new { nome = "modelo-exemplo.pdf", caminho = "uploads/exemplos/modelo-exemplo.pdf" } },

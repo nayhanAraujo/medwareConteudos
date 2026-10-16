@@ -16,7 +16,8 @@ public class ApiScriptOperations
     private const string ScriptListSelect = @"
         SELECT s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
                s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.APROVADO_POR,
-               p.NOME AS NOME_PACOTE, s.CODPACOTE
+               p.NOME AS NOME_PACOTE, s.CODPACOTE,
+               CASE WHEN OCTET_LENGTH(p.ICONE_BASE64) > 0 THEN 1 ELSE 0 END AS TEM_ICONE
         FROM SCRIPTLAUDO s
         LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE";
 
@@ -84,7 +85,8 @@ public class ApiScriptOperations
             SELECT FIRST 1
             s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
             s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.APROVADO_POR,
-            p.NOME AS NOME_PACOTE, s.CODPACOTE
+            p.NOME AS NOME_PACOTE, s.CODPACOTE,
+            CASE WHEN OCTET_LENGTH(p.ICONE_BASE64) > 0 THEN 1 ELSE 0 END AS TEM_ICONE
             FROM SCRIPTLAUDO s
             LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE
             WHERE {string.Join(" AND ", where)}
@@ -246,7 +248,9 @@ public class ApiScriptOperations
             ["ativo"] = Convert.ToBoolean(row.ATIVO),
             ["aprovado_por"] = (string?)row.APROVADO_POR ?? "",
             ["pacote_nome"] = (string?)row.NOME_PACOTE ?? "",
-            ["codpacote"] = row.CODPACOTE
+            ["codpacote"] = row.CODPACOTE,
+            ["pacote_icone_url"] = Convert.ToInt32(row.TEM_ICONE) == 1
+                ? ApiPublicaService.PacoteIconUrl((int)row.CODPACOTE) : null
         };
 
         if (!incluirArquivos) return item;

@@ -10,6 +10,8 @@ namespace MdwConteudos.Api.Modules.ApiPublica;
 
 public interface IApiPublicaService
 {
+    Task<IActionResult> GetPacotesAsync(CancellationToken ct);
+    Task<IActionResult> GetPacoteIconeAsync(int codpacote, CancellationToken ct);
     Task<IActionResult> ObterTokenAsync(TokenRequest? body, CancellationToken ct);
     Task<IActionResult> HealthAsync(CancellationToken ct);
     Task<IActionResult> GetVariaveisAsync(string? especialidade, string? unidade, CancellationToken ct);
@@ -33,7 +35,7 @@ public interface IApiPublicaService
     Task<IActionResult> GetClientePadroesNormalidadeAsync(string clienteKey, CancellationToken ct);
 }
 
-public class ApiPublicaService : IApiPublicaService
+public partial class ApiPublicaService : IApiPublicaService
 {
     private readonly IFirebirdConnectionFactory _db;
     private readonly ApiPartnerOptions _opts;

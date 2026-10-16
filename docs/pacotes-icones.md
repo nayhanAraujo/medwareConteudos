@@ -1,5 +1,27 @@
 # Icones dos pacotes
 
+## Consumo pela API publica
+
+`GET /apiconteudos/v1/pacotes` retorna `success`, `data`, `total` e `timestamp`.
+Cada pacote possui `codpacote`, `nome`, `descricao` e `icone_url`.
+A URL e relativa a origem da API (por exemplo,
+`/apiconteudos/v1/pacotes/1/icone`); resolva usando a origem do servidor.
+`icone_url` e null quando o pacote nao possui imagem.
+
+`GET /apiconteudos/v1/pacotes/{codpacote}/icone` devolve bytes PNG com
+`Content-Type: image/png`. Envie `Authorization: Bearer <token>` em ambas as
+requisicoes. Em navegadores, use fetch autenticado e uma URL de Blob para
+mostrar a imagem. Pacote inexistente ou sem imagem retorna 404 JSON.
+A imagem inclui ETag e Cache-Control private, no-cache: envie If-None-Match
+com o ETag anterior para receber 304 sem corpo quando ela nao mudou.
+
+As mesmas rotas existem em `/api/v1`. A listagem de scripts e o ultimo
+verificado incluem `pacote_icone_url`, mesmo com `incluir_arquivos=0`.
+O campo e null para scripts sem pacote ou pacote sem icone. Base64 nao e
+repetido nos scripts. Os contratos aparecem em `/apiconteudos/docs` e Swagger.
+
+## Preparacao do banco
+
 Antes de iniciar a API atualizada, execute no diretorio backend/MdwConteudos.Api:
 
 ```powershell

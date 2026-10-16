@@ -80,10 +80,10 @@ public sealed class PortalOpenApiTests : IDisposable
     }
 
     [Fact]
-    public void Public_definition_contains_exactly_22_operations_and_no_untyped_success()
+    public void Public_definition_contains_exactly_24_operations_and_no_untyped_success()
     {
         var doc = _swagger.GetSwagger(SwaggerDocPaths.Parceiros);
-        Assert.Equal(22, Operations(doc).Count());
+        Assert.Equal(24, Operations(doc).Count());
         Assert.All(doc.Paths.Keys, p => Assert.StartsWith("/apiconteudos/v1/", p));
         Assert.All(Operations(doc), op =>
         {
@@ -91,6 +91,24 @@ public sealed class PortalOpenApiTests : IDisposable
             Assert.NotEmpty(response.Content!);
             Assert.All(response.Content.Values, media => AssertTyped(media.Schema!, doc, new HashSet<string>()));
         });
+    }
+
+    [Fact]
+    public void Packages_are_documented_with_authenticated_png_and_nullable_script_url()
+    {
+        foreach (var (name, prefix) in new[] { (SwaggerDocPaths.Parceiros, "/apiconteudos/v1"), (SwaggerDocPaths.ApiInterna, "/api/v1") })
+        {
+            var doc = _swagger.GetSwagger(name);
+            Assert.NotNull(Get(doc, prefix + "/pacotes").Responses!["200"].Content!["application/json"].Example);
+            var icon = Get(doc, prefix + "/pacotes/{codpacote}/icone");
+            Assert.NotEmpty(icon.Security!);
+            Assert.Equal("image/png", Assert.Single(icon.Responses!["200"].Content!).Key);
+            Assert.Equal("binary", icon.Responses["200"].Content!["image/png"].Schema!.Format);
+            Assert.Empty(icon.Responses["304"].Content!);
+            var script = doc.Components!.Schemas![nameof(ScriptItemDoc)];
+            Assert.Contains("pacote_icone_url", script.Required!);
+            Assert.True(script.Properties!["pacote_icone_url"].Type!.Value.HasFlag(JsonSchemaType.Null));
+        }
     }
 
     [Fact]

@@ -216,6 +216,29 @@ public class ApiPublicaController : ControllerBase
         CancellationToken ct) =>
         _api.DownloadRelatorioAsync(codrelatorio, ct);
 
+    [HttpGet("apiconteudos/v1/pacotes")]
+    [HttpGet("api/v1/pacotes")]
+    [Produces("application/json")]
+    [SwaggerOperation(Summary = "Listar pacotes", Description = "Retorna os pacotes cadastrados. icone_url e relativa a origem da API; null quando nao ha icone. A imagem exige o mesmo JWT da listagem.", Tags = new[] { "Pacotes" })]
+    [SwaggerResponse(200, "Lista de pacotes", typeof(ApiListDoc<PacoteItemDoc>))]
+    [SwaggerResponse(401, "JWT ausente ou invalido", typeof(ApiErrorDoc))]
+    [SwaggerResponse(500, "Erro interno", typeof(ApiErrorDoc))]
+    public Task<IActionResult> Pacotes(CancellationToken ct) => _api.GetPacotesAsync(ct);
+
+    [HttpGet("apiconteudos/v1/pacotes/{codpacote:int}/icone")]
+    [HttpGet("api/v1/pacotes/{codpacote:int}/icone")]
+    [SwaggerOperation(Summary = "Icone do pacote", Description = "Retorna PNG do banco. Envie o JWT no Authorization. ETag permite revalidar com If-None-Match e receber 304 quando a imagem nao mudou.", Tags = new[] { "Pacotes" })]
+    [SwaggerResponse(200, "Imagem PNG")]
+    [SwaggerResponse(304, "Imagem nao modificada")]
+    [SwaggerResponse(401, "JWT ausente ou invalido", typeof(ApiErrorDoc))]
+    [SwaggerResponse(404, "Pacote ou icone nao encontrado", typeof(ApiErrorDoc))]
+    [SwaggerResponse(500, "Erro interno", typeof(ApiErrorDoc))]
+    public Task<IActionResult> PacoteIcone(int codpacote, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "private, no-cache";
+        return _api.GetPacoteIconeAsync(codpacote, ct);
+    }
+
     [HttpGet("apiconteudos/v1/scripts")]
     [HttpGet("api/v1/scripts")]
     [Produces("application/json")]
@@ -224,7 +247,8 @@ public class ApiPublicaController : ControllerBase
         Description =
             "Lista modelos de laudo. Com `incluir_arquivos=1` (padrão), inclui imagens, PDFs e MRDs " +
             "(prioriza versão ATIVA quando existir). Use `incluir_arquivos=0` para resposta enxuta. " +
-            "Filtre por linguagem com `linguagem=Csharp` ou `linguagem=HTML`.",
+            "Filtre por linguagem com `linguagem=Csharp` ou `linguagem=HTML`. " +
+            "pacote_icone_url e relativa a origem da API e aparece mesmo com incluir_arquivos=0; null quando nao ha icone. A imagem exige JWT.",
         Tags = new[] { "Scripts" })]
     [SwaggerResponse(200, "Lista de scripts", typeof(ApiListDoc<ScriptItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]
