@@ -28,7 +28,7 @@ using ConversorHtml.Application;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-permissions").ToArray());
+var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-permissions" && arg != "--migrate-package-icons").ToArray());
 // Override local por máquina (appsettings.*.local.json está no .gitignore)
 builder.Configuration.AddJsonFile(
     $"appsettings.{builder.Environment.EnvironmentName}.local.json",
@@ -168,7 +168,7 @@ builder.Services.AddSwaggerGen(c =>
             "Base **/apiconteudos/v1** com autenticação JWT.\n\n" +
             "**Como usar:**\n" +
             "1. Chame `POST /apiconteudos/v1/token` com `{\"senha\":\"...\"}` (sem Authorize).\n" +
-            "2. Clique em **Authorize** e informe `Bearer <token>`.\n" +
+            "2. Clique em **Authorize** e informe somente o valor de `token`; o Swagger acrescenta `Bearer`.\n" +
             "3. Use **Try it out** nos demais endpoints.\n\n" +
             "Os mesmos recursos existem em `/api/v1` com JWT de parceiro ou web (documento separado na UI)."
     });
@@ -231,6 +231,12 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 ProductionSecurity.Validate(app);
 HomologacaoGuard.Validate(app);
+if (args.Contains("--migrate-package-icons", StringComparer.Ordinal))
+{
+    using var iconScope = app.Services.CreateScope();
+    await MdwConteudos.Api.Modules.Cadastros.PacoteIcone.MigrateAsync(iconScope.ServiceProvider.GetRequiredService<IFirebirdConnectionFactory>());
+    return;
+}
 using (var scope = app.Services.CreateScope())
 {
     var permissions = scope.ServiceProvider.GetRequiredService<IPermissionService>();
@@ -293,7 +299,9 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
     c.SwaggerEndpoint($"/swagger/{SwaggerDocPaths.Parceiros}/swagger.json", "API Parceiros (JWT)");
     c.DisplayRequestDuration();
-    c.SupportedSubmitMethods(Swashbuckle.AspNetCore.SwaggerUI.SubmitMethod.Get);
+    c.SupportedSubmitMethods(
+        Swashbuckle.AspNetCore.SwaggerUI.SubmitMethod.Get,
+        Swashbuckle.AspNetCore.SwaggerUI.SubmitMethod.Post);
 });
 app.MapGet("/apiconteudos/docs", () => Results.Redirect(
     app.Configuration["Documentation:PortalUrl"] ?? "http://localhost:3000/apiconteudos/docs"));
