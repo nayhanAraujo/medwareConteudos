@@ -18,6 +18,9 @@ export default defineNuxtConfig({
   ],
   vite: {
     plugins: [tailwindcss()],
+    optimizeDeps: {
+      include: ['sweetalert2']
+    },
     server: {
       proxy: {
         '/static': {

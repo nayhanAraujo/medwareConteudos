@@ -55,6 +55,21 @@ public sealed class ScriptJsonExportTests
             typeof(ScriptsService).GetField("_connectionString", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .SetValue(service, connectionString);
             var controller = new WebScriptsController(service);
+            await connection.ExecuteAsync("CREATE TABLE SCRIPTARQUIVOS (CODARQUIVO INTEGER PRIMARY KEY, TIPO VARCHAR(20), CAMINHO VARCHAR(100))");
+            await connection.ExecuteAsync("CREATE TABLE SCRIPTVERSAOARQUIVOS (CODARQUIVO INTEGER PRIMARY KEY, CAMINHO VARCHAR(100))");
+            await connection.ExecuteAsync("INSERT INTO SCRIPTARQUIVOS VALUES (10, 'PDF', NULL)");
+            await connection.ExecuteAsync("INSERT INTO SCRIPTARQUIVOS VALUES (11, 'IMAGEM', NULL)");
+            await connection.ExecuteAsync("INSERT INTO SCRIPTARQUIVOS VALUES (12, 'OUTRO', NULL)");
+            await connection.ExecuteAsync("INSERT INTO SCRIPTVERSAOARQUIVOS VALUES (10, NULL)");
+            Assert.IsType<OkObjectResult>(await controller.DeleteScriptImage(10));
+            Assert.Equal(0, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTARQUIVOS WHERE CODARQUIVO=10"));
+            Assert.Equal(1, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTVERSAOARQUIVOS WHERE CODARQUIVO=10"));
+            Assert.IsType<OkObjectResult>(await controller.DeleteVersaoAnexo(10));
+            Assert.Equal(0, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTVERSAOARQUIVOS WHERE CODARQUIVO=10"));
+            Assert.IsType<OkObjectResult>(await controller.DeleteScriptImage(11));
+            Assert.IsType<BadRequestObjectResult>(await controller.DeleteScriptImage(12));
+            Assert.IsType<BadRequestObjectResult>(await controller.DeleteScriptImage(999));
+            Assert.Equal(1, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTARQUIVOS WHERE CODARQUIVO=12"));
 
             foreach (var (id, expected) in new[] { (1, principal), (2, latest), (3, principal) })
             {

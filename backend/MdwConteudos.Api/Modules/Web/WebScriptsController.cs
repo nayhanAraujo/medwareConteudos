@@ -56,6 +56,23 @@ public class WebScriptsController : ControllerBase
         return Ok(new { success = true, exists });
     }
 
+    [HttpPost("excluir-lote")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteBatch([FromBody] DeleteScriptsRequest request)
+    {
+        try
+        {
+            var deleted = await _scripts.DeleteScriptsAsync(request.Ids);
+            return Ok(new { success = true, deleted });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    public record DeleteScriptsRequest(List<int>? Ids);
+
     [HttpPost("transferir-pacote/validar")]
     [RequirePermission(PermissionDomains.Scripts, PermissionActions.Editar)]
     public async Task<IActionResult> ValidatePackageTransfer([FromBody] TransferPackageRequest req)
@@ -196,7 +213,7 @@ public class WebScriptsController : ControllerBase
     {
         try
         {
-            await _scripts.DeleteScriptImageAsync(codArquivo);
+            await _scripts.DeleteScriptAttachmentAsync(codArquivo);
             return Ok(new { success = true });
         }
         catch (InvalidOperationException ex)

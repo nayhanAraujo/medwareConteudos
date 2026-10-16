@@ -54,7 +54,8 @@ public sealed class PublicacaoService(
         }
         var whereSql = where.Count == 0 ? "" : $"WHERE {string.Join(" AND ", where)}";
         var rows = (await source.QueryAsync<PublicationRow>(new CommandDefinition($"""
-            SELECT q.CODSCRIPTLAUDO AS Id, s.NOME AS Nome, s.CODPACOTE AS PackageId, p.NOME AS PackageName, s.SISTEMA AS Sistema,
+            SELECT q.CODSCRIPTLAUDO AS Id, CASE WHEN s.CODSCRIPTLAUDO IS NULL THEN 0 ELSE 1 END AS SourceExists,
+            s.NOME AS Nome, s.CODPACOTE AS PackageId, p.NOME AS PackageName, s.SISTEMA AS Sistema,
             s.APROVADO AS ScriptApproved, s.APROVADO_POR AS ScriptApprovedBy, s.DATA_VERIFICACAO AS ScriptApprovalDate,
             (SELECT FIRST 1 v.CODVERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionId,
             (SELECT FIRST 1 v.NUMERO_VERSAO FROM SCRIPTVERSOES v WHERE v.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO AND v.ATIVO='T' ORDER BY v.CODVERSAO DESC) AS VersionNumber,
@@ -91,9 +92,11 @@ public sealed class PublicacaoService(
         }
         await using var target = await targetFactory.OpenConnectionAsync(ct);
         var suspended = (await target.QueryAsync<int>(new CommandDefinition("SELECT CODORIGEM FROM CON_PUBLICACAO WHERE ORIGEM=@Origin AND SUSPENSO=1", new { Origin }, cancellationToken: ct))).ToHashSet();
-        var projected = rows.Select(row => ToPublicationItem(row, suspended)).ToList();
+        var projected = rows
+            .Where(row => row.SourceExists || row.Estado != "sincronizado" || row.CodDestino.HasValue)
+            .Select(row => ToPublicationItem(row, suspended)).ToList();
         if (approved is 0 or 1)
-            projected = projected.Where(x => x.AprovadoPublicacao == (approved == 1)).ToList();
+            projected = projected.Where(x => !x.ExcluidoOrigem && x.AprovadoPublicacao == (approved == 1)).ToList();
         var summary = projected.GroupBy(x => x.Estado).ToDictionary(x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(state))
             projected = projected.Where(x => string.Equals(x.Estado, state.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
@@ -234,6 +237,8 @@ public sealed class PublicacaoService(
     {
         RequireEnabled();
         await using var source = await sourceFactory.OpenConnectionAsync(ct);
+        if (resume && await source.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id", new { id }, cancellationToken: ct)) == 0)
+            throw new InvalidOperationException("Não é possível retomar a publicação de um script excluído na origem.");
         if (id <= 0 || await source.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id", new { id }, cancellationToken: ct)) == 0
             && await source.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM ASS_PUBLICACAO WHERE CODSCRIPTLAUDO=@id", new { id }, cancellationToken: ct)) == 0)
             throw new InvalidOperationException("Script de origem inexistente.");
@@ -429,6 +434,25 @@ public sealed class PublicacaoService(
             SELECT CODDESTINO AS Id, CODMRD AS MrdId, REVISAO AS Revision, SUSPENSO AS Suspended, BLOQUEADO AS Blocked
             FROM CON_PUBLICACAO WHERE ORIGEM=@Origin AND CODORIGEM=@SourceId WITH LOCK
             """, key, tx, cancellationToken: ct));
+        if (payload is null)
+        {
+            if (control?.Id is int destination)
+            {
+                foreach (var table in new[] { "SCRIPTLAUDO_ESPECIALIDADE", "SCRIPTLAUDO_ESQUEMA", "SCRIPTLAUDO_PAGFOTOS", "PROCEDIMENTO_SCRIPTLAUDO" })
+                    await target.ExecuteAsync(new CommandDefinition($"DELETE FROM {table} WHERE CODSCRIPTLAUDO=@destination",
+                        new { destination }, tx, cancellationToken: ct));
+                await target.ExecuteAsync(new CommandDefinition("DELETE FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@destination",
+                    new { destination }, tx, cancellationToken: ct));
+            }
+            await target.ExecuteAsync(new CommandDefinition("DELETE FROM CON_PUBLICACAO_ESP WHERE ORIGEM=@Origin AND CODORIGEM=@SourceId", key, tx, cancellationToken: ct));
+            await target.ExecuteAsync(new CommandDefinition("DELETE FROM CON_PUBLICACAO_MRD_ESP WHERE ORIGEM=@Origin AND CODORIGEM=@SourceId", key, tx, cancellationToken: ct));
+            await target.ExecuteAsync(new CommandDefinition("""
+                UPDATE CON_PUBLICACAO SET CODDESTINO=NULL, REVISAO=@Revision, SUSPENSO=1, INATIVO_ORIGEM=1
+                WHERE ORIGEM=@Origin AND CODORIGEM=@SourceId
+                """, new { Origin, SourceId = job.Id, job.Revision }, tx, cancellationToken: ct));
+            await tx.CommitAsync(ct);
+            return ("sincronizado", null);
+        }
         if (control?.Suspended == 1) return ("suspenso", control.Id);
         if (control is not null && control.Revision >= job.Revision) return ("sincronizado", control.Id);
         if (control is null)
@@ -534,13 +558,14 @@ public sealed class PublicacaoService(
     {
         var hasVersion = row.VersionId.HasValue;
         var approved = hasVersion ? IsApproved(row.VersionApproved) : IsApproved(row.ScriptApproved);
-        var state = suspended.Contains(row.Id) ? "suspenso" : row.Estado;
-        if (!approved && state != "suspenso")
+        var state = !row.SourceExists ? "remocao_pendente" : suspended.Contains(row.Id) ? "suspenso" : row.Estado;
+        if (row.SourceExists && !approved && state != "suspenso")
             state = "aguardando_aprovacao";
         var approvalOrigin = hasVersion ? "versao_ativa" : "script";
         return new PublicationItem(row.Id, row.Nome, state, row.Erro, row.PublicadoEm, row.CodDestino, row.PackageId, row.PackageName, row.Sistema,
             approved, approvalOrigin, hasVersion ? row.VersionApprovedBy : row.ScriptApprovedBy,
-            hasVersion ? row.VersionApprovalDate : row.ScriptApprovalDate, row.VersionNumber, row.Revisao, row.Tentativas);
+            hasVersion ? row.VersionApprovalDate : row.ScriptApprovalDate, row.VersionNumber, row.Revisao, row.Tentativas)
+        { ExcluidoOrigem = !row.SourceExists };
     }
 
     private async Task<int[]> ValidateSpecialties(int[] ids, CancellationToken ct)
@@ -613,6 +638,7 @@ public sealed class PublicacaoService(
         bool Approved, string ApprovalOrigin, string? ApprovedBy, DateTime? ApprovalDate, string? VersionNumber);
     private sealed class PublicationRow
     {
+        public bool SourceExists { get; set; } = true;
         public int Id { get; set; }
         public string? Nome { get; set; }
         public string Estado { get; set; } = "";
@@ -638,6 +664,7 @@ public sealed class PublicacaoService(
         DateTime? DataAprovacao, string? NumeroVersaoAtiva, long Revisao, int Tentativas)
     {
         public string[] EspecialidadesDestino { get; init; } = [];
+        public bool ExcluidoOrigem { get; init; }
     }
     private sealed class DestinationSpecialtyRow
     {

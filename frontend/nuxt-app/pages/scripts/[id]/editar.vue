@@ -9,12 +9,15 @@
         v-model="form"
         :pacotes="pacotes"
         :existing-imagens="existingImagens"
+        :existing-pdfs="existingPdfs"
+        :deleting-pdf="deletingPdf"
         edit-mode
         :loading="loading"
         @submit="salvar"
         @cancel="voltar"
         @files="(f) => (fileRefs = f)"
         @delete-existing-image="excluirImagem"
+        @delete-existing-pdf="excluirPdf"
       />
     </DsPageShell>
   </div>
@@ -37,6 +40,8 @@ const loadingData = ref(true)
 const pacotes = ref<{ codPacote: number; nome: string }[]>([])
 const fileRefs = ref<Record<string, File | FileList | null>>({})
 const existingImagens = ref<ScriptImagePreview[]>([])
+const existingPdfs = ref<ScriptImagePreview[]>([])
+const deletingPdf = ref(false)
 
 const form = ref<ScriptFormModel>({
   nome: '',
@@ -75,10 +80,15 @@ onMounted(async () => {
   existingImagens.value = imgs
     .map((x) => ({ codArquivo: Number(x.codArquivo || 0), caminho: String(x.caminho || ''), nomeArquivo: String(x.nomeArquivo || '') }))
     .filter((x) => x.codArquivo > 0 && !!x.caminho)
+  const pdfs = Array.isArray(s.pdfs) ? (s.pdfs as Array<Record<string, unknown>>) : []
+  existingPdfs.value = pdfs
+    .map((x) => ({ codArquivo: Number(x.codArquivo || 0), caminho: String(x.caminho || ''), nomeArquivo: String(x.nomeArquivo || '') }))
+    .filter((x) => x.codArquivo > 0 && !!x.caminho)
   loadingData.value = false
 })
 
 async function salvar() {
+  if (deletingPdf.value) return
   loading.value = true
   try {
     const fd = buildScriptFormData(form.value, fileRefs.value)
@@ -101,6 +111,22 @@ async function excluirImagem(imagem: ScriptImagePreview) {
     await swal.toast('Imagem excluída com sucesso.', 'success')
   } catch (error: unknown) {
     await swal.error('Erro ao excluir imagem', error instanceof Error ? error.message : 'Tente novamente.')
+  }
+}
+
+async function excluirPdf(pdf: ScriptImagePreview) {
+  if (deletingPdf.value || loading.value) return
+  deletingPdf.value = true
+  try {
+    const result = await swal.confirm('Excluir impressão PDF?', `O arquivo ${pdf.nomeArquivo} será removido permanentemente deste script.`)
+    if (!result?.isConfirmed) return
+    await scriptsApi.deleteScriptAttachment(pdf.codArquivo)
+    existingPdfs.value = existingPdfs.value.filter((item) => item.codArquivo !== pdf.codArquivo)
+    await swal.toast('PDF excluído com sucesso.', 'success')
+  } catch (error: unknown) {
+    await swal.error('Erro ao excluir PDF', error instanceof Error ? error.message : 'Tente novamente.')
+  } finally {
+    deletingPdf.value = false
   }
 }
 

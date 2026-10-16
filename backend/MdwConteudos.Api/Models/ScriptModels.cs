@@ -4,7 +4,10 @@ public record PacoteDto(int CodPacote, string Nome, string? Descricao);
 
 public record ScriptVariableDto(string Variavel, string Nome);
 
-public record ScriptFileDto(int CodArquivo, string Tipo, string Caminho, string NomeArquivo);
+public record ScriptFileDto(int CodArquivo, string Tipo, string Caminho, string NomeArquivo)
+{
+    public int? CodVersao { get; init; }
+}
 
 public record ScriptMrdDto(int CodScriptMrd, string NomeArquivo, bool Padrao, int? Ordem);
 

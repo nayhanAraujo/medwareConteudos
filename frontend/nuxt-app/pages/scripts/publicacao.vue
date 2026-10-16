@@ -132,27 +132,31 @@
           <article v-for="item in items" :key="item.id" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1 basis-60">
-              <NuxtLink :to="`/scripts/${item.id}/editar`" class="break-words font-semibold">#{{ item.id }} · {{ item.nome || 'Script excluído na origem' }}</NuxtLink>
+              <p v-if="item.excluidoOrigem" class="break-words font-semibold">#{{ item.id }} · Script excluído na origem</p>
+              <NuxtLink v-else :to="`/scripts/${item.id}/editar`" class="break-words font-semibold">#{{ item.id }} · {{ item.nome }}</NuxtLink>
               <div class="mt-2 flex flex-wrap gap-2 text-sm">
                 <DsBadge :variant="stateVariant(item.estado)">{{ stateLabel(item.estado) }}</DsBadge>
-                <DsBadge :variant="item.aprovadoPublicacao ? 'success' : 'warning'">{{ approvalText(item) }}</DsBadge>
+                <DsBadge v-if="!item.excluidoOrigem" :variant="item.aprovadoPublicacao ? 'success' : 'warning'">{{ approvalText(item) }}</DsBadge>
                 <DsBadge v-if="item.packageName" variant="neutral">{{ item.packageName }}</DsBadge>
-                <span class="text-gray-500">{{ item.sistema || 'Sistema não informado' }}</span>
+                <span v-if="!item.excluidoOrigem" class="text-gray-500">{{ item.sistema || 'Sistema não informado' }}</span>
                 <span v-if="item.numeroVersaoAtiva" class="text-gray-500">Versão {{ item.numeroVersaoAtiva }}</span>
               </div>
-              <div class="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2 lg:grid-cols-4">
+              <p v-if="item.excluidoOrigem" class="mt-3 text-sm text-gray-600">Excluído na origem: remoção pendente no Assistente. Este item sairá da lista após a confirmação da remoção.</p>
+              <div v-else class="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2 lg:grid-cols-4">
                 <span>Destino: <NuxtLink v-if="item.codDestino" :to="`/assistente/scripts?search=${item.codDestino}`" class="underline">Assistente #{{ item.codDestino }}</NuxtLink><span v-else>Não publicado</span></span>
                 <span>Especialidade destino: {{ destinationSpecialtiesText(item) }}</span>
                 <span>Publicado: {{ formatDate(item.publicadoEm) }}</span>
                 <span>Aprovação: {{ item.aprovadoPor || 'Sem responsável' }}</span>
               </div>
-              <p v-if="!item.aprovadoPublicacao" class="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">Aguardando aprovação. Este script não será enviado ao Assistente até a aprovação {{ item.aprovacaoOrigem === 'versao_ativa' ? 'da versão ativa' : 'do cadastro principal' }}.</p>
+              <p v-if="!item.excluidoOrigem && !item.aprovadoPublicacao" class="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">Aguardando aprovação. Este script não será enviado ao Assistente até a aprovação {{ item.aprovacaoOrigem === 'versao_ativa' ? 'da versão ativa' : 'do cadastro principal' }}.</p>
               <p v-if="item.erro && item.estado !== 'aguardando_aprovacao'" class="mt-3 break-words rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{{ item.erro }}</p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <DsButton v-if="item.estado === 'suspenso'" size="sm" icon="play" :disabled="busy" @click="action(item.id, 'retomar')">Retomar publicação</DsButton>
-              <DsButton v-else size="sm" variant="secondary" icon="arrow-repeat" :disabled="busy || !item.aprovadoPublicacao" @click="action(item.id, 'repetir')">Repetir</DsButton>
-              <DsButton v-if="item.estado === 'falha'" size="sm" variant="secondary" icon="link-45deg" :disabled="busy || !item.aprovadoPublicacao" @click="candidates(item.id)">Conciliar existente</DsButton>
+              <template v-if="!item.excluidoOrigem">
+                <DsButton v-if="item.estado === 'suspenso'" size="sm" icon="play" :disabled="busy" @click="action(item.id, 'retomar')">Retomar publicação</DsButton>
+                <DsButton v-else size="sm" variant="secondary" icon="arrow-repeat" :disabled="busy || !item.aprovadoPublicacao" @click="action(item.id, 'repetir')">Repetir</DsButton>
+                <DsButton v-if="item.estado === 'falha'" size="sm" variant="secondary" icon="link-45deg" :disabled="busy || !item.aprovadoPublicacao" @click="candidates(item.id)">Conciliar existente</DsButton>
+              </template>
             </div>
             </div>
           </article>
@@ -206,6 +210,7 @@ const swal = useSwal()
 const root = '/api/web/assistente/publicacao'
 type Option = { id: number; nome: string }
 type Publication = {
+  excluidoOrigem: boolean
   id: number
   nome: string
   estado: string
@@ -286,6 +291,7 @@ const scriptModalTitle = computed(() => editingScripts.value.length > 1 ? `Confi
 const publicationStates = [
   { key: 'sincronizado', label: 'Sincronizados', icon: 'check-circle-fill', color: 'text-green-600' },
   { key: 'pendente', label: 'Pendentes', icon: 'clock-fill', color: 'text-orange-500' },
+  { key: 'remocao_pendente', label: 'Remoções pendentes', icon: 'trash', color: 'text-orange-500' },
   { key: 'aguardando_aprovacao', label: 'Aguardando aprovação', icon: 'patch-exclamation-fill', color: 'text-orange-500' },
   { key: 'falha', label: 'Falhas', icon: 'x-circle-fill', color: 'text-rose-600' },
   { key: 'suspenso', label: 'Suspensos', icon: 'pause-circle-fill', color: 'text-gray-500' }
@@ -387,8 +393,9 @@ function names(ids: number[]) {
 }
 function mapPublication(row: Record<string, unknown>): Publication {
   return {
+    excluidoOrigem: Boolean(read(row, 'excluidoOrigem', false)),
     id: Number(read(row, 'id', 0)),
-    nome: String(read(row, 'nome', '')),
+    nome: String(read(row, 'nome', '') ?? ''),
     estado: String(read(row, 'estado', 'pendente')),
     erro: read<string | undefined>(row, 'erro', undefined),
     publicadoEm: read<string | undefined>(row, 'publicadoEm', undefined),
@@ -414,6 +421,7 @@ function stateVariant(state?: string) {
   return 'warning'
 }
 function stateLabel(state?: string) {
+  if (state === 'remocao_pendente') return 'Remoção pendente'
   return publicationStates.find(item => item.key === state)?.label.replace(/s$/, '') || state || 'Pendente'
 }
 function approvalText(item: { aprovadoPublicacao: boolean; aprovacaoOrigem?: string }) {

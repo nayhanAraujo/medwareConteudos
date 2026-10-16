@@ -59,6 +59,15 @@
       icon="file-earmark-pdf"
       @change="onPdf"
     />
+    <div v-if="existingPdfs?.length" class="md:col-span-2">
+      <h6 class="font-semibold mb-3 text-sm">Impressões PDF vinculadas</h6>
+      <ul class="space-y-2">
+        <li v-for="pdf in existingPdfs" :key="pdf.codArquivo" class="flex items-center gap-2 text-sm">
+          <a :href="mediaUrl(pdf.caminho)" target="_blank" rel="noopener" class="min-w-0 flex-1 truncate text-blue-600 hover:underline">{{ pdf.nomeArquivo }}</a>
+          <DsButton type="button" variant="ghost" size="sm" icon="trash" :title="`Excluir PDF ${pdf.nomeArquivo}`" :aria-label="`Excluir PDF ${pdf.nomeArquivo}`" :disabled="loading || deletingPdf" @click="emit('deleteExistingPdf', pdf)" />
+        </li>
+      </ul>
+    </div>
     <div v-if="imagePreviewUrls.length || (existingImagens?.length || 0)" class="md:col-span-2 rounded-2xl border border-gray-200 bg-white p-4">
       <h6 class="font-semibold mb-3 text-sm">Pré-visualização de imagens</h6>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -121,6 +130,8 @@ const props = defineProps<{
   modelValue: ScriptFormModel
   pacotes: PacoteDto[]
   existingImagens?: ScriptImagePreview[]
+  existingPdfs?: ScriptImagePreview[]
+  deletingPdf?: boolean
   editMode?: boolean
   loading?: boolean
 }>()
@@ -131,6 +142,7 @@ const emit = defineEmits<{
   cancel: []
   files: [Record<string, File | FileList | null>]
   deleteExistingImage: [ScriptImagePreview]
+  deleteExistingPdf: [ScriptImagePreview]
 }>()
 
 const { SISTEMAS } = useScriptsNav()

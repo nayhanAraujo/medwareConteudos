@@ -270,7 +270,8 @@ public partial class ScriptsService
                     FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO = @cod ORDER BY DATA_UPLOAD DESC",
                     new { cod = codVersao.Value })).ToList();
                 var iv = arqVersao.Where(a => a.Tipo == "IMAGEM").ToList();
-                var pv = arqVersao.Where(a => a.Tipo == "PDF").ToList();
+                var pv = arqVersao.Where(a => a.Tipo == "PDF")
+                    .Select(a => a with { CodVersao = codVersao.Value }).ToList();
                 if (iv.Count > 0) imagens = iv;
                 if (pv.Count > 0) pdfs = pv;
             }
@@ -375,6 +376,42 @@ public partial class ScriptsService
             : "SELECT 1 FROM SCRIPTLAUDO WHERE UPPER(NOME) = UPPER(@nome) ROWS 1";
         var found = await conn.ExecuteScalarAsync<int?>(sql, new { nome, id = excludeId });
         return found.HasValue;
+    }
+
+    public async Task<int> DeleteScriptsAsync(IReadOnlyCollection<int>? scriptIds)
+    {
+        var ids = (scriptIds ?? []).Distinct().ToArray();
+        if (ids.Length == 0 || ids.Length > 50 || ids.Any(id => id <= 0))
+            throw new InvalidOperationException("Selecione de 1 a 50 scripts válidos para excluir.");
+
+        await using var conn = (FbConnection)CreateConnection();
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        var existing = (await conn.QueryAsync<int>(
+            "SELECT CODSCRIPTLAUDO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO IN @ids WITH LOCK",
+            new { ids }, tx)).ToArray();
+        if (existing.Length != ids.Length)
+            throw new InvalidOperationException("Um ou mais scripts não existem mais. Atualize a lista e tente novamente.");
+
+        var versions = "SELECT CODVERSAO FROM SCRIPTVERSOES WHERE CODSCRIPTLAUDO IN @ids";
+        await conn.ExecuteAsync($"DELETE FROM SCRIPTVERSAOHISTORICO WHERE CODVERSAO_ORIGEM IN ({versions}) OR CODVERSAO_DESTINO IN ({versions})", new { ids }, tx);
+        await conn.ExecuteAsync($"DELETE FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO IN ({versions})", new { ids }, tx);
+        await conn.ExecuteAsync($"DELETE FROM SCRIPTVERSAOMRD WHERE CODVERSAO IN ({versions})", new { ids }, tx);
+        foreach (var table in new[] { "SCRIPTVERSOES", "SCRIPTARQUIVOS", "SCRIPTAPROVACAOTOKEN", "SCRIPTLAUDOMRD", "SCRIPTLAUDO_VARIAVEL" })
+            await conn.ExecuteAsync($"DELETE FROM {table} WHERE CODSCRIPTLAUDO IN @ids", new { ids }, tx);
+
+        var hasPublication = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='ASS_PUBLICACAO'", transaction: tx) > 0;
+        if (hasPublication)
+            await conn.ExecuteAsync("DELETE FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO IN @ids", new { ids }, tx);
+
+        var count = await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO IN @ids", new { ids }, tx);
+        // Keep deletion jobs even when publication is temporarily disabled.
+        if (hasPublication)
+            foreach (var id in ids)
+                await conn.ExecuteAsync("EXECUTE PROCEDURE ASS_ENFILEIRAR(@id)", new { id }, tx);
+        await tx.CommitAsync();
+        return count;
     }
 
     public async Task<int> CreateScriptAsync(ScriptFormInput input, int codUsuario)
@@ -1322,16 +1359,18 @@ public partial class ScriptsService
             new { codHistorico, codVersao, tipo, desc = descricao, user = string.IsNullOrWhiteSpace(usuario) ? "Sistema" : usuario }, tx);
     }
 
-    public async Task DeleteScriptImageAsync(int codArquivo)
+    public async Task DeleteScriptAttachmentAsync(int codArquivo)
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CAMINHO, TIPO FROM SCRIPTARQUIVOS WHERE CODARQUIVO = @codArquivo", new { codArquivo });
-        if (row == null) throw new InvalidOperationException("Imagem não encontrada.");
+        if (row == null) throw new InvalidOperationException("Anexo não encontrado.");
         var data = (IDictionary<string, object>)row;
-        if (!string.Equals(data["TIPO"]?.ToString(), "IMAGEM", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("O arquivo selecionado não é uma imagem.");
+        var tipo = data["TIPO"]?.ToString();
+        if (!string.Equals(tipo, "IMAGEM", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(tipo, "PDF", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("O arquivo selecionado não é uma imagem ou PDF.");
 
         var caminho = data["CAMINHO"]?.ToString();
         await conn.ExecuteAsync("DELETE FROM SCRIPTARQUIVOS WHERE CODARQUIVO = @codArquivo", new { codArquivo });
@@ -1341,7 +1380,7 @@ public partial class ScriptsService
             if (File.Exists(path))
             {
                 try { File.Delete(path); }
-                catch (Exception ex) { _logger.LogWarning(ex, "Erro ao excluir imagem física do script {CodArquivo}", codArquivo); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Erro ao excluir anexo físico do script {CodArquivo}", codArquivo); }
             }
         }
     }

@@ -11,6 +11,13 @@ export interface ScriptMrdDto {
   ordem?: number
 }
 
+export interface ScriptPdfAttachment {
+  codArquivo: number
+  codVersao?: number | null
+  caminho: string
+  nomeArquivo: string
+}
+
 export interface ScriptVersionFileDto {
   codArquivo: number
   tipo: string
@@ -105,7 +112,7 @@ export interface ScriptListItem {
   mrdList: ScriptMrdDto[]
   variaveis?: { variavel: string; nome: string }[]
   imagensDisplay: { caminho: string; nomeArquivo: string }[]
-  pdfsDisplay?: { caminho: string; nomeArquivo: string }[]
+  pdfsDisplay?: ScriptPdfAttachment[]
 }
 
 export interface PagedScripts {
@@ -196,6 +203,7 @@ export function useScriptsApi() {
   }
 
   const deleteMrd = (codScriptMrd: number) => api.del(`/api/web/scripts/mrd/${codScriptMrd}`)
+  const deleteScriptAttachment = (codArquivo: number) => api.del(`/api/web/scripts/anexos/${codArquivo}`)
   const deleteScriptImage = (codArquivo: number) => api.del(`/api/web/scripts/anexos/${codArquivo}`)
 
   const listVersoes = (id: number, filters?: { numeroVersao?: string; aprovado?: string; ativo?: string }) => {
@@ -334,6 +342,7 @@ export function useScriptsApi() {
     getMrd,
     addMrd,
     deleteMrd,
+    deleteScriptAttachment,
     deleteScriptImage,
     listVersoes,
     getVersaoCreateMeta,

@@ -56,6 +56,9 @@
               <span class="text-sm text-gray-600">{{ selectedCountLabel }}</span>
             </div>
             <div class="flex flex-wrap gap-2">
+              <DsButton v-if="auth.isAdmin" variant="danger" size="sm" icon="trash" :loading="deletingScripts" :disabled="!selectedScriptIds.length || loading" @click="deleteSelectedScripts">
+                Excluir selecionados
+              </DsButton>
               <DsButton v-if="canEditScripts" variant="secondary" size="sm" icon="box-arrow-right" :disabled="!selectedScriptIds.length" @click="openTransfer(selectedScriptIds)">
                 Transferir pacote
               </DsButton>
@@ -91,6 +94,7 @@
               </div>
             </div>
             <div class="p-3 flex flex-col gap-1.5">
+              <p class="text-xs font-mono text-gray-500">Código: {{ item.codScriptLaudo }}</p>
               <h3 class="font-semibold font-manrope text-sm text-ds-text line-clamp-2">{{ item.nome }}</h3>
               <NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink>
               <div class="flex flex-wrap gap-1">
@@ -114,6 +118,7 @@
           <template #head>
             <tr>
               <th class="w-10" />
+              <th>Código</th>
               <th>Nome</th>
               <th>Sistema</th>
               <th>Pacote</th>
@@ -132,6 +137,7 @@
                 @change="syncSelectAll"
               />
             </td>
+            <td class="font-mono whitespace-nowrap">{{ item.codScriptLaudo }}</td>
             <td>{{ item.nome }}<NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="block text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink></td>
             <td>{{ item.sistema }}</td>
             <td>{{ item.nomePacote || '—' }}</td>
@@ -191,6 +197,7 @@
         <template v-if="detailItem">
           <div class="grid md:grid-cols-2 gap-4 text-sm">
             <div class="space-y-2">
+              <p><strong>Código:</strong> {{ detailItem.codScriptLaudo }}</p>
               <p><strong>Nome:</strong> {{ detailItem.nome }}</p>
               <p><strong>Pacote:</strong> {{ detailItem.nomePacote || '—' }}</p>
               <p><strong>Sistema:</strong> {{ detailItem.sistema || '—' }}</p>
@@ -212,16 +219,17 @@
           <p v-else class="text-gray-500 text-sm mb-4">Nenhuma imagem.</p>
           <h6 class="font-semibold mb-2"><i class="bi bi-file-earmark-pdf me-1" />PDFs</h6>
           <ul v-if="detailItem.pdfsDisplay?.length" class="mb-4 space-y-2 text-sm">
-            <li v-for="pdf in detailItem.pdfsDisplay" :key="pdf.caminho">
+            <li v-for="pdf in detailItem.pdfsDisplay" :key="`${pdf.codVersao || 'script'}-${pdf.codArquivo}`" class="flex items-center gap-2">
               <a
                 :href="mediaUrl(pdf.caminho)"
                 target="_blank"
                 rel="noopener"
-                class="inline-flex max-w-full items-center gap-2 text-blue-600 hover:underline"
+                class="inline-flex min-w-0 flex-1 items-center gap-2 text-blue-600 hover:underline"
               >
                 <i class="bi bi-file-earmark-pdf text-rose-600" />
                 <span class="truncate">{{ pdf.nomeArquivo }}</span>
               </a>
+              <DsButton v-if="pdf.codVersao ? canDeleteScripts : canEditScripts" variant="ghost" size="sm" icon="trash" :title="`Excluir PDF ${pdf.nomeArquivo}`" :aria-label="`Excluir PDF ${pdf.nomeArquivo}`" :disabled="deletingPdf !== null" @click="excluirPdf(pdf)" />
             </li>
           </ul>
           <p v-else class="text-gray-500 text-sm mb-4">Nenhum PDF.</p>
@@ -280,9 +288,33 @@ const route = useRoute()
 const auth = useAuthStore()
 const canCreateScripts = computed(() => auth.can('scripts', 'criar'))
 const canEditScripts = computed(() => auth.can('scripts', 'editar'))
+const canDeleteScripts = computed(() => auth.can('scripts', 'excluir'))
 const canApproveScripts = computed(() => auth.can('scripts', 'aprovar'))
 const canImportAssistente = computed(() => auth.can('assistente', 'importar'))
 const scriptsApi = useScriptsApi()
+const deletingScripts = ref(false)
+
+async function deleteSelectedScripts() {
+  if (!auth.isAdmin || deletingScripts.value || !selectedScriptIds.value.length) return
+  const ids = [...new Set(selectedScriptIds.value)]
+  deletingScripts.value = true
+  try {
+    const result = await swal.confirm('Excluir scripts permanentemente?',
+      `Serão excluídos ${ids.length} script(s), incluindo versões, anexos e vínculos. Os modelos sincronizados e seus vínculos também serão excluídos do Assistente pela fila de publicação. Esta ação não pode ser desfeita.`)
+    if (!result.isConfirmed) return
+    await useApi().post('/api/web/scripts/excluir-lote', { ids })
+    selectedScriptIds.value = []
+    selectAll.value = false
+    detailModalId.value = null
+    await load(page.value)
+    if (!items.value.length && page.value > 1) await load(Math.max(1, totalPages.value))
+    await swal.toast('Scripts excluídos. A remoção no Assistente será processada pela fila.', 'success')
+  } catch (error: unknown) {
+    await swal.error('Erro ao excluir scripts', error instanceof Error ? error.message : 'Tente novamente.')
+  } finally {
+    deletingScripts.value = false
+  }
+}
 const { isSistemaValido } = useScriptsNav()
 
 const sistema = computed(() => String(route.query.sistema || ''))
@@ -328,6 +360,26 @@ const specificRuleMessage = computed(() => {
 const detailItem = computed(() =>
   items.value.find((x) => x.codScriptLaudo === detailModalId.value) ?? null
 )
+const deletingPdf = ref<number | null>(null)
+
+async function excluirPdf(pdf: { codArquivo: number; codVersao?: number | null; nomeArquivo: string }) {
+  if (!(pdf.codVersao ? canDeleteScripts.value : canEditScripts.value) || deletingPdf.value !== null) return
+  deletingPdf.value = pdf.codArquivo
+  try {
+    const confirmation = await swal.confirm('Excluir impressão PDF?', `O arquivo ${pdf.nomeArquivo} será removido permanentemente${pdf.codVersao ? ' da versão' : ' do script'}.`)
+    if (!confirmation?.isConfirmed) return
+    if (pdf.codVersao) await scriptsApi.excluirVersaoAnexo(pdf.codArquivo)
+    else await scriptsApi.deleteScriptAttachment(pdf.codArquivo)
+    const current = detailItem.value
+    if (current) current.pdfsDisplay = current.pdfsDisplay?.filter((item) => item.codArquivo !== pdf.codArquivo || item.codVersao !== pdf.codVersao)
+    await swal.toast('PDF excluído com sucesso.', 'success')
+    await load(page.value)
+  } catch (error: unknown) {
+    await swal.error('Erro ao excluir PDF', error instanceof Error ? error.message : 'Tente novamente.')
+  } finally {
+    deletingPdf.value = null
+  }
+}
 
 function dedupeImagens(imgs: { caminho: string; nomeArquivo: string }[]) {
   const seen = new Set<string>()
