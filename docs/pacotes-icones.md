@@ -3,10 +3,12 @@
 ## Consumo pela API publica
 
 `GET /apiconteudos/v1/pacotes` retorna `success`, `data`, `total` e `timestamp`.
-Cada pacote possui `codpacote`, `nome`, `descricao` e `icone_url`.
+Cada pacote possui `codpacote`, `nome`, `descricao`, `icone_url` e `icone_base64`.
+`icone_base64` contem o valor completo do banco (`data:image/png;base64,...`),
+pronto para usar no atributo src de uma imagem, sem outra requisicao.
 A URL e relativa a origem da API (por exemplo,
 `/apiconteudos/v1/pacotes/1/icone`); resolva usando a origem do servidor.
-`icone_url` e null quando o pacote nao possui imagem.
+`icone_url` e `icone_base64` sao null quando o pacote nao possui imagem.
 
 `GET /apiconteudos/v1/pacotes/{codpacote}/icone` devolve bytes PNG com
 `Content-Type: image/png`. Envie `Authorization: Bearer <token>` em ambas as
@@ -16,9 +18,9 @@ A imagem inclui ETag e Cache-Control private, no-cache: envie If-None-Match
 com o ETag anterior para receber 304 sem corpo quando ela nao mudou.
 
 As mesmas rotas existem em `/api/v1`. A listagem de scripts e o ultimo
-verificado incluem `pacote_icone_url`, mesmo com `incluir_arquivos=0`.
-O campo e null para scripts sem pacote ou pacote sem icone. Base64 nao e
-repetido nos scripts. Os contratos aparecem em `/apiconteudos/docs` e Swagger.
+verificado incluem `pacote_icone_url` e `pacote_icone_base64`, mesmo com
+`incluir_arquivos=0`. Os campos sao null para scripts sem pacote ou pacote
+sem icone. Os contratos aparecem em `/apiconteudos/docs` e Swagger.
 
 ## Preparacao do banco
 

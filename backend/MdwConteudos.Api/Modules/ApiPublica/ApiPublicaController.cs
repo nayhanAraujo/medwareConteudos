@@ -219,7 +219,7 @@ public class ApiPublicaController : ControllerBase
     [HttpGet("apiconteudos/v1/pacotes")]
     [HttpGet("api/v1/pacotes")]
     [Produces("application/json")]
-    [SwaggerOperation(Summary = "Listar pacotes", Description = "Retorna os pacotes cadastrados. icone_url e relativa a origem da API; null quando nao ha icone. A imagem exige o mesmo JWT da listagem.", Tags = new[] { "Pacotes" })]
+    [SwaggerOperation(Summary = "Listar pacotes", Description = "Retorna os pacotes cadastrados. icone_url e relativa a origem da API; icone_base64 contem data:image/png;base64,... pronto para src de imagem. Ambos sao null quando nao ha icone. A URL da imagem exige o mesmo JWT da listagem.", Tags = new[] { "Pacotes" })]
     [SwaggerResponse(200, "Lista de pacotes", typeof(ApiListDoc<PacoteItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou invalido", typeof(ApiErrorDoc))]
     [SwaggerResponse(500, "Erro interno", typeof(ApiErrorDoc))]
@@ -248,7 +248,8 @@ public class ApiPublicaController : ControllerBase
             "Lista modelos de laudo. Com `incluir_arquivos=1` (padrão), inclui imagens, PDFs e MRDs " +
             "(prioriza versão ATIVA quando existir). Use `incluir_arquivos=0` para resposta enxuta. " +
             "Filtre por linguagem com `linguagem=Csharp` ou `linguagem=HTML`. " +
-            "pacote_icone_url e relativa a origem da API e aparece mesmo com incluir_arquivos=0; null quando nao ha icone. A imagem exige JWT.",
+            "pacote_icone_url e relativa a origem da API; pacote_icone_base64 contem data:image/png;base64,... pronto para src de imagem. " +
+            "Ambos aparecem mesmo com incluir_arquivos=0 e sao null quando nao ha icone. A URL da imagem exige JWT.",
         Tags = new[] { "Scripts" })]
     [SwaggerResponse(200, "Lista de scripts", typeof(ApiListDoc<ScriptItemDoc>))]
     [SwaggerResponse(401, "JWT ausente ou inválido (somente /apiconteudos/v1)", typeof(ApiErrorDoc))]

@@ -108,6 +108,11 @@ public sealed class PortalOpenApiTests : IDisposable
             var script = doc.Components!.Schemas![nameof(ScriptItemDoc)];
             Assert.Contains("pacote_icone_url", script.Required!);
             Assert.True(script.Properties!["pacote_icone_url"].Type!.Value.HasFlag(JsonSchemaType.Null));
+            Assert.Contains("pacote_icone_base64", script.Required!);
+            Assert.True(script.Properties["pacote_icone_base64"].Type!.Value.HasFlag(JsonSchemaType.Null));
+            var package = doc.Components.Schemas[nameof(PacoteItemDoc)];
+            Assert.Contains("icone_base64", package.Required!);
+            Assert.True(package.Properties!["icone_base64"].Type!.Value.HasFlag(JsonSchemaType.Null));
         }
     }
 

@@ -169,7 +169,8 @@ public record PacoteItemDoc(
     [property: JsonPropertyName("codpacote")] int CodPacote,
     [property: JsonPropertyName("nome")] string? Nome,
     [property: JsonPropertyName("descricao")] string? Descricao,
-    [property: JsonPropertyName("icone_url")] string? IconeUrl);
+    [property: JsonPropertyName("icone_url")] string? IconeUrl,
+    [property: JsonPropertyName("icone_base64")] string? IconeBase64);
 
 public class ScriptItemDoc
 {
@@ -184,6 +185,7 @@ public class ScriptItemDoc
     [JsonPropertyName("aprovado_por")] public string AprovadoPor { get; set; } = "";
     [JsonPropertyName("pacote_nome")] public string PacoteNome { get; set; } = "";
     [JsonPropertyName("pacote_icone_url")] public string? PacoteIconeUrl { get; set; }
+    [JsonPropertyName("pacote_icone_base64")] public string? PacoteIconeBase64 { get; set; }
     [JsonPropertyName("codpacote")] public int? Codpacote { get; set; }
     [JsonPropertyName("numero_versao"), DocOptional] public string? NumeroVersao { get; set; }
     [JsonPropertyName("imagens"), DocOptional] public List<ScriptArquivoDoc> Imagens { get; set; } = [];

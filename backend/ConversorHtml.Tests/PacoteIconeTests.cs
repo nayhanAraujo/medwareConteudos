@@ -71,6 +71,7 @@ public sealed class PacoteIconeTests
             Assert.Equal(7, payload.GetProperty("total").GetInt32());
             var package = payload.GetProperty("data").EnumerateArray().Single(p => p.GetProperty("codpacote").GetInt32() == heart.CodPacote);
             Assert.Equal($"/apiconteudos/v1/pacotes/{heart.CodPacote}/icone", package.GetProperty("icone_url").GetString());
+            Assert.Equal(Icon(), package.GetProperty("icone_base64").GetString());
             var image = Assert.IsType<FileContentResult>(await api.GetPacoteIconeAsync(heart.CodPacote, default));
             Assert.Equal("image/png", image.ContentType);
             Assert.Equal(Convert.FromBase64String(Icon()[PacoteIcone.Prefix.Length..]), image.FileContents);
@@ -80,9 +81,12 @@ public sealed class PacoteIconeTests
             var scriptList = await scripts.ListScriptsAsync(null, null, null, null, "HTML", false, default);
             Assert.Equal(package.GetProperty("icone_url").GetString(), scriptList.Single(s => (int)s["codscriptlaudo"]! == 1)["pacote_icone_url"]);
             Assert.Null(scriptList.Single(s => (int)s["codscriptlaudo"]! == 2)["pacote_icone_url"]);
+            Assert.Equal(Icon(), scriptList.Single(s => (int)s["codscriptlaudo"]! == 1)["pacote_icone_base64"]);
+            Assert.Null(scriptList.Single(s => (int)s["codscriptlaudo"]! == 2)["pacote_icone_base64"]);
             Assert.All(scriptList, s => Assert.False(s.ContainsKey("imagens")));
             var last = await scripts.GetUltimoVerificadoAsync(null, null, null, null, "HTML", false, default);
             Assert.Equal(package.GetProperty("icone_url").GetString(), last.Item!["pacote_icone_url"]);
+            Assert.Equal(Icon(), last.Item["pacote_icone_base64"]);
             Assert.IsType<NotFoundObjectResult>(await api.GetPacoteIconeAsync(int.MaxValue, default));
             Assert.True(await service.UpdatePacote(heart.CodPacote, new(heart.Nome, "Editado", [1], Icon("consulta")), 1, default));
             var changed = Assert.IsType<FileContentResult>(await api.GetPacoteIconeAsync(heart.CodPacote, default));
@@ -98,7 +102,9 @@ public sealed class PacoteIconeTests
             payload = JsonSerializer.SerializeToElement(packages.Value);
             package = payload.GetProperty("data").EnumerateArray().Single(p => p.GetProperty("codpacote").GetInt32() == heart.CodPacote);
             Assert.Equal(JsonValueKind.Null, package.GetProperty("icone_url").ValueKind);
+            Assert.Equal(JsonValueKind.Null, package.GetProperty("icone_base64").ValueKind);
             Assert.Null((await scripts.ListScriptsAsync(null, null, null, "1", "HTML", false, default)).Single()["pacote_icone_url"]);
+            Assert.Null((await scripts.ListScriptsAsync(null, null, null, "1", "HTML", false, default)).Single()["pacote_icone_base64"]);
             await service.CreatePacote(new("Novo", null, [], Icon()), 1, default);
             var created = (await service.ListPacotes(default)).Single(p => p.Nome == "Novo");
             Assert.Equal(Icon(), created.IconeBase64);

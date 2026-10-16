@@ -5,7 +5,8 @@ namespace MdwConteudos.Api.Modules.ApiPublica.Swagger;
 
 public static class ApiPublicaOpenApiExamples
 {
-    public static JsonNode PacotesOk => List(Node(new { codpacote = 1, nome = "Cardiologia", descricao = (string?)null, icone_url = "/apiconteudos/v1/pacotes/1/icone" }));
+    public static JsonNode PacotesOk => List(Node(new { codpacote = 1, nome = "Cardiologia", descricao = (string?)null, icone_url = "/apiconteudos/v1/pacotes/1/icone", icone_base64 = IconeBase64 }));
+    private const string IconeBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=";
     public static JsonNode Pacote404 => Node(new { success = false, error = "Pacote ou icone nao encontrado" });
     // Entirely synthetic fixtures. Ranges illustrate the wire format, not clinical guidance.
     private const string Ts = "2026-01-15T12:00:00";
@@ -142,6 +143,7 @@ public static class ApiPublicaOpenApiExamples
         linguagem = "JavaScript", sistema = "Laudos UX", aprovado = true, data_verificacao = Ts,
         ativo = true, aprovado_por = "", pacote_nome = "Cardiologia", codpacote = 1,
         pacote_icone_url = "/apiconteudos/v1/pacotes/1/icone",
+        pacote_icone_base64 = IconeBase64,
         numero_versao = "1.0",
         imagens = new[] { new { nome = "interface-exemplo.png", caminho = "uploads/exemplos/interface-exemplo.png" } },
         pdfs = new[] { new { nome = "modelo-exemplo.pdf", caminho = "uploads/exemplos/modelo-exemplo.pdf" } },

@@ -17,7 +17,7 @@ public class ApiScriptOperations
         SELECT s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
                s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.APROVADO_POR,
                p.NOME AS NOME_PACOTE, s.CODPACOTE,
-               CASE WHEN OCTET_LENGTH(p.ICONE_BASE64) > 0 THEN 1 ELSE 0 END AS TEM_ICONE
+               p.ICONE_BASE64 AS PACOTE_ICONE_BASE64
         FROM SCRIPTLAUDO s
         LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE";
 
@@ -86,7 +86,7 @@ public class ApiScriptOperations
             s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
             s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.APROVADO_POR,
             p.NOME AS NOME_PACOTE, s.CODPACOTE,
-            CASE WHEN OCTET_LENGTH(p.ICONE_BASE64) > 0 THEN 1 ELSE 0 END AS TEM_ICONE
+            p.ICONE_BASE64 AS PACOTE_ICONE_BASE64
             FROM SCRIPTLAUDO s
             LEFT JOIN PACOTES p ON s.CODPACOTE = p.CODPACOTE
             WHERE {string.Join(" AND ", where)}
@@ -249,8 +249,10 @@ public class ApiScriptOperations
             ["aprovado_por"] = (string?)row.APROVADO_POR ?? "",
             ["pacote_nome"] = (string?)row.NOME_PACOTE ?? "",
             ["codpacote"] = row.CODPACOTE,
-            ["pacote_icone_url"] = Convert.ToInt32(row.TEM_ICONE) == 1
-                ? ApiPublicaService.PacoteIconUrl((int)row.CODPACOTE) : null
+            ["pacote_icone_url"] = !string.IsNullOrEmpty((string?)row.PACOTE_ICONE_BASE64)
+                ? ApiPublicaService.PacoteIconUrl((int)row.CODPACOTE) : null,
+            ["pacote_icone_base64"] = string.IsNullOrEmpty((string?)row.PACOTE_ICONE_BASE64)
+                ? null : (string?)row.PACOTE_ICONE_BASE64
         };
 
         if (!incluirArquivos) return item;
