@@ -185,7 +185,7 @@ public class ApiPublicaController : ControllerBase
     [Produces("application/json")]
     [SwaggerOperation(
         Summary = "Listar relatórios",
-        Description = "Lista relatórios cadastrados (metadados; use download para o arquivo).",
+        Description = "Lista relatórios cadastrados (metadados; use download para o arquivo). modulo_icone_url e relativa a origem da API e exige JWT; null quando nao ha modulo ou imagem. Prioriza CODMODULO e usa o nome legado se o vinculo nao existir.",
         Tags = new[] { "Relatórios" })]
     [SwaggerResponse(200, "Lista de relatórios", typeof(ApiListDoc<RelatorioItemDoc>))]
     [SwaggerResponse(400, "Filtro ativo ou multiselecao inválido", typeof(ApiErrorDoc))]
@@ -200,6 +200,20 @@ public class ApiPublicaController : ControllerBase
         [FromQuery, SwaggerParameter(Description = "CODSISTEMA via SISTEMA_MODULO")] int? codsistema,
         CancellationToken ct) =>
         _api.GetRelatoriosAsync(ativo, multiselecao, nome, modulo, formato, codsistema, ct);
+
+    [HttpGet("apiconteudos/v1/relatorios/modulos/{codmodulo:int}/icone")]
+    [HttpGet("api/v1/relatorios/modulos/{codmodulo:int}/icone")]
+    [SwaggerOperation(Summary = "Icone do modulo de relatorios", Description = "Retorna o PNG do modulo. Envie JWT no Authorization. Revalide o ETag com If-None-Match para receber 304 quando a imagem nao mudou.", Tags = new[] { "Relatórios" })]
+    [SwaggerResponse(200, "Imagem PNG")]
+    [SwaggerResponse(304, "Imagem nao modificada")]
+    [SwaggerResponse(401, "JWT ausente ou invalido", typeof(ApiErrorDoc))]
+    [SwaggerResponse(404, "Modulo ou icone nao encontrado", typeof(ApiErrorDoc))]
+    [SwaggerResponse(500, "Erro interno", typeof(ApiErrorDoc))]
+    public Task<IActionResult> ModuloRelatorioIcone(int codmodulo, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "private, no-cache";
+        return _api.GetModuloRelatorioIconeAsync(codmodulo, ct);
+    }
 
     [HttpGet("apiconteudos/v1/relatorios/{codrelatorio:int}/download")]
     [HttpGet("api/v1/relatorios/{codrelatorio:int}/download")]

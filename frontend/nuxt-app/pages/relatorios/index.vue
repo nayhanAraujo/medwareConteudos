@@ -41,7 +41,7 @@
               variant="success"
               size="sm"
               icon="plus-lg"
-              @click="openNovoModulo = true"
+              @click="abrirModuloForm()"
             >
               Novo módulo
             </DsButton>
@@ -68,11 +68,18 @@
             :title="m.nome"
             :desc="m.descricao || `${m.total_relatorios || 0} relatório(s)`"
             :icon="iconForModulo(m.nome)"
+            :icon-image="m.iconeBase64"
+            :interactive="false"
             :theme-name="themeForModulo(m.nome)"
             :badge="`${m.total_relatorios || 0} relatórios`"
             :delay-index="i"
             @click="abrirLista(m.nome)"
-          />
+          >
+            <div class="flex flex-wrap justify-center gap-2 mt-3">
+              <DsButton size="sm" variant="secondary" icon="list" @click.stop="abrirLista(m.nome)" @keydown.enter.stop>Ver relatórios</DsButton>
+              <DsButton v-if="auth.isAdmin" size="sm" variant="secondary" icon="pencil" @click.stop="abrirModuloForm(m)" @keydown.enter.stop>Editar módulo</DsButton>
+            </div>
+          </DsHubCard>
         </div>
       </template>
 
@@ -413,10 +420,11 @@
       </template>
     </DsModal>
 
-    <DsModal v-model="openNovoModulo" title="Novo módulo" size="md">
+    <DsModal v-model="openNovoModulo" :title="editingModulo ? 'Editar módulo' : 'Novo módulo'" size="lg" :close-on-backdrop="!savingModulo">
       <div class="space-y-3">
         <DsInput v-model="moduloForm.nome" label="Nome *" />
         <DsInput v-model="moduloForm.descricao" label="Descrição" />
+        <RelatoriosModuloIconePicker :key="moduloFormKey" v-model="moduloForm.iconeBase64" @busy="moduloIconBusy = $event" />
         <div>
           <p class="text-sm font-medium mb-2">Sistemas *</p>
           <label v-for="s in sistemas" :key="s.codsistema" class="flex items-center gap-2 text-sm mb-1">
@@ -427,7 +435,7 @@
       </div>
       <template #footer>
         <DsButton variant="secondary" @click="openNovoModulo = false">Cancelar</DsButton>
-        <DsButton :loading="savingModulo" @click="criarModulo">Salvar</DsButton>
+        <DsButton :loading="savingModulo" :disabled="moduloIconBusy" @click="criarModulo">Salvar</DsButton>
       </template>
     </DsModal>
   </div>
@@ -624,7 +632,17 @@ watch(openImport, async (open) => {
 
 const openNovoModulo = ref(false)
 const savingModulo = ref(false)
-const moduloForm = reactive({ nome: '', descricao: '', sistemas: [] as number[] })
+const moduloForm = reactive({ nome: '', descricao: '', sistemas: [] as number[], iconeBase64: null as string | null })
+const editingModulo = ref<string | null>(null), moduloIconBusy = ref(false), moduloFormKey = ref(0)
+function abrirModuloForm(modulo?: RelatorioModulo) {
+  editingModulo.value = modulo?.nome || null
+  moduloForm.nome = modulo?.nome || ''
+  moduloForm.descricao = modulo?.descricao || ''
+  moduloForm.sistemas = modulo?.sistemas?.map(s => s.codsistema) || []
+  moduloForm.iconeBase64 = modulo?.iconeBase64 || null
+  moduloIconBusy.value = false; moduloFormKey.value++
+  openNovoModulo.value = true
+}
 
 async function loadSistemas() {
   loadingNav.value = true
@@ -857,18 +875,17 @@ async function runImport() {
 }
 
 async function criarModulo() {
+  if (savingModulo.value || moduloIconBusy.value) return
   if (!moduloForm.nome.trim() || !moduloForm.sistemas.length) {
     await swal.toast('Nome e ao menos um sistema são obrigatórios.', 'error')
     return
   }
   savingModulo.value = true
   try {
-    await api.createModulo({
-      nomeModulo: moduloForm.nome.trim(),
-      descricao: moduloForm.descricao.trim(),
-      sistemas: moduloForm.sistemas
-    })
-    await swal.toast('Módulo criado.')
+    const body = { descricao: moduloForm.descricao.trim(), sistemas: moduloForm.sistemas, iconeBase64: moduloForm.iconeBase64 }
+    if (editingModulo.value) await api.updateModulo(editingModulo.value, { ...body, novoNome: moduloForm.nome.trim() })
+    else await api.createModulo({ ...body, nomeModulo: moduloForm.nome.trim() })
+    await swal.toast(editingModulo.value ? 'Módulo atualizado.' : 'Módulo criado.')
     openNovoModulo.value = false
     moduloForm.nome = ''
     moduloForm.descricao = ''

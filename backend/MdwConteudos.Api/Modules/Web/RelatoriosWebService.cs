@@ -5,6 +5,7 @@ using System.Xml.Linq;
 using Dapper;
 using MdwConteudos.Api.Infrastructure;
 using MdwConteudos.Api.Modules.ApiPublica;
+using MdwConteudos.Api.Modules.Cadastros;
 
 namespace MdwConteudos.Api.Modules.Web;
 
@@ -393,6 +394,7 @@ public class RelatoriosWebService : IRelatoriosWebService
                 {
                     ["codmodulo"] = i + 1,
                     ["nome"] = FallbackModulos[i],
+                    ["iconeBase64"] = null,
                     ["descricao"] = "",
                     ["ativo"] = 1,
                     ["dthrcriacao"] = null,
@@ -409,16 +411,15 @@ public class RelatoriosWebService : IRelatoriosWebService
             if (codSistema.HasValue)
             {
                 rows = await conn.QueryAsync(@"
-                    SELECT DISTINCT MR.CODMODULO, MR.NOME, MR.DESCRICAO, MR.ATIVO, MR.DTHRCRIACAO, MR.DTHRATUALIZACAO
+                    SELECT MR.CODMODULO, MR.NOME, MR.DESCRICAO, MR.ATIVO, MR.DTHRCRIACAO, MR.DTHRATUALIZACAO, MR.ICONE_BASE64
                     FROM MODULORELATORIO MR
-                    JOIN SISTEMA_MODULO SM ON SM.CODMODULO = MR.CODMODULO
-                    WHERE MR.ATIVO = 1 AND SM.CODSISTEMA = @cs
+                    WHERE MR.ATIVO = 1 AND EXISTS (SELECT 1 FROM SISTEMA_MODULO SM WHERE SM.CODMODULO = MR.CODMODULO AND SM.CODSISTEMA = @cs)
                     ORDER BY MR.NOME", new { cs = codSistema.Value });
             }
             else
             {
                 rows = await conn.QueryAsync(@"
-                    SELECT CODMODULO, NOME, DESCRICAO, ATIVO, DTHRCRIACAO, DTHRATUALIZACAO
+                    SELECT CODMODULO, NOME, DESCRICAO, ATIVO, DTHRCRIACAO, DTHRATUALIZACAO, ICONE_BASE64
                     FROM MODULORELATORIO
                     WHERE ATIVO = 1
                     ORDER BY NOME");
@@ -441,6 +442,7 @@ public class RelatoriosWebService : IRelatoriosWebService
                     ["codmodulo"] = cod,
                     ["nome"] = (string?)m.NOME,
                     ["descricao"] = (string?)m.DESCRICAO ?? "",
+                    ["iconeBase64"] = (string?)m.ICONE_BASE64,
                     ["ativo"] = ToInt01(m.ATIVO),
                     ["dthrcriacao"] = FormatDate(m.DTHRCRIACAO),
                     ["dthratualizacao"] = FormatDate(m.DTHRATUALIZACAO),
@@ -526,6 +528,7 @@ public class RelatoriosWebService : IRelatoriosWebService
 
     public async Task<object> CreateModuloAsync(ModuloRelatorioCreateRequest req, int codUsuario, CancellationToken ct)
     {
+        var icon = new PacoteIcone.TextBlob(PacoteIcone.Validate(req.IconeBase64));
         var nome = (req.NomeModulo ?? "").Trim();
         if (string.IsNullOrWhiteSpace(nome))
             throw new InvalidOperationException("Nome do módulo é obrigatório");
@@ -542,10 +545,10 @@ public class RelatoriosWebService : IRelatoriosWebService
             throw new InvalidOperationException("Já existe um módulo com este nome");
 
         var cod = await conn.ExecuteScalarAsync<int>(@"
-            INSERT INTO MODULORELATORIO (NOME, DESCRICAO, USUARIOCRIACAO)
-            VALUES (@nome, @descricao, @user)
+            INSERT INTO MODULORELATORIO (NOME, DESCRICAO, USUARIOCRIACAO, ICONE_BASE64)
+            VALUES (@nome, @descricao, @user, @icon)
             RETURNING CODMODULO",
-            new { nome, descricao = req.Descricao?.Trim() ?? "", user = codUsuario });
+            new { nome, descricao = req.Descricao?.Trim() ?? "", user = codUsuario, icon });
 
         foreach (var cs in req.Sistemas.Distinct())
         {
@@ -563,6 +566,7 @@ public class RelatoriosWebService : IRelatoriosWebService
                 codmodulo = cod,
                 nome,
                 descricao = req.Descricao?.Trim() ?? "",
+                iconeBase64 = req.IconeBase64,
                 ativo = 1,
                 total_relatorios = 0,
                 ultima_atualizacao = (string?)null
@@ -572,6 +576,7 @@ public class RelatoriosWebService : IRelatoriosWebService
 
     public async Task UpdateModuloAsync(string nomeModulo, ModuloRelatorioUpdateRequest req, int codUsuario, CancellationToken ct)
     {
+        var icon = new PacoteIcone.TextBlob(PacoteIcone.Validate(req.IconeBase64));
         var novoNome = (req.NovoNome ?? "").Trim();
         if (string.IsNullOrWhiteSpace(novoNome))
             throw new InvalidOperationException("Novo nome do módulo é obrigatório");
@@ -594,9 +599,9 @@ public class RelatoriosWebService : IRelatoriosWebService
 
         await conn.ExecuteAsync(@"
             UPDATE MODULORELATORIO
-            SET NOME = @novo, DESCRICAO = @descricao, USUARIOATUALIZACAO = @user
+            SET NOME = @novo, DESCRICAO = @descricao, USUARIOATUALIZACAO = @user, ICONE_BASE64 = @icon
             WHERE CODMODULO = @cod",
-            new { novo = novoNome, descricao = req.Descricao, user = codUsuario, cod });
+            new { novo = novoNome, descricao = req.Descricao, user = codUsuario, cod, icon });
 
         if (req.Sistemas is not null)
         {

@@ -29,6 +29,7 @@ export interface RelatorioSistema {
 }
 
 export interface RelatorioModulo {
+  iconeBase64?: string | null
   codmodulo: number
   nome: string
   descricao?: string
@@ -190,12 +191,12 @@ export function useRelatoriosApi() {
     )
   }
 
-  const createModulo = (body: { nomeModulo: string; descricao?: string; sistemas: number[] }) =>
+  const createModulo = (body: { nomeModulo: string; descricao?: string; sistemas: number[]; iconeBase64?: string | null }) =>
     api.post<{ success: boolean; message?: string }>(`/api/web/relatorios/modulos`, body)
 
   const updateModulo = (
     nomeModulo: string,
-    body: { novoNome: string; descricao?: string; sistemas?: number[] }
+    body: { novoNome: string; descricao?: string; sistemas?: number[]; iconeBase64?: string | null }
   ) =>
     api.put<{ success: boolean }>(
       `/api/web/relatorios/modulos/${encodeURIComponent(nomeModulo)}`,

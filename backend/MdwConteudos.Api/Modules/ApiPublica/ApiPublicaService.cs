@@ -24,6 +24,7 @@ public interface IApiPublicaService
     Task<IActionResult> GetEspecialidadesAsync(CancellationToken ct);
     Task<IActionResult> GetRelatoriosAsync(string? ativo, string? multiselecao, string? nome, string? modulo, string? formato, int? codsistema, CancellationToken ct);
     Task<IActionResult> DownloadRelatorioAsync(int codrelatorio, CancellationToken ct);
+    Task<IActionResult> GetModuloRelatorioIconeAsync(int codmodulo, CancellationToken ct);
     Task<IActionResult> GetScriptsAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, string? incluirArquivos, CancellationToken ct);
     Task<IActionResult> GetScriptUltimoVerificadoAsync(string? sistema, string? aprovado, string? ativo, string? pacote, string? linguagem, string? incluirArquivos, CancellationToken ct);
     Task<IActionResult> GetScriptImagemAsync(int codscriptlaudo, int indice, CancellationToken ct);
@@ -449,9 +450,16 @@ public partial class ApiPublicaService : IApiPublicaService
             if (!string.IsNullOrEmpty(formato)) { where.Add("FORMATO = @formato"); p.Add("formato", formato.ToUpperInvariant()); }
             if (codsistema.HasValue) { where.Add("CODMODULO IN (SELECT SM.CODMODULO FROM SISTEMA_MODULO SM WHERE SM.CODSISTEMA = @cs)"); p.Add("cs", codsistema); }
 
-            var sql = $@"SELECT r.CODRELATORIO, r.NOME, r.MODULO, r.FORMATO, r.DTHRCRIACAO, r.ATIVO, r.TEM_MULTISELECAO
-                         FROM RELATORIOS r JOIN RELATORIOVALIDACOES rv ON rv.CODRELATORIO = r.CODRELATORIO
-                         WHERE {string.Join(" AND ", where)} ORDER BY r.DTHRCRIACAO DESC";
+            var sql = $@"SELECT r.CODRELATORIO, r.NOME, r.MODULO, r.FORMATO, r.DTHRCRIACAO, r.ATIVO, r.TEM_MULTISELECAO,
+                         (SELECT FIRST 1 CASE WHEN OCTET_LENGTH(m.ICONE_BASE64) > 0 THEN m.CODMODULO ELSE NULL END
+                          FROM MODULORELATORIO m
+                          WHERE m.CODMODULO = r.CODMODULO
+                             OR (NOT EXISTS (SELECT 1 FROM MODULORELATORIO vinculo WHERE vinculo.CODMODULO = r.CODMODULO)
+                                 AND UPPER(TRIM(m.NOME)) = UPPER(TRIM(r.MODULO)))
+                          ORDER BY m.CODMODULO) AS MODULO_ICONE_COD
+                         FROM RELATORIOS r
+                         WHERE EXISTS (SELECT 1 FROM RELATORIOVALIDACOES rv WHERE rv.CODRELATORIO = r.CODRELATORIO)
+                           AND {string.Join(" AND ", where)} ORDER BY r.DTHRCRIACAO DESC";
             await using var conn = await _db.OpenConnectionAsync(ct);
             var rows = await conn.QueryAsync(sql, p);
             var list = rows.Select(r => new
@@ -459,6 +467,7 @@ public partial class ApiPublicaService : IApiPublicaService
                 codrelatorio = (int)r.CODRELATORIO,
                 nome = (string?)r.NOME,
                 modulo = (string?)r.MODULO,
+                modulo_icone_url = r.MODULO_ICONE_COD is null ? null : $"/apiconteudos/v1/relatorios/modulos/{(int)r.MODULO_ICONE_COD}/icone",
                 formato = (string?)r.FORMATO,
                 dthrcriacao = ApiV1Contract.FormatDate((object?)r.DTHRCRIACAO),
                 ativo = r.ATIVO,

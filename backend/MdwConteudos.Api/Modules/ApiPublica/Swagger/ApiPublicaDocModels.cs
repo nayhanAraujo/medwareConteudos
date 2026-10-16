@@ -160,6 +160,7 @@ public record RelatorioItemDoc(
     [property: JsonPropertyName("codrelatorio")] int Codrelatorio,
     [property: JsonPropertyName("nome")] string? Nome,
     [property: JsonPropertyName("modulo")] string? Modulo,
+    [property: JsonPropertyName("modulo_icone_url")] string? ModuloIconeUrl,
     [property: JsonPropertyName("formato")] string? Formato,
     [property: JsonPropertyName("dthrcriacao")] string? Dthrcriacao,
     [property: JsonPropertyName("ativo")] int? Ativo,

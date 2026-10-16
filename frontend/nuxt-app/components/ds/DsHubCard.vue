@@ -7,8 +7,8 @@
       theme.dark ? 'hover:shadow-ds-card text-white' : 'hover:shadow-lg',
       delayIndex !== undefined ? delayClass(delayIndex) : ''
     ]"
-    role="button"
-    tabindex="0"
+    :role="interactive === false ? 'group' : 'button'"
+    :tabindex="interactive === false ? undefined : 0"
     :aria-label="title"
     :title="desc"
     @click="$emit('click')"
@@ -23,7 +23,8 @@
     </span>
 
     <div class="w-12 h-12 rounded-full flex items-center justify-center mb-4" :class="theme.iconBg">
-      <i :class="[`bi bi-${icon}`, theme.iconColor, 'text-xl']" />
+      <img v-if="iconImage" :src="iconImage" alt="" width="40" height="40" class="object-contain" />
+      <i v-else :class="[`bi bi-${icon}`, theme.iconColor, 'text-xl']" />
     </div>
 
     <h3 class="font-semibold font-sans text-center" :class="theme.dark ? 'text-white' : 'text-ds-text'">
@@ -43,6 +44,8 @@ const props = defineProps<{
   title: string
   desc?: string
   icon: string
+  iconImage?: string | null
+  interactive?: boolean
   themeName?: DsThemeName
   theme?: DsCardTheme
   badge?: string

@@ -22,11 +22,13 @@ public record RelatorioExportRequest(
 public record ModuloRelatorioCreateRequest(
     [property: JsonPropertyName("nomeModulo")] string? NomeModulo,
     [property: JsonPropertyName("descricao")] string? Descricao,
-    [property: JsonPropertyName("sistemas")] List<int>? Sistemas
+    [property: JsonPropertyName("sistemas")] List<int>? Sistemas,
+    [property: JsonPropertyName("iconeBase64")] string? IconeBase64 = null
 );
 
 public record ModuloRelatorioUpdateRequest(
     [property: JsonPropertyName("novoNome")] string? NovoNome,
     [property: JsonPropertyName("descricao")] string? Descricao,
-    [property: JsonPropertyName("sistemas")] List<int>? Sistemas
+    [property: JsonPropertyName("sistemas")] List<int>? Sistemas,
+    [property: JsonPropertyName("iconeBase64")] string? IconeBase64 = null
 );

@@ -76,6 +76,7 @@ public class ApiPublicaExamplesOperationFilter : IOperationFilter
             "Ecodoppler" or "EcodopplerPorRef" => ApiPublicaOpenApiExamples.Ecodoppler404,
             "UpdateNormalidade" => ApiPublicaOpenApiExamples.UpdateNormalidade404,
             "DownloadRelatorio" => ApiPublicaOpenApiExamples.Relatorio404,
+            "ModuloRelatorioIcone" => ApiPublicaOpenApiExamples.ModuloRelatorio404,
             "PacoteIcone" => ApiPublicaOpenApiExamples.Pacote404,
             "DownloadScript" or "ScriptImagem" => ApiPublicaOpenApiExamples.Script404,
             "DownloadPainel" => ApiPublicaOpenApiExamples.Painel404,

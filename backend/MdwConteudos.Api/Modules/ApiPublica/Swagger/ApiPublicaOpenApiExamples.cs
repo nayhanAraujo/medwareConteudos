@@ -135,8 +135,10 @@ public static class ApiPublicaOpenApiExamples
     public static JsonNode RelatoriosOk => List(Node(new
     {
         codrelatorio = 10, nome = "Relatório demonstrativo", modulo = "Laudos UX",
+        modulo_icone_url = "/apiconteudos/v1/relatorios/modulos/1/icone",
         formato = "FR3", dthrcriacao = Ts, ativo = 1, tem_multiselecao = false
     }));
+    public static JsonNode ModuloRelatorio404 => Node(new { success = false, error = "Modulo ou icone nao encontrado" });
     private static JsonObject Script => (JsonObject)Node(new
     {
         codscriptlaudo = 20, nome = "Modelo demonstrativo", descricao = "Exemplo sintético",
