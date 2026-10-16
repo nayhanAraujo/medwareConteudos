@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.OpenApi;
 using MdwConteudos.Api.Modules.ApiPublica;
+using MdwConteudos.Api.Modules.Avaliacoes;
 using MdwConteudos.Api.Modules.ApiPublica.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -15,7 +16,8 @@ public class PartnerJwtOperationFilter : IOperationFilter
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
         var path = "/" + (context.ApiDescription.RelativePath ?? "").TrimStart('/').Split('?')[0];
-        var isPublicController = context.MethodInfo.DeclaringType == typeof(ApiPublicaController);
+        var isPublicController = context.MethodInfo.DeclaringType == typeof(ApiPublicaController)
+            || context.MethodInfo.DeclaringType == typeof(AvaliacaoPublicaController);
         if (path.StartsWith("/apiconteudos/v1/", StringComparison.OrdinalIgnoreCase))
         {
             operation.Security = [];

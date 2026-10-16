@@ -48,6 +48,10 @@ const { irOuMigracao } = useMigracao()
 
 const cards: ContentCard[] = [
   {
+    type: 'avaliacoes', title: 'Central de Avaliações', desc: 'Avaliações e acompanhamento dos modelos',
+    icon: 'chat-square-heart', themeName: 'green', nuxtPath: '/avaliacoes'
+  },
+  {
     type: 'modelos_laudos',
     title: 'Modelos de Laudos',
     desc: 'Scripts e modelos para laudos médicos',
@@ -125,7 +129,8 @@ const cards: ContentCard[] = [
   }
 ]
 
-const visibleCards = computed(() => cards.filter((card) => !card.hidden))
+const auth = useAuthStore()
+const visibleCards = computed(() => cards.filter((card) => !card.hidden && (card.type !== 'avaliacoes' || auth.can('avaliacoes', 'visualizar'))))
 
 function onSelect(card: ContentCard) {
   if (card.externalUrl) {

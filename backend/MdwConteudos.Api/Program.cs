@@ -23,12 +23,13 @@ using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Modules.RelatoriosComplementos;
 using MdwConteudos.Api.Modules.Users;
 using MdwConteudos.Api.Modules.Web;
+using MdwConteudos.Api.Modules.Avaliacoes;
 using MdwConteudos.Api.Services;
 using ConversorHtml.Application;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-permissions" && arg != "--migrate-package-icons" && arg != "--migrate-report-module-icons").ToArray());
+var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-permissions" && arg != "--migrate-package-icons" && arg != "--migrate-report-module-icons" && arg != "--migrate-evaluations").ToArray());
 // Override local por máquina (appsettings.*.local.json está no .gitignore)
 builder.Configuration.AddJsonFile(
     $"appsettings.{builder.Environment.EnvironmentName}.local.json",
@@ -93,6 +94,7 @@ builder.Services.PostConfigure<ApiPartnerOptions>(opt =>
 builder.Services.Configure<LegacyPathsOptions>(builder.Configuration.GetSection("LegacyPaths"));
 
 builder.Services.AddSingleton<IFirebirdConnectionFactory, FirebirdConnectionFactory>();
+builder.Services.AddScoped<AvaliacaoService>();
 builder.Services.AddSingleton<IAssistantFirebirdConnectionFactory, AssistantFirebirdConnectionFactory>();
 builder.Services.AddScoped<IAssistenteDominiosService, AssistenteDominiosService>();
 builder.Services.AddScoped<IAssistenteImportacaoService, AssistenteImportacaoService>();
@@ -231,6 +233,13 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 ProductionSecurity.Validate(app);
 HomologacaoGuard.Validate(app);
+if (args.Contains("--migrate-evaluations", StringComparer.Ordinal))
+{
+    using var evaluationScope = app.Services.CreateScope();
+    await AvaliacaoSchema.MigrateAsync(evaluationScope.ServiceProvider.GetRequiredService<IFirebirdConnectionFactory>());
+    await evaluationScope.ServiceProvider.GetRequiredService<IPermissionService>().EnsureSchemaAsync();
+    return;
+}
 if (args.Contains("--migrate-report-module-icons", StringComparer.Ordinal))
 {
     using var iconScope = app.Services.CreateScope();

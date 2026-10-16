@@ -51,6 +51,8 @@ public class ApiPartnerJwtMiddleware
             var domain = InternalDomain(path);
             var action = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)
                 ? PermissionActions.Visualizar : PermissionActions.Editar;
+            if (domain == PermissionDomains.Avaliacoes && action == PermissionActions.Editar)
+                action = PermissionActions.Acompanhar;
             var id = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
             var permissions = context.RequestServices.GetRequiredService<IPermissionService>();
             if (domain is null || !int.TryParse(id, out var userId)
@@ -78,6 +80,9 @@ public class ApiPartnerJwtMiddleware
 
     public static string? InternalDomain(string path)
     {
+        if (path.StartsWith("/api/v1/scripts/", StringComparison.OrdinalIgnoreCase)
+            && path.Split('/').Any(segment => segment.Equals("avaliacoes", StringComparison.OrdinalIgnoreCase)))
+            return PermissionDomains.Avaliacoes;
         var segment = path.Trim('/').Split('/').ElementAtOrDefault(2)?.ToLowerInvariant();
         return segment switch
         {

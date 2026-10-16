@@ -147,7 +147,7 @@ public static class ApiPublicaOpenApiExamples
         ativo = true, aprovado_por = "", pacote_nome = "Cardiologia", codpacote = 1,
         pacote_icone_url = "/apiconteudos/v1/pacotes/1/icone",
         pacote_icone_base64 = IconeBase64,
-        numero_versao = "1.0",
+        codversao = 30, numero_versao = "1.0",
         imagens = new[] { new { nome = "interface-exemplo.png", caminho = "uploads/exemplos/interface-exemplo.png" } },
         pdfs = new[] { new { nome = "modelo-exemplo.pdf", caminho = "uploads/exemplos/modelo-exemplo.pdf" } },
         mrds = new[] { new { codscriptmrd = (int?)null, codversaomrd = 30, nome_arquivo = "modelo-exemplo.mrd", padrao = true, ordem = 1 } },

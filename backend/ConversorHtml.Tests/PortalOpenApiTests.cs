@@ -80,10 +80,10 @@ public sealed class PortalOpenApiTests : IDisposable
     }
 
     [Fact]
-    public void Public_definition_contains_exactly_25_operations_and_no_untyped_success()
+    public void Public_definition_contains_exactly_29_operations_and_no_untyped_success()
     {
         var doc = _swagger.GetSwagger(SwaggerDocPaths.Parceiros);
-        Assert.Equal(25, Operations(doc).Count());
+        Assert.Equal(29, Operations(doc).Count());
         Assert.All(doc.Paths.Keys, p => Assert.StartsWith("/apiconteudos/v1/", p));
         Assert.All(Operations(doc), op =>
         {

@@ -189,6 +189,7 @@ public class ScriptItemDoc
     [JsonPropertyName("pacote_icone_url")] public string? PacoteIconeUrl { get; set; }
     [JsonPropertyName("pacote_icone_base64")] public string? PacoteIconeBase64 { get; set; }
     [JsonPropertyName("codpacote")] public int? Codpacote { get; set; }
+    [JsonPropertyName("codversao")] public int? CodVersao { get; set; }
     [JsonPropertyName("numero_versao"), DocOptional] public string? NumeroVersao { get; set; }
     [JsonPropertyName("imagens"), DocOptional] public List<ScriptArquivoDoc> Imagens { get; set; } = [];
     [JsonPropertyName("pdfs"), DocOptional] public List<ScriptArquivoDoc> Pdfs { get; set; } = [];

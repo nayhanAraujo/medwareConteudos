@@ -6,10 +6,12 @@ export interface AppMenuItem {
 }
 
 export function useAppMenu(): AppMenuItem[] {
+  const auth = useAuthStore()
   return [
     { label: 'Dashboards', path: '/', icon: 'speedometer2', exact: true },
     { label: 'Visualizar Conteúdos', path: '/conteudos', icon: 'boxes' },
-    { label: 'Biblioteca', path: '/biblioteca', icon: 'journal-bookmark' }
+    { label: 'Biblioteca', path: '/biblioteca', icon: 'journal-bookmark' },
+    ...(auth.can('avaliacoes', 'visualizar') ? [{ label: 'Central de Avaliações', path: '/avaliacoes', icon: 'chat-square-heart' }] : [])
   ]
 }
 

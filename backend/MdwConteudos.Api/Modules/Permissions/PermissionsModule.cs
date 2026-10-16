@@ -14,6 +14,7 @@ public static class PermissionDomains
     public const string Formulas = "formulas";
     public const string Referencias = "referencias";
     public const string Scripts = "scripts";
+    public const string Avaliacoes = "avaliacoes";
     public const string Pacotes = "pacotes";
     public const string Conteudos = "conteudos";
     public const string Relatorios = "relatorios";
@@ -38,6 +39,8 @@ public static class PermissionActions
     public const string Ativar = "ativar";
     public const string Converter = "converter";
     public const string Voz = "voz";
+    public const string Acompanhar = "acompanhar";
+    public const string Moderar = "moderar";
 }
 
 public sealed record PermissionCatalogItem(string Chave, string Dominio, string Acao, string Descricao, int Status);
@@ -360,6 +363,7 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
             [PermissionDomains.Formulas] = [PermissionActions.Visualizar, PermissionActions.Criar, PermissionActions.Editar, PermissionActions.Excluir, PermissionActions.Vincular],
             [PermissionDomains.Referencias] = [PermissionActions.Visualizar, PermissionActions.Criar, PermissionActions.Editar, PermissionActions.Excluir, PermissionActions.Importar, PermissionActions.Exportar, PermissionActions.Vincular],
             [PermissionDomains.Scripts] = [PermissionActions.Visualizar, PermissionActions.Criar, PermissionActions.Editar, PermissionActions.Excluir, PermissionActions.Importar, PermissionActions.Exportar, PermissionActions.Aprovar, PermissionActions.Vincular, PermissionActions.Ativar],
+            [PermissionDomains.Avaliacoes] = [PermissionActions.Visualizar, PermissionActions.Acompanhar, PermissionActions.Moderar],
             [PermissionDomains.Pacotes] = [PermissionActions.Visualizar, PermissionActions.Criar, PermissionActions.Editar, PermissionActions.Excluir, PermissionActions.Vincular, PermissionActions.Ativar]
         };
 
@@ -390,6 +394,9 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
             "vincular" => "Vincular",
             "ativar" => "Ativar/inativar",
             "visualizar" => "Visualizar",
+            "avaliacoes" => "avaliações",
+            "acompanhar" => "Acompanhar",
+            "moderar" => "Moderar",
             _ => value
         };
 }

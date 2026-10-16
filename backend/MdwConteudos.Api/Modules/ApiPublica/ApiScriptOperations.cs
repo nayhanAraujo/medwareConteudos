@@ -255,9 +255,10 @@ public class ApiScriptOperations
                 ? null : (string?)row.PACOTE_ICONE_BASE64
         };
 
+        var (codVersao, numeroVersao) = await GetVersaoAtivaAsync(conn, cod, ct);
+        item["codversao"] = codVersao;
         if (!incluirArquivos) return item;
 
-        var (codVersao, numeroVersao) = await GetVersaoAtivaAsync(conn, cod, ct);
         var (imagens, pdfs, numVersao, codVers) = await FetchArquivosAsync(conn, cod, codVersao, numeroVersao, ct);
         var (mrds, mrdFonte) = await FetchMrdListAsync(conn, cod, codVers, ct);
         item["numero_versao"] = numVersao;

@@ -19,6 +19,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets/Pacotes/*.png" />
+    <EmbeddedResource Include="../sql/script-avaliacoes.sql" LogicalName="script-avaliacoes.sql" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="appsettings.*.local.json;appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />

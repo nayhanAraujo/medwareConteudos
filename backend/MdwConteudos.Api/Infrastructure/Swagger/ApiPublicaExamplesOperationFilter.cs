@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using System.Text.Json;
+using MdwConteudos.Api.Modules.Avaliacoes;
 using Microsoft.OpenApi;
 using MdwConteudos.Api.Modules.ApiPublica;
 using MdwConteudos.Api.Modules.ApiPublica.Swagger;
@@ -10,6 +12,11 @@ public class ApiPublicaExamplesOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        if (context.MethodInfo.DeclaringType == typeof(AvaliacaoPublicaController))
+        {
+            EvaluationExamples(operation, context.MethodInfo.Name);
+            return;
+        }
         if (context.MethodInfo.DeclaringType != typeof(ApiPublicaController)) return;
         var action = context.MethodInfo.Name;
         if (operation.RequestBody?.Content?.TryGetValue("application/json", out var request) == true)
@@ -33,6 +40,40 @@ public class ApiPublicaExamplesOperationFilter : IOperationFilter
             if (example is null || response.Content is null) continue;
             foreach (var (mediaType, media) in response.Content)
                 if (mediaType == "application/json") media.Example = example.DeepClone();
+        }
+    }
+
+    private static void EvaluationExamples(OpenApiOperation operation, string action)
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var date = new DateTime(2026, 10, 16, 12, 0, 0, DateTimeKind.Utc);
+        var review = new AvaliacaoPublica(1, 20, 30, "1.0", "João", 4, "sim", 5, 4, 4, 5, 4,
+            "Bom modelo", "Conteúdo útil e fácil de usar.", date, date);
+        if (operation.RequestBody?.Content?.TryGetValue("application/json", out var request) == true)
+            request.Example = JsonSerializer.SerializeToNode(new AvaliacaoInput {
+                CodVersao = 30, Origem = "portal-modelos", ClienteId = "clinica-123", UsuarioId = "usuario-456",
+                NomeAvaliador = "João", NomeClinica = "Clínica Exemplo", NotaGeral = 4, Recomendacao = "sim",
+                FacilidadeUso = 5, QualidadeConteudo = 4, Completude = 4, Aparencia = 5, UtilidadeClinica = 4,
+                Titulo = review.Titulo, Comentario = review.Comentario
+            }, options);
+        if (operation.Responses is null) return;
+        foreach (var (code, response) in operation.Responses)
+        {
+            JsonNode? example;
+            if (code is "200" or "201")
+            {
+                object body = action switch {
+                    nameof(AvaliacaoPublicaController.Save) => new AvaliacaoEnvelope<AvaliacaoSave>(true, new(1, code == "201", code != "201", review)),
+                    nameof(AvaliacaoPublicaController.List) => new AvaliacaoPublicPage(true, [review], 1, 25, 1, 1),
+                    nameof(AvaliacaoPublicaController.Summary) => new AvaliacaoEnvelope<AvaliacaoResumo>(true, new() { Quantidade = 1, MediaGeral = 4, FacilidadeUso = 5, QualidadeConteudo = 4, Completude = 4, Aparencia = 5, UtilidadeClinica = 4, DistribuicaoNotas = new() { [1] = 0, [2] = 0, [3] = 0, [4] = 1, [5] = 0 }, Recomendacoes = new() { ["sim"] = 1, ["talvez"] = 0, ["nao"] = 0 } }),
+                    _ => new AvaliacaoEnvelope<AvaliacaoPublica>(true, review)
+                };
+                example = JsonSerializer.SerializeToNode(body, options);
+            }
+            else example = Example("", code);
+            if (example is not null && response.Content is not null)
+                foreach (var (mime, media) in response.Content)
+                    if (mime == "application/json") media.Example = example.DeepClone();
         }
     }
 
