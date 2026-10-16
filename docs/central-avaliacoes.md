@@ -4,6 +4,8 @@
 
 A migração é aditiva e não altera scripts, versões ou avaliações existentes. Execute antes de habilitar os endpoints:
 
+O pipeline de produção executa automaticamente `--migrate-database` antes de iniciar a API nova. Esse comando inclui avaliações e atualização do catálogo de permissões. Não é necessário executar migrações manualmente após um deploy concluído. O comando abaixo continua disponível para preparação manual de um ambiente:
+
 ```powershell
 dotnet MdwConteudos.Api.dll --migrate-evaluations
 ```

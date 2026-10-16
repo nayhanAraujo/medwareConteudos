@@ -13,7 +13,8 @@ param(
     [string]$PublicSite = 'MdwConteudo',
     [string]$PublicPool = 'MdwConteudo',
     [string]$NuxtService = 'MdwConteudoNuxt',
-    [switch]$RequireReady
+    [switch]$RequireReady,
+    [ValidateRange(30, 1800)][int]$MigrationTimeoutSeconds = 300
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,7 +40,8 @@ function Invoke-Checked([string]$File, [string[]]$Arguments) {
     }
 }
 
-function Invoke-ExternalWithTimeout([string]$File, [string[]]$Arguments, [string]$Description, [int]$TimeoutSeconds = 30) {
+function Invoke-ExternalWithTimeout([string]$File, [string[]]$Arguments, [string]$Description, [int]$TimeoutSeconds = 30,
+    [string]$WorkingDirectory = '', [System.Collections.IDictionary]$EnvironmentOverrides = @{}) {
     $argumentLine = ($Arguments | ForEach-Object {
         if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
     }) -join ' '
@@ -50,19 +52,49 @@ function Invoke-ExternalWithTimeout([string]$File, [string[]]$Arguments, [string
     $startInfo.CreateNoWindow = $true
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
+    if ($WorkingDirectory) { $startInfo.WorkingDirectory = $WorkingDirectory }
+    foreach ($key in $EnvironmentOverrides.Keys) {
+        if ($null -eq $EnvironmentOverrides[$key]) { $startInfo.EnvironmentVariables.Remove($key) }
+        else { $startInfo.EnvironmentVariables[$key] = [string]$EnvironmentOverrides[$key] }
+    }
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $startInfo
-    if (-not $process.Start()) { throw "Não foi possível iniciar $Description." }
-    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        throw "$Description não respondeu em $TimeoutSeconds segundos."
+    try {
+        if (-not $process.Start()) { throw "Não foi possível iniciar $Description." }
+        # Drain both pipes concurrently: waiting first can deadlock a verbose migration.
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw "$Description não respondeu em $TimeoutSeconds segundos."
+        }
+        $output = $stdout.GetAwaiter().GetResult() + [Environment]::NewLine + $stderr.GetAwaiter().GetResult()
+        $exitCode = $process.ExitCode
+        if ($exitCode -ne 0) {
+            throw "$Description falhou com o código ${exitCode}: $($output.Trim())"
+        }
+        return $output.Trim()
     }
-    $output = $process.StandardOutput.ReadToEnd() + [Environment]::NewLine + $process.StandardError.ReadToEnd()
-    $exitCode = $process.ExitCode
-    if ($exitCode -ne 0) {
-        throw "$Description falhou com o código ${exitCode}: $($output.Trim())"
+    finally { $process.Dispose() }
+}
+
+function Invoke-DatabaseMigrations([string]$ApiDirectory) {
+    # Only the child receives these values. Never change machine/service environment.
+    # Prevent agent variables from overriding the destination JSON already validated above.
+    $migrationEnvironment = @{}
+    foreach ($entry in [Environment]::GetEnvironmentVariables().GetEnumerator()) {
+        if ($entry.Key -match '^(FIREBIRD_|ASSISTENTE_FIREBIRD_|LOCAL_DB_PASSWORD$|API_JWT_|Firebird__|AssistantFirebird__|DataPaths__|WebAuth__|ApiPartner__|Security__|Documentation__|ASPNETCORE_|DOTNET_)') {
+            $migrationEnvironment[$entry.Key] = $null
+        }
     }
-    return $output.Trim()
+    $migrationEnvironment['ASPNETCORE_ENVIRONMENT'] = 'Production'
+    $migrationEnvironment['DOTNET_ENVIRONMENT'] = 'Production'
+    Write-Host '[Deploy] Aplicando migrações do novo release no banco configurado...'
+    $output = Invoke-ExternalWithTimeout -File $dotnet -Arguments @(
+        (Join-Path $ApiDirectory 'MdwConteudos.Api.dll'), '--migrate-database', '--contentRoot', $ApiDirectory
+    ) -Description 'Migrações do banco' -TimeoutSeconds $MigrationTimeoutSeconds -WorkingDirectory $ApiDirectory -EnvironmentOverrides $migrationEnvironment
+    if ($output) { Write-Host $output }
+    Write-Host '[Deploy] Migrações concluídas e validadas.'
 }
 
 function Get-NssmValue([string]$Executable, [string]$Parameter) {
@@ -227,6 +259,7 @@ $data = FullPath (Resolve-Path -LiteralPath $DataDirectory).Path
 $secret = FullPath (Resolve-Path -LiteralPath $SecretsFile).Path
 $nssm = FullPath (Resolve-Path -LiteralPath $NssmPath).Path
 $node = FullPath (Resolve-Path -LiteralPath $NodePath).Path
+$dotnet = (Get-Command dotnet.exe -CommandType Application -ErrorAction Stop).Source
 $releasesRoot = FullPath (Split-Path $release -Parent)
 
 Write-Host '[Deploy] Validando configuração e caminhos de produção...'
@@ -334,6 +367,7 @@ $newNuxtEntry = Join-Path $newNuxtPath 'server\index.mjs'
 try {
     Write-Host '[Deploy] Parando somente os componentes MDW Conteúdo...'
     Stop-Components
+    Invoke-DatabaseMigrations $newApiPath
     Write-Host '[Deploy] Atualizando caminhos IIS e NSSM...'
     Set-ItemProperty "IIS:\Sites\$ApiSite" -Name physicalPath -Value $newApiPath
     Set-ItemProperty "IIS:\Sites\$PublicSite" -Name physicalPath -Value $publicDirectory

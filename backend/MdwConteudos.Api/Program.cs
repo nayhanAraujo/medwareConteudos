@@ -29,7 +29,7 @@ using ConversorHtml.Application;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-permissions" && arg != "--migrate-package-icons" && arg != "--migrate-report-module-icons" && arg != "--migrate-evaluations").ToArray());
+var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-database" && arg != "--migrate-permissions" && arg != "--migrate-package-icons" && arg != "--migrate-report-module-icons" && arg != "--migrate-evaluations").ToArray());
 // Override local por máquina (appsettings.*.local.json está no .gitignore)
 builder.Configuration.AddJsonFile(
     $"appsettings.{builder.Environment.EnvironmentName}.local.json",
@@ -233,6 +233,12 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 ProductionSecurity.Validate(app);
 HomologacaoGuard.Validate(app);
+if (args.Contains("--migrate-database", StringComparer.Ordinal))
+{
+    using var migrationScope = app.Services.CreateScope();
+    await DatabaseMigrations.RunAsync(migrationScope.ServiceProvider, app.Logger);
+    return;
+}
 if (args.Contains("--migrate-evaluations", StringComparer.Ordinal))
 {
     using var evaluationScope = app.Services.CreateScope();

@@ -64,6 +64,7 @@ if ($WorkingTree) {
 New-Item -ItemType Directory -Path $output | Out-Null
 Push-Location $source
 try {
+    Invoke-Checked powershell.exe @('-NoProfile','-NonInteractive','-File','tools/production/tests/Test-DeployProcess.ps1')
     Invoke-Checked dotnet @('test','backend/ConversorHtml.Tests/ConversorHtml.Tests.csproj','-c','Release','--logger','console;verbosity=minimal')
     Invoke-Checked dotnet @('publish','backend/MdwConteudos.Api/MdwConteudos.Api.csproj','-c','Release','-o',"$output/api")
 } finally { Pop-Location }

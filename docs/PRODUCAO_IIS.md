@@ -60,14 +60,20 @@ Smoke exige HTTP 200, certificado válido, sem aceitar redirects: live/ready loc
 
 ## Preparação do catálogo e aceite de segurança
 
-Production não cria automaticamente o catálogo de permissões. Após backup e restauração dos bancos de destino, execute explicitamente, no diretório `release/api`, com a configuração local preenchida:
+O deploy executa `--migrate-database` usando a DLL e o JSON restrito do novo release, depois de parar os componentes MDW e antes de trocar os caminhos IIS/NSSM. O processo filho recebe ambiente Production e diretório de conteúdo explícitos; variáveis de configuração herdadas do agente são removidas somente desse processo. O limite padrão é de 300 segundos (`-MigrationTimeoutSeconds` permite ajustar). Os logs identificam cada etapa e o deploy só inicia a API após a conclusão com código zero.
+
+Em instalação manual, após backup consistente dos bancos de destino, execute explicitamente no diretório `release/api`, com a configuração local preenchida e o pool API parado:
 
 ```powershell
 $env:ASPNETCORE_ENVIRONMENT = 'Production'
-dotnet MdwConteudos.Api.dll --migrate-permissions
+dotnet MdwConteudos.Api.dll --migrate-database
 ```
 
-Esse comando altera o catálogo no banco configurado e encerra; confira os caminhos antes de executá-lo. O instalador não o executa. Em instalações novas, revisar também os scripts fornecidos em `sql` com o DBA, conforme o schema restaurado; não executar todos indiscriminadamente. Reiniciar o pool após preparar o catálogo. Conceder as novas permissões Studio explicitamente aos perfis autorizados.
+Esse comando prepara permissões, ícones de pacotes, ícones dos módulos de relatórios e avaliações, valida o catálogo e encerra sem iniciar HTTP ou serviços de publicação. As etapas são repetíveis; ícones existentes e concessões/exceções de acesso são preservados. O instalador inicial não executa o comando. Conceder novas permissões explicitamente aos perfis autorizados.
+
+Toda futura migração necessária para iniciar uma versão deve ser registrada em `Infrastructure/DatabaseMigrations.cs`, na ordem das dependências, e testada em banco temporário, inclusive na segunda execução. O deploy usa sempre esse registro da DLL nova; não descobre nem executa arquivos SQL arbitrários. Registrar somente migrações aditivas compatíveis com o release anterior. Alterações destrutivas precisam de procedimento específico, backup e plano de compatibilidade. Em instalações novas, revisar também os scripts de base fornecidos em `sql` conforme o schema restaurado.
+
+Em falha ou timeout de migração, o deploy restaura os componentes e caminhos anteriores e informa erro. O rollback é de código: etapas de banco já confirmadas permanecem aplicadas. Não existe transação única abrangendo todas as etapas; por isso cada migração precisa suportar repetição e rollback de código. Não restaurar bancos automaticamente. A preparação de backups continua sendo responsabilidade da operação antes da aprovação do Environment.
 
 As cinco frentes corrigidas são recuperação anônima de senha, autenticação da API interna, autorização/posse de sessões Studio, segredos/configuração de produção e controles de abuso/exposição de erros. `/api/v1` agora exige JWT; comunicar a mudança aos integradores. Credenciais padrão anteriormente utilizadas devem ser rotacionadas, inclusive nos bancos; remover do arquivo atual não remove o histórico Git.
 
@@ -99,4 +105,4 @@ Configuração inicial no Azure DevOps:
 
 O pipeline não observa arquivos do computador local: alterações precisam ser commitadas e enviadas para `main`. Pull requests executam somente a validação; não implantam. O script valida manifesto SHA256, JSON, bancos, Node/NSSM e objetos IIS antes de interromper os componentes. O corte executa smoke tests em API, Nuxt e domínio público; falhas restauram os caminhos e o estado anterior dos componentes.
 
-Rollback de **código**: manutenção, parar serviço/pool, repor physicalPaths/XML/configuração compatível anteriores e testar. Dados intactos. Rollback de **banco** é decisão separada: autorização, perda de escritas desde backup explicitamente aceita e restauração coordenada banco+arquivos sem escritores. Não restaurar banco por falha de smoke. Se código anterior não suporta schema atual, manter manutenção e envolver DBA. Preservar releases antigas pela retenção.
+Rollback de **código**: manutenção, parar serviço/pool, repor physicalPaths/XML/configuração compatível anteriores e testar. Migrações de banco já confirmadas permanecem aplicadas. Rollback de **banco** é decisão separada: autorização, perda de escritas desde backup explicitamente aceita e restauração coordenada banco+arquivos sem escritores. Não restaurar banco por falha de smoke. Se código anterior não suporta schema atual, manter manutenção e envolver DBA. Preservar releases antigas pela retenção.

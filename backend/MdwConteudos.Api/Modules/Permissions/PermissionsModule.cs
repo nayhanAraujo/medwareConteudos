@@ -121,7 +121,9 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
                 """);
         }
 
-        await conn.ExecuteAsync("UPDATE PERMISSAO SET STATUS = 0, DTHRULTMODIFICACAO = CURRENT_TIMESTAMP");
+        // Keep the previous catalog usable if seeding fails or deployment is interrupted.
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition("UPDATE PERMISSAO SET STATUS = 0, DTHRULTMODIFICACAO = CURRENT_TIMESTAMP", transaction: tx, cancellationToken: ct));
 
         foreach (var item in Seed)
         {
@@ -129,7 +131,7 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
                 UPDATE OR INSERT INTO PERMISSAO (CHAVE, DOMINIO, ACAO, DESCRICAO, STATUS, DTHRULTMODIFICACAO)
                 VALUES (@Chave, @Dominio, @Acao, @Descricao, @Status, CURRENT_TIMESTAMP)
                 MATCHING (CHAVE)
-                """, item);
+                """, item, tx);
         }
 
         foreach (var perfil in firstInstall ? new[] { "usuario", "comum" } : Array.Empty<string>())
@@ -140,9 +142,10 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
                     UPDATE OR INSERT INTO PERFIL_PERMISSAO (PERFIL, CHAVE, DTHRULTMODIFICACAO)
                     VALUES (@perfil, @chave, CURRENT_TIMESTAMP)
                     MATCHING (PERFIL, CHAVE)
-                    """, new { perfil, chave });
+                    """, new { perfil, chave }, tx);
             }
         }
+        await tx.CommitAsync(ct);
     }
 
     public async Task ValidateSchemaAsync(CancellationToken ct = default)
