@@ -2,10 +2,13 @@
 
 ## API de conteudos
 
-`GET /apiconteudos/v1/relatorios` retorna `modulo_icone_url` em cada relatorio,
+`GET /apiconteudos/v1/relatorios` retorna `modulo_icone_url` e
+`modulo_icone_base64` em cada relatorio,
 preservando os demais campos. Exemplo:
 `/apiconteudos/v1/relatorios/modulos/1/icone`. Resolva a URL relativa usando
-a origem da API. O campo e null quando nao ha modulo vinculado ou imagem.
+a origem da API. O Base64 e a data URI completa armazenada no banco
+(`data:image/png;base64,...`), pronta para usar no src de uma imagem sem
+outra requisicao. Ambos os campos sao null quando nao ha modulo ou imagem.
 O vinculo por CODMODULO tem prioridade; se esse codigo nao corresponder a um
 modulo existente, o nome legado e comparado sem diferenca de caixa e espacos
 nas extremidades. Se nomes duplicados existirem, usa o menor CODMODULO.

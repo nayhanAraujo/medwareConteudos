@@ -443,21 +443,24 @@ public partial class ApiPublicaService : IApiPublicaService
 
             var where = new List<string> { "1=1" };
             var p = new DynamicParameters();
-            if (ativo is "0" or "1") { where.Add("ATIVO = @ativo"); p.Add("ativo", int.Parse(ativo)); }
-            if (msVal.HasValue) { where.Add("TEM_MULTISELECAO = @ms"); p.Add("ms", msVal); }
-            if (!string.IsNullOrEmpty(nome)) { where.Add("(UPPER(NOME) LIKE UPPER(@nome) OR UPPER(MODULO) LIKE UPPER(@nome))"); p.Add("nome", $"%{nome}%"); }
-            if (!string.IsNullOrEmpty(modulo)) { where.Add("MODULO = @modulo"); p.Add("modulo", modulo); }
-            if (!string.IsNullOrEmpty(formato)) { where.Add("FORMATO = @formato"); p.Add("formato", formato.ToUpperInvariant()); }
-            if (codsistema.HasValue) { where.Add("CODMODULO IN (SELECT SM.CODMODULO FROM SISTEMA_MODULO SM WHERE SM.CODSISTEMA = @cs)"); p.Add("cs", codsistema); }
+            if (ativo is "0" or "1") { where.Add("r.ATIVO = @ativo"); p.Add("ativo", int.Parse(ativo)); }
+            if (msVal.HasValue) { where.Add("r.TEM_MULTISELECAO = @ms"); p.Add("ms", msVal); }
+            if (!string.IsNullOrEmpty(nome)) { where.Add("(UPPER(r.NOME) LIKE UPPER(@nome) OR UPPER(r.MODULO) LIKE UPPER(@nome))"); p.Add("nome", $"%{nome}%"); }
+            if (!string.IsNullOrEmpty(modulo)) { where.Add("r.MODULO = @modulo"); p.Add("modulo", modulo); }
+            if (!string.IsNullOrEmpty(formato)) { where.Add("r.FORMATO = @formato"); p.Add("formato", formato.ToUpperInvariant()); }
+            if (codsistema.HasValue) { where.Add("r.CODMODULO IN (SELECT SM.CODMODULO FROM SISTEMA_MODULO SM WHERE SM.CODSISTEMA = @cs)"); p.Add("cs", codsistema); }
 
             var sql = $@"SELECT r.CODRELATORIO, r.NOME, r.MODULO, r.FORMATO, r.DTHRCRIACAO, r.ATIVO, r.TEM_MULTISELECAO,
-                         (SELECT FIRST 1 CASE WHEN OCTET_LENGTH(m.ICONE_BASE64) > 0 THEN m.CODMODULO ELSE NULL END
-                          FROM MODULORELATORIO m
-                          WHERE m.CODMODULO = r.CODMODULO
-                             OR (NOT EXISTS (SELECT 1 FROM MODULORELATORIO vinculo WHERE vinculo.CODMODULO = r.CODMODULO)
-                                 AND UPPER(TRIM(m.NOME)) = UPPER(TRIM(r.MODULO)))
-                          ORDER BY m.CODMODULO) AS MODULO_ICONE_COD
+                         CASE WHEN OCTET_LENGTH(m.ICONE_BASE64) > 0 THEN m.CODMODULO ELSE NULL END AS MODULO_ICONE_COD,
+                         m.ICONE_BASE64 AS MODULO_ICONE_BASE64
                          FROM RELATORIOS r
+                         LEFT JOIN MODULORELATORIO m ON m.CODMODULO =
+                         (SELECT FIRST 1 candidato.CODMODULO
+                          FROM MODULORELATORIO candidato
+                          WHERE candidato.CODMODULO = r.CODMODULO
+                             OR (NOT EXISTS (SELECT 1 FROM MODULORELATORIO vinculo WHERE vinculo.CODMODULO = r.CODMODULO)
+                                 AND UPPER(TRIM(candidato.NOME)) = UPPER(TRIM(r.MODULO)))
+                          ORDER BY candidato.CODMODULO)
                          WHERE EXISTS (SELECT 1 FROM RELATORIOVALIDACOES rv WHERE rv.CODRELATORIO = r.CODRELATORIO)
                            AND {string.Join(" AND ", where)} ORDER BY r.DTHRCRIACAO DESC";
             await using var conn = await _db.OpenConnectionAsync(ct);
@@ -468,6 +471,7 @@ public partial class ApiPublicaService : IApiPublicaService
                 nome = (string?)r.NOME,
                 modulo = (string?)r.MODULO,
                 modulo_icone_url = r.MODULO_ICONE_COD is null ? null : $"/apiconteudos/v1/relatorios/modulos/{(int)r.MODULO_ICONE_COD}/icone",
+                modulo_icone_base64 = string.IsNullOrEmpty((string?)r.MODULO_ICONE_BASE64) ? null : (string?)r.MODULO_ICONE_BASE64,
                 formato = (string?)r.FORMATO,
                 dthrcriacao = ApiV1Contract.FormatDate((object?)r.DTHRCRIACAO),
                 ativo = r.ATIVO,

@@ -71,6 +71,10 @@ public sealed class ApiRelatorioIconeTests
             var payload = JsonSerializer.SerializeToElement(result.Value);
             Assert.Equal(7, payload.GetProperty("total").GetInt32());
             var data = payload.GetProperty("data").EnumerateArray().ToDictionary(r => r.GetProperty("codrelatorio").GetInt32());
+            foreach (var id in new[] { 1, 2, 5, 7 })
+                Assert.Equal(PacoteIcone.Prefix + Convert.ToBase64String(bytes), data[id].GetProperty("modulo_icone_base64").GetString());
+            foreach (var id in new[] { 3, 4, 6 })
+                Assert.Equal(JsonValueKind.Null, data[id].GetProperty("modulo_icone_base64").ValueKind);
             foreach (var id in new[] { 1, 2, 5 })
                 Assert.Equal("/apiconteudos/v1/relatorios/modulos/1/icone", data[id].GetProperty("modulo_icone_url").GetString());
             foreach (var id in new[] { 3, 4, 6 })

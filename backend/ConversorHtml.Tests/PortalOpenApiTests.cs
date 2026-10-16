@@ -130,6 +130,8 @@ public sealed class PortalOpenApiTests : IDisposable
             var report = doc.Components!.Schemas![nameof(RelatorioItemDoc)];
             Assert.Contains("modulo_icone_url", report.Required!);
             Assert.True(report.Properties!["modulo_icone_url"].Type!.Value.HasFlag(JsonSchemaType.Null));
+            Assert.Contains("modulo_icone_base64", report.Required!);
+            Assert.True(report.Properties["modulo_icone_base64"].Type!.Value.HasFlag(JsonSchemaType.Null));
         }
     }
 

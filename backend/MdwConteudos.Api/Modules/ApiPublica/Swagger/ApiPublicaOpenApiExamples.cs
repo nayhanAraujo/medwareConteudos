@@ -136,6 +136,7 @@ public static class ApiPublicaOpenApiExamples
     {
         codrelatorio = 10, nome = "Relatório demonstrativo", modulo = "Laudos UX",
         modulo_icone_url = "/apiconteudos/v1/relatorios/modulos/1/icone",
+        modulo_icone_base64 = IconeBase64,
         formato = "FR3", dthrcriacao = Ts, ativo = 1, tem_multiselecao = false
     }));
     public static JsonNode ModuloRelatorio404 => Node(new { success = false, error = "Modulo ou icone nao encontrado" });

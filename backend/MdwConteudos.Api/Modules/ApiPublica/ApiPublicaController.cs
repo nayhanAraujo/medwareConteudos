@@ -185,7 +185,7 @@ public class ApiPublicaController : ControllerBase
     [Produces("application/json")]
     [SwaggerOperation(
         Summary = "Listar relatórios",
-        Description = "Lista relatórios cadastrados (metadados; use download para o arquivo). modulo_icone_url e relativa a origem da API e exige JWT; null quando nao ha modulo ou imagem. Prioriza CODMODULO e usa o nome legado se o vinculo nao existir.",
+        Description = "Lista relatórios cadastrados (metadados; use download para o arquivo). modulo_icone_url e relativa a origem da API e exige JWT. modulo_icone_base64 contem a data URI completa do banco (data:image/png;base64,...), pronta para src de imagem. Ambos sao null quando nao ha modulo ou imagem. Prioriza CODMODULO e usa o nome legado se o vinculo nao existir.",
         Tags = new[] { "Relatórios" })]
     [SwaggerResponse(200, "Lista de relatórios", typeof(ApiListDoc<RelatorioItemDoc>))]
     [SwaggerResponse(400, "Filtro ativo ou multiselecao inválido", typeof(ApiErrorDoc))]
