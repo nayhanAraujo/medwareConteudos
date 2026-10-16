@@ -74,6 +74,7 @@ public sealed class PacoteIconeTests
             Assert.Equal(Icon(), package.GetProperty("icone_base64").GetString());
             var image = Assert.IsType<FileContentResult>(await api.GetPacoteIconeAsync(heart.CodPacote, default));
             Assert.Equal("image/png", image.ContentType);
+            Assert.Equal($"pacote-{heart.CodPacote}.png", image.FileDownloadName);
             Assert.Equal(Convert.FromBase64String(Icon()[PacoteIcone.Prefix.Length..]), image.FileContents);
             Assert.NotNull(image.EntityTag);
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DataPaths:Root"] = Path.GetTempPath() }).Build();

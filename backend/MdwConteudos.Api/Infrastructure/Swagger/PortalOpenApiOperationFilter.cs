@@ -66,7 +66,6 @@ public sealed class PortalOpenApiOperationFilter : IOperationFilter
                 case nameof(ApiPublicaController.PacoteIcone):
                 case nameof(ApiPublicaController.ModuloRelatorioIcone):
                     Binary(operation, "image/png");
-                    operation.Responses!["200"].Headers!.Remove("Content-Disposition");
                     break;
             }
             if (context.MethodInfo.Name == nameof(ApiPublicaController.Ecodoppler))

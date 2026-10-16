@@ -11,7 +11,8 @@ A URL e relativa a origem da API (por exemplo,
 `icone_url` e `icone_base64` sao null quando o pacote nao possui imagem.
 
 `GET /apiconteudos/v1/pacotes/{codpacote}/icone` devolve bytes PNG com
-`Content-Type: image/png`. Envie `Authorization: Bearer <token>` em ambas as
+`Content-Type: image/png` e Content-Disposition attachment com nome
+`pacote-{codpacote}.png`. Envie `Authorization: Bearer <token>` em ambas as
 requisicoes. Em navegadores, use fetch autenticado e uma URL de Blob para
 mostrar a imagem. Pacote inexistente ou sem imagem retorna 404 JSON.
 A imagem inclui ETag e Cache-Control private, no-cache: envie If-None-Match

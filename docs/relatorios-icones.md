@@ -15,7 +15,8 @@ nas extremidades. Se nomes duplicados existirem, usa o menor CODMODULO.
 Um modulo vinculado por codigo sem imagem retorna null, sem trocar de modulo.
 
 `GET /apiconteudos/v1/relatorios/modulos/{codmodulo}/icone` retorna os bytes
-PNG com Content-Type image/png. Envie o mesmo JWT de parceiro no header
+PNG com Content-Type image/png e Content-Disposition attachment com nome
+`modulo-{codmodulo}.png`. Envie o mesmo JWT de parceiro no header
 Authorization: Bearer <token>, inclusive para baixar a imagem. Para mostrar
 em navegador, use fetch autenticado e crie uma URL de Blob para o src.
 O download retorna ETag e Cache-Control private, no-cache. If-None-Match com

@@ -43,6 +43,7 @@ public partial class ApiPublicaService
             var bytes = Convert.FromBase64String(validated[PacoteIcone.Prefix.Length..]);
             return new FileContentResult(bytes, "image/png")
             {
+                FileDownloadName = $"pacote-{codpacote}.png",
                 EntityTag = new EntityTagHeaderValue('"' + Convert.ToHexString(SHA256.HashData(bytes)) + '"')
             };
         }

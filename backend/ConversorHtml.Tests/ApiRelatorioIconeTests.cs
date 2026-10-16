@@ -89,6 +89,7 @@ public sealed class ApiRelatorioIconeTests
             var image = Assert.IsType<FileContentResult>(await controller.ModuloRelatorioIcone(1, default));
             Assert.Equal("private, no-cache", controller.Response.Headers.CacheControl);
             Assert.Equal("image/png", image.ContentType);
+            Assert.Equal("modulo-1.png", image.FileDownloadName);
             Assert.Equal(bytes, image.FileContents);
             Assert.NotNull(image.EntityTag);
             var services = new ServiceCollection();
@@ -96,6 +97,13 @@ public sealed class ApiRelatorioIconeTests
             services.AddControllers();
             await using var provider = services.BuildServiceProvider();
             var http = new DefaultHttpContext { RequestServices = provider };
+            http.Request.Method = "GET";
+            http.Response.Body = new MemoryStream();
+            await image.ExecuteResultAsync(new ActionContext(http, new RouteData(), new ActionDescriptor()));
+            Assert.Equal(200, http.Response.StatusCode);
+            Assert.Contains("modulo-1.png", http.Response.Headers.ContentDisposition.ToString());
+            Assert.Equal(bytes, ((MemoryStream)http.Response.Body).ToArray());
+            http = new DefaultHttpContext { RequestServices = provider };
             http.Request.Method = "GET";
             http.Request.Headers.IfNoneMatch = image.EntityTag.ToString();
             http.Response.Body = new MemoryStream();
