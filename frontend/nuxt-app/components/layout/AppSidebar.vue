@@ -8,6 +8,8 @@
         v-for="item in menu"
         :key="item.path"
         :to="item.path"
+        :title="item.label"
+        :aria-label="item.label"
         class="flex items-center px-6 py-3.5 text-sm font-medium no-underline transition-all border-l-4"
         :class="
           isMenuActive(route.path, item)
@@ -22,6 +24,8 @@
     <div class="border-t border-white/10">
       <a
         href="#"
+        title="Sair"
+        aria-label="Sair"
         class="flex items-center px-6 py-3.5 text-sm font-medium no-underline text-gray-300 border-l-4 border-transparent hover:bg-white/5 hover:text-rose-300 hover:border-rose-400 transition-all"
         @click.prevent="onLogout"
       >

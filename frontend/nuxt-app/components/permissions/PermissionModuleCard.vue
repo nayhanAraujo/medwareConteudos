@@ -1,149 +1,110 @@
 <template>
-  <article class="overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-[0_18px_50px_rgba(15,23,42,0.10)] backdrop-blur">
-    <button
-      type="button"
-      class="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-slate-50/80"
-      @click="store.toggleExpanded(module.domain)"
-    >
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xl text-slate-700 shadow-sm">
-        <i :class="`bi ${module.icon}`" />
-      </span>
-
-      <span class="min-w-0 flex-1">
-        <span class="block truncate text-lg font-semibold text-slate-950">Módulo: {{ module.title }}</span>
-        <span class="block text-sm text-slate-500">{{ enabledCount }} de {{ module.actions.length }} permissões ativas</span>
-      </span>
-
-      <span class="hidden items-center gap-3 text-sm text-slate-700 sm:flex">
-        <span>Permissões Ativas/Inativas</span>
-        <label class="relative inline-flex cursor-pointer items-center" @click.stop>
-          <input
-            class="peer sr-only"
-            type="checkbox"
-            :checked="allEnabled"
-            :disabled="!editable || moduleSwitchDisabled"
-            @change="toggleModule(($event.target as HTMLInputElement).checked)"
-          />
-          <span class="h-8 w-14 rounded-full bg-slate-300 transition peer-checked:bg-black peer-disabled:cursor-not-allowed peer-disabled:opacity-50" />
-          <span class="absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow transition peer-checked:translate-x-6" />
+  <section class="permission-module" :aria-label="module.title">
+    <header class="module-header">
+      <div class="module-title">
+        <i :class="['bi', module.icon]" aria-hidden="true" />
+        <span><strong>{{ module.title }}</strong><small>{{ enabled }} de {{ module.actions.length }} permitidas<span v-if="changedCount"> · {{ changedCount }} {{ changedCount === 1 ? 'alterada' : 'alteradas' }}</span></small></span>
+        <button type="button" class="module-expand" :aria-expanded="expanded" :aria-controls="id" :aria-label="(expanded ? 'Recolher ' : 'Expandir ') + module.title" @click="emit('expand')"><i class="bi" :class="expanded ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true" /></button>
+      </div>
+      <div class="module-tools">
+        <label v-if="store.mode === 'perfil'" class="module-check">
+          <input type="checkbox" :checked="enabled === module.actions.length" :indeterminate="enabled > 0 && enabled < module.actions.length"
+            :disabled="!editable" :aria-label="'Permitir todas as permissões de ' + module.title" @change="toggleAll" />
+          <span>Todas</span>
         </label>
-      </span>
-
-      <i :class="['bi text-xl text-slate-700 transition', expanded ? 'bi-chevron-up' : 'bi-chevron-down']" />
-    </button>
-
-    <div v-if="expanded" class="border-t border-slate-200 bg-white px-5 py-2">
-      <div
-        v-for="action in module.actions"
-        :key="permissionKey(action)"
-        class="flex flex-col gap-3 border-b border-slate-100 py-4 last:border-b-0 sm:flex-row sm:items-center"
-      >
-        <div class="min-w-0 flex-1">
-          <p class="mb-1 font-medium text-slate-900">{{ store.actionLabel(action) }}</p>
-          <p class="text-sm text-slate-500">{{ permissionDescription(action) }}</p>
+        <details v-if="editable" ref="menu" class="module-menu">
+          <summary :aria-label="'Ações em lote de ' + module.title" title="Ações do módulo"><i class="bi bi-three-dots" aria-hidden="true" /><span>Ações</span></summary>
+          <div class="menu-options">
+            <button type="button" @click="bulk('permitir')"><i class="bi bi-check2-all" aria-hidden="true" />Permitir tudo</button>
+            <button type="button" @click="bulk('negar')"><i class="bi bi-slash-circle" aria-hidden="true" />Negar tudo</button>
+            <button v-if="store.mode === 'usuario'" type="button" @click="bulk('herdar')"><i class="bi bi-arrow-counterclockwise" aria-hidden="true" />Restaurar herança</button>
+          </div>
+        </details>
+        <button v-else type="button" class="disabled-menu" disabled title="Ações indisponíveis"><i class="bi bi-three-dots" aria-hidden="true" />Ações</button>
+      </div>
+    </header>
+    <div :id="id" class="module-rows" :class="{ 'mobile-collapsed': !expanded }">
+      <div v-for="action in actions" :key="key(action)" class="permission-row" :class="{ changed: store.changed(key(action)) }" :data-permission="key(action)">
+        <div class="permission-name">
+          <label v-if="store.mode === 'perfil'" :for="id + '-' + action">{{ store.actionLabel(action) }}</label>
+          <span v-else :id="id + '-' + action + '-label'">{{ store.actionLabel(action) }}</span>
+          <small v-if="store.description(key(action))">{{ store.description(key(action)) }}</small>
+          <small v-if="store.changed(key(action))" class="change-label"><i class="bi bi-pencil" aria-hidden="true" /> Alteração pendente</small>
         </div>
-
-        <div class="flex items-center justify-between gap-3 sm:justify-end">
-          <span
-            :class="[
-              'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium',
-              badgeClass(action)
-            ]"
-          >
-            <i v-if="isException(action)" class="bi bi-info-circle" />
-            {{ badgeLabel(action) }}
+        <div class="permission-control">
+          <span class="permission-result" :class="{ allowed: store.effectiveHas(key(action)), denied: !store.effectiveHas(key(action)), exception: store.mode === 'usuario' && !!store.userOverride(key(action)) }">
+            <i class="bi" :class="store.effectiveHas(key(action)) ? 'bi-check-circle' : 'bi-slash-circle'" aria-hidden="true" />{{ store.resultLabel(key(action)) }}
           </span>
-
-          <button
-            v-if="mode === 'usuario' && isException(action)"
-            type="button"
-            class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            :disabled="!editable"
-            @click="store.setUserOverride(permissionKey(action), '')"
-          >
-            Limpar
-          </button>
-
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              class="peer sr-only"
-              type="checkbox"
-              :checked="actionEnabled(action)"
-              :disabled="!editable || actionDisabled"
-              @change="toggleAction(action, ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="h-8 w-14 rounded-full bg-slate-300 transition peer-checked:bg-black peer-disabled:cursor-not-allowed peer-disabled:opacity-50" />
-            <span class="absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow transition peer-checked:translate-x-6" />
-          </label>
+          <input v-if="store.mode === 'perfil'" :id="id + '-' + action" type="checkbox" :checked="store.effectiveHas(key(action))" :disabled="!editable"
+            @change="store.toggleProfilePermission(key(action), ($event.target as HTMLInputElement).checked)" />
+          <select v-else :aria-labelledby="id + '-' + action + '-label'" :value="store.userOverride(key(action))" :disabled="!editable"
+            @change="store.setUserOverride(key(action), ($event.target as HTMLSelectElement).value as '' | 'PERMITIR' | 'NEGAR')">
+            <option value="">Herdar</option><option value="PERMITIR">Permitir</option><option value="NEGAR">Negar</option>
+          </select>
         </div>
       </div>
     </div>
-  </article>
+  </section>
 </template>
-
 <script setup lang="ts">
-import type { PermissionModuleConfig, PermissionViewMode } from '~/stores/permissionsCenter'
+import type { PermissionModuleConfig } from '~/stores/permissionsCenter'
 import { usePermissionsCenterStore } from '~/stores/permissionsCenter'
-
-const props = defineProps<{
-  module: PermissionModuleConfig
-  mode: PermissionViewMode
-  editable: boolean
-}>()
-
-const store = usePermissionsCenterStore()
-
-const expanded = computed(() => store.expanded.includes(props.module.domain))
-const actionDisabled = computed(() => props.mode === 'perfil' && store.isAdminProfile)
-const moduleSwitchDisabled = computed(() => actionDisabled.value || (props.mode === 'usuario' && !store.selectedUserId))
-const enabledCount = computed(() => props.module.actions.filter((action) => actionEnabled(action)).length)
-const allEnabled = computed(() => props.module.actions.length > 0 && enabledCount.value === props.module.actions.length)
-
-function permissionKey(action: string) {
-  return `${props.module.domain}.${action}`.toLowerCase()
-}
-
-function actionEnabled(action: string) {
-  const key = permissionKey(action)
-  return props.mode === 'perfil' ? store.profileHas(key) : store.userEffectiveHas(key)
-}
-
-function isException(action: string) {
-  return props.mode === 'usuario' && !!store.userOverride(permissionKey(action))
-}
-
-function badgeLabel(action: string) {
-  if (props.mode === 'usuario') return isException(action) ? 'Exceção Criada' : 'Herdado'
-  return store.isAdminProfile ? 'Admin fixo' : 'Perfil'
-}
-
-function badgeClass(action: string) {
-  if (props.mode === 'usuario') {
-    const override = store.userOverride(permissionKey(action))
-    if (override === 'PERMITIR') return 'bg-emerald-100 text-emerald-800'
-    if (override === 'NEGAR') return 'bg-rose-100 text-rose-800'
-    return 'bg-slate-100 text-slate-700'
-  }
-
-  return actionEnabled(action) ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
-}
-
-function permissionDescription(action: string) {
-  const verb = store.actionLabel(action).toLowerCase()
-  return `${store.actionLabel(action)} ${props.module.title.toLowerCase()}`
-    .replace(/^Ativar\/Inativar/i, 'Ativar ou inativar')
-    .replace(verb, store.actionLabel(action))
-}
-
-function toggleAction(action: string, checked: boolean) {
-  const key = permissionKey(action)
-  if (props.mode === 'perfil') store.toggleProfilePermission(key, checked)
-  else store.toggleUserPermission(key, checked)
-}
-
-function toggleModule(checked: boolean) {
-  for (const action of props.module.actions) {
-    toggleAction(action, checked)
-  }
+const props = defineProps<{ module: PermissionModuleConfig; actions: string[]; editable: boolean; expanded: boolean }>()
+const emit = defineEmits<{ expand: []; bulk: [action: 'permitir' | 'negar' | 'herdar'] }>()
+const store = usePermissionsCenterStore(), id = useId(), menu = ref<HTMLDetailsElement>()
+const enabled = computed(() => store.enabledCount(props.module)), changedCount = computed(() => store.changedCount(props.module))
+function key(action: string) { return props.module.domain + '.' + action }
+function bulk(action: 'permitir' | 'negar' | 'herdar') { if (menu.value) menu.value.open = false; emit('bulk', action) }
+function toggleAll(event: Event) {
+  const input = event.target as HTMLInputElement, checked = input.checked
+  input.checked = enabled.value === props.module.actions.length
+  input.indeterminate = enabled.value > 0 && enabled.value < props.module.actions.length
+  bulk(checked ? 'permitir' : 'negar')
 }
 </script>
+<style scoped>
+.permission-module { min-width: 0; border: 1px solid #dce0e5; border-radius: 8px; background: white; }
+.module-header { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #e5e7eb; }
+.module-title { display: flex; align-items: center; gap: 12px; min-width: 0; border: 0; padding: 0; background: none; text-align: left; color: #20252e; }
+.module-title > i:first-child { font-size: 22px; color: #536174; }
+.module-title strong { display: block; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.module-title small { display: block; font-size: 12px; color: #667085; margin-top: 3px; }
+.module-tools { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.module-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+input[type=checkbox] { width: 17px; height: 17px; accent-color: #2563eb; flex-shrink: 0; cursor: pointer; }
+.module-menu { position: relative; }
+.module-menu summary, .disabled-menu { display: flex; align-items: center; gap: 6px; border: 1px solid #dce0e5; border-radius: 6px; padding: 6px 10px; font-size: 13px; list-style: none; cursor: pointer; background: white; }
+.module-menu summary::-webkit-details-marker { display: none; }
+.disabled-menu { color: #9ca3af; cursor: not-allowed; }
+.menu-options { position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px; background: white; border: 1px solid #dce0e5; border-radius: 6px; padding: 4px; box-shadow: 0 4px 12px #00000012; z-index: 15; }
+.menu-options button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 9px 8px; border: 0; background: white; font-size: 13px; border-radius: 4px; }
+.menu-options button:hover { background: #f3f4f6; }
+.permission-row { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid #edf0f3; min-height: 70px; border-left: 3px solid transparent; }
+.permission-row:last-child { border-bottom: 0; }
+.permission-row.changed { background: #fffcf0; border-left-color: #c48b10; }
+.permission-name { flex: 1; min-width: 0; }
+.permission-name > label, .permission-name > span { display: block; font-size: 14px; font-weight: 500; color: #252b36; }
+.permission-name small { display: block; font-size: 12px; color: #667085; margin-top: 3px; overflow-wrap: anywhere; }
+.permission-name .change-label { color: #906407; }
+.permission-control { display: flex; align-items: center; gap: 16px; }
+.permission-result { font-size: 12px; display: inline-flex; align-items: center; gap: 5px; color: #576173; }
+.permission-result.allowed { color: #187454; }
+.permission-result.denied { color: #ab354b; }
+.permission-result.exception { font-weight: 600; }
+select { width: 112px; border: 1px solid #cbd0d7; border-radius: 6px; background: white; padding: 8px; font-size: 13px; }
+:disabled { cursor: not-allowed; opacity: .6; }
+button:focus-visible, summary:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.module-expand { display: none; border: 0; background: none; padding: 6px; border-radius: 4px; }
+@media (max-width: 1023px) {
+  .module-expand { display: inline-flex; margin-left: auto; }
+  .module-title { flex: 1; }
+  .mobile-collapsed { display: none; }
+}
+@media (max-width: 600px) {
+  .module-header { flex-wrap: wrap; gap: 10px; padding: 12px; }
+  .module-title { flex-basis: 100%; }
+  .module-tools { margin-left: auto; }
+  .permission-row { align-items: stretch; flex-direction: column; gap: 10px; padding: 12px; }
+  .permission-control { justify-content: space-between; gap: 8px; }
+}
+</style>

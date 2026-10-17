@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "test:docs": "node --experimental-strip-types --test tests/apiDocs*.test.ts",
+    "test:permissions": "node --test tests/permissionsCenter.test.mjs",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
