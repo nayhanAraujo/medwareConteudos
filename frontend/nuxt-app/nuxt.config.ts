@@ -14,6 +14,7 @@ export default defineNuxtConfig({
     '~/assets/css/tailwind.css',
     '~/assets/css/app-layout.css',
     '~/assets/css/scripts.css',
+    '~/assets/css/notifications.css',
     '~/assets/css/studio-swal.css'
   ],
   vite: {
