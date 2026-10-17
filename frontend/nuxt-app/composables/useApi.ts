@@ -11,6 +11,11 @@ export function useApi() {
     return `${String(base || '').replace(/\/$/, '')}${path}`
   }
 
+  function errorMessage(data: { message?: string; error?: string; traceId?: string }, status: number) {
+    const message = data?.message || data?.error || `Erro HTTP ${status}`
+    return data?.traceId ? `${message} Código de atendimento: ${data.traceId}` : message
+  }
+
   async function handleUnauthorized() {
     auth.logout()
     if (!import.meta.client || isAuthRedirecting.value) return
@@ -38,7 +43,7 @@ export function useApi() {
       await handleUnauthorized()
     }
     if (!res.ok) {
-      throw new Error(data?.message || data?.error || `Erro HTTP ${res.status}`)
+      throw new Error(errorMessage(data, res.status))
     }
     return data as T
   }
@@ -51,7 +56,7 @@ export function useApi() {
     if (res.status === 401 && !path.includes('/api/web/auth/login')) {
       await handleUnauthorized()
     }
-    if (!res.ok) throw new Error(data?.message || data?.error || `Erro HTTP ${res.status}`)
+    if (!res.ok) throw new Error(errorMessage(data, res.status))
     return data as T
   }
 
@@ -64,7 +69,7 @@ export function useApi() {
     }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      throw new Error(data?.message || data?.error || `Erro HTTP ${res.status}`)
+      throw new Error(errorMessage(data, res.status))
     }
     return res.blob()
   }

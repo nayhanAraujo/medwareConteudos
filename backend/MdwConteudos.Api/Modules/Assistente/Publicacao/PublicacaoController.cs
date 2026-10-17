@@ -16,8 +16,8 @@ public sealed class PublicacaoController(PublicacaoService service) : Controller
     [HttpGet("scripts")]
     public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int? scriptId = null,
         [FromQuery] string? search = null, [FromQuery] int? pacote = null, [FromQuery] string? estado = null,
-        [FromQuery] int? aprovado = null, CancellationToken ct = default)
-        => await Handle(() => service.List(page, scriptId, ct, search: search, package: pacote, state: estado, approved: aprovado));
+        [FromQuery] int? aprovado = null, [FromQuery] int? ativo = 1, CancellationToken ct = default)
+        => await Handle(() => service.List(page, scriptId, ct, search: search, package: pacote, state: estado, approved: aprovado, active: ativo));
 
     [RequirePermission(PermissionDomains.Assistente, PermissionActions.Visualizar)]
     [HttpGet("pacotes/{id:int}/scripts")]

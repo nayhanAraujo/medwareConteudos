@@ -37,13 +37,18 @@ public sealed class PublicacaoService(
         return new { enabled = true, packages, mappings, scriptMappings, specialties };
     }
 
-    public async Task<object> List(int page, int? scriptId, CancellationToken ct, int[]? ids = null, string? search = null, int? package = null, string? state = null, int? approved = null)
+    public async Task<object> List(int page, int? scriptId, CancellationToken ct, int[]? ids = null, string? search = null, int? package = null, string? state = null, int? approved = null, int? active = null)
     {
         if (!Enabled) return new { items = Array.Empty<object>(), total = 0 };
         RequireEnabled();
         await using var source = await sourceFactory.OpenConnectionAsync(ct);
         var where = new List<string>();
         var args = new DynamicParameters();
+        if (active is 0 or 1)
+        {
+            where.Add("(s.ATIVO=@active OR s.CODSCRIPTLAUDO IS NULL)");
+            args.Add("active", active.Value);
+        }
         if (scriptId.HasValue) { where.Add("q.CODSCRIPTLAUDO=@scriptId"); args.Add("scriptId", scriptId.Value); }
         if (ids is not null) { where.Add("q.CODSCRIPTLAUDO IN @ids"); args.Add("ids", ids); }
         if (package.HasValue) { where.Add("s.CODPACOTE=@package"); args.Add("package", package.Value); }
@@ -69,7 +74,8 @@ public sealed class PublicacaoService(
             """, args, cancellationToken: ct))).ToList();
         if (ids is null)
         {
-            var sourceWhere = new List<string> { "NOT EXISTS (SELECT 1 FROM ASS_PUBLICACAO q WHERE q.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO)", "s.ATIVO=1" };
+            var sourceWhere = new List<string> { "NOT EXISTS (SELECT 1 FROM ASS_PUBLICACAO q WHERE q.CODSCRIPTLAUDO=s.CODSCRIPTLAUDO)" };
+            if (active is 0 or 1) sourceWhere.Add("s.ATIVO=@active");
             if (scriptId.HasValue) sourceWhere.Add("s.CODSCRIPTLAUDO=@scriptId");
             if (package.HasValue) sourceWhere.Add("s.CODPACOTE=@package");
             if (!string.IsNullOrWhiteSpace(search))

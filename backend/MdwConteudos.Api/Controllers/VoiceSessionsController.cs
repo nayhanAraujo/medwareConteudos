@@ -154,6 +154,17 @@ public class VoiceSessionsController : ControllerBase
                 request.Transcript.Trim(),
                 intent,
                 cancellationToken);
+            // Nunca grave uma resposta inválida ou vazia sobre um laudo existente.
+            using (var model = System.Text.Json.JsonDocument.Parse(result.CamposScriptJson))
+            {
+                if (model.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object
+                    || !model.RootElement.TryGetProperty("camposScript", out var fields)
+                    || fields.ValueKind != System.Text.Json.JsonValueKind.Array
+                    || (!IsEmptyModel(session.CamposScriptJson) && fields.GetArrayLength() == 0))
+                {
+                    throw new InvalidOperationException("O processamento retornou um modelo inválido ou vazio. O laudo anterior foi preservado.");
+                }
+            }
             session.CamposScriptJson = result.CamposScriptJson;
             session.TranscriptHistory.Add(new VoiceTranscriptEntry
             {
@@ -174,7 +185,7 @@ public class VoiceSessionsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Falha ao aplicar utterance na sessão {SessionId}", id);
-            return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
+            return StatusCode(StatusCodes.Status502BadGateway, new { message = "Não foi possível aplicar a fala. O laudo anterior foi preservado. Tente novamente.", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -282,12 +293,8 @@ public class VoiceSessionsController : ControllerBase
             return VoiceUtteranceIntent.Build;
         }
 
-        if (session.Mode == VoiceSessionMode.FromScratch && IsEmptyModel(session.CamposScriptJson))
-        {
-            return VoiceUtteranceIntent.Build;
-        }
-
-        return requested;
+        // Parar outra gravação não deve reconstruir nem substituir o modelo aberto.
+        return VoiceUtteranceIntent.Edit;
     }
 
     private static bool IsEmptyModel(string camposScriptJson)

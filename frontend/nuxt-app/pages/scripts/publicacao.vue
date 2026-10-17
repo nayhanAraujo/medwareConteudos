@@ -111,7 +111,7 @@
               <strong class="mt-3 block text-2xl">{{ card.count }}</strong>
             </button>
           </div>
-          <div class="mb-4 grid gap-3 lg:grid-cols-[minmax(16rem,24rem)_12rem_12rem_12rem]">
+          <div class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1fr)_repeat(4,minmax(0,12rem))]">
             <DsSearchInput v-model="publicationSearch" placeholder="Pesquisar por título ou código" wrapper-class="!mb-0" />
             <DsSelect v-model="publicationPackageFilter">
               <option value="">Todos pacotes</option>
@@ -125,6 +125,11 @@
               <option value="">Toda aprovação</option>
               <option value="1">Aprovados</option>
               <option value="0">Aguardando aprovação</option>
+            </DsSelect>
+            <DsSelect v-model="publicationActiveFilter" aria-label="Status do script">
+              <option value="1">Somente ativos</option>
+              <option value="0">Somente inativos</option>
+              <option value="">Ativos e inativos</option>
             </DsSelect>
           </div>
           <DsEmptyState v-if="!items.length" title="Nenhuma publicação registrada" icon="inbox" />
@@ -260,6 +265,7 @@ const publicationSearch = ref('')
 const publicationPackageFilter = ref('')
 const publicationStatusFilter = ref('')
 const publicationApprovalFilter = ref('')
+const publicationActiveFilter = ref('1')
 const modalSearch = ref('')
 const enabled = ref(false)
 const loading = ref(true)
@@ -313,7 +319,7 @@ watch(scriptStatus, async () => {
   checkedScripts.value = []
   await loadPackageScripts()
 })
-watch([publicationSearch, publicationPackageFilter, publicationStatusFilter, publicationApprovalFilter], async () => {
+watch([publicationSearch, publicationPackageFilter, publicationStatusFilter, publicationApprovalFilter, publicationActiveFilter], async () => {
   page.value = 1
   await loadPublications()
 })
@@ -337,6 +343,7 @@ async function load() {
 async function loadPublications() {
   if (!enabled.value) return
   const query = new URLSearchParams({ page: String(page.value) })
+  query.set('ativo', publicationActiveFilter.value)
   if (publicationSearch.value.trim()) query.set('search', publicationSearch.value.trim())
   if (publicationPackageFilter.value) query.set('pacote', publicationPackageFilter.value)
   if (publicationStatusFilter.value) query.set('estado', publicationStatusFilter.value)

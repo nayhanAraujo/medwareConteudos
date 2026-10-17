@@ -190,6 +190,25 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     }
 
     [FirebirdPublicationFact]
+    public async Task PublicationActivityFilterIncludesOnlyMatchingScriptsAndCounts()
+    {
+        await Seed();
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME,SISTEMA,CODPACOTE,ATIVO,APROVADO) VALUES (2,'Inativo','Laudos UX',1,0,0)");
+        var active = JsonSerializer.SerializeToElement(await service.List(1, null, default, active: 1));
+        Assert.Equal(1, active.GetProperty("total").GetInt32());
+        Assert.Equal(1, Assert.Single(active.GetProperty("items").EnumerateArray()).GetProperty("Id").GetInt32());
+        var inactive = JsonSerializer.SerializeToElement(await service.List(1, null, default, active: 0));
+        Assert.Equal(2, Assert.Single(inactive.GetProperty("items").EnumerateArray()).GetProperty("Id").GetInt32());
+        Assert.Equal(1, inactive.GetProperty("summary").GetProperty("aguardando_aprovacao").GetInt32());
+        var all = JsonSerializer.SerializeToElement(await service.List(1, null, default));
+        Assert.Equal(2, all.GetProperty("total").GetInt32());
+        await source.ExecuteAsync("DELETE FROM ASS_PUBLICACAO WHERE CODSCRIPTLAUDO=2");
+        var unqueued = JsonSerializer.SerializeToElement(await service.List(1, null, default, active: 0));
+        Assert.Equal(2, Assert.Single(unqueued.GetProperty("items").EnumerateArray()).GetProperty("Id").GetInt32());
+    }
+
+    [FirebirdPublicationFact]
     public async Task DeletedScriptsShowRemovalPendingAndDisappearAfterConfirmation()
     {
         await Seed();

@@ -188,7 +188,10 @@ async function cmdApply(payload) {
   )
   const raw = await runAgent(prompt)
   const parsed = extractJson(raw)
-  const camposScriptJson = normalizeCamposScriptJson(parsed, payload.camposScriptJson)
+  const camposScriptJson = normalizeCamposScriptJson(parsed, null)
+  if (!camposScriptJson || !Array.isArray(JSON.parse(camposScriptJson)?.camposScript)) {
+    throw new Error('O agente não retornou um camposScript válido. O modelo existente deve ser preservado.')
+  }
   process.stdout.write(JSON.stringify({
     camposScriptJson,
     summary: parsed?.summary ?? 'Alterações aplicadas pelo agente.',

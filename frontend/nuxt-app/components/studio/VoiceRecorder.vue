@@ -34,7 +34,7 @@ const onAudioFile = (event: Event) => {
   <StudioDsCard title="Modo voz">
     <div class="space-y-4">
       <p class="text-sm text-ds-text-secondary">
-        Fale o laudo em português (seções, medidas, unidades, normalidades). Ao <strong>parar</strong>, o agente Cursor analisa o transcript, monta o modelo e gera o TXT modo texto.
+        Fale o laudo em português (seções, medidas, unidades, normalidades). Ao <strong>parar</strong>, o agente analisa a fala e gera o TXT. Com um modelo aberto, a fala será aplicada como edição, preservando os campos não mencionados.
       </p>
 
       <div v-if="!isSupported" class="rounded-ds-btn border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
@@ -58,13 +58,13 @@ const onAudioFile = (event: Event) => {
           :loading="sending"
           @click="emit('stop')"
         >
-          Parar — gerar modelo e TXT
+          {{ hasModel ? 'Parar — aplicar edição e gerar TXT' : 'Parar — gerar modelo e TXT' }}
         </StudioDsButton>
 
         <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-ds-text-secondary hover:text-ds-primary-accent">
           <i class="bi bi-file-earmark-music" />
           Enviar áudio
-          <input type="file" accept="audio/*" class="hidden" @change="onAudioFile">
+          <input type="file" accept="audio/*" class="hidden" :disabled="sending || isListening" @change="onAudioFile">
         </label>
 
         <span v-if="isListening" class="inline-flex items-center gap-2 text-sm text-ds-danger">
@@ -92,7 +92,7 @@ const onAudioFile = (event: Event) => {
           :disabled="!localTranscript.trim() || isListening"
           @click="emit('build')"
         >
-          Gerar modelo e TXT
+          {{ hasModel ? 'Aplicar fala e gerar TXT' : 'Gerar modelo e TXT' }}
         </StudioDsButton>
 
         <StudioDsButton

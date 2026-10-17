@@ -1,4 +1,5 @@
 import Swal from 'sweetalert2'
+import { compactDialogOptions, notificationOptions } from '~/utils/swalOptions'
 import type { StudioThemeMode } from '~/composables/useStudioTheme'
 
 function themeColors(mode: StudioThemeMode) {
@@ -103,14 +104,8 @@ export function useStudioSwal() {
 
   const toast = (message: string, icon: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     const colors = themeColors(theme.value)
-    return Swal.fire({
-      position: 'center',
-      icon,
-      title: message,
-      width: '32rem',
-      showConfirmButton: false,
-      timer: 2500,
-      timerProgressBar: true,
+    void Swal.fire({
+      ...notificationOptions(message, icon),
       background: colors.background,
       color: colors.color
     })
@@ -119,7 +114,8 @@ export function useStudioSwal() {
   const confirm = (title: string, text?: string) => {
     const colors = themeColors(theme.value)
     return Swal.fire({
-      title,
+      ...compactDialogOptions,
+      titleText: title,
       text,
       icon: 'question',
       showCancelButton: true,
@@ -133,11 +129,8 @@ export function useStudioSwal() {
 
   const alert = (title: string, text?: string, icon: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     const colors = themeColors(theme.value)
-    return Swal.fire({
-      title,
-      text,
-      icon,
-      confirmButtonColor: colors.confirmButtonColor,
+    void Swal.fire({
+      ...notificationOptions(title, icon, text),
       background: colors.background,
       color: colors.color
     })

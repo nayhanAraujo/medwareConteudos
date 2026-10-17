@@ -1,48 +1,42 @@
+import { compactDialogOptions, notificationOptions, type NotificationIcon } from '~/utils/swalOptions'
+
 export function useSwal() {
-  const toast = async (title: string, icon: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+  const toast = async (title: string, icon: NotificationIcon = 'success', text?: string) => {
     if (!import.meta.client) return
     const { default: Swal } = await import('sweetalert2')
-    return Swal.fire({
-      position: 'center',
-      icon,
-      title,
-      width: '32rem',
-      showConfirmButton: false,
-      timer: 2500,
-      timerProgressBar: true
-    })
+    // Display immediately; callers can refresh or navigate without waiting for dismissal.
+    void Swal.fire(notificationOptions(title, icon, text))
   }
 
   const confirm = async (title: string, text?: string) => {
     if (!import.meta.client) return { isConfirmed: false }
     const { default: Swal } = await import('sweetalert2')
     return Swal.fire({
-      title,
+      ...compactDialogOptions,
+      titleText: title,
       text,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Sim',
+      confirmButtonText: /exclu/i.test(title) ? 'Excluir' : 'Confirmar',
       cancelButtonText: 'Cancelar'
     })
   }
 
   const error = async (title: string, text?: string) => {
-    if (!import.meta.client) return
-    const { default: Swal } = await import('sweetalert2')
-    return Swal.fire({ icon: 'error', title, text, confirmButtonText: 'OK' })
+    return toast(title, 'error', text)
   }
 
   const info = async (title: string, text?: string) => {
-    if (!import.meta.client) return
-    const { default: Swal } = await import('sweetalert2')
-    return Swal.fire({ icon: 'info', title, text, confirmButtonText: 'Entendi' })
+    return toast(title, 'info', text)
   }
 
   const designSystemRuleAcceptance = async (title: string, text: string) => {
     if (!import.meta.client) return { isConfirmed: false, isDenied: false }
     const { default: Swal } = await import('sweetalert2')
     return Swal.fire({
-      title,
+      ...compactDialogOptions,
+      focusCancel: false,
+      titleText: title,
       text,
       icon: 'info',
       confirmButtonText: 'Entendi',
@@ -54,9 +48,7 @@ export function useSwal() {
   }
 
   const warning = async (title: string, text?: string) => {
-    if (!import.meta.client) return
-    const { default: Swal } = await import('sweetalert2')
-    return Swal.fire({ icon: 'warning', title, text, confirmButtonText: 'OK' })
+    return toast(title, 'warning', text)
   }
 
   return { toast, confirm, error, info, warning, designSystemRuleAcceptance }

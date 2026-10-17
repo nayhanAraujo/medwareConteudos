@@ -12,7 +12,6 @@ public class CursorVoiceLaudoService : IVoiceLaudoService
     private readonly IOptions<CursorOptions> _cursorOptions;
     private readonly IOptions<VoiceOptions> _voiceOptions;
     private readonly ILogger<CursorVoiceLaudoService> _logger;
-    private readonly MockVoiceLaudoService _mockFallback = new();
 
     public CursorVoiceLaudoService(
         IOptions<CursorOptions> cursorOptions,
@@ -22,13 +21,6 @@ public class CursorVoiceLaudoService : IVoiceLaudoService
         _cursorOptions = cursorOptions;
         _voiceOptions = voiceOptions;
         _logger = logger;
-    }
-
-    private bool HasCursorApiKey()
-    {
-        var key = _cursorOptions.Value.ApiKey?.Trim();
-        if (!string.IsNullOrWhiteSpace(key)) return true;
-        return !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CURSOR_API_KEY"));
     }
 
     public async Task<string> BootstrapFromImageAsync(Stream imageStream, string fileName, CancellationToken cancellationToken = default)
@@ -80,47 +72,31 @@ public class CursorVoiceLaudoService : IVoiceLaudoService
         VoiceUtteranceIntent intent = VoiceUtteranceIntent.Build,
         CancellationToken cancellationToken = default)
     {
-        if (!HasCursorApiKey())
-        {
-            _logger.LogWarning("CURSOR_API_KEY ausente — gerando modelo com heurística Mock até a chave ser configurada.");
-            return await _mockFallback.ApplyUtteranceAsync(session, transcript, intent, cancellationToken);
-        }
-
-        try
-        {
-            var response = await VoiceBridgeRunner.RunJsonAsync<ApplyResponse>(
-                _cursorOptions,
-                _voiceOptions,
-                _logger,
-                "apply",
-                new
-                {
-                    transcript,
-                    camposScriptJson = session.CamposScriptJson,
-                    mode = session.Mode.ToString(),
-                    sourceFileName = session.SourceFileName,
-                    intent = intent.ToString().ToLowerInvariant()
-                },
-                cancellationToken);
-
-            var json = response.CamposScriptJson ?? session.CamposScriptJson;
-            var isEmpty = string.IsNullOrWhiteSpace(json) || json.Contains("\"camposScript\":[]") || json.Contains("\"camposScript\": []");
-            if (intent == VoiceUtteranceIntent.Build && isEmpty)
+        // Falhas do agente devem chegar ao controlador sem recriar o laudo com heurísticas.
+        var response = await VoiceBridgeRunner.RunJsonAsync<ApplyResponse>(
+            _cursorOptions,
+            _voiceOptions,
+            _logger,
+            "apply",
+            new
             {
-                _logger.LogWarning("Agente Cursor não retornou campos — usando Mock para montar o modelo.");
-                return await _mockFallback.ApplyUtteranceAsync(session, transcript, intent, cancellationToken);
-            }
+                transcript,
+                camposScriptJson = session.CamposScriptJson,
+                mode = session.Mode.ToString(),
+                sourceFileName = session.SourceFileName,
+                intent = intent.ToString().ToLowerInvariant()
+            },
+            cancellationToken);
 
-            return new VoiceApplyResult(
-                json,
-                response.Summary ?? (intent == VoiceUtteranceIntent.Build ? "Modelo criado pelo agente." : "Alterações aplicadas."),
-                response.Warnings ?? []);
-        }
-        catch (Exception ex)
+        if (string.IsNullOrWhiteSpace(response.CamposScriptJson))
         {
-            _logger.LogWarning(ex, "Falha no agente Cursor — gerando modelo com Mock.");
-            return await _mockFallback.ApplyUtteranceAsync(session, transcript, intent, cancellationToken);
+            throw new InvalidOperationException("O agente não retornou um modelo válido.");
         }
+
+        return new VoiceApplyResult(
+            response.CamposScriptJson,
+            response.Summary ?? (intent == VoiceUtteranceIntent.Build ? "Modelo criado pelo agente." : "Alterações aplicadas."),
+            response.Warnings ?? []);
     }
 
     public async Task<VoiceExportResult> ExportAsync(VoiceSession session, ConversionOutputFormat format, CancellationToken cancellationToken = default)

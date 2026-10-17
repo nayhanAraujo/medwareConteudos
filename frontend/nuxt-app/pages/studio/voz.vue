@@ -89,15 +89,23 @@ const onStartSession = async (mode: 'fromScratch' | 'fromImage', image?: File) =
 }
 
 const applyTranscript = async (intent: VoiceUtteranceIntent) => {
-  if (!voiceStore.sessionId || !editableTranscript.value.trim()) return false
+  if (sending.value || generating.value || !voiceStore.sessionId || !editableTranscript.value.trim()) return false
 
   const text = editableTranscript.value.trim()
+  const sessionId = voiceStore.sessionId
+  const previousModel = voiceStore.camposScriptJson
+  const effectiveIntent: VoiceUtteranceIntent = hasModel.value ? 'edit' : intent
   if (isListening.value) stopSpeech()
 
   sending.value = true
   startProgress()
   try {
-    const result = await applyUtterance(voiceStore.sessionId, text, intent, 'browser')
+    const result = await applyUtterance(sessionId, text, effectiveIntent, 'browser')
+    if (voiceStore.sessionId !== sessionId) return false
+    const model = JSON.parse(result.camposScriptJson)
+    if (!Array.isArray(model?.camposScript) || (hasModel.value && model.camposScript.length === 0)) {
+      throw new Error('O processamento retornou um modelo inválido ou vazio. O laudo anterior foi preservado.')
+    }
     voiceStore.updateCamposScript(result.camposScriptJson)
     voiceStore.addHistory({
       at: new Date().toISOString(),
@@ -111,8 +119,16 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
       || result.summary.toLowerCase().includes('não foi possível')
       || result.summary.toLowerCase().includes('nenhuma alteração')
 
-    if (intent === 'build' && hasFields && !isWarning) {
-      await exportModoTextoAuto()
+    if (hasFields && !isWarning) {
+      try {
+        await exportModoTextoAuto()
+      } catch (e: unknown) {
+        transcript.value = ''
+        speechError.value = null
+        const detail = e instanceof Error ? ` ${e.message}` : ''
+        toast(`O modelo foi atualizado, mas não foi possível gerar o TXT. Seu laudo e o preview anterior foram preservados; tente gerar novamente.${detail}`, 'warning')
+        return true
+      }
       toast(`${result.summary} — TXT modo texto gerado.`, 'success')
       transcript.value = ''
       speechError.value = null
@@ -125,8 +141,9 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
       transcript.value = ''
       speechError.value = null
     }
-    return hasFields
+    return hasFields && !isWarning
   } catch (e: unknown) {
+    if (voiceStore.sessionId === sessionId) voiceStore.updateCamposScript(previousModel)
     const msg = e instanceof Error ? e.message : 'Falha ao processar fala'
     toast(msg, 'error')
     return false
@@ -140,15 +157,12 @@ const exportModoTextoAuto = async () => {
   if (!voiceStore.sessionId) return
 
   generating.value = true
-  outputFormat.value = 'modoTexto'
-  generatedHtml.value = ''
-  generatedText.value = ''
-  validation.value = null
 
   try {
     const result = await generateLaudo(voiceStore.sessionId, 'modoTexto')
     const resolved = resolveConversionContent('modoTexto', result)
     outputFormat.value = resolved.format
+    generatedHtml.value = resolved.html
     generatedText.value = resolved.text
     validation.value = result.validation
 
@@ -173,11 +187,11 @@ const onStopSpeech = async () => {
   stopSpeech()
   await nextTick()
   if (editableTranscript.value.trim()) {
-    await applyTranscript('build')
+    await applyTranscript(hasModel.value ? 'edit' : 'build')
   }
 }
 
-const onBuildModel = () => applyTranscript('build')
+const onBuildModel = () => applyTranscript(hasModel.value ? 'edit' : 'build')
 const onEditModel = () => {
   if (!hasModel.value) {
     toast('Gere o modelo primeiro falando e parando a gravação', 'warning')
@@ -187,6 +201,7 @@ const onEditModel = () => {
 }
 
 const onUploadAudio = async (file: File) => {
+  if (sending.value || generating.value) return
   if (!voiceStore.sessionId) {
     toast('Inicie uma sessão primeiro', 'warning')
     return
@@ -205,16 +220,12 @@ const onUploadAudio = async (file: File) => {
 }
 
 const onGenerate = async () => {
-  if (!voiceStore.sessionId) return
+  if (sending.value || generating.value || !voiceStore.sessionId) return
   const format = await chooseConversionFormat()
   if (!format) return
 
   generating.value = true
   startProgress()
-  outputFormat.value = format
-  generatedHtml.value = ''
-  generatedText.value = ''
-  validation.value = null
 
   try {
     const result = await generateLaudo(voiceStore.sessionId, format)
@@ -250,6 +261,7 @@ const onOpenEditor = () => {
 }
 
 const onNewSession = () => {
+  if (sending.value || generating.value) return
   stopProgress()
   voiceStore.reset()
   resetSpeech()
@@ -279,7 +291,7 @@ const onNewSession = () => {
             Sessão <span class="font-mono text-ds-text-secondary">{{ voiceStore.sessionId }}</span>
             · modo {{ voiceStore.mode === 'fromImage' ? 'com imagem' : 'do zero' }}
           </p>
-          <StudioDsButton variant="ghost" icon="bi-arrow-counterclockwise" @click="onNewSession">
+          <StudioDsButton variant="ghost" icon="bi-arrow-counterclockwise" :disabled="showProgress" @click="onNewSession">
             Nova sessão
           </StudioDsButton>
         </div>
@@ -301,7 +313,7 @@ const onNewSession = () => {
               :has-model="hasModel"
               v-model:transcript="editableTranscript"
               :error="speechError"
-              :sending="sending"
+              :sending="showProgress"
               @start="startSpeech"
               @stop="onStopSpeech"
               @build="onBuildModel"

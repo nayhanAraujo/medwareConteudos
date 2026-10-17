@@ -30,20 +30,13 @@ public partial class MockVoiceLaudoService : IVoiceLaudoService
         VoiceUtteranceIntent intent = VoiceUtteranceIntent.Build,
         CancellationToken cancellationToken = default)
     {
-        // Modelo vazio ou intent de criação: sempre gera o laudo, nunca "edita" o nada.
-        if (intent != VoiceUtteranceIntent.Edit || IsEmptyCampos(session.CamposScriptJson))
+        // Uma sessão com modelo sempre recebe edições incrementais.
+        if (IsEmptyCampos(session.CamposScriptJson))
         {
             return Task.FromResult(BuildFromSpeech(transcript));
         }
 
-        var edited = EditFromSpeech(session.CamposScriptJson, transcript);
-        if (edited.Summary.Contains("Nenhuma alteração", StringComparison.OrdinalIgnoreCase)
-            || edited.Warnings.Any(w => w.Contains("não reconhecido", StringComparison.OrdinalIgnoreCase)))
-        {
-            return Task.FromResult(BuildFromSpeech(transcript));
-        }
-
-        return Task.FromResult(edited);
+        return Task.FromResult(EditFromSpeech(session.CamposScriptJson, NormalizeStt(transcript)));
     }
 
     private static bool IsEmptyCampos(string json)
