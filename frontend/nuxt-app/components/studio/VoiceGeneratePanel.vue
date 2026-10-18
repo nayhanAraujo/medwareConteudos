@@ -17,7 +17,7 @@ const emit = defineEmits<{
 <template>
   <StudioDsCard title="Gerar laudo">
     <p class="mb-4 text-sm text-ds-text-secondary">
-      Exporte o modelo atual para HTML LaudosUX ou TXT Modo Texto, com validação automática.
+      Exporte o modelo atual para HTML LaudosUX, TXT Modo Texto ou JSON Studio.
     </p>
 
     <StudioDsButton

@@ -58,6 +58,9 @@ internal static class VoiceBridgeRunner
                 Arguments = $"\"{bridgePath}\" \"{command}\" \"{payloadPath}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                // Node escreve UTF-8; a página de códigos do Windows/IIS pode ser OEM 850.
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WorkingDirectory = Path.GetDirectoryName(bridgePath) ?? repoRoot

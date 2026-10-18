@@ -9,7 +9,7 @@ const voiceStore = useVoiceSessionStore()
 const conversionStore = useConversionStore()
 const { createSession, applyUtterance, generateLaudo, transcribeAudio } = useVoiceApi()
 const { toast, chooseConversionFormat } = useStudioSwal()
-const { downloadHtml, downloadText, copyToClipboard } = useHtmlPreview()
+const { downloadHtml, downloadText, downloadJson, copyToClipboard } = useHtmlPreview()
 const router = useRouter()
 
 const setupRef = ref<{ setLoading: (v: boolean) => void } | null>(null)
@@ -230,6 +230,9 @@ const onGenerate = async () => {
   try {
     const result = await generateLaudo(voiceStore.sessionId, format)
     const resolved = resolveConversionContent(format, result)
+    if (resolved.apiMismatch || (format === 'jsonStudio' && !resolved.text)) {
+      throw new Error('A API não retornou o formato solicitado. Verifique se a versão atualizada da API foi publicada.')
+    }
     outputFormat.value = resolved.format
     generatedHtml.value = resolved.html
     generatedText.value = resolved.text
@@ -351,6 +354,18 @@ const onNewSession = () => {
               <div class="mt-3 flex flex-wrap gap-2">
                 <StudioDsButton variant="secondary" icon="bi-download" @click="downloadText(generatedText, 'laudo-voz.txt')">
                   Baixar TXT
+                </StudioDsButton>
+                <StudioDsButton variant="ghost" icon="bi-clipboard" @click="copyToClipboard(generatedText)">
+                  Copiar
+                </StudioDsButton>
+              </div>
+            </StudioDsCard>
+
+            <StudioDsCard v-if="outputFormat === 'jsonStudio' && generatedText" title="JSON Studio">
+              <pre class="max-h-96 overflow-auto rounded-ds-btn bg-ds-surface p-3 text-xs text-ds-text-secondary">{{ generatedText }}</pre>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <StudioDsButton variant="secondary" icon="bi-download" @click="downloadJson(generatedText, 'laudo-voz.json')">
+                  Baixar JSON Studio
                 </StudioDsButton>
                 <StudioDsButton variant="ghost" icon="bi-clipboard" @click="copyToClipboard(generatedText)">
                   Copiar

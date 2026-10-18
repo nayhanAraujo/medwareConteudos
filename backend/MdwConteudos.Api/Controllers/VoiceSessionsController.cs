@@ -207,6 +207,23 @@ public class VoiceSessionsController : ControllerBase
 
         try
         {
+            if (format == ConversionOutputFormat.JsonStudio)
+            {
+                if (IsEmptyModel(session.CamposScriptJson))
+                    return BadRequest(new { message = "Gere um modelo com campos antes de exportar o JSON Studio." });
+
+                using var model = System.Text.Json.JsonDocument.Parse(session.CamposScriptJson);
+                return Ok(new ConversionResponseDto
+                {
+                    Format = format,
+                    Text = System.Text.Json.JsonSerializer.Serialize(model.RootElement, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
+                    SourceFileName = session.SourceFileName ?? "laudo-voz",
+                    ConvertedAt = DateTime.UtcNow,
+                    Provider = "VoiceSession",
+                    Validation = new ValidationResponseDto { IsValid = true, Errors = [], Warnings = [] }
+                });
+            }
+
             var exported = await _voiceService.ExportAsync(session, format, cancellationToken);
             var validation = format == ConversionOutputFormat.ModoTexto
                 ? _modoTextoValidator.Validate(exported.Content)

@@ -186,6 +186,19 @@ public class VoiceSessionTests
         Assert.Equal(updated, session.CamposScriptJson);
     }
 
+    [Fact]
+    public async Task JsonStudioExport_ReturnsCurrentModelWithoutCallingAgent()
+    {
+        var (controller, session, _) = ControllerWithModel("unused");
+        var result = await controller.Generate(session.Id, new VoiceGenerateRequestDto { Format = "jsonStudio" }, default);
+        var response = Assert.IsType<ConversionResponseDto>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(ConversionOutputFormat.JsonStudio, response.Format);
+        Assert.True(response.Validation.IsValid);
+        using var expected = System.Text.Json.JsonDocument.Parse(session.CamposScriptJson);
+        using var actual = System.Text.Json.JsonDocument.Parse(response.Text!);
+        Assert.True(System.Text.Json.JsonElement.DeepEquals(expected.RootElement, actual.RootElement));
+    }
+
     private static (VoiceSessionsController, VoiceSession, StubVoiceService) ControllerWithModel(string response)
     {
         var store = new InMemoryVoiceSessionStore();

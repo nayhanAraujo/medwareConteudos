@@ -9,7 +9,7 @@ const script = source.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1]
 const code = stripTypeScriptTypes(script.replace(/^import .*$/gm, ''))
 const initialModel = JSON.stringify({ camposScript: [{ nome: 'ALTURA' }, { nome: 'PESO' }] })
 
-function harness({ response, exportFails = false, applyFails = false } = {}) {
+function harness({ response, exportFails = false, applyFails = false, format = 'modoTexto', generated } = {}) {
   const calls = []
   const messages = []
   const store = {
@@ -33,12 +33,12 @@ function harness({ response, exportFails = false, applyFails = false } = {}) {
         return { validation: { isValid: true }, convertedAt: '', provider: 'test' }
       }
     }),
-    useStudioSwal: () => ({ toast: (...args) => messages.push(args) }),
+    useStudioSwal: () => ({ toast: (...args) => messages.push(args), chooseConversionFormat: async () => format }),
     useHtmlPreview: () => ({}), useRouter: () => ({}),
     useSpeechRecognition: () => ({ isListening: ref(false), transcript: ref('troque a ordem do peso e altura'), error: ref(null), stop() {} }),
-    resolveConversionContent: () => ({ format: 'modoTexto', text: 'TXT atualizado', html: '' })
+    resolveConversionContent: () => generated ?? ({ format: 'modoTexto', text: 'TXT atualizado', html: '' })
   }
-  const setup = new Function(...Object.keys(dependencies), `${code}\nreturn { applyTranscript, generatedText, onStopSpeech };`)
+  const setup = new Function(...Object.keys(dependencies), `${code}\nreturn { applyTranscript, generatedText, onStopSpeech, onGenerate, outputFormat };`)
   const page = setup(...Object.values(dependencies))
   page.generatedText.value = 'TXT anterior'
   return { ...page, store, calls, messages }
@@ -56,6 +56,21 @@ test('stopping a recording edits the current model', async () => {
   await page.onStopSpeech()
   assert.equal(page.calls[0][2], 'edit')
   assert.equal(page.store.camposScriptJson, initialModel)
+})
+
+test('JSON Studio generation exposes the JSON result for download', async () => {
+  const page = harness({ format: 'jsonStudio', generated: { format: 'jsonStudio', text: initialModel, html: '', apiMismatch: false } })
+  await page.onGenerate()
+  assert.equal(page.outputFormat.value, 'jsonStudio')
+  assert.equal(page.generatedText.value, initialModel)
+  assert.match(source, /downloadJson\(generatedText, 'laudo-voz.json'\)/)
+})
+
+test('an outdated API response does not report JSON success or replace the preview', async () => {
+  const page = harness({ format: 'jsonStudio', generated: { format: 'jsonStudio', text: '', html: '', apiMismatch: true } })
+  await page.onGenerate()
+  assert.equal(page.generatedText.value, 'TXT anterior')
+  assert.equal(page.messages.at(-1)[1], 'error')
 })
 
 test('empty or malformed response preserves the model and previous TXT', async () => {
