@@ -209,8 +209,8 @@ export function useAssistenteApi() {
     setStatus: (domain: string, id: number, active: boolean) =>
       api.put(`${root}/${domain}/${id}/status`, { status: active ? -1 : 0 }),
     options: async (domain: string, search = '') => {
-      const page = await list<AssistenteOption>(domain, 1, 100, search)
-      return page.items
+      const page = await list<AssistenteOption & { titulo?: string }>(domain, 1, 100, search)
+      return page.items.map(item => ({ ...item, nome: item.nome || item.titulo || `#${item.id}` }))
     },
     links: async (domain: string, id: number) =>
       unwrap(await api.get<ApiEnvelope<AssistenteLinksDetail>>(`${root}/${domain}/${id}/vinculos`)),
