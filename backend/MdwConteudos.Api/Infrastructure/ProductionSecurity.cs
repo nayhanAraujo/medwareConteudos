@@ -45,6 +45,9 @@ public static class ProductionSecurity
                 var authRequest = string.Equals(path, "/api/web/auth/login", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(path, "/apiconteudos/v1/token", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(path, "/api/v1/token", StringComparison.OrdinalIgnoreCase);
+                if (string.Equals(path, "/api/web/auth/forgot-password", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(path, "/api/web/auth/reset-password", StringComparison.OrdinalIgnoreCase))
+                    return RateLimitPartition.GetFixedWindowLimiter("recovery:" + context.Connection.RemoteIpAddress, _ => Window(5));
                 return authRequest
                     ? RateLimitPartition.GetFixedWindowLimiter("auth:" + context.Connection.RemoteIpAddress, _ => Window(loginLimit))
                     : RateLimitPartition.GetNoLimiter("other");

@@ -42,6 +42,7 @@ export interface ScriptVersionHistoryDto {
 }
 
 export interface VersaoDto {
+  ambienteAprovacao?: string | null
   codVersao: number
   numeroVersao: string
   dataCriacao?: string
@@ -64,6 +65,7 @@ export interface VersaoCreateMetaDto {
 }
 
 export interface ScriptVersionDetailDto {
+  ambienteAprovacao?: string | null
   codVersao: number
   codScriptLaudo: number
   numeroVersao: string
@@ -91,6 +93,7 @@ export interface ScriptVersionDetailDto {
 }
 
 export interface ScriptListItem {
+  ambienteAprovacao?: string | null
   codScriptLaudo: number
   codPacote?: number
   nome: string
@@ -182,7 +185,7 @@ export function useScriptsApi() {
     api.post<{ data: TransferPackageResult }>('/api/web/scripts/transferir-pacote', body)
 
   const toggleAtivo = (id: number) => api.post(`/api/web/scripts/${id}/toggle-ativo`)
-  const toggleAprovacao = (id: number) => api.post(`/api/web/scripts/${id}/toggle-aprovacao`)
+  const toggleAprovacao = (id: number, ambienteAprovacao?: string | null) => api.post(`/api/web/scripts/${id}/toggle-aprovacao`, { ambienteAprovacao })
 
   const getVariaveis = (id: number) =>
     api.get<{ data: { codVariavel: number; nome: string; sigla: string; formula: string; normalidade: string; associada: boolean }[]; nomeScript: string }>(
@@ -264,7 +267,7 @@ export function useScriptsApi() {
   ) => api.putForm<{ success: boolean }>(`/api/web/scripts/versoes/${codVersao}`, buildVersaoFormData(body, files))
 
   const ativarVersao = (codVersao: number) => api.post(`/api/web/scripts/versoes/${codVersao}/ativar`)
-  const aprovarVersao = (codVersao: number) => api.post(`/api/web/scripts/versoes/${codVersao}/aprovar`)
+  const aprovarVersao = (codVersao: number, ambienteAprovacao: string) => api.post(`/api/web/scripts/versoes/${codVersao}/aprovar`, { ambienteAprovacao })
   const excluirVersao = (codVersao: number) => api.del(`/api/web/scripts/versoes/${codVersao}`)
   const excluirVersaoAnexo = (codArquivo: number) => api.del(`/api/web/scripts/versoes/anexos/${codArquivo}`)
 
@@ -315,8 +318,8 @@ export function useScriptsApi() {
     `/api/web/scripts/aprovar/${token}`
   )
 
-  const postAprovar = (token: string, acao: 'aprovar' | 'rejeitar') =>
-    api.post(`/api/web/scripts/aprovar/${token}`, { acao })
+  const postAprovar = (token: string, acao: 'aprovar' | 'rejeitar', ambienteAprovacao?: string) =>
+    api.post(`/api/web/scripts/aprovar/${token}`, { acao, ambienteAprovacao })
 
   const sendImagesEmail = (id: number, email: string, sistema: string) =>
     api.post(`/api/web/scripts/${id}/send-images-email`, { email, sistema })

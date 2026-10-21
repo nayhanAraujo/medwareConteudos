@@ -1,3 +1,4 @@
+using MdwConteudos.Api.Modules.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MdwConteudos.Api.Infrastructure;
@@ -53,6 +54,7 @@ public class UsersController : ControllerBase
     [RequirePermission(PermissionDomains.Usuarios, PermissionActions.Criar)]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest req, CancellationToken ct)
     {
+        if (req.Email is not null && !await IsCurrentAdmin(ct)) return Forbid();
         if (AccountSecurity.IsAdmin(req.Perfil) && !await IsCurrentAdmin(ct)) return Forbid();
         var (ok, error) = await _users.CreateAsync(req, ct);
         if (!ok) return BadRequest(ApiResponse.Fail("Erro", error));
@@ -70,11 +72,13 @@ public class UsersController : ControllerBase
             var target = await _users.GetAsync(codUsuario, ct);
             if (target is null) { outcome = "not_found"; return NotFound(ApiResponse.Fail("Não encontrado")); }
             if ((AccountSecurity.IsAdmin(target.Perfil) || AccountSecurity.IsAdmin(req.Perfil) ||
-                 (resetting && codUsuario != ActorId)) && !await IsCurrentAdmin(ct))
+                 (resetting && codUsuario != ActorId) ||
+                 (req.Email is not null && RecoveryEmail.Normalize(req.Email) != RecoveryEmail.Normalize(target.Email))) && !await IsCurrentAdmin(ct))
             {
                 outcome = "denied";
                 return Forbid();
             }
+            if (req.Email is not null && !await IsCurrentAdmin(ct)) req = req with { Email = null };
             var (ok, error) = await _users.UpdateAsync(codUsuario, req, ct);
             outcome = ok ? "success" : "rejected";
             if (!ok) return BadRequest(ApiResponse.Fail("Erro", error));

@@ -9,11 +9,13 @@ namespace MdwConteudos.Api.Modules.Auth;
 [Route("api/web/auth")]
 public class AuthController : ControllerBase
 {
+    private readonly IPasswordRecoveryService _recovery;
     private readonly IAuthService _auth;
     private readonly IPermissionService _permissions;
 
-    public AuthController(IAuthService auth, IPermissionService permissions)
+    public AuthController(IAuthService auth, IPermissionService permissions, IPasswordRecoveryService recovery)
     {
+        _recovery = recovery;
         _auth = auth;
         _permissions = permissions;
     }
@@ -35,12 +37,35 @@ public class AuthController : ControllerBase
         });
     }
 
+    /// <summary>Envia um link de recuperação para o e-mail cadastrado, sem revelar a existência da conta.</summary>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
-    public Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req, CancellationToken ct)
     {
-        return Task.FromResult<IActionResult>(StatusCode(410,
-            ApiResponse.Fail("Indisponível", "Solicite a redefinição da senha a um administrador.", 410)));
+        var email = RecoveryEmail.Normalize(req.Email);
+        if (!RecoveryEmail.IsValid(email)) return BadRequest(ApiResponse.Fail("E-mail inválido", "Informe um e-mail válido."));
+        await _recovery.RequestAsync(email!, ct);
+        return Ok(ApiResponse.OkMessage(PasswordRecoveryService.Confirmation));
+    }
+
+    /// <summary>Redefine a senha usando um token de uso único com validade de 30 minutos.</summary>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 6)
+            return BadRequest(ApiResponse.Fail("Senha inválida", "Senha deve ter no mínimo 6 caracteres."));
+        if (req.NewPassword != req.ConfirmPassword)
+            return BadRequest(ApiResponse.Fail("Senha inválida", "As senhas não coincidem."));
+        if (string.IsNullOrEmpty(req.Token) || !await _recovery.ResetAsync(req.Token, req.NewPassword, ct))
+            return BadRequest(ApiResponse.Fail("Link inválido", PasswordRecoveryService.InvalidLink));
+        return Ok(ApiResponse.OkMessage("Senha redefinida. Entre com sua nova senha."));
     }
 
     [HttpGet("me")]

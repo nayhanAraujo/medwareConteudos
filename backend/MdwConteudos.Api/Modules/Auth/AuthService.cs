@@ -12,7 +12,6 @@ namespace MdwConteudos.Api.Modules.Auth;
 public interface IAuthService
 {
     Task<LoginResponse> LoginAsync(string identificacao, string senha, CancellationToken ct = default);
-    Task<(bool Ok, string? Error)> ForgotPasswordAsync(string identificacao, string newPassword, CancellationToken ct = default);
     string CreateWebToken(SessionUser user);
     SessionUser? ParseWebToken(string token);
 }
@@ -71,11 +70,6 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(_auth.DevUsername) || string.IsNullOrWhiteSpace(_auth.DevPassword)) return false;
         return normalizedIdentificacao == _auth.DevUsername.Trim().ToLowerInvariant()
             && senha == _auth.DevPassword;
-    }
-
-    public Task<(bool Ok, string? Error)> ForgotPasswordAsync(string identificacao, string newPassword, CancellationToken ct = default)
-    {
-        return Task.FromResult<(bool Ok, string? Error)>((false, "Redefinição anônima de senha desativada."));
     }
 
     public string CreateWebToken(SessionUser user)

@@ -147,11 +147,15 @@ public class WebScriptsController : ControllerBase
 
     [HttpPost("{id:int}/toggle-aprovacao")]
     [RequirePermission(PermissionDomains.Scripts, PermissionActions.Aprovar)]
-    public async Task<IActionResult> ToggleAprovacao(int id)
+    public async Task<IActionResult> ToggleAprovacao(int id, [FromBody] AmbienteAprovacaoRequest req)
     {
-        var nome = User.FindFirstValue(ClaimTypes.Name) ?? "Admin";
-        await _scripts.ToggleAprovacaoAsync(id, nome);
-        return Ok(new { success = true });
+        try
+        {
+            var nome = User.FindFirstValue(ClaimTypes.Name) ?? "Admin";
+            await _scripts.ToggleAprovacaoAsync(id, nome, req.AmbienteAprovacao);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpGet("{id:int}/variaveis")]
@@ -306,12 +310,12 @@ public class WebScriptsController : ControllerBase
 
     [HttpPost("versoes/{codVersao:int}/aprovar")]
     [RequirePermission(PermissionDomains.Scripts, PermissionActions.Aprovar)]
-    public async Task<IActionResult> AprovarVersao(int codVersao)
+    public async Task<IActionResult> AprovarVersao(int codVersao, [FromBody] AmbienteAprovacaoRequest req)
     {
         try
         {
             var user = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "Admin";
-            await _scripts.ApproveVersaoAsync(codVersao, user);
+            await _scripts.ApproveVersaoAsync(codVersao, user, req.AmbienteAprovacao);
             return Ok(new { success = true });
         }
         catch (InvalidOperationException ex)
@@ -479,7 +483,8 @@ public class WebScriptsController : ControllerBase
     {
         try
         {
-            await _scripts.ApproveByTokenAsync(token, req.Acao == "aprovar");
+            if (req.Acao is not ("aprovar" or "rejeitar")) return BadRequest(new { message = "Ação inválida." });
+            await _scripts.ApproveByTokenAsync(token, req.Acao == "aprovar", req.AmbienteAprovacao);
             return Ok(new { success = true, acao = req.Acao });
         }
         catch (InvalidOperationException ex)
@@ -540,6 +545,7 @@ public class WebScriptsController : ControllerBase
             Sistema = form.Sistema ?? "",
             Aprovado = ParseBool(form.Aprovado) ? 1 : 0,
             AprovadoPor = form.Aprovado_por,
+            AmbienteAprovacao = form.Ambiente_aprovacao,
             Ativo = ParseBool(form.Ativo) ? 1 : 0,
             CriadoPor = form.Criado_por ?? "",
             ArquivoJson = form.Arquivo_json != null ? await ReadBytes(form.Arquivo_json) : null,
@@ -578,6 +584,7 @@ public class WebScriptsController : ControllerBase
         public string? Sistema { get; set; }
         public string? Aprovado { get; set; }
         public string? Aprovado_por { get; set; }
+        public string? Ambiente_aprovacao { get; set; }
         public string? Ativo { get; set; } = "true";
         public string? Criado_por { get; set; }
         public IFormFile? Arquivo_json { get; set; }
@@ -639,7 +646,8 @@ public class WebScriptsController : ControllerBase
         public List<int>? Mrd_excluir_list { get; set; }
     }
     public record EmailsRequest(string? Emails);
-    public record AprovarRequest(string Acao);
+    public record AmbienteAprovacaoRequest(string? AmbienteAprovacao);
+    public record AprovarRequest(string Acao, string? AmbienteAprovacao = null);
     public record SendImagesEmailRequest(string Email, string Sistema);
     public record SolicitarAprovacaoRequest(string NomeScript, string LinkTeste, List<string>? Emails, string? Mensagem);
 }

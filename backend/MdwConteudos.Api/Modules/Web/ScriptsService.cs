@@ -216,7 +216,7 @@ public partial class ScriptsService
         var sql = $@"
             SELECT FIRST @first SKIP @skip
                 s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.CAMINHO_PROJETO, s.SISTEMA,
-                s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO,
+                s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.AMBIENTE_APROVACAO,
                 CASE WHEN s.ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                 s.APROVADO_POR, p.NOME AS NOME_PACOTE, s.CAMINHO_AZURE,
                 CASE WHEN s.DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL,
@@ -302,7 +302,7 @@ public partial class ScriptsService
                 imagens,
                 pdfs,
                 mrdList
-            ));
+            ) { AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() });
         }
 
         return new PagedScriptsResponse(items, page, totalPages, total);
@@ -332,7 +332,7 @@ public partial class ScriptsService
         await conn.OpenAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CODSCRIPTLAUDO, NOME, DESCRICAO, LINGUAGEM, CAMINHO_PROJETO, CAMINHO_AZURE, LINK_TESTE,
-                   SISTEMA, CODPACOTE, APROVADO, APROVADO_POR, ATIVO, CRIADO_POR,
+                   SISTEMA, CODPACOTE, APROVADO, APROVADO_POR, AMBIENTE_APROVACAO, ATIVO, CRIADO_POR,
                    CASE WHEN ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                    CASE WHEN DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL
             FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @id", new { id });
@@ -364,7 +364,7 @@ public partial class ScriptsService
             arquivos.Where(a => a.Tipo == "IMAGEM").ToList(),
             arquivos.Where(a => a.Tipo == "PDF").ToList(),
             vars
-        );
+        ) { AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() };
     }
 
     public async Task<bool> VerificarNomeAsync(string nome, int? excludeId = null)
@@ -423,9 +423,9 @@ public partial class ScriptsService
 
         var cod = await conn.ExecuteScalarAsync<int>(@"
             INSERT INTO SCRIPTLAUDO (NOME, CODPACOTE, DESCRICAO, LINGUAGEM, CAMINHO_PROJETO, CAMINHO_AZURE,
-                LINK_TESTE, SISTEMA, APROVADO, APROVADO_POR, ATIVO, CRIADO_POR, ARQUIVO_JSON, DLL)
+                LINK_TESTE, SISTEMA, APROVADO, APROVADO_POR, AMBIENTE_APROVACAO, ATIVO, CRIADO_POR, ARQUIVO_JSON, DLL)
             VALUES (@Nome, @CodPacote, @Descricao, @Linguagem, @CaminhoProjeto, @CaminhoAzure, @LinkTeste,
-                @Sistema, @Aprovado, @AprovadoPor, @Ativo, @CriadoPor, @Json, @Dll)
+                @Sistema, @Aprovado, @AprovadoPor, @AmbienteAprovacao, @Ativo, @CriadoPor, @Json, @Dll)
             RETURNING CODSCRIPTLAUDO",
             new
             {
@@ -439,6 +439,7 @@ public partial class ScriptsService
                 input.Sistema,
                 input.Aprovado,
                 input.AprovadoPor,
+                input.AmbienteAprovacao,
                 input.Ativo,
                 input.CriadoPor,
                 Json = input.ArquivoJson,
@@ -458,10 +459,21 @@ public partial class ScriptsService
         await conn.OpenAsync();
         await using var tx = await conn.BeginTransactionAsync();
 
+        var approval = await conn.QueryFirstOrDefaultAsync(@"SELECT APROVADO, AMBIENTE_APROVACAO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id WITH LOCK", new { id }, tx);
+        if (approval is null) throw new InvalidOperationException("Script não encontrado.");
+        if (input.Aprovado == 1)
+        {
+            var state = (IDictionary<string, object>)approval;
+            input.AmbienteAprovacao = !string.IsNullOrWhiteSpace(input.AmbienteAprovacao)
+                ? ValidateAmbienteAprovacao(input.AmbienteAprovacao)
+                : SafeInt(state["APROVADO"]) == 1 ? state["AMBIENTE_APROVACAO"]?.ToString()
+                : ValidateAmbienteAprovacao(null);
+        }
+
         await conn.ExecuteAsync(@"
             UPDATE SCRIPTLAUDO SET NOME=@Nome, CODPACOTE=@CodPacote, DESCRICAO=@Descricao, LINGUAGEM=@Linguagem,
                 CAMINHO_PROJETO=@CaminhoProjeto, CAMINHO_AZURE=@CaminhoAzure, LINK_TESTE=@LinkTeste, SISTEMA=@Sistema,
-                APROVADO=@Aprovado, APROVADO_POR=@AprovadoPor, ATIVO=@Ativo
+                APROVADO=@Aprovado, APROVADO_POR=@AprovadoPor, AMBIENTE_APROVACAO=@AmbienteAprovacao, ATIVO=@Ativo
             WHERE CODSCRIPTLAUDO=@id",
             new
             {
@@ -476,6 +488,7 @@ public partial class ScriptsService
                 input.Sistema,
                 input.Aprovado,
                 input.AprovadoPor,
+                input.AmbienteAprovacao,
                 input.Ativo
             }, tx);
 
@@ -550,6 +563,9 @@ public partial class ScriptsService
 
     private static void ValidateForm(ScriptFormInput input, bool isNew)
     {
+        input.AmbienteAprovacao = input.Aprovado == 1
+            ? isNew || !string.IsNullOrWhiteSpace(input.AmbienteAprovacao) ? ValidateAmbienteAprovacao(input.AmbienteAprovacao) : null
+            : null;
         if (string.IsNullOrWhiteSpace(input.Nome)) throw new InvalidOperationException("Nome obrigatório.");
         if (string.IsNullOrWhiteSpace(input.CriadoPor) && isNew) throw new InvalidOperationException("Criado por obrigatório.");
         if (input.Sistema is not ("Laudos UX" or "Laudos Flex")) throw new InvalidOperationException("Sistema inválido.");
@@ -574,15 +590,30 @@ public partial class ScriptsService
             WHERE CODSCRIPTLAUDO = @id", new { id });
     }
 
-    public async Task ToggleAprovacaoAsync(int id, string? aprovadoPor)
+    public static string ValidateAmbienteAprovacao(string? value)
+    {
+        var ambiente = value?.Trim();
+        if (string.IsNullOrWhiteSpace(ambiente) || ambiente.Length > 250)
+            throw new InvalidOperationException("Informe o ambiente de aprovação (até 250 caracteres).");
+        return ambiente;
+    }
+
+    public async Task ToggleAprovacaoAsync(int id, string? aprovadoPor, string? ambienteAprovacao = null)
     {
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
+        await using var tx = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
+        var row = await conn.QueryFirstOrDefaultAsync("SELECT APROVADO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id WITH LOCK", new { id }, tx);
+        if (row is null) throw new InvalidOperationException("Script não encontrado.");
+        var aprovar = SafeInt(((IDictionary<string, object>)row)["APROVADO"]) != 1;
+        var ambiente = aprovar ? ValidateAmbienteAprovacao(ambienteAprovacao) : null;
         await conn.ExecuteAsync(@"
-            UPDATE SCRIPTLAUDO SET APROVADO = CASE WHEN APROVADO = 1 THEN 0 ELSE 1 END,
-                APROVADO_POR = CASE WHEN APROVADO = 0 THEN @ap ELSE APROVADO_POR END,
+            UPDATE SCRIPTLAUDO SET APROVADO = @status,
+                APROVADO_POR = CASE WHEN @status = 1 THEN @ap ELSE APROVADO_POR END,
+                AMBIENTE_APROVACAO = @ambiente,
                 DATA_VERIFICACAO = CURRENT_TIMESTAMP
-            WHERE CODSCRIPTLAUDO = @id", new { id, ap = aprovadoPor });
+            WHERE CODSCRIPTLAUDO = @id", new { id, ap = aprovadoPor, status = aprovar ? 1 : 0, ambiente }, tx);
+        await tx.CommitAsync();
     }
 
     public async Task<IReadOnlyList<object>> GetVariaveisForLinkAsync(int scriptId)
@@ -673,7 +704,7 @@ public partial class ScriptsService
         }
         var sql = $@"
             SELECT CODVERSAO, NUMERO_VERSAO, DATA_CRIACAO, ATIVO, APROVADO, OBSERVACOES,
-                   USUARIO_RESPONSAVEL, DESCRICAO_ALTERACOES, APROVADO_POR
+                   USUARIO_RESPONSAVEL, DESCRICAO_ALTERACOES, APROVADO_POR, AMBIENTE_APROVACAO
             FROM SCRIPTVERSOES WHERE {string.Join(" AND ", where)} ORDER BY DATA_CRIACAO DESC";
         var rows = await conn.QueryAsync(sql, p);
         return rows.Select(MapVersaoDto).ToList();
@@ -692,7 +723,7 @@ public partial class ScriptsService
             d["USUARIO_RESPONSAVEL"]?.ToString(),
             d["DESCRICAO_ALTERACOES"]?.ToString(),
             d["APROVADO_POR"]?.ToString()
-        );
+        ) { AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() };
     }
 
     private static string? NormalizeFlag(object? value)
@@ -747,7 +778,7 @@ public partial class ScriptsService
             SELECT sv.CODVERSAO, sv.CODSCRIPTLAUDO, sv.NUMERO_VERSAO,
                    sv.DESCRICAO_ALTERACOES, sv.ALTERACOES_INTERFACE, sv.ALTERACOES_CODIGO,
                    sv.DATA_CRIACAO, sv.USUARIO_RESPONSAVEL, sv.ATIVO, sv.APROVADO,
-                   sv.APROVADO_POR, sv.DATA_APROVACAO, sv.OBSERVACOES,
+                   sv.APROVADO_POR, sv.DATA_APROVACAO, sv.AMBIENTE_APROVACAO, sv.OBSERVACOES,
                    CASE WHEN sv.ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                    CASE WHEN sv.ARQUIVO_DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL,
                    s.NOME AS SCRIPT_NOME, s.DESCRICAO AS SCRIPT_DESCRICAO, s.SISTEMA,
@@ -789,7 +820,7 @@ public partial class ScriptsService
             arquivos.Where(a => a.Tipo == "PDF").ToList(),
             mrd,
             historico
-        );
+        ) { AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() };
     }
 
     private async Task<IReadOnlyList<ScriptVersionFileDto>> ListVersaoArquivosAsync(FbConnection conn, int codVersao)
@@ -1087,23 +1118,24 @@ public partial class ScriptsService
         await tx.CommitAsync();
     }
 
-    public async Task ApproveVersaoAsync(int codVersao, string usuario)
+    public async Task ApproveVersaoAsync(int codVersao, string usuario, string? ambienteAprovacao = null)
     {
+        var ambiente = ValidateAmbienteAprovacao(ambienteAprovacao);
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
+        await using var tx = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
         var row = await conn.QueryFirstOrDefaultAsync(@"
-            SELECT NUMERO_VERSAO, APROVADO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao", new { codVersao });
+            SELECT NUMERO_VERSAO, APROVADO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao WITH LOCK", new { codVersao }, tx);
         if (row == null) throw new InvalidOperationException("Versão não encontrada.");
         var d = (IDictionary<string, object>)row;
         if (NormalizeFlag(d["APROVADO"]) == "T")
             throw new InvalidOperationException("Esta versão já foi aprovada.");
         var numero = d["NUMERO_VERSAO"]?.ToString() ?? "";
-        await using var tx = await conn.BeginTransactionAsync();
         await conn.ExecuteAsync(@"
-            UPDATE SCRIPTVERSOES SET APROVADO = 'T', APROVADO_POR = @user, DATA_APROVACAO = CURRENT_TIMESTAMP
-            WHERE CODVERSAO = @codVersao", new { user = usuario, codVersao }, tx);
+            UPDATE SCRIPTVERSOES SET APROVADO = 'T', APROVADO_POR = @user, AMBIENTE_APROVACAO = @ambiente, DATA_APROVACAO = CURRENT_TIMESTAMP
+            WHERE CODVERSAO = @codVersao", new { user = usuario, codVersao, ambiente }, tx);
         await InsertVersaoHistoricoAsync(conn, tx, codVersao, "APROVACAO",
-            $"Versão {numero} aprovada por {usuario}", usuario);
+            $"Versão {numero} aprovada por {usuario}. Ambiente: {ambiente}", usuario);
         await tx.CommitAsync();
     }
 
@@ -1484,20 +1516,23 @@ public partial class ScriptsService
         );
     }
 
-    public async Task ApproveByTokenAsync(string token, bool approve)
+    public async Task ApproveByTokenAsync(string token, bool approve, string? ambienteAprovacao = null)
     {
+        var ambiente = approve ? ValidateAmbienteAprovacao(ambienteAprovacao) : null;
         await using var conn = (FbConnection)CreateConnection();
         await conn.OpenAsync();
+        await using var tx = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
         var cod = await conn.ExecuteScalarAsync<int?>(@"
             SELECT CODSCRIPTLAUDO FROM SCRIPTAPROVACAOTOKEN
-            WHERE TOKEN = @token AND EXPIRA_EM > CURRENT_TIMESTAMP AND USADO = 0", new { token });
+            WHERE TOKEN = @token AND EXPIRA_EM > CURRENT_TIMESTAMP AND USADO = 0 WITH LOCK", new { token }, tx);
         if (!cod.HasValue) throw new InvalidOperationException("Token inválido ou expirado.");
-        await using var tx = await conn.BeginTransactionAsync();
         if (approve)
         {
+            var current = await conn.ExecuteScalarAsync<int>("SELECT APROVADO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@cod WITH LOCK", new { cod }, tx);
+            if (current == 1) throw new InvalidOperationException("Este script já foi aprovado.");
             await conn.ExecuteAsync(@"
-                UPDATE SCRIPTLAUDO SET APROVADO = 1, APROVADO_POR = 'Aprovado via Email', DATA_VERIFICACAO = CURRENT_TIMESTAMP
-                WHERE CODSCRIPTLAUDO = @cod", new { cod }, tx);
+                UPDATE SCRIPTLAUDO SET APROVADO = 1, APROVADO_POR = 'Aprovado via Email', AMBIENTE_APROVACAO = @ambiente, DATA_VERIFICACAO = CURRENT_TIMESTAMP
+                WHERE CODSCRIPTLAUDO = @cod", new { cod, ambiente }, tx);
             await conn.ExecuteAsync(@"
                 UPDATE SCRIPTAPROVACAOTOKEN SET USADO = 1, APROVADO_EM = CURRENT_TIMESTAMP WHERE TOKEN = @token",
                 new { token }, tx);
@@ -1708,6 +1743,7 @@ public class ScriptFormInput
     public string Sistema { get; set; } = "";
     public int Aprovado { get; set; }
     public string? AprovadoPor { get; set; }
+    public string? AmbienteAprovacao { get; set; }
     public int Ativo { get; set; } = 1;
     public string CriadoPor { get; set; } = "";
     public byte[]? ArquivoJson { get; set; }

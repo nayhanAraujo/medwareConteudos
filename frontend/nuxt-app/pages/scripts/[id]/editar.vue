@@ -74,7 +74,8 @@ onMounted(async () => {
     caminho_projeto: String(s.caminhoProjeto || ''),
     ativo: Number(s.ativo) === 1,
     aprovado: Number(s.aprovado) === 1,
-    aprovado_por: String(s.aprovadoPor || '')
+    aprovado_por: String(s.aprovadoPor || ''),
+    ambiente_aprovacao: String(s.ambienteAprovacao || '')
   }
   const imgs = Array.isArray(s.imagens) ? (s.imagens as Array<Record<string, unknown>>) : []
   existingImagens.value = imgs

@@ -1,4 +1,5 @@
 using MdwConteudos.Api.Modules.Avaliacoes;
+using MdwConteudos.Api.Modules.Auth;
 using MdwConteudos.Api.Modules.Cadastros;
 using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Modules.Web;
@@ -16,6 +17,7 @@ public static class DatabaseMigrations
         var steps = new (string Name, Func<Task> Run)[]
         {
             ("permissions", () => permissions.EnsureSchemaAsync(ct)),
+            ("password-recovery", () => PasswordRecoverySchema.MigrateAsync(db, ct)),
             ("package-icons", () => PacoteIcone.MigrateAsync(db, ct)),
             ("report-module-icons", () => ModuloRelatorioIcone.MigrateAsync(db, ct)),
             ("evaluations", () => AvaliacaoSchema.MigrateAsync(db, ct))

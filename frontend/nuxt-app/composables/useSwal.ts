@@ -51,5 +51,23 @@ export function useSwal() {
     return toast(title, 'warning', text)
   }
 
-  return { toast, confirm, error, info, warning, designSystemRuleAcceptance }
+  const approvalEnvironment = async (title = 'Aprovar modelo') => {
+    if (!import.meta.client) return null
+    const { default: Swal } = await import('sweetalert2')
+    const result = await Swal.fire({
+      ...compactDialogOptions,
+      titleText: title,
+      input: 'text',
+      inputLabel: 'Ambiente onde foi validado',
+      inputPlaceholder: 'Ex.: Homologação — Clínica Exemplo',
+      inputAttributes: { maxlength: '250' },
+      showCancelButton: true,
+      confirmButtonText: 'Aprovar',
+      cancelButtonText: 'Cancelar',
+      inputValidator: (value) => !value.trim() || value.trim().length > 250 ? 'Informe o ambiente de aprovação (até 250 caracteres).' : undefined
+    })
+    return result.isConfirmed ? String(result.value).trim() : null
+  }
+
+  return { toast, confirm, error, info, warning, designSystemRuleAcceptance, approvalEnvironment }
 }

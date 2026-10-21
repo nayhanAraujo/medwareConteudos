@@ -93,6 +93,7 @@
       </label>
     </div>
     <DsInput v-if="model.aprovado" v-model="model.aprovado_por" label="Aprovado por" />
+    <DsInput v-if="model.aprovado" v-model="model.ambiente_aprovacao" label="Ambiente onde foi validado *" :maxlength="250" required />
     <div class="md:col-span-2 flex gap-2 pt-2">
       <DsButton type="submit" variant="success" icon="save" :loading="loading">
         {{ loading ? 'Salvando...' : 'Salvar' }}
@@ -118,6 +119,7 @@ export interface ScriptFormModel {
   ativo: boolean
   aprovado: boolean
   aprovado_por: string
+  ambiente_aprovacao?: string
 }
 
 export interface ScriptImagePreview {

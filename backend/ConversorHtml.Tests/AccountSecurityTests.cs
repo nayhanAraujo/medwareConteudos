@@ -31,16 +31,6 @@ public class AccountSecurityTests
         Assert.Equal(expected, method.Invoke(service, new object[] { "dev", "secret" }));
     }
 
-    [Fact]
-    public async Task AnonymousRecoveryNeverCallsServiceOrDatabase()
-    {
-        var controller = new AuthController(null!, null!);
-        var result = Assert.IsType<ObjectResult>(await controller.ForgotPassword(null!, default));
-        Assert.Equal(410, result.StatusCode);
-        var service = new AuthService(new NoDatabase(), Options.Create(new WebAuthOptions()));
-        Assert.False((await service.ForgotPasswordAsync("anyone", "secret")).Ok);
-    }
-
     [Theory]
     [InlineData("admin", "usuario", null)]
     [InlineData("AdMiN", "usuario", "secret")]
@@ -106,6 +96,25 @@ public class AccountSecurityTests
     {
         var service = new UsersService(new NoDatabase());
         Assert.False((await service.UpdateAsync(2, Request(profile, password) with { ConfirmarSenha = confirmation })).Ok);
+    }
+
+    [Theory]
+    [InlineData("usuario")]
+    [InlineData("admin")]
+    public async Task EmailChangesRequireActiveAdmin(string claim)
+    {
+        var users = new FakeUsers("usuario");
+        Assert.IsType<ForbidResult>(await Controller(users, claim).Update(2, Request("usuario", null) with { Email = "name@example.test" }, default));
+        Assert.IsType<ForbidResult>(await Controller(users, claim).Create(new("Name", "login", "secret", "secret", "usuario", -1, "name@example.test"), default));
+        Assert.Equal(0, users.Writes);
+    }
+
+    [Fact]
+    public async Task ActiveAdminCanSetRecoveryEmail()
+    {
+        var users = new FakeUsers("usuario", "admin");
+        Assert.IsType<OkObjectResult>(await Controller(users, "admin").Update(2, Request("usuario", null) with { Email = "name@example.test" }, default));
+        Assert.Equal(1, users.Writes);
     }
 
     private static UpdateUserRequest Request(string profile, string? password) => new("Name", "login", password, password, profile, -1);

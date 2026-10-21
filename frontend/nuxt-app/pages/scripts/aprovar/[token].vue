@@ -18,6 +18,7 @@
         Abrir link de teste
       </DsButton>
       <form @submit.prevent="enviar('aprovar')">
+        <DsInput v-model="ambiente" label="Ambiente onde foi validado *" :maxlength="250" required class="mb-4" :disabled="submitting" />
         <DsButton type="submit" variant="success" block icon="hand-thumbs-up-fill" :loading="submitting" class="mb-2">
           Aprovar
         </DsButton>
@@ -41,6 +42,7 @@ const swal = useSwal()
 
 const loading = ref(true)
 const submitting = ref(false)
+const ambiente = ref('')
 const status = ref<'loading' | 'expirado' | 'ja_aprovado' | 'ok' | 'sucesso' | 'rejeitado'>('loading')
 const info = ref<{ nomeScript?: string; sistema?: string; linguagem?: string; linkTeste?: string } | null>(null)
 
@@ -69,9 +71,14 @@ onMounted(async () => {
 })
 
 async function enviar(acao: 'aprovar' | 'rejeitar') {
+  if (submitting.value) return
+  if (acao === 'aprovar' && (!ambiente.value.trim() || ambiente.value.trim().length > 250)) {
+    await swal.toast('Informe o ambiente de aprovação (até 250 caracteres).', 'error')
+    return
+  }
   submitting.value = true
   try {
-    await scriptsApi.postAprovar(token, acao)
+    await scriptsApi.postAprovar(token, acao, acao === 'aprovar' ? ambiente.value.trim() : undefined)
     status.value = acao === 'aprovar' ? 'sucesso' : 'rejeitado'
   } catch (e: unknown) {
     await swal.toast(e instanceof Error ? e.message : 'Erro', 'error')

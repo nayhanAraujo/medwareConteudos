@@ -103,6 +103,10 @@ builder.Services.Configure<PublicacaoOptions>(builder.Configuration.GetSection("
 builder.Services.AddScoped<PublicacaoService>();
 builder.Services.AddHostedService<PublicacaoWorker>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();
+builder.Services.AddScoped<IPasswordRecoveryStore, FirebirdPasswordRecoveryStore>();
+builder.Services.AddScoped<IRecoveryEmailSender, RecoveryEmailSender>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<IApiPublicaService, ApiPublicaService>();
 builder.Services.AddScoped<ApiScriptOperations>();

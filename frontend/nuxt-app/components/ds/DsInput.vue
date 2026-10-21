@@ -8,6 +8,7 @@
       :placeholder="placeholder"
       :disabled="disabled"
       :required="required"
+      :maxlength="maxlength"
       :autocomplete="autocomplete"
       class="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-ds-text placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all disabled:bg-gray-50 disabled:text-gray-500"
       :class="inputClass"
@@ -27,6 +28,7 @@ const props = defineProps<{
   hint?: string
   disabled?: boolean
   required?: boolean
+  maxlength?: number
   autocomplete?: string
   inputClass?: string
   id?: string

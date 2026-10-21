@@ -42,6 +42,7 @@
             <DsBadge :variant="v.aprovado === 'T' ? 'primary' : 'warning'">
               {{ v.aprovado === 'T' ? 'Aprovada' : 'Pendente' }}
             </DsBadge>
+            <span v-if="v.aprovado === 'T'" class="block text-xs text-gray-500 mt-1 break-words">{{ v.ambienteAprovacao || 'Ambiente não informado' }}</span>
           </td>
           <td>
             <DsBadge v-if="v.ativo === 'T'" variant="success">Ativa</DsBadge>
@@ -136,10 +137,10 @@ async function ativar(codVersao: number) {
 }
 
 async function aprovar(codVersao: number) {
-  const { isConfirmed } = (await swal.confirm('Aprovar versão?', 'Confirma a aprovação desta versão?')) || {}
-  if (!isConfirmed) return
+  const ambiente = await swal.approvalEnvironment('Aprovar versão')
+  if (ambiente === null) return
   try {
-    await scriptsApi.aprovarVersao(codVersao)
+    await scriptsApi.aprovarVersao(codVersao, ambiente)
     await swal.toast('Versão aprovada!')
     await carregar()
   } catch (e: unknown) {

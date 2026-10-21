@@ -73,6 +73,21 @@ public class ProductionHttpSecurityTests
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/work", null)).StatusCode);
     }
 
+    [Fact]
+    public async Task RecoveryIsLimitedToFiveRequestsPerIpAcrossBothEndpoints()
+    {
+        await using var app = Build();
+        app.MapPost("/api/web/auth/forgot-password", () => Results.Ok());
+        app.MapPost("/api/web/auth/reset-password", () => Results.BadRequest());
+        await app.StartAsync();
+        using var client = Client(app);
+        for (var i = 0; i < 5; i++)
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/web/auth/forgot-password", null)).StatusCode);
+        using var limited = await client.PostAsync("/api/web/auth/reset-password", null);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.NotNull(limited.Headers.RetryAfter);
+    }
+
     private static WebApplication Build()
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Development", ContentRootPath = Path.GetTempPath() });

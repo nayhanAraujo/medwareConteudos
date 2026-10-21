@@ -1,7 +1,7 @@
 <template>
-  <div class="flex h-screen w-full" :class="{ 'permissions-layout': route.meta.permissionsWorkspace }">
+  <div class="flex h-screen w-full" :class="{ 'permissions-layout': route.meta.permissionsWorkspace || route.meta.compactWorkspace }">
     <LayoutAppSidebar />
-    <main class="app-main-glass flex-1 overflow-y-auto font-sans" :class="route.meta.permissionsWorkspace ? 'permissions-main' : 'p-5'">
+    <main class="app-main-glass flex-1 overflow-y-auto font-sans" :class="route.meta.permissionsWorkspace || route.meta.compactWorkspace ? 'permissions-main' : 'p-5'">
       <slot />
     </main>
   </div>

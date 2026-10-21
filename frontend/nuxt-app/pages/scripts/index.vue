@@ -106,6 +106,7 @@
                 Aprovado: <span :class="item.aprovado ? 'text-green-600' : 'text-rose-600'">{{ item.aprovado ? 'Sim' : 'Não' }}</span>
                 · Ativo: {{ item.ativo ? 'Sim' : 'Não' }}
               </p>
+              <p v-if="item.aprovado" class="text-xs text-gray-600 break-words">Aprovado em: {{ item.ambienteAprovacao || 'Ambiente não informado' }}</p>
               <div class="flex justify-between items-center gap-1.5 pt-0.5">
                 <DsButton variant="secondary" size="sm" icon="info-circle-fill" @click="detailModalId = item.codScriptLaudo">Detalhes</DsButton>
                 <ScriptsScriptActionsDropdown :item="item" @transfer="openTransfer([item.codScriptLaudo])" />
@@ -141,7 +142,7 @@
             <td>{{ item.nome }}<NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="block text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink></td>
             <td>{{ item.sistema }}</td>
             <td>{{ item.nomePacote || '—' }}</td>
-            <td>{{ item.aprovado ? 'Sim' : 'Não' }}</td>
+            <td>{{ item.aprovado ? 'Sim' : 'Não' }}<span v-if="item.aprovado" class="block text-xs text-gray-500 break-words">{{ item.ambienteAprovacao || 'Ambiente não informado' }}</span></td>
             <td>{{ item.ativo ? 'Sim' : 'Não' }}</td>
             <td>
               <div class="flex gap-2 justify-end">
@@ -210,6 +211,7 @@
               <p><strong>Status:</strong> {{ detailItem.ativo ? 'Ativo' : 'Inativo' }}</p>
               <p><strong>Verificado em:</strong> {{ formatDateTime(detailItem.dataVerificacao) }}</p>
               <p><strong>Aprovado Por:</strong> {{ detailItem.aprovadoPor || '—' }}</p>
+              <p v-if="detailItem.aprovado"><strong>Ambiente de aprovação:</strong> {{ detailItem.ambienteAprovacao || 'Ambiente não informado' }}</p>
               <p><strong>Criado por:</strong> {{ detailItem.criadoPor || '—' }}</p>
             </div>
           </div>

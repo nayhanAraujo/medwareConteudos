@@ -28,6 +28,7 @@ public sealed class DatabaseMigrationsTests
                 .AddSingleton<IPermissionService>(permissions).BuildServiceProvider();
             await using (var conn = await factory.OpenConnectionAsync())
             {
+                await conn.ExecuteAsync("CREATE TABLE USUARIO (CODUSUARIO INTEGER PRIMARY KEY)");
                 await conn.ExecuteAsync("CREATE TABLE PACOTES (CODPACOTE INTEGER PRIMARY KEY, NOME VARCHAR(100))");
                 await conn.ExecuteAsync("INSERT INTO PACOTES VALUES (1,'Cardiologia')");
                 await conn.ExecuteAsync("CREATE TABLE MODULORELATORIO (CODMODULO INTEGER PRIMARY KEY)");
@@ -70,6 +71,8 @@ public sealed class DatabaseMigrationsTests
             await using (var conn = await factory.OpenConnectionAsync())
             {
                 Assert.Equal(2, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME IN ('SCRIPT_AVALIACAO','SCRIPT_AVALIACAO_EVENTO')"));
+                Assert.Equal(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='PASSWORD_RESET'"));
+                Assert.Equal(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME='USUARIO' AND RDB$FIELD_NAME='EMAIL'"));
                 Assert.Equal(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME='MODULORELATORIO' AND RDB$FIELD_NAME='ICONE_BASE64'"));
                 Assert.Equal("custom-icon", await conn.ExecuteScalarAsync<string>("SELECT ICONE_BASE64 FROM PACOTES WHERE CODPACOTE=1"));
                 Assert.Equal(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM PERFIL_PERMISSAO WHERE PERFIL='usuario' AND CHAVE='scripts.editar'"));

@@ -16,6 +16,7 @@ export function buildScriptFormData(
   fd.append('aprovado', model.aprovado ? 'true' : 'false')
   fd.append('ativo', model.ativo ? 'true' : 'false')
   fd.append('aprovado_por', model.aprovado_por || '')
+  fd.append('ambiente_aprovacao', model.aprovado ? model.ambiente_aprovacao?.trim() || '' : '')
   fd.append('criado_por', model.criado_por || '')
 
   const json = files.arquivo_json

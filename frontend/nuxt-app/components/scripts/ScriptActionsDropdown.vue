@@ -68,7 +68,7 @@
         </DsDropdownItem>
       </template>
       <DsDropdownDivider v-if="canApprove || canActivate" />
-      <DsDropdownItem v-if="canApprove" @click="toggleAprovacao(); close()">
+      <DsDropdownItem v-if="canApprove" :disabled="approving" @click="toggleAprovacao(); close()">
         <i
           :class="item.aprovado ? 'bi bi-hand-thumbs-down-fill text-rose-600' : 'bi bi-hand-thumbs-up-fill text-green-600'"
         />
@@ -142,16 +142,22 @@ async function openAzure() {
   }
 }
 
+const approving = ref(false)
 async function toggleAprovacao() {
-  const acao = props.item.aprovado ? 'desaprovar' : 'aprovar'
-  const ok = await swal.confirm(`${acao.charAt(0).toUpperCase() + acao.slice(1)} script?`)
-  if (!ok?.isConfirmed) return
+  if (approving.value) return
+  approving.value = true
   try {
-    await api.toggleAprovacao(props.item.codScriptLaudo)
+    const acao = props.item.aprovado ? 'desaprovar' : 'aprovar'
+    const ambiente = props.item.aprovado ? null : await swal.approvalEnvironment('Aprovar script')
+    if (!props.item.aprovado && ambiente === null) return
+    if (props.item.aprovado && !(await swal.confirm('Desaprovar script?'))?.isConfirmed) return
+    await api.toggleAprovacao(props.item.codScriptLaudo, ambiente)
     await swal.toast(`Script ${acao}do com sucesso.`, 'success')
     window.location.reload()
   } catch (e: unknown) {
     await swal.error('Erro ao alterar aprovação', e instanceof Error ? e.message : 'Tente novamente.')
+  } finally {
+    approving.value = false
   }
 }
 

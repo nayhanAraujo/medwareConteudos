@@ -60,6 +60,9 @@
               <div v-if="versao.aprovadoPor">
                 <span class="text-gray-500 block">Aprovado por</span>{{ versao.aprovadoPor }}
               </div>
+              <div v-if="versao.aprovado === 'T'">
+                <span class="text-gray-500 block">Ambiente de aprovação</span>{{ versao.ambienteAprovacao || 'Ambiente não informado' }}
+              </div>
               <div v-if="versao.dataAprovacao">
                 <span class="text-gray-500 block">Data aprovação</span>{{ formatDate(versao.dataAprovacao) }}
               </div>
@@ -246,11 +249,12 @@ async function ativar() {
 }
 
 async function aprovar() {
-  const { isConfirmed } = (await swal.confirm('Aprovar versão?', 'Confirma a aprovação desta versão?')) || {}
-  if (!isConfirmed) return
+  if (saving.value) return
+  const ambiente = await swal.approvalEnvironment('Aprovar versão')
+  if (ambiente === null) return
   saving.value = true
   try {
-    await scriptsApi.aprovarVersao(codversao)
+    await scriptsApi.aprovarVersao(codversao, ambiente)
     await swal.toast('Versão aprovada!')
     await carregar()
   } catch (e: unknown) {

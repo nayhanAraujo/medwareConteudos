@@ -21,6 +21,16 @@ public sealed class PortalOpenApiOperationFilter : IOperationFilter
         operation.Summary ??= context.MethodInfo.Name;
         operation.Description ??= $"{method} {path}.";
 
+        if (path == "/api/web/auth/forgot-password")
+        {
+            operation.Summary = "Solicitar recuperação de senha por e-mail";
+            operation.Description = "Recebe email. Retorna a mesma confirmação para contas ativas, inexistentes ou inativas. Limite compartilhado de 5 solicitações por IP/minuto e intervalo de 1 minuto por conta. Envio indisponível em homologação.";
+        }
+        if (path == "/api/web/auth/reset-password")
+        {
+            operation.Summary = "Redefinir senha com link temporário";
+            operation.Description = "Recebe token, newPassword e confirmPassword. Token de uso único válido por 30 minutos. Senha com mínimo de 6 caracteres. Link inválido, expirado ou utilizado retorna 400. Não cria sessão de login. Indisponível em homologação.";
+        }
         var risk = ExternalEffect(path);
         operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();
         operation.Extensions["x-docs-safe-try"] = new JsonNodeExtension(JsonValue.Create(risk is null)!);
@@ -112,7 +122,7 @@ public sealed class PortalOpenApiOperationFilter : IOperationFilter
         if (value.Contains("/publicacao")) return "publication";
         if (value.Contains("/agente") || value.StartsWith("/api/voice") ||
             value.StartsWith("/api/conversions")) return "ai-or-external-service";
-        if (value.Contains("email") || value.Contains("/forgot-password") ||
+        if (value.Contains("email") || value.Contains("/forgot-password") || value.Contains("/reset-password") ||
             value.Contains("/solicitar-aprovacao") || value.Contains("/aprovar/")) return "email-or-approval";
         return null;
     }

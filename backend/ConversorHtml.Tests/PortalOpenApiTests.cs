@@ -182,6 +182,7 @@ public sealed class PortalOpenApiTests : IDisposable
         }
         Assert.Empty(Get(web, "/api/web/auth/login", HttpMethod.Post).Security!);
         Assert.Empty(Get(web, "/api/web/auth/forgot-password", HttpMethod.Post).Security!);
+        Assert.Empty(Get(web, "/api/web/auth/reset-password", HttpMethod.Post).Security!);
         Assert.Equal("WebJwt", Assert.Single(Assert.Single(Get(web, "/api/web/auth/me").Security!).Keys).Reference.Id);
         Assert.Empty(Get(web, "/api/web/scripts/aprovar/{token}").Security!);
     }
@@ -229,6 +230,7 @@ public sealed class PortalOpenApiTests : IDisposable
 
     [Theory]
     [InlineData("/api/web/auth/forgot-password", "POST")]
+    [InlineData("/api/web/auth/reset-password", "POST")]
     [InlineData("/api/web/scripts/{id}/send-images-email", "POST")]
     [InlineData("/api/web/scripts/aprovar/{token}", "GET")]
     [InlineData("/api/web/assistente/publicacao", "GET")]

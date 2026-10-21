@@ -35,7 +35,10 @@ public record ScriptListItemDto(
     IReadOnlyList<ScriptFileDto> ImagensDisplay,
     IReadOnlyList<ScriptFileDto> PdfsDisplay,
     IReadOnlyList<ScriptMrdDto> MrdList
-);
+)
+{
+    public string? AmbienteAprovacao { get; init; }
+}
 
 public record PagedScriptsResponse(
     IReadOnlyList<ScriptListItemDto> Items,
@@ -64,7 +67,10 @@ public record ScriptDetailDto(
     IReadOnlyList<ScriptFileDto> Imagens,
     IReadOnlyList<ScriptFileDto> Pdfs,
     IReadOnlyList<int> VariaveisAssociadas
-);
+)
+{
+    public string? AmbienteAprovacao { get; init; }
+}
 
 public record VersaoDto(
     int CodVersao,
@@ -76,7 +82,10 @@ public record VersaoDto(
     string? UsuarioResponsavel,
     string? DescricaoAlteracoes,
     string? AprovadoPor
-);
+)
+{
+    public string? AmbienteAprovacao { get; init; }
+}
 
 public record VersaoCreateMetaDto(
     string NomeScript,
@@ -138,7 +147,10 @@ public record ScriptVersionDetailDto(
     IReadOnlyList<ScriptVersionFileDto> Pdfs,
     IReadOnlyList<ScriptVersionMrdDto> MrdList,
     IReadOnlyList<ScriptVersionHistoryDto> Historico
-);
+)
+{
+    public string? AmbienteAprovacao { get; init; }
+}
 
 public record ApprovalTokenInfo(
     string NomeScript,
