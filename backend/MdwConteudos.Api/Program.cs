@@ -12,6 +12,7 @@ using MdwConteudos.Api.Modules.Assistente.Importacao;
 using MdwConteudos.Api.Modules.Assistente.Vinculos;
 using MdwConteudos.Api.Modules.Assistente.Publicacao;
 using MdwConteudos.Api.Modules.Auth;
+using MdwConteudos.Api.Modules.Auditoria;
 using MdwConteudos.Api.Modules.Cadastros;
 using MdwConteudos.Api.Modules.Dashboard;
 using MdwConteudos.Api.Modules.Documentation;
@@ -94,6 +95,10 @@ builder.Services.PostConfigure<ApiPartnerOptions>(opt =>
 builder.Services.Configure<LegacyPathsOptions>(builder.Configuration.GetSection("LegacyPaths"));
 
 builder.Services.AddSingleton<IFirebirdConnectionFactory, FirebirdConnectionFactory>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<AuditReader>();
+builder.Services.AddScoped<AuditWriter>();
+builder.Services.AddScoped<ActiveAuditAdminFilter>();
 builder.Services.AddScoped<AvaliacaoService>();
 builder.Services.AddSingleton<IAssistantFirebirdConnectionFactory, AssistantFirebirdConnectionFactory>();
 builder.Services.AddScoped<IAssistenteDominiosService, AssistenteDominiosService>();
@@ -137,6 +142,7 @@ builder.Services.AddRequestTimeouts();
 builder.Services.AddPortalOpenApiMetadata();
 builder.Services.AddControllers(options =>
 {
+    options.Filters.Add<AuditFileResultFilter>();
     options.Filters.Add<LegacyApiValidationFilter>();
     options.Filters.Add<ProductionErrorFilter>();
 }).AddJsonOptions(o =>
@@ -273,6 +279,10 @@ using (var scope = app.Services.CreateScope())
     if (app.Environment.IsProduction()) await permissions.ValidateSchemaAsync();
     else await permissions.EnsureSchemaAsync();
 }
+{
+    using var auditScope = app.Services.CreateScope();
+    await AuditSchema.ValidateAsync(auditScope.ServiceProvider.GetRequiredService<IFirebirdConnectionFactory>());
+}
 await HomologacaoTestUser.EnsureAsync(app);
 app.UseForwardedHeaders();
 if (app.Environment.IsProduction())
@@ -311,6 +321,7 @@ if (legacyStaticDir is not null && Directory.Exists(legacyStaticDir))
     });
 }
 app.UseAuthentication();
+app.UseMiddleware<AuditMiddleware>();
 app.UseRateLimiter();
 app.UseMiddleware<ApiPartnerJwtMiddleware>();
 app.UseAuthorization();

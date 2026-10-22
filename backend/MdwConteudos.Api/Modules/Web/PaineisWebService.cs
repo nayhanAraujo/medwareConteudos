@@ -298,8 +298,11 @@ public class PaineisWebService : IPaineisWebService
                 WHERE CODPAINEL = @id",
                 new { codCliente, codModulo, nome, tipo, descricao, ativo, id }, tx);
 
-            await conn.ExecuteAsync("DELETE FROM Paineis_Pacotes WHERE CODPAINEL = @id", new { id }, tx);
-            foreach (var pid in pacotes)
+            var desired = pacotes.ToHashSet();
+            var before = (await conn.QueryAsync<int>("SELECT CODPACOTECOMERCIAL FROM Paineis_Pacotes WHERE CODPAINEL=@id WITH LOCK", new { id }, tx)).ToHashSet();
+            foreach (var pid in before.Except(desired))
+                await conn.ExecuteAsync("DELETE FROM Paineis_Pacotes WHERE CODPAINEL=@id AND CODPACOTECOMERCIAL=@pid", new { id, pid }, tx);
+            foreach (var pid in desired.Except(before))
             {
                 await conn.ExecuteAsync(
                     "INSERT INTO Paineis_Pacotes (CODPAINEL, CODPACOTECOMERCIAL) VALUES (@id, @pid)",
@@ -339,6 +342,7 @@ public class PaineisWebService : IPaineisWebService
         {
             var versoes = (await conn.QueryAsync<int>(
                 "SELECT CODVERSAOPAINEL FROM VersoesPainel WHERE CODPAINEL = @id", new { id }, tx)).ToList();
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(conn, tx, true);
 
             foreach (var vid in versoes)
             {
@@ -354,6 +358,7 @@ public class PaineisWebService : IPaineisWebService
 
             await conn.ExecuteAsync("DELETE FROM VersoesPainel WHERE CODPAINEL = @id", new { id }, tx);
             await conn.ExecuteAsync("DELETE FROM Paineis_Pacotes WHERE CODPAINEL = @id", new { id }, tx);
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(conn, tx, false);
             await conn.ExecuteAsync("DELETE FROM Paineis WHERE CODPAINEL = @id", new { id }, tx);
             await tx.CommitAsync(ct);
         }

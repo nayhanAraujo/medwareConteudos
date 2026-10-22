@@ -6,6 +6,7 @@ using System.Text;
 using Dapper;
 using FirebirdSql.Data.FirebirdClient;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Auditoria;
 using MdwConteudos.Api.Models;
 
 namespace MdwConteudos.Api.Modules.Web;
@@ -19,23 +20,33 @@ public partial class ScriptsService
     private readonly IConfiguration _config;
     private readonly ILogger<ScriptsService> _logger;
     private readonly IAssistantFirebirdConnectionFactory _assistantFactory;
+    private readonly IHttpContextAccessor? _auditHttp;
 
     public ScriptsService(
         IConfiguration config,
         ILogger<ScriptsService> logger,
         IWebHostEnvironment env,
-        IAssistantFirebirdConnectionFactory assistantFactory)
+        IAssistantFirebirdConnectionFactory assistantFactory,
+        IHttpContextAccessor? auditHttp = null)
     {
         _config = config;
         _connectionString = EnvFileLoader.GetFirebirdConnectionString(config);
         _logger = logger;
         _assistantFactory = assistantFactory;
+        _auditHttp = auditHttp;
         _migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
         _staticUploadsRoot = MigrationRootResolver.StaticUploadsRoot(_migrationRoot);
         _legacyRoot = MigrationRootResolver.ResolveLegacyRoot(config, _migrationRoot, env.ContentRootPath);
     }
 
     private IDbConnection CreateConnection() => new FbConnection(_connectionString);
+
+    private async Task<FbConnection> OpenAuditConnectionAsync()
+    {
+        var conn = (FbConnection)CreateConnection();
+        try { await conn.OpenAsync(); await AuditSession.InitializeAsync(conn, _auditHttp?.HttpContext, default); return conn; }
+        catch { await conn.DisposeAsync(); throw; }
+    }
 
     private static int SafeInt(object? value, int fallback = 0)
     {
@@ -47,8 +58,7 @@ public partial class ScriptsService
 
     public async Task<IReadOnlyList<PacoteDto>> GetPacotesAsync()
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var rows = await conn.QueryAsync<PacoteDto>(
             "SELECT CODPACOTE AS CodPacote, NOME AS Nome, DESCRICAO AS Descricao FROM PACOTES ORDER BY NOME");
         return rows.ToList();
@@ -58,8 +68,7 @@ public partial class ScriptsService
         int sourcePackage, int destinationPackage, IReadOnlyCollection<int>? scriptIds)
     {
         var ids = NormalizeTransferIds(scriptIds);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await ValidateTransferAsync(conn, null, sourcePackage, destinationPackage, ids);
 
         var specificMappings = Array.Empty<ScriptSpecificMapping>();
@@ -107,8 +116,7 @@ public partial class ScriptsService
         int sourcePackage, int destinationPackage, IReadOnlyCollection<int>? scriptIds)
     {
         var ids = NormalizeTransferIds(scriptIds);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
         try
         {
@@ -204,8 +212,7 @@ public partial class ScriptsService
 
         var whereSql = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
 
         var total = await conn.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM SCRIPTLAUDO s {whereSql}", parameters);
         var totalPages = total > 0 ? (int)Math.Ceiling(total / (double)pageSize) : 0;
@@ -328,8 +335,7 @@ public partial class ScriptsService
 
     public async Task<ScriptDetailDto?> GetScriptAsync(int id)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CODSCRIPTLAUDO, NOME, DESCRICAO, LINGUAGEM, CAMINHO_PROJETO, CAMINHO_AZURE, LINK_TESTE,
                    SISTEMA, CODPACOTE, APROVADO, APROVADO_POR, AMBIENTE_APROVACAO, ATIVO, CRIADO_POR,
@@ -369,8 +375,7 @@ public partial class ScriptsService
 
     public async Task<bool> VerificarNomeAsync(string nome, int? excludeId = null)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var sql = excludeId.HasValue
             ? "SELECT 1 FROM SCRIPTLAUDO WHERE UPPER(NOME) = UPPER(@nome) AND CODSCRIPTLAUDO <> @id ROWS 1"
             : "SELECT 1 FROM SCRIPTLAUDO WHERE UPPER(NOME) = UPPER(@nome) ROWS 1";
@@ -384,8 +389,7 @@ public partial class ScriptsService
         if (ids.Length == 0 || ids.Length > 50 || ids.Any(id => id <= 0))
             throw new InvalidOperationException("Selecione de 1 a 50 scripts válidos para excluir.");
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
         var existing = (await conn.QueryAsync<int>(
             "SELECT CODSCRIPTLAUDO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO IN @ids WITH LOCK",
@@ -394,6 +398,7 @@ public partial class ScriptsService
             throw new InvalidOperationException("Um ou mais scripts não existem mais. Atualize a lista e tente novamente.");
 
         var versions = "SELECT CODVERSAO FROM SCRIPTVERSOES WHERE CODSCRIPTLAUDO IN @ids";
+        await AuditSession.SuppressAsync(conn, tx, true);
         await conn.ExecuteAsync($"DELETE FROM SCRIPTVERSAOHISTORICO WHERE CODVERSAO_ORIGEM IN ({versions}) OR CODVERSAO_DESTINO IN ({versions})", new { ids }, tx);
         await conn.ExecuteAsync($"DELETE FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO IN ({versions})", new { ids }, tx);
         await conn.ExecuteAsync($"DELETE FROM SCRIPTVERSAOMRD WHERE CODVERSAO IN ({versions})", new { ids }, tx);
@@ -405,6 +410,7 @@ public partial class ScriptsService
         if (hasPublication)
             await conn.ExecuteAsync("DELETE FROM ASS_SCRIPT_MAPA WHERE CODSCRIPTLAUDO IN @ids", new { ids }, tx);
 
+        await AuditSession.SuppressAsync(conn, tx, false);
         var count = await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO IN @ids", new { ids }, tx);
         // Keep deletion jobs even when publication is temporarily disabled.
         if (hasPublication)
@@ -417,8 +423,7 @@ public partial class ScriptsService
     public async Task<int> CreateScriptAsync(ScriptFormInput input, int codUsuario)
     {
         ValidateForm(input, isNew: true);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
 
         var cod = await conn.ExecuteScalarAsync<int>(@"
@@ -455,8 +460,7 @@ public partial class ScriptsService
     public async Task UpdateScriptAsync(int id, ScriptFormInput input, int codUsuario)
     {
         ValidateForm(input, isNew: false);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
 
         var approval = await conn.QueryFirstOrDefaultAsync(@"SELECT APROVADO, AMBIENTE_APROVACAO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id WITH LOCK", new { id }, tx);
@@ -583,8 +587,7 @@ public partial class ScriptsService
 
     public async Task ToggleAtivoAsync(int id)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await conn.ExecuteAsync(@"
             UPDATE SCRIPTLAUDO SET ATIVO = CASE WHEN ATIVO = 1 THEN 0 ELSE 1 END
             WHERE CODSCRIPTLAUDO = @id", new { id });
@@ -600,8 +603,7 @@ public partial class ScriptsService
 
     public async Task ToggleAprovacaoAsync(int id, string? aprovadoPor, string? ambienteAprovacao = null)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
         var row = await conn.QueryFirstOrDefaultAsync("SELECT APROVADO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=@id WITH LOCK", new { id }, tx);
         if (row is null) throw new InvalidOperationException("Script não encontrado.");
@@ -618,8 +620,7 @@ public partial class ScriptsService
 
     public async Task<IReadOnlyList<object>> GetVariaveisForLinkAsync(int scriptId)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var all = await conn.QueryAsync(@"
             SELECT v.CODVARIAVEL, v.NOME, v.VARIAVEL AS SIGLA,
                    COALESCE(f.NOME, '') AS FORMULA,
@@ -649,12 +650,13 @@ public partial class ScriptsService
 
     public async Task SaveVariaveisAsync(int scriptId, IEnumerable<int> codVariaveis)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
-        await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDO_VARIAVEL WHERE CODSCRIPTLAUDO = @scriptId",
-            new { scriptId }, tx);
-        foreach (var v in codVariaveis.Distinct())
+        var desired = codVariaveis.Distinct().ToHashSet();
+        var before = (await conn.QueryAsync<int>("SELECT CODVARIAVEL FROM SCRIPTLAUDO_VARIAVEL WHERE CODSCRIPTLAUDO=@scriptId WITH LOCK", new { scriptId }, tx)).ToHashSet();
+        foreach (var v in before.Except(desired))
+            await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDO_VARIAVEL WHERE CODSCRIPTLAUDO=@scriptId AND CODVARIAVEL=@v", new { scriptId, v }, tx);
+        foreach (var v in desired.Except(before))
         {
             await conn.ExecuteAsync(@"
                 INSERT INTO SCRIPTLAUDO_VARIAVEL (CODSCRIPTLAUDO, CODVARIAVEL) VALUES (@scriptId, @v)",
@@ -665,8 +667,7 @@ public partial class ScriptsService
 
     public async Task AddMrdFilesOnlyAsync(int cod, string sistema, IList<UploadedFile> files)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
         var has = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM SCRIPTLAUDOMRD WHERE CODSCRIPTLAUDO = @cod", new { cod }, tx);
@@ -676,16 +677,14 @@ public partial class ScriptsService
 
     public async Task DeleteMrdAsync(int codScriptMrd)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await conn.ExecuteAsync("DELETE FROM SCRIPTLAUDOMRD WHERE CODSCRIPTMRD = @cod", new { cod = codScriptMrd });
     }
 
     public async Task<IReadOnlyList<VersaoDto>> ListVersoesAsync(
         int scriptId, string? numeroVersao = null, string? aprovado = null, string? ativo = null)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var where = new List<string> { "CODSCRIPTLAUDO = @scriptId" };
         var p = new DynamicParameters();
         p.Add("scriptId", scriptId);
@@ -735,8 +734,7 @@ public partial class ScriptsService
 
     public async Task<VersaoCreateMetaDto?> GetVersaoCreateMetaAsync(int scriptId)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var script = await conn.QueryFirstOrDefaultAsync(@"
             SELECT s.NOME, s.DESCRICAO, s.SISTEMA, s.LINGUAGEM, p.NOME AS NOME_PACOTE
             FROM SCRIPTLAUDO s
@@ -772,8 +770,7 @@ public partial class ScriptsService
 
     public async Task<ScriptVersionDetailDto?> GetVersaoAsync(int scriptId, int codVersao)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT sv.CODVERSAO, sv.CODSCRIPTLAUDO, sv.NUMERO_VERSAO,
                    sv.DESCRICAO_ALTERACOES, sv.ALTERACOES_INTERFACE, sv.ALTERACOES_CODIGO,
@@ -908,8 +905,7 @@ public partial class ScriptsService
         if (string.IsNullOrWhiteSpace(input.DescricaoAlteracoes))
             throw new InvalidOperationException("Descrição das alterações é obrigatória.");
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var sistema = await conn.ExecuteScalarAsync<string>(
             "SELECT SISTEMA FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @scriptId", new { scriptId })
             ?? throw new InvalidOperationException("Script não encontrado.");
@@ -1012,8 +1008,7 @@ public partial class ScriptsService
         if (string.IsNullOrWhiteSpace(input.DescricaoAlteracoes))
             throw new InvalidOperationException("Descrição das alterações é obrigatória.");
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var meta = await conn.QueryFirstOrDefaultAsync(@"
             SELECT sv.CODSCRIPTLAUDO, sv.NUMERO_VERSAO, s.SISTEMA
             FROM SCRIPTVERSOES sv
@@ -1100,8 +1095,7 @@ public partial class ScriptsService
 
     public async Task ActivateVersaoAsync(int codVersao, string usuario)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CODSCRIPTLAUDO, NUMERO_VERSAO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao",
             new { codVersao });
@@ -1121,8 +1115,7 @@ public partial class ScriptsService
     public async Task ApproveVersaoAsync(int codVersao, string usuario, string? ambienteAprovacao = null)
     {
         var ambiente = ValidateAmbienteAprovacao(ambienteAprovacao);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT NUMERO_VERSAO, APROVADO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao WITH LOCK", new { codVersao }, tx);
@@ -1141,8 +1134,7 @@ public partial class ScriptsService
 
     public async Task DeleteVersaoAsync(int codVersao, string usuario)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CODSCRIPTLAUDO, NUMERO_VERSAO, ATIVO FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao",
             new { codVersao });
@@ -1171,8 +1163,10 @@ public partial class ScriptsService
         {
             _logger.LogWarning(ex, "Histórico de exclusão não registrado para versão {CodVersao}", codVersao);
         }
+        await AuditSession.SuppressAsync(conn, tx, true);
         await conn.ExecuteAsync("DELETE FROM SCRIPTVERSAOARQUIVOS WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
         await conn.ExecuteAsync("DELETE FROM SCRIPTVERSAOMRD WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
+        await AuditSession.SuppressAsync(conn, tx, false);
         await conn.ExecuteAsync("DELETE FROM SCRIPTVERSOES WHERE CODVERSAO = @codVersao", new { codVersao }, tx);
         await tx.CommitAsync();
 
@@ -1196,8 +1190,7 @@ public partial class ScriptsService
         if (tipo == "mrd") return await ExportVersaoMrdAsync(codVersao, null);
         if (tipo is not ("json" or "dll")) return null;
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var campo = tipo == "json" ? "ARQUIVO_JSON" : "ARQUIVO_DLL";
         var row = await conn.QueryFirstOrDefaultAsync($@"
             SELECT sv.{campo}, sv.NUMERO_VERSAO, s.NOME
@@ -1217,8 +1210,7 @@ public partial class ScriptsService
 
     public async Task<(byte[] content, string filename, string mime)?> ExportVersaoMrdAsync(int codVersao, int? codVersaoMrd)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         dynamic? row;
         if (codVersaoMrd.HasValue)
         {
@@ -1257,8 +1249,7 @@ public partial class ScriptsService
 
     public async Task<(byte[] content, string filename)?> ExportVersaoMrdZipAsync(int codVersao)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var meta = await conn.QueryFirstOrDefaultAsync(@"
             SELECT sv.NUMERO_VERSAO, s.NOME FROM SCRIPTVERSOES sv
             JOIN SCRIPTLAUDO s ON sv.CODSCRIPTLAUDO = s.CODSCRIPTLAUDO
@@ -1291,8 +1282,7 @@ public partial class ScriptsService
 
     public async Task<(byte[] content, string filename, string mime)?> DownloadVersaoAnexoAsync(int codArquivo)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT TIPO, CAMINHO, NOME_ARQUIVO FROM SCRIPTVERSAOARQUIVOS WHERE CODARQUIVO = @id",
             new { id = codArquivo });
@@ -1316,8 +1306,7 @@ public partial class ScriptsService
 
     public async Task DeleteVersaoAnexoAsync(int codArquivo)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CAMINHO FROM SCRIPTVERSAOARQUIVOS WHERE CODARQUIVO = @id", new { id = codArquivo });
         if (row == null) throw new InvalidOperationException("Arquivo não encontrado.");
@@ -1393,8 +1382,7 @@ public partial class ScriptsService
 
     public async Task DeleteScriptAttachmentAsync(int codArquivo)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CAMINHO, TIPO FROM SCRIPTARQUIVOS WHERE CODARQUIVO = @codArquivo", new { codArquivo });
         if (row == null) throw new InvalidOperationException("Anexo não encontrado.");
@@ -1452,23 +1440,20 @@ public partial class ScriptsService
 
     public async Task<byte[]?> ExportJsonAsync(int id)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         return (await ResolveScriptExportAsync(conn, id, false))?.Json;
     }
 
     public async Task<byte[]?> ExportDllAsync(int id)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         return await conn.ExecuteScalarAsync<byte[]?>(
             "SELECT DLL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @id", new { id });
     }
 
     public async Task<(byte[] content, string filename, string mime)?> ExportMrdAsync(int id, int? codScriptMrd)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var sistema = await conn.ExecuteScalarAsync<string>(
             "SELECT SISTEMA FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @id", new { id });
         var mime = sistema == "Laudos UX" ? "application/json" : "application/octet-stream";
@@ -1496,8 +1481,7 @@ public partial class ScriptsService
 
     public async Task<ApprovalTokenInfo?> GetApprovalInfoAsync(string token)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT sat.USADO, sl.APROVADO, sl.NOME, sl.SISTEMA, sl.LINGUAGEM, sl.LINK_TESTE, sat.EXPIRA_EM
             FROM SCRIPTAPROVACAOTOKEN sat
@@ -1519,8 +1503,7 @@ public partial class ScriptsService
     public async Task ApproveByTokenAsync(string token, bool approve, string? ambienteAprovacao = null)
     {
         var ambiente = approve ? ValidateAmbienteAprovacao(ambienteAprovacao) : null;
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
         var cod = await conn.ExecuteScalarAsync<int?>(@"
             SELECT CODSCRIPTLAUDO FROM SCRIPTAPROVACAOTOKEN
@@ -1548,16 +1531,14 @@ public partial class ScriptsService
 
     public async Task<string> GetEmailsNotificacaoAsync()
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         return await conn.ExecuteScalarAsync<string>(
                    "SELECT VALOR FROM CONFIGURACOES WHERE CHAVE = 'EMAILS_NOTIFICACAO_SCRIPTS'") ?? "";
     }
 
     public async Task SaveEmailsNotificacaoAsync(string emails)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var exists = await conn.ExecuteScalarAsync<int?>(
             "SELECT 1 FROM CONFIGURACOES WHERE CHAVE = 'EMAILS_NOTIFICACAO_SCRIPTS' ROWS 1");
         if (exists.HasValue)
@@ -1570,8 +1551,7 @@ public partial class ScriptsService
 
     public async Task SendImagesEmailAsync(int codScriptLaudo, string recipientEmail, string sistema)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var script = await conn.QueryFirstOrDefaultAsync(@"
             SELECT NOME, SISTEMA FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @cod",
             new { cod = codScriptLaudo });
@@ -1615,8 +1595,7 @@ public partial class ScriptsService
         if (cleanEmails.Count == 0) throw new InvalidOperationException("Nenhum email informado.");
         var token = Guid.NewGuid().ToString("N");
         var expiraEm = DateTime.Now.AddDays(7);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         await conn.ExecuteAsync(@"
             INSERT INTO SCRIPTAPROVACAOTOKEN (CODSCRIPTLAUDO, TOKEN, CRIADO_EM, EXPIRA_EM)
             VALUES (@cod, @token, CURRENT_TIMESTAMP, @exp)",

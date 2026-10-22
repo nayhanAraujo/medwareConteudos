@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Dapper;
 using MdwConteudos.Api.Infrastructure;
 
@@ -297,16 +298,17 @@ public class VariaveisWebService : IVariaveisWebService
             throw new InvalidOperationException("O campo 'Variável' deve começar com 'VR_'.");
 
         await using var conn = await _db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         var variavelExiste = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM VARIAVEIS WHERE UPPER(VARIAVEL) = UPPER(@variavel)",
-            new { variavel });
+            new { variavel }, tx);
         if (variavelExiste > 0)
             throw new InvalidOperationException("Já existe uma variável com esse código.");
 
         var siglaExiste = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM VARIAVEIS WHERE UPPER(SIGLA) = UPPER(@sigla)",
-            new { sigla });
+            new { sigla }, tx);
         if (siglaExiste > 0)
             throw new InvalidOperationException("Já existe uma variável com essa sigla.");
 
@@ -331,7 +333,7 @@ public class VariaveisWebService : IVariaveisWebService
                 casasDecimais = req.CasasDecimais,
                 codUsuario,
                 now = DateTime.Now
-            });
+            }, tx);
 
         foreach (var alternativa in req.Alternativas ?? Array.Empty<string>())
         {
@@ -340,7 +342,7 @@ public class VariaveisWebService : IVariaveisWebService
             await conn.ExecuteAsync(@"
                 INSERT INTO VARIAVEISALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
                 VALUES (@codVariavel, @alt, @codUsuario, @now)",
-                new { codVariavel, alt, codUsuario, now = DateTime.Now });
+                new { codVariavel, alt, codUsuario, now = DateTime.Now }, tx);
         }
 
         foreach (var nomeClinico in DistinctNomesClinicos(req.NomesClinicos))
@@ -348,9 +350,10 @@ public class VariaveisWebService : IVariaveisWebService
             await conn.ExecuteAsync(@"
                 INSERT INTO VARIAVEISNOMESCLINICOS (CODVARIAVEL, NOME, CODUSUARIO, DTHRULTMODIFICACAO)
                 VALUES (@codVariavel, @nomeClinico, @codUsuario, @now)",
-                new { codVariavel, nomeClinico, codUsuario, now = DateTime.Now });
+                new { codVariavel, nomeClinico, codUsuario, now = DateTime.Now }, tx);
         }
 
+        await tx.CommitAsync(ct);
         return codVariavel;
     }
 
@@ -414,21 +417,22 @@ public class VariaveisWebService : IVariaveisWebService
             throw new InvalidOperationException("O campo 'Variável' deve começar com 'VR_'.");
 
         await using var conn = await _db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL = @id", new { id });
+            "SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL = @id", new { id }, tx);
         if (exists == 0)
             throw new InvalidOperationException("Variável não encontrada.");
 
         var variavelExiste = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM VARIAVEIS WHERE UPPER(VARIAVEL) = UPPER(@variavel) AND CODVARIAVEL <> @id",
-            new { variavel, id });
+            new { variavel, id }, tx);
         if (variavelExiste > 0)
             throw new InvalidOperationException("Já existe uma variável com esse código.");
 
         var siglaExiste = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM VARIAVEIS WHERE UPPER(SIGLA) = UPPER(@sigla) AND CODVARIAVEL <> @id",
-            new { sigla, id });
+            new { sigla, id }, tx);
         if (siglaExiste > 0)
             throw new InvalidOperationException("Já existe uma variável com essa sigla.");
 
@@ -456,43 +460,64 @@ public class VariaveisWebService : IVariaveisWebService
                 codUsuario,
                 now = DateTime.Now,
                 id
-            });
+            }, tx);
 
-        await conn.ExecuteAsync("DELETE FROM VARIAVEISALTERNATIVAS WHERE CODVARIAVEL = @id", new { id });
-
-        foreach (var alternativa in req.Alternativas ?? Array.Empty<string>())
+        var alternativas = (req.Alternativas ?? Array.Empty<string>())
+            .Select(a => a?.Trim())
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Cast<string>()
+            .ToArray();
+        var alternativasAtuais = await conn.QueryAsync<string>(
+            "SELECT ALTERNATIVA FROM VARIAVEISALTERNATIVAS WHERE CODVARIAVEL = @id", new { id }, tx);
+        // Sorting preserves multiplicity; compare stored values exactly, without normalizing them.
+        if (!alternativasAtuais.OrderBy(a => a, StringComparer.Ordinal)
+            .SequenceEqual(alternativas.OrderBy(a => a, StringComparer.Ordinal), StringComparer.Ordinal))
         {
-            var alt = alternativa?.Trim();
-            if (string.IsNullOrWhiteSpace(alt)) continue;
-            await conn.ExecuteAsync(@"
-                INSERT INTO VARIAVEISALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
-                VALUES (@id, @alt, @codUsuario, @now)",
-                new { id, alt, codUsuario, now = DateTime.Now });
+            await conn.ExecuteAsync("DELETE FROM VARIAVEISALTERNATIVAS WHERE CODVARIAVEL = @id", new { id }, tx);
+            foreach (var alt in alternativas)
+            {
+                await conn.ExecuteAsync(@"
+                    INSERT INTO VARIAVEISALTERNATIVAS (CODVARIAVEL, ALTERNATIVA, CODUSUARIO, DTHRULTMODIFICACAO)
+                    VALUES (@id, @alt, @codUsuario, @now)",
+                    new { id, alt, codUsuario, now = DateTime.Now }, tx);
+            }
         }
 
-        await conn.ExecuteAsync("DELETE FROM VARIAVEISNOMESCLINICOS WHERE CODVARIAVEL = @id", new { id });
-
-        foreach (var nomeClinico in DistinctNomesClinicos(req.NomesClinicos))
+        var nomesClinicos = DistinctNomesClinicos(req.NomesClinicos).ToArray();
+        var nomesClinicosAtuais = await conn.QueryAsync<string>(
+            "SELECT NOME FROM VARIAVEISNOMESCLINICOS WHERE CODVARIAVEL = @id", new { id }, tx);
+        if (!nomesClinicosAtuais.OrderBy(n => n, StringComparer.Ordinal)
+            .SequenceEqual(nomesClinicos.OrderBy(n => n, StringComparer.Ordinal), StringComparer.Ordinal))
         {
-            await conn.ExecuteAsync(@"
-                INSERT INTO VARIAVEISNOMESCLINICOS (CODVARIAVEL, NOME, CODUSUARIO, DTHRULTMODIFICACAO)
-                VALUES (@id, @nomeClinico, @codUsuario, @now)",
-                new { id, nomeClinico, codUsuario, now = DateTime.Now });
+            await conn.ExecuteAsync("DELETE FROM VARIAVEISNOMESCLINICOS WHERE CODVARIAVEL = @id", new { id }, tx);
+            foreach (var nomeClinico in nomesClinicos)
+            {
+                await conn.ExecuteAsync(@"
+                    INSERT INTO VARIAVEISNOMESCLINICOS (CODVARIAVEL, NOME, CODUSUARIO, DTHRULTMODIFICACAO)
+                    VALUES (@id, @nomeClinico, @codUsuario, @now)",
+                    new { id, nomeClinico, codUsuario, now = DateTime.Now }, tx);
+            }
         }
+        await tx.CommitAsync(ct);
     }
 
     public async Task<VariavelDependenciasDto?> GetDependenciasAsync(int id, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
-        if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL=@id", new { id }) == 0) return null;
+        return await GetDependenciasAsync(conn, null, id);
+    }
+
+    private static async Task<VariavelDependenciasDto?> GetDependenciasAsync(DbConnection conn, DbTransaction? tx, int id)
+    {
+        if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL=@id", new { id }, tx) == 0) return null;
         async Task<int> Count(string table, string column) =>
-            await conn.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {table} WHERE {column}=@id", new { id });
+            await conn.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {table} WHERE {column}=@id", new { id }, tx);
         var formulas = await conn.ExecuteScalarAsync<int>(@"
             SELECT COUNT(*) FROM (
                 SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL=@id
                 UNION
                 SELECT CODFORMULA FROM FORMULAS WHERE CODVARIAVEL=@id
-            ) X", new { id });
+            ) X", new { id }, tx);
         return new VariavelDependenciasDto(
             formulas,
             await Count("NORMALIDADE", "CODVARIAVEL"),
@@ -508,14 +533,14 @@ public class VariaveisWebService : IVariaveisWebService
 
     public async Task DeleteVariavelAsync(int id, bool force, CancellationToken ct)
     {
-        var deps = await GetDependenciasAsync(id, ct) ?? throw new KeyNotFoundException("Variável não encontrada.");
-        if (deps.PossuiVinculos && !force)
-            throw new InvalidOperationException("A variável possui vínculos. Confirme a exclusão forçada para remover os vínculos transacionalmente.");
-
         await using var conn = await _db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
+            var deps = await GetDependenciasAsync(conn, tx, id) ?? throw new KeyNotFoundException("Variável não encontrada.");
+            if (deps.PossuiVinculos && !force)
+                throw new InvalidOperationException("A variável possui vínculos. Confirme a exclusão forçada para remover os vínculos transacionalmente.");
+
             var formulas = (await conn.QueryAsync<int>(@"
                 SELECT CODFORMULA FROM FORMULA_VARIAVEL WHERE CODVARIAVEL=@id
                 UNION
@@ -540,7 +565,7 @@ public class VariaveisWebService : IVariaveisWebService
             if (rows == 0) throw new KeyNotFoundException("Variável não encontrada.");
             await tx.CommitAsync(ct);
         }
-        catch { await tx.RollbackAsync(ct); throw; }
+        catch { await tx.RollbackAsync(CancellationToken.None); throw; }
     }
 
     public async Task AlterarGrupoAsync(int id, int? codGrupo, int codUsuario, CancellationToken ct)
@@ -596,8 +621,9 @@ public class VariaveisWebService : IVariaveisWebService
         {
             if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL=@id", new { id }, tx) == 0) throw new KeyNotFoundException("Variável não encontrada.");
             if (ids.Count > 0 && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM CLASSIFICACOES WHERE CODCLASSIFICACAO IN @ids", new { ids }, tx) != ids.Count) throw new InvalidOperationException("Uma ou mais classificações são inválidas.");
-            await conn.ExecuteAsync("DELETE FROM VARIAVEIS_CLASSIFICACOES WHERE CODVARIAVEL=@id", new { id }, tx);
-            foreach (var code in ids) await conn.ExecuteAsync("INSERT INTO VARIAVEIS_CLASSIFICACOES (CODVARIAVEL,CODCLASSIFICACAO,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@id,@code,@codUsuario,@now)", new { id, code, codUsuario, now = DateTime.Now }, tx);
+            var before = (await conn.QueryAsync<int>("SELECT CODCLASSIFICACAO FROM VARIAVEIS_CLASSIFICACOES WHERE CODVARIAVEL=@id WITH LOCK", new { id }, tx)).ToHashSet();
+            foreach (var code in before.Except(ids)) await conn.ExecuteAsync("DELETE FROM VARIAVEIS_CLASSIFICACOES WHERE CODVARIAVEL=@id AND CODCLASSIFICACAO=@code", new { id, code }, tx);
+            foreach (var code in ids.Except(before)) await conn.ExecuteAsync("INSERT INTO VARIAVEIS_CLASSIFICACOES (CODVARIAVEL,CODCLASSIFICACAO,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@id,@code,@codUsuario,@now)", new { id, code, codUsuario, now = DateTime.Now }, tx);
             await tx.CommitAsync(ct);
         }
         catch { await tx.RollbackAsync(ct); throw; }
@@ -640,8 +666,9 @@ public class VariaveisWebService : IVariaveisWebService
             if (await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM VARIAVEIS WHERE CODVARIAVEL=@id", new { id }, tx) == 0) throw new KeyNotFoundException("Variável não encontrada.");
             var ids = codigos.Distinct().ToList();
             if (ids.Count > 0 && await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM CODIGOUNIVERSAL WHERE COD_UNIVERSAL IN @ids", new { ids }, tx) != ids.Count) throw new InvalidOperationException("Um ou mais códigos universais são inválidos.");
-            await conn.ExecuteAsync("DELETE FROM VARIAVEL_CODIGO_UNIVERSAL WHERE CODVARIAVEL=@id", new { id }, tx);
-            foreach (var code in ids) await conn.ExecuteAsync("INSERT INTO VARIAVEL_CODIGO_UNIVERSAL (CODVARIAVEL,COD_UNIVERSAL,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@id,@code,@codUsuario,@now)", new { id, code, codUsuario, now = DateTime.Now }, tx);
+            var before = (await conn.QueryAsync<int>("SELECT COD_UNIVERSAL FROM VARIAVEL_CODIGO_UNIVERSAL WHERE CODVARIAVEL=@id WITH LOCK", new { id }, tx)).ToHashSet();
+            foreach (var code in before.Except(ids)) await conn.ExecuteAsync("DELETE FROM VARIAVEL_CODIGO_UNIVERSAL WHERE CODVARIAVEL=@id AND COD_UNIVERSAL=@code", new { id, code }, tx);
+            foreach (var code in ids.Except(before)) await conn.ExecuteAsync("INSERT INTO VARIAVEL_CODIGO_UNIVERSAL (CODVARIAVEL,COD_UNIVERSAL,CODUSUARIO,DTHRULTMODIFICACAO) VALUES (@id,@code,@codUsuario,@now)", new { id, code, codUsuario, now = DateTime.Now }, tx);
             await tx.CommitAsync(ct);
         }
         catch { await tx.RollbackAsync(ct); throw; }

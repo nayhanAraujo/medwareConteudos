@@ -9,6 +9,7 @@
     "preview": "nuxt preview",
     "test:docs": "node --experimental-strip-types --test tests/apiDocs*.test.ts",
     "test:permissions": "node --test tests/permissionsCenter.test.mjs",
+    "test:auditoria": "node --experimental-strip-types --test tests/auditoria.test.ts tests/auditoriaStore.test.mjs",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {

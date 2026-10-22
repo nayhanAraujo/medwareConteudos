@@ -75,6 +75,7 @@ public class ApiPartnerJwtMiddleware
             return;
         }
 
+        context.Items["MDW.ValidPartner"] = true;
         await _next(context);
     }
 

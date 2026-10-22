@@ -190,6 +190,24 @@ public sealed class PasswordRecoveryFirebirdTests : IAsyncLifetime
         Assert.Equal(2, (await conn.QueryAsync<ImportRow>(statement)).Count(r => r.RESULTADO == "JA_ATUALIZADO"));
     }
 
+    [FirebirdPublicationFact]
+    public async Task StatusOnlyChangePreservesAccountAndInvalidatesRecoveryOnInactivation()
+    {
+        var service = new UsersService(factory);
+        var before = Assert.Single(await service.ListAsync());
+        await store.IssueAsync("name@example.test", "status-token", DateTime.UtcNow, default);
+        Assert.True(await service.SetStatusAsync(before.CodUsuario, 0));
+        var inactive = (await service.GetAsync(before.CodUsuario))!;
+        Assert.Equal(before with { Status = 0 }, inactive);
+        Assert.True(await service.SetStatusAsync(before.CodUsuario, -1));
+        Assert.Equal(before, await service.GetAsync(before.CodUsuario));
+        Assert.False(await store.RedeemAsync("status-token", "changed-password", DateTime.UtcNow, default));
+        var auth = new AuthService(factory, Options.Create(new WebAuthOptions { JwtSecret = new string('s', 48) }));
+        Assert.True((await auth.LoginAsync("login", "old-password")).Success);
+        Assert.False(await service.SetStatusAsync(int.MaxValue, 0));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.SetStatusAsync(before.CodUsuario, 1));
+    }
+
     private sealed record ImportRow(string LOGIN_ORIGEM, string NOME_ORIGEM, string EMAIL_CORPORATIVO, int? CODUSUARIO_DESTINO, string RESULTADO);
 
     private sealed class Factory(string connectionString) : IFirebirdConnectionFactory

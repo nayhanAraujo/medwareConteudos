@@ -117,6 +117,33 @@ public class AccountSecurityTests
         Assert.Equal(1, users.Writes);
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    public async Task StatusChangePreservesAdminProtection(int status)
+    {
+        var users = new FakeUsers("admin");
+        Assert.IsType<ForbidResult>(await Controller(users, "usuario").SetStatus(2, new(status), default));
+        Assert.Equal(0, users.Writes);
+        var admin = new FakeUsers("admin", "admin");
+        Assert.IsType<OkObjectResult>(await Controller(admin, "admin").SetStatus(2, new(status), default));
+        Assert.Equal(1, admin.Writes);
+        var regular = new FakeUsers("usuario");
+        Assert.IsType<OkObjectResult>(await Controller(regular, "usuario").SetStatus(2, new(status), default));
+        Assert.Equal(1, regular.Writes);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1)]
+    [InlineData(-2)]
+    public async Task InvalidStatusDoesNotWrite(int? status)
+    {
+        var users = new FakeUsers("usuario");
+        Assert.IsType<BadRequestObjectResult>(await Controller(users, "admin").SetStatus(2, new(status), default));
+        Assert.Equal(0, users.Writes);
+    }
+
     private static UpdateUserRequest Request(string profile, string? password) => new("Name", "login", password, password, profile, -1);
 
     private static UsersController Controller(FakeUsers users, string role, ILogger<UsersController>? logger = null) => new(users, logger)
@@ -148,6 +175,7 @@ public class AccountSecurityTests
 
     private sealed class FakeUsers(string targetRole, string actorRole = "usuario") : IUsersService
     {
+        public Task<bool> SetStatusAsync(int id, int status, CancellationToken ct = default) { Writes++; return Task.FromResult(true); }
         public int Writes { get; private set; }
         public Task<UserListItem?> GetAsync(int id, CancellationToken ct = default) => Task.FromResult<UserListItem?>(new(id, "Name", "login", id == 1 ? actorRole : targetRole, -1));
         public Task<IEnumerable<UserListItem>> ListAsync(CancellationToken ct = default) => throw new NotSupportedException();

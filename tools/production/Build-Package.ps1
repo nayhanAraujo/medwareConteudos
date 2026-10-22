@@ -76,6 +76,7 @@ try {
     if ($BuildLabel) { $env:NUXT_PUBLIC_RELEASE_BUILD = $BuildLabel }
     Invoke-Checked npm.cmd @('ci')
     Invoke-Checked npm.cmd @('run','test:docs')
+    Invoke-Checked npm.cmd @('run','test:auditoria')
     Invoke-Checked npm.cmd @('run','build')
     Copy-Item -LiteralPath '.output' -Destination "$output/nuxt" -Recurse
 } finally {

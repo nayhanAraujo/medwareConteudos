@@ -79,7 +79,7 @@
       <DsSectionTitle :title="tab.sectionTitle" />
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <DsModuleCard
-          v-for="card in tab.cards"
+          v-for="card in tab.cards.filter(card => !('adminOnly' in card) || auth.isAdmin)"
           :key="card.title"
           :title="card.title"
           :desc="card.desc"
@@ -112,6 +112,7 @@ interface BibAction {
 }
 
 const activeTab = ref('referencias')
+const auth = useAuthStore()
 const { emMigracao, irOuMigracao } = useMigracao()
 
 const tabs = [
@@ -207,6 +208,7 @@ const placeholderTabs = [
       { title: 'Usuários', desc: 'Gerencie usuários do sistema.', icon: 'bi bi-people', color: '#0d6efd', nuxtPath: '/usuarios' },
       { title: 'Clientes', desc: 'Gerencie clientes cadastrados no sistema.', icon: 'bi bi-building', color: '#198754', nuxtPath: '/configuracoes/clientes' },
       { title: 'Permissões', desc: 'Controle de acesso.', icon: 'bi bi-shield-lock', color: '#dc3545', nuxtPath: '/biblioteca/configuracoes/permissoes' },
+      { title: 'Central de Auditoria', desc: 'Consulte ações dos usuários e alterações nos registros.', icon: 'bi bi-clock-history', color: '#2563eb', nuxtPath: '/biblioteca/configuracoes/auditoria', adminOnly: true },
       { title: 'Unidades', desc: 'Unidades de medida.', icon: 'bi bi-rulers', color: '#6c757d', nuxtPath: '/configuracoes' },
       { title: 'Especialidades', desc: 'Cadastro de especialidades do banco de referências.', icon: 'bi bi-heart-pulse', color: '#e83e8c', nuxtPath: '/especialidades' }
     ]

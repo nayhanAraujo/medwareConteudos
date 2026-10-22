@@ -299,8 +299,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
                     new { id }, transaction, ct)) == 0)
                 throw new InvalidOperationException("Fórmula não encontrada.");
 
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(connection, transaction, true);
             await connection.ExecuteAsync(Cmd("DELETE FROM EQUACOESLINGUAGEM WHERE CODFORMULA = @id", new { id }, transaction, ct));
             await connection.ExecuteAsync(Cmd("DELETE FROM FORMULA_VARIAVEL WHERE CODFORMULA = @id", new { id }, transaction, ct));
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(connection, transaction, false);
             await connection.ExecuteAsync(Cmd("DELETE FROM FORMULAS WHERE CODFORMULA = @id", new { id }, transaction, ct));
             transaction.Commit();
         }
@@ -854,14 +856,20 @@ public sealed class FormulasModelosService : IFormulasModelosService
         if (equations.Any(x => x.CodLinguagem <= 0 || string.IsNullOrWhiteSpace(x.Equacao)))
             throw new InvalidOperationException("Toda equação deve ter linguagem e conteúdo.");
 
-        await connection.ExecuteAsync(Cmd("DELETE FROM EQUACOESLINGUAGEM WHERE CODFORMULA = @formulaId", new { formulaId }, transaction, ct));
-        await connection.ExecuteAsync(Cmd("DELETE FROM FORMULA_VARIAVEL WHERE CODFORMULA = @formulaId", new { formulaId }, transaction, ct));
-        foreach (var variableId in variableIds)
+        var previousVariables = (await connection.QueryAsync<int>(Cmd("SELECT CODVARIAVEL FROM FORMULA_VARIAVEL WHERE CODFORMULA=@formulaId WITH LOCK", new { formulaId }, transaction, ct))).ToHashSet();
+        foreach (var variableId in previousVariables.Except(variableIds))
+            await connection.ExecuteAsync(Cmd("DELETE FROM FORMULA_VARIAVEL WHERE CODFORMULA=@formulaId AND CODVARIAVEL=@variableId", new { formulaId, variableId }, transaction, ct));
+        foreach (var variableId in variableIds.Except(previousVariables))
             await connection.ExecuteAsync(Cmd(@"
                 INSERT INTO FORMULA_VARIAVEL (CODFORMULA, CODVARIAVEL, CODUSUARIO, DTHRULTMODIFICACAO)
                 VALUES (@formulaId, @variableId, @codUsuario, @now)",
                 new { formulaId, variableId, codUsuario, now = DateTime.Now }, transaction, ct));
 
+        var previousEquations = await connection.QueryAsync<AuditEquationComparison>(Cmd("SELECT CODLINGUAGEM AS LanguageId,CODREFERENCIA AS ReferenceId,EQUACAO AS Equation,NOME_FUNCAO AS FunctionName FROM EQUACOESLINGUAGEM WHERE CODFORMULA=@formulaId", new { formulaId }, transaction, ct));
+        var beforeEquations = previousEquations.Select(e => (e.LanguageId, e.ReferenceId, e.Equation, e.FunctionName)).OrderBy(e => e.LanguageId).ThenBy(e => e.ReferenceId).ThenBy(e => e.Equation, StringComparer.Ordinal).ThenBy(e => e.FunctionName, StringComparer.Ordinal);
+        var afterEquations = equations.Select(e => (LanguageId:e.CodLinguagem, ReferenceId:e.CodReferencia, Equation:e.Equacao.Trim(), FunctionName:NullIfWhiteSpace(e.NomeFuncao))).OrderBy(e => e.LanguageId).ThenBy(e => e.ReferenceId).ThenBy(e => e.Equation, StringComparer.Ordinal).ThenBy(e => e.FunctionName, StringComparer.Ordinal);
+        if (beforeEquations.SequenceEqual(afterEquations)) return;
+        await connection.ExecuteAsync(Cmd("DELETE FROM EQUACOESLINGUAGEM WHERE CODFORMULA=@formulaId", new { formulaId }, transaction, ct));
         var nextEquationId = await connection.ExecuteScalarAsync<int>(Cmd(
             "SELECT COALESCE(MAX(CODEQUACAO), 0) + 1 FROM EQUACOESLINGUAGEM",
             transaction: transaction,
@@ -882,6 +890,14 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 codUsuario,
                 now
             }, transaction, ct));
+    }
+
+    private sealed class AuditEquationComparison
+    {
+        public int LanguageId { get; set; }
+        public int? ReferenceId { get; set; }
+        public string Equation { get; set; } = "";
+        public string? FunctionName { get; set; }
     }
 
     private static async Task EnsureModelOwnership(FbConnection connection, IDbTransaction transaction, int modelId, int userId, CancellationToken ct)

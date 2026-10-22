@@ -207,8 +207,10 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
         try
         {
             var valid = await ValidKeysAsync(conn, permissoes, tx);
-            await conn.ExecuteAsync("DELETE FROM PERFIL_PERMISSAO WHERE LOWER(PERFIL) = @perfil", new { perfil = normalized }, tx);
-            foreach (var chave in valid)
+            var before = (await conn.QueryAsync<string>("SELECT CHAVE FROM PERFIL_PERMISSAO WHERE LOWER(PERFIL)=@perfil WITH LOCK", new { perfil = normalized }, tx)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var chave in before.Except(valid, StringComparer.OrdinalIgnoreCase))
+                await conn.ExecuteAsync("DELETE FROM PERFIL_PERMISSAO WHERE LOWER(PERFIL)=@perfil AND CHAVE=@chave", new { perfil = normalized, chave }, tx);
+            foreach (var chave in valid.Except(before, StringComparer.OrdinalIgnoreCase))
             {
                 await conn.ExecuteAsync("""
                     INSERT INTO PERFIL_PERMISSAO (PERFIL, CHAVE, DTHRULTMODIFICACAO)
@@ -262,9 +264,18 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
                 .ToList();
 
             var valid = await ValidKeysAsync(conn, normalized.Select(x => x.Chave).ToList(), tx);
-            await conn.ExecuteAsync("DELETE FROM USUARIO_PERMISSAO WHERE CODUSUARIO = @codUsuario", new { codUsuario }, tx);
+            await conn.ExecuteAsync("UPDATE USUARIO SET DTHRULTMODIFICACAO=DTHRULTMODIFICACAO WHERE CODUSUARIO=@codUsuario", new { codUsuario }, tx);
+            var before = (await conn.QueryAsync<UserPermissionOverride>("SELECT CHAVE AS Chave,MODO AS Modo FROM USUARIO_PERMISSAO WHERE CODUSUARIO=@codUsuario", new { codUsuario }, tx)).ToDictionary(x => x.Chave, x => x.Modo, StringComparer.OrdinalIgnoreCase);
+            foreach (var chave in before.Keys.Except(normalized.Where(x => valid.Contains(x.Chave, StringComparer.OrdinalIgnoreCase)).Select(x => x.Chave), StringComparer.OrdinalIgnoreCase))
+                await conn.ExecuteAsync("DELETE FROM USUARIO_PERMISSAO WHERE CODUSUARIO=@codUsuario AND CHAVE=@chave", new { codUsuario, chave }, tx);
             foreach (var item in normalized.Where(x => valid.Contains(x.Chave, StringComparer.OrdinalIgnoreCase)))
             {
+                if (before.TryGetValue(item.Chave, out var oldMode))
+                {
+                    if (!string.Equals(oldMode, item.Modo, StringComparison.OrdinalIgnoreCase))
+                        await conn.ExecuteAsync("UPDATE USUARIO_PERMISSAO SET MODO=@Modo,DTHRULTMODIFICACAO=CURRENT_TIMESTAMP WHERE CODUSUARIO=@codUsuario AND CHAVE=@Chave", new { codUsuario, item.Chave, item.Modo }, tx);
+                    continue;
+                }
                 await conn.ExecuteAsync("""
                     INSERT INTO USUARIO_PERMISSAO (CODUSUARIO, CHAVE, MODO, DTHRULTMODIFICACAO)
                     VALUES (@codUsuario, @Chave, @Modo, CURRENT_TIMESTAMP)
@@ -281,11 +292,14 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
 
     public async Task<IReadOnlySet<string>> GetEffectivePermissionsAsync(int codUsuario, string perfil, CancellationToken ct = default)
     {
-        var normalized = NormalizeProfile(perfil);
+        await using var conn = await db.OpenConnectionAsync(ct);
+        var currentProfile = await conn.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
+            "SELECT PERFIL FROM USUARIO WHERE CODUSUARIO=@codUsuario AND STATUS=-1", new { codUsuario }, cancellationToken: ct));
+        if (currentProfile is null) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var normalized = NormalizeProfile(currentProfile);
         if (normalized == "admin")
             return Seed.Select(x => x.Chave).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        await using var conn = await db.OpenConnectionAsync(ct);
         var profileKeys = (await conn.QueryAsync<string>("""
             SELECT pp.CHAVE
             FROM PERFIL_PERMISSAO pp
@@ -312,7 +326,6 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
 
     public async Task<bool> HasPermissionAsync(int codUsuario, string perfil, string dominio, string acao, CancellationToken ct = default)
     {
-        if (NormalizeProfile(perfil) == "admin") return true;
         var permissions = await GetEffectivePermissionsAsync(codUsuario, perfil, ct);
         return permissions.Contains(Key(dominio, acao));
     }

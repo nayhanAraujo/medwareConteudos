@@ -55,8 +55,7 @@ public partial class ScriptsService
 
     public async Task<(byte[] Content, string Filename, string Mime)?> ExportScriptPackageAsync(int id)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var script = await ResolveScriptExportAsync(conn, id, true);
         if (script is null) return null;
         ValidateScriptExport(script);
@@ -68,8 +67,7 @@ public partial class ScriptsService
     public async Task<byte[]> ExportScriptBatchAsync(int[]? ids)
     {
         if (ids is null || ids.Length == 0) throw new InvalidOperationException("Selecione ao menos um modelo.");
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = await OpenAuditConnectionAsync();
         var scripts = new List<ScriptExport>();
         foreach (var id in ids.Distinct())
         {

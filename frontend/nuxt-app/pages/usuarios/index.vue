@@ -24,20 +24,22 @@
       <DsEmptyState v-else-if="!filteredUsers.length" title="Nenhum usuário encontrado" action-label="Limpar filtros" @action="clearFilters" />
       <DsTable v-else class="users-table">
         <template #head>
-          <tr><th>Nome</th><th>Login</th><th>E-mail</th><th>Perfil</th><th>Status</th><th v-if="canEdit || canDelete" class="users-actions-heading">Ações</th></tr>
+          <tr><th>Nome</th><th>Login</th><th>E-mail</th><th>Perfil</th><th>Status</th><th v-if="canEdit || canDelete || canActivate" class="users-actions-heading">Ações</th></tr>
         </template>
         <tr v-for="u in filteredUsers" :key="u.codUsuario">
           <td class="users-name">{{ u.nome }}</td><td>{{ u.identificacao }}</td><td class="users-email">{{ u.email || '-' }}</td><td>{{ profileLabel(u.perfil) }}</td>
           <td><DsBadge :variant="u.status === -1 ? 'success' : 'default'">{{ u.status === -1 ? 'Ativo' : 'Inativo' }}</DsBadge></td>
-          <td v-if="canEdit || canDelete" class="users-actions">
-            <DsDropdown align="right" trigger-class="users-actions-trigger" :title="`Ações de ${u.nome}`">
+          <td v-if="canEdit || canDelete || canActivate" class="users-actions">
+            <DsDropdown v-if="canEdit || canDelete || canToggleStatus(u)" align="right" trigger-class="users-actions-trigger" :title="`Ações de ${u.nome}`">
               <template #trigger><i class="bi bi-three-dots" aria-hidden="true" /><span>Ações</span><span class="sr-only"> de {{ u.nome }}</span><i class="bi bi-chevron-down" aria-hidden="true" /></template>
               <template #default="{ close }">
                 <DsDropdownItem v-if="canEdit" @click="close(); openEdit(u)"><i class="bi bi-pencil" aria-hidden="true" />Editar</DsDropdownItem>
-                <DsDropdownDivider v-if="canEdit && canDelete" />
+                <DsDropdownItem v-if="canToggleStatus(u)" :disabled="statusUpdating !== null" @click="close(); toggleStatus(u)"><i class="bi" :class="u.status === -1 ? 'bi-person-dash' : 'bi-person-check'" aria-hidden="true" />{{ u.status === -1 ? 'Inativar' : 'Ativar' }}</DsDropdownItem>
+                <DsDropdownDivider v-if="(canEdit || canToggleStatus(u)) && canDelete" />
                 <DsDropdownItem v-if="canDelete" danger @click="close(); remove(u)"><i class="bi bi-trash" aria-hidden="true" />Excluir</DsDropdownItem>
               </template>
             </DsDropdown>
+            <span v-else>-</span>
           </td>
         </tr>
       </DsTable>
@@ -64,7 +66,7 @@ interface UserItem { codUsuario: number; nome: string; identificacao: string; pe
 const api = useApi(); const auth = useAuthStore(); const swal = useSwal()
 const users = ref<UserItem[]>([]); const modalOpen = ref(false); const editingId = ref<number | null>(null); const saving = ref(false); const errorMsg = ref('')
 const search = ref(''), loading = ref(true)
-const statusFilter = ref('')
+const statusFilter = ref('-1'), statusUpdating = ref<number | null>(null)
 const normalizeName = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 const filteredUsers = computed(() => {
   const query = normalizeName(search.value)
@@ -75,6 +77,8 @@ function profileLabel(value: string) { return ({ admin: 'Administrador', usuario
 const canCreate = computed(() => auth.can('usuarios', 'criar'))
 const canEdit = computed(() => auth.can('usuarios', 'editar'))
 const canDelete = computed(() => auth.can('usuarios', 'excluir'))
+const canActivate = computed(() => auth.can('usuarios', 'ativar'))
+function canToggleStatus(user: UserItem) { return canActivate.value && (auth.isAdmin || user.perfil.trim().toLowerCase() !== 'admin') }
 const emptyForm = () => ({ nome: '', identificacao: '', email: '', perfil: 'usuario', status: -1, senha: '', confirmarSenha: '' })
 const form = reactive(emptyForm())
 async function load() {
@@ -100,6 +104,20 @@ async function save() {
     else await api.post('/api/web/users', payload)
     modalOpen.value = false; await load(); await swal.toast('Usuário salvo com sucesso.')
   } catch (e) { await swal.error('Erro ao salvar usuário', e instanceof Error ? e.message : String(e)) } finally { saving.value = false }
+}
+async function toggleStatus(user: UserItem) {
+  if (!canToggleStatus(user) || statusUpdating.value !== null) return
+  const status = user.status === -1 ? 0 : -1
+  const action = status === -1 ? 'Ativar' : 'Inativar'
+  statusUpdating.value = user.codUsuario
+  try {
+    const result = await swal.confirm(`${action} usuário?`, `${action} o acesso de ${user.nome}?`)
+    if (!result?.isConfirmed || !canToggleStatus(user)) return
+    await api.put(`/api/web/users/${user.codUsuario}/status`, { status })
+    user.status = status
+    await swal.toast(status === -1 ? 'Usuário ativado.' : 'Usuário inativado.')
+  } catch (e) { await swal.error('Erro ao alterar status', e instanceof Error ? e.message : String(e)) }
+  finally { statusUpdating.value = null }
 }
 async function remove(u: UserItem) {
   if (!canDelete.value) return

@@ -1,6 +1,6 @@
 #requires -Version 7.2
 [CmdletBinding()]
-param([switch]$IntegrationConfirmed, [ValidateSet('Debug','Release')][string]$Configuration = 'Debug')
+param([switch]$IntegrationConfirmed, [ValidateSet('Debug','Release')][string]$Configuration = 'Debug', [switch]$MigrateDatabase)
 . (Join-Path $PSScriptRoot 'Homologacao.Common.ps1')
 if (-not $IntegrationConfirmed) { throw 'Confirme o build e a integração do isolamento passando -IntegrationConfirmed; consulte docs/API_HOMOLOGACAO.md.' }
 $workspace = Get-HomologacaoWorkspace
@@ -18,12 +18,15 @@ $newer = Get-ChildItem -LiteralPath (Join-Path $workspace 'backend') -Filter '*.
     Select-Object -First 1
 if ($newer) { throw 'Build está desatualizado. Compile o backend novamente; Start nunca faz build.' }
 $dotnet = Assert-LocalPath (Join-Path $env:ProgramFiles 'dotnet/dotnet.exe') -MustExist
-$info = New-HomologacaoProcessInfo $dotnet @($assembly) $api
+$apiArguments = @($assembly)
+if ($MigrateDatabase) { $apiArguments += '--migrate-database' }
+$info = New-HomologacaoProcessInfo $dotnet $apiArguments $api
 $info.Environment['DOTNET_ENVIRONMENT'] = 'Homologacao'
 $info.Environment['ASPNETCORE_ENVIRONMENT'] = 'Homologacao'
 # Contexto esperado deve ser passado também ao processo Nuxt (não é segredo).
 $info.Environment['NUXT_DOCS_SANDBOX_INSTANCE_ID'] = $prepared.Config.Documentation.InstanceId
-Write-Host "API em primeiro plano: $($prepared.Config.Urls)"
+if ($MigrateDatabase) { Write-Host 'Executando migrações somente no ambiente isolado de homologação; a API não será iniciada.' }
+else { Write-Host "API em primeiro plano: $($prepared.Config.Urls)" }
 Write-Host "Nuxt deve usar NUXT_DOCS_SANDBOX_INSTANCE_ID=$($prepared.Config.Documentation.InstanceId)"
 $process = [Diagnostics.Process]::new(); $process.StartInfo = $info
 try {

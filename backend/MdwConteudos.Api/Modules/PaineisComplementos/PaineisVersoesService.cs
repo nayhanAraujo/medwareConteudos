@@ -144,8 +144,10 @@ public sealed class PaineisVersoesService(IFirebirdConnectionFactory db) : IPain
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(conn, tx, true);
             foreach (var table in new[] { "Metricas", "Dimensoes", "FontesDados", "LOGALTERACOES", "CONFIGURACOESPOWERBI", "CONFIGURACOESAPI", "ARQUIVOSVERSOES", "IMAGENSPAINEL" })
                 await conn.ExecuteAsync($"DELETE FROM {table} WHERE CODVERSAOPAINEL=@versaoId", new { versaoId }, tx);
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(conn, tx, false);
             await conn.ExecuteAsync("DELETE FROM VersoesPainel WHERE CODPAINEL=@painelId AND CODVERSAOPAINEL=@versaoId", new { painelId, versaoId }, tx);
             await tx.CommitAsync(ct);
         }

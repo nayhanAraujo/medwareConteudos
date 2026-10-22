@@ -11,6 +11,7 @@ public interface IUsersService
     Task<(bool Ok, string? Error)> CreateAsync(CreateUserRequest req, CancellationToken ct = default);
     Task<(bool Ok, string? Error)> UpdateAsync(int codUsuario, UpdateUserRequest req, CancellationToken ct = default);
     Task<bool> DeleteAsync(int codUsuario, CancellationToken ct = default);
+    Task<bool> SetStatusAsync(int codUsuario, int status, CancellationToken ct = default);
 }
 
 public class UsersService : IUsersService
@@ -80,6 +81,23 @@ public class UsersService : IUsersService
             await conn.ExecuteAsync(new CommandDefinition("UPDATE PASSWORD_RESET SET USED_UTC=@now WHERE CODUSUARIO=@codUsuario AND USED_UTC IS NULL", new { codUsuario, now = DateTime.UtcNow }, tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
         return (true, null);
+    }
+
+    public async Task<bool> SetStatusAsync(int codUsuario, int status, CancellationToken ct = default)
+    {
+        if (status is not (-1 or 0)) throw new ArgumentOutOfRangeException(nameof(status));
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, ct);
+        var rows = await conn.ExecuteAsync(new CommandDefinition(
+            "UPDATE USUARIO SET STATUS=@status,DTHRULTMODIFICACAO=@now WHERE CODUSUARIO=@codUsuario",
+            new { status, now = DateTime.Now, codUsuario }, tx, cancellationToken: ct));
+        if (rows == 0) return false;
+        if (status == 0)
+            await conn.ExecuteAsync(new CommandDefinition(
+                "UPDATE PASSWORD_RESET SET USED_UTC=@now WHERE CODUSUARIO=@codUsuario AND USED_UTC IS NULL",
+                new { codUsuario, now = DateTime.UtcNow }, tx, cancellationToken: ct));
+        await tx.CommitAsync(ct);
+        return true;
     }
 
     public async Task<bool> DeleteAsync(int codUsuario, CancellationToken ct = default)

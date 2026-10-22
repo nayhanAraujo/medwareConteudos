@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -122,9 +123,14 @@ public class RelatoriosWebService : IRelatoriosWebService
     public async Task<object?> GetAsync(int id, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
+        return await GetAsync(conn, null, id);
+    }
+
+    private static async Task<object?> GetAsync(DbConnection conn, DbTransaction? tx, int id)
+    {
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CODRELATORIO, NOME, MODULO, FORMATO, CONTEUDO, DTHRCRIACAO, ATIVO, TEM_MULTISELECAO
-            FROM RELATORIOS WHERE CODRELATORIO = @id", new { id });
+            FROM RELATORIOS WHERE CODRELATORIO = @id", new { id }, tx);
         if (row is null) return null;
 
         return new
@@ -142,15 +148,27 @@ public class RelatoriosWebService : IRelatoriosWebService
 
     public async Task<object> CreateAsync(RelatorioUpsertRequest req, int? codUsuario, CancellationToken ct)
     {
+        // Reject invalid payloads before opening a connection, as in the legacy flow.
+        _ = ValidateUpsert(req);
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        // Disposal rolls back the entire action (including trigger writes) unless committed.
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        var result = await CreateAsync(conn, tx, req, codUsuario, ct);
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    private static async Task<object> CreateAsync(
+        DbConnection conn, DbTransaction tx, RelatorioUpsertRequest req, int? codUsuario, CancellationToken ct)
+    {
         var (nome, modulo, formato, conteudo, ativo) = ValidateUpsert(req);
         if (nome.Length > 200) nome = nome[..200];
         var temMs = TemMultiselecaoFromConteudo(conteudo);
         var conteudoUtf8 = Encoding.UTF8.GetBytes(conteudo);
 
-        await using var conn = await _db.OpenConnectionAsync(ct);
         var exists = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM RELATORIOS WHERE NOME = @nome AND MODULO = @modulo",
-            new { nome, modulo });
+            new { nome, modulo }, tx);
         if (exists > 0)
             throw new InvalidOperationException($"Já existe um relatório com o nome \"{nome}\" no módulo \"{modulo}\"");
 
@@ -160,11 +178,12 @@ public class RelatoriosWebService : IRelatoriosWebService
         {
             try
             {
-                await conn.ExecuteAsync(attempt.Sql, attempt.Params);
+                ct.ThrowIfCancellationRequested();
+                await conn.ExecuteAsync(attempt.Sql, attempt.Params, tx);
                 last = null;
                 break;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 last = ex;
             }
@@ -176,19 +195,16 @@ public class RelatoriosWebService : IRelatoriosWebService
             SELECT FIRST 1 CODRELATORIO FROM RELATORIOS
             WHERE NOME = @nome AND MODULO = @modulo
             ORDER BY CODRELATORIO DESC",
-            new { nome, modulo });
+            new { nome, modulo }, tx);
         if (cod <= 0)
             throw new InvalidOperationException("Relatório gravado, mas não foi possível obter o código.");
 
         if (formato == "XML")
-        {
-            try { await IndexarColunasAsync(conn, cod, conteudo, codUsuario); }
-            catch { /* indexação não deve bloquear o cadastro */ }
-        }
+            await IndexarColunasAsync(conn, tx, cod, conteudo, codUsuario);
 
         try
         {
-            var created = await GetAsync(cod, ct);
+            var created = await GetAsync(conn, tx, cod);
             return new { success = true, message = "Relatório cadastrado com sucesso", relatorio = created, codRelatorio = cod };
         }
         catch
@@ -204,14 +220,15 @@ public class RelatoriosWebService : IRelatoriosWebService
         var conteudoUtf8 = Encoding.UTF8.GetBytes(conteudo);
 
         await using var conn = await _db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM RELATORIOS WHERE CODRELATORIO = @id", new { id });
+            "SELECT COUNT(*) FROM RELATORIOS WHERE CODRELATORIO = @id", new { id }, tx);
         if (exists == 0)
             throw new InvalidOperationException("Relatório não encontrado");
 
         var dup = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM RELATORIOS WHERE NOME = @nome AND MODULO = @modulo AND CODRELATORIO <> @id",
-            new { nome, modulo, id });
+            new { nome, modulo, id }, tx);
         if (dup > 0)
             throw new InvalidOperationException($"Já existe outro relatório com o nome \"{nome}\" no módulo \"{modulo}\"");
 
@@ -220,17 +237,19 @@ public class RelatoriosWebService : IRelatoriosWebService
         {
             try
             {
-                await conn.ExecuteAsync(attempt.Sql, attempt.Params);
+                ct.ThrowIfCancellationRequested();
+                await conn.ExecuteAsync(attempt.Sql, attempt.Params, tx);
                 last = null;
                 break;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 last = ex;
             }
         }
         if (last is not null)
             throw new InvalidOperationException($"Falha ao atualizar relatório: {last.Message}", last);
+        await tx.CommitAsync(ct);
     }
 
     public async Task SetStatusAsync(int id, object ativoRaw, CancellationToken ct)
@@ -248,17 +267,19 @@ public class RelatoriosWebService : IRelatoriosWebService
     public async Task DeleteAsync(int id, CancellationToken ct)
     {
         await using var conn = await _db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM RELATORIOS WHERE CODRELATORIO = @id", new { id });
+            "SELECT COUNT(*) FROM RELATORIOS WHERE CODRELATORIO = @id", new { id }, tx);
         if (exists == 0)
             throw new InvalidOperationException("Relatório não encontrado");
 
-        if (await TableExistsAsync(conn, "RELATORIOCOLUNAS"))
-            await conn.ExecuteAsync("DELETE FROM RELATORIOCOLUNAS WHERE CODRELATORIO = @id", new { id });
-        if (await TableExistsAsync(conn, "RELATORIOVALIDACOES"))
-            await conn.ExecuteAsync("DELETE FROM RELATORIOVALIDACOES WHERE CODRELATORIO = @id", new { id });
+        if (await TableExistsAsync(conn, "RELATORIOCOLUNAS", tx))
+            await conn.ExecuteAsync("DELETE FROM RELATORIOCOLUNAS WHERE CODRELATORIO = @id", new { id }, tx);
+        if (await TableExistsAsync(conn, "RELATORIOVALIDACOES", tx))
+            await conn.ExecuteAsync("DELETE FROM RELATORIOVALIDACOES WHERE CODRELATORIO = @id", new { id }, tx);
 
-        await conn.ExecuteAsync("DELETE FROM RELATORIOS WHERE CODRELATORIO = @id", new { id });
+        await conn.ExecuteAsync("DELETE FROM RELATORIOS WHERE CODRELATORIO = @id", new { id }, tx);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<(byte[] Bytes, string FileName)> DownloadAsync(int id, CancellationToken ct)
@@ -323,8 +344,12 @@ public class RelatoriosWebService : IRelatoriosWebService
         var created = new List<object>();
         var errors = new List<object>();
 
+        await using var conn = await _db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
         foreach (var (fileName, conteudo) in arquivos)
         {
+            // Preserve partial-success imports, but never retain part of a failed file.
+            await conn.ExecuteAsync(new CommandDefinition("SAVEPOINT IMPORT_ARQUIVO", transaction: tx, cancellationToken: ct));
             try
             {
                 var ext = Path.GetExtension(fileName).TrimStart('.').ToUpperInvariant();
@@ -336,16 +361,20 @@ public class RelatoriosWebService : IRelatoriosWebService
                     throw new InvalidOperationException("Nome do arquivo inválido");
 
                 var result = await CreateAsync(
+                    conn, tx,
                     new RelatorioUpsertRequest(nome, modulo.Trim(), ext, conteudo, ativo),
                     codUsuario,
                     ct);
                 created.Add(result);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                await conn.ExecuteAsync(new CommandDefinition("ROLLBACK TO SAVEPOINT IMPORT_ARQUIVO", transaction: tx, cancellationToken: CancellationToken.None));
                 errors.Add(new { arquivo = fileName, error = ex.Message });
             }
+            await conn.ExecuteAsync(new CommandDefinition("RELEASE SAVEPOINT IMPORT_ARQUIVO", transaction: tx, cancellationToken: ct));
         }
+        await tx.CommitAsync(ct);
 
         return new
         {
@@ -536,11 +565,12 @@ public class RelatoriosWebService : IRelatoriosWebService
             throw new InvalidOperationException("Selecione pelo menos um sistema");
 
         await using var conn = await _db.OpenConnectionAsync(ct);
-        if (!await TableExistsAsync(conn, "MODULORELATORIO"))
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        if (!await TableExistsAsync(conn, "MODULORELATORIO", tx))
             throw new InvalidOperationException("Tabela MODULORELATORIO não existe. Execute o script SQL primeiro.");
 
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@nome)", new { nome });
+            "SELECT COUNT(*) FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@nome)", new { nome }, tx);
         if (exists > 0)
             throw new InvalidOperationException("Já existe um módulo com este nome");
 
@@ -548,15 +578,16 @@ public class RelatoriosWebService : IRelatoriosWebService
             INSERT INTO MODULORELATORIO (NOME, DESCRICAO, USUARIOCRIACAO, ICONE_BASE64)
             VALUES (@nome, @descricao, @user, @icon)
             RETURNING CODMODULO",
-            new { nome, descricao = req.Descricao?.Trim() ?? "", user = codUsuario, icon });
+            new { nome, descricao = req.Descricao?.Trim() ?? "", user = codUsuario, icon }, tx);
 
         foreach (var cs in req.Sistemas.Distinct())
         {
             await conn.ExecuteAsync(
                 "INSERT INTO SISTEMA_MODULO (CODSISTEMA, CODMODULO) VALUES (@cs, @cod)",
-                new { cs, cod });
+                new { cs, cod }, tx);
         }
 
+        await tx.CommitAsync(ct);
         return new
         {
             success = true,
@@ -582,18 +613,19 @@ public class RelatoriosWebService : IRelatoriosWebService
             throw new InvalidOperationException("Novo nome do módulo é obrigatório");
 
         await using var conn = await _db.OpenConnectionAsync(ct);
-        if (!await TableExistsAsync(conn, "MODULORELATORIO"))
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        if (!await TableExistsAsync(conn, "MODULORELATORIO", tx))
             throw new InvalidOperationException("Tabela MODULORELATORIO não existe. Execute o script SQL primeiro.");
 
         var cod = await conn.ExecuteScalarAsync<int?>(
             "SELECT CODMODULO FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@nome)",
-            new { nome = nomeModulo });
+            new { nome = nomeModulo }, tx);
         if (cod is null)
             throw new InvalidOperationException("Módulo não encontrado");
 
         var dup = await conn.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM MODULORELATORIO WHERE UPPER(NOME) = UPPER(@novo) AND CODMODULO <> @cod",
-            new { novo = novoNome, cod });
+            new { novo = novoNome, cod }, tx);
         if (dup > 0)
             throw new InvalidOperationException("Já existe um módulo com este nome");
 
@@ -601,18 +633,19 @@ public class RelatoriosWebService : IRelatoriosWebService
             UPDATE MODULORELATORIO
             SET NOME = @novo, DESCRICAO = @descricao, USUARIOATUALIZACAO = @user, ICONE_BASE64 = @icon
             WHERE CODMODULO = @cod",
-            new { novo = novoNome, descricao = req.Descricao, user = codUsuario, cod, icon });
+            new { novo = novoNome, descricao = req.Descricao, user = codUsuario, cod, icon }, tx);
 
         if (req.Sistemas is not null)
         {
-            await conn.ExecuteAsync("DELETE FROM SISTEMA_MODULO WHERE CODMODULO = @cod", new { cod });
+            await conn.ExecuteAsync("DELETE FROM SISTEMA_MODULO WHERE CODMODULO = @cod", new { cod }, tx);
             foreach (var cs in req.Sistemas.Distinct())
             {
                 await conn.ExecuteAsync(
                     "INSERT INTO SISTEMA_MODULO (CODSISTEMA, CODMODULO) VALUES (@cs, @cod)",
-                    new { cs, cod });
+                    new { cs, cod }, tx);
             }
         }
+        await tx.CommitAsync(ct);
     }
 
     public async Task DeleteModuloAsync(string nomeModulo, int codUsuario, CancellationToken ct)
@@ -766,18 +799,18 @@ public class RelatoriosWebService : IRelatoriosWebService
         return null;
     }
 
-    private static async Task<bool> TableExistsAsync(System.Data.Common.DbConnection conn, string tableName)
+    private static async Task<bool> TableExistsAsync(DbConnection conn, string tableName, DbTransaction? tx = null)
     {
         var count = await conn.ExecuteScalarAsync<int>(@"
             SELECT COUNT(*) FROM RDB$RELATIONS
-            WHERE TRIM(RDB$RELATION_NAME) = @name", new { name = tableName.ToUpperInvariant() });
+            WHERE TRIM(RDB$RELATION_NAME) = @name", new { name = tableName.ToUpperInvariant() }, tx);
         return count > 0;
     }
 
     private static async Task IndexarColunasAsync(
-        System.Data.Common.DbConnection conn, int codRelatorio, string conteudoXml, int? usuario)
+        DbConnection conn, DbTransaction tx, int codRelatorio, string conteudoXml, int? usuario)
     {
-        if (!await TableExistsAsync(conn, "RELATORIOCOLUNAS")) return;
+        if (!await TableExistsAsync(conn, "RELATORIOCOLUNAS", tx)) return;
 
         List<(string Nome, int Posicao)> colunas;
         try
@@ -800,14 +833,14 @@ public class RelatoriosWebService : IRelatoriosWebService
             return;
         }
 
-        await conn.ExecuteAsync("DELETE FROM RELATORIOCOLUNAS WHERE CODRELATORIO = @id", new { id = codRelatorio });
+        await conn.ExecuteAsync("DELETE FROM RELATORIOCOLUNAS WHERE CODRELATORIO = @id", new { id = codRelatorio }, tx);
         foreach (var col in colunas)
         {
             await conn.ExecuteAsync(@"
                 INSERT INTO RELATORIOCOLUNAS
                 (CODRELATORIO, NOME_COLUNA, POSICAO_COLUNA, TIPO_COLUNA, ATIVO, USUARIOCRIACAO)
                 VALUES (@id, @nome, @pos, 'TEXTO', 1, @user)",
-                new { id = codRelatorio, nome = col.Nome, pos = col.Posicao, user = usuario });
+                new { id = codRelatorio, nome = col.Nome, pos = col.Posicao, user = usuario }, tx);
         }
     }
 

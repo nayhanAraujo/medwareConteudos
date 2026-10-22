@@ -113,16 +113,25 @@ public class ReferenciasService : IReferenciasService
     private readonly string _connectionString;
     private readonly string _staticUploadsRoot;
     private readonly string? _sandboxFilesRoot;
+    private readonly IHttpContextAccessor? _auditHttp;
 
-    public ReferenciasService(IConfiguration config, IWebHostEnvironment env)
+    public ReferenciasService(IConfiguration config, IWebHostEnvironment env, IHttpContextAccessor? auditHttp = null)
     {
         _connectionString = EnvFileLoader.GetFirebirdConnectionString(config);
+        _auditHttp = auditHttp;
         var migrationRoot = MigrationRootResolver.ResolveMigrationRoot(config, env.ContentRootPath);
         _staticUploadsRoot = MigrationRootResolver.StaticUploadsRoot(migrationRoot);
         _sandboxFilesRoot = HomologacaoGuard.IsEnabled(config) ? migrationRoot : null;
     }
 
     private IDbConnection CreateConnection() => new FbConnection(_connectionString);
+
+    private async Task<FbConnection> OpenAuditConnectionAsync()
+    {
+        var conn = (FbConnection)CreateConnection();
+        try { await conn.OpenAsync(); await MdwConteudos.Api.Modules.Auditoria.AuditSession.InitializeAsync(conn, _auditHttp?.HttpContext, default); return conn; }
+        catch { await conn.DisposeAsync(); throw; }
+    }
 
     public async Task<(IReadOnlyList<object> Items, int Page, int TotalPages, int TotalItems)> ListReferenciasAsync(
         int page,
@@ -164,8 +173,7 @@ public class ReferenciasService : IReferenciasService
 
         var whereSql = string.Join(" AND ", where);
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
 
         var total = await conn.ExecuteScalarAsync<int>(
             $@"
@@ -223,8 +231,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<object?> GetReferenciaAsync(int codReferencia, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
 
         var row = await conn.QueryFirstOrDefaultAsync(
             @"
@@ -277,8 +284,7 @@ public class ReferenciasService : IReferenciasService
     public async Task<int> CreateReferenciaAsync(ReferenciaUpsertRequest req, int codUsuario, CancellationToken ct)
     {
         ValidateReferencia(req);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
 
         var usuario = await ResolveCodUsuarioAsync(conn, codUsuario, ct);
         var titulo = Clamp(Iso88591SafeText.ForStorage(req.Titulo.Trim()), 255);
@@ -327,8 +333,7 @@ public class ReferenciasService : IReferenciasService
     public async Task UpdateReferenciaAsync(int codReferencia, ReferenciaUpsertRequest req, int codUsuario, CancellationToken ct)
     {
         ValidateReferencia(req);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
 
         var affected = await conn.ExecuteAsync(
             @"
@@ -366,8 +371,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task DeleteReferenciaAsync(int codReferencia, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
@@ -375,17 +379,18 @@ public class ReferenciasService : IReferenciasService
                 "SELECT CAMINHO, LINK FROM ANEXOS WHERE CODREFERENCIA = @cod",
                 new { cod = codReferencia }, tx
             );
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(conn, tx, true);
+            await conn.ExecuteAsync("DELETE FROM ANEXOS WHERE CODREFERENCIA = @cod", new { cod = codReferencia }, tx);
+            await conn.ExecuteAsync("DELETE FROM REFERENCIA_AUTORES WHERE CODREFERENCIA = @cod", new { cod = codReferencia }, tx);
+            await MdwConteudos.Api.Modules.Auditoria.AuditSession.SuppressAsync(conn, tx, false);
+            var deleted = await conn.ExecuteAsync("DELETE FROM REFERENCIA WHERE CODREFERENCIA = @cod", new { cod = codReferencia }, tx);
+            if (deleted == 0) throw new InvalidOperationException("Referência não encontrada.");
+            await tx.CommitAsync(ct);
             foreach (var anexo in anexos)
             {
                 var d = AsDict(anexo);
                 DeletePhysicalFile(ToStr(d, "CAMINHO"), ToStr(d, "LINK"));
             }
-
-            await conn.ExecuteAsync("DELETE FROM ANEXOS WHERE CODREFERENCIA = @cod", new { cod = codReferencia }, tx);
-            await conn.ExecuteAsync("DELETE FROM REFERENCIA_AUTORES WHERE CODREFERENCIA = @cod", new { cod = codReferencia }, tx);
-            var deleted = await conn.ExecuteAsync("DELETE FROM REFERENCIA WHERE CODREFERENCIA = @cod", new { cod = codReferencia }, tx);
-            if (deleted == 0) throw new InvalidOperationException("Referência não encontrada.");
-            await tx.CommitAsync(ct);
         }
         catch (FbException)
         {
@@ -396,8 +401,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<IReadOnlyList<object>> ListEspecialidadesAsync(CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var rows = await conn.QueryAsync("SELECT CODESPECIALIDADE, NOME FROM ESPECIALIDADE ORDER BY NOME");
         return rows.Select(r =>
         {
@@ -408,8 +412,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<IReadOnlyList<object>> ListTiposReferenciaAsync(CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         // Schema atual: TIPOREFERENCIA (sem underscore). NOME é o rótulo curto; DESCRICAO é opcional.
         var rows = await conn.QueryAsync("SELECT CODTIPOREF, NOME, DESCRICAO FROM TIPOREFERENCIA ORDER BY NOME");
         return rows.Select(r =>
@@ -428,8 +431,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<IReadOnlyList<object>> SearchReferenciasAsync(string? term, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var rows = await conn.QueryAsync(
             @"
             SELECT FIRST 20 r.CODREFERENCIA, r.TITULO, r.ANO,
@@ -462,8 +464,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<IReadOnlyList<object>> ListAnexosAsync(int codReferencia, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var rows = await conn.QueryAsync(
             @"
             SELECT CODANEXO, CODREFERENCIA, DESCRICAO, NOME, LINK, CAMINHO, TIPO_ANEXO
@@ -492,8 +493,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<IReadOnlyList<object>> ListAnexosCompatAsync(int codReferencia, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var rows = await conn.QueryAsync(
             @"
             SELECT TIPO_ANEXO, LINK, CAMINHO, DESCRICAO
@@ -518,8 +518,7 @@ public class ReferenciasService : IReferenciasService
     public async Task<int> CreateAnexoAsync(int codReferencia, AnexoUpsertRequest req, UploadedFileContent? file, int codUsuario, CancellationToken ct)
     {
         ValidateAnexo(req);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var usuario = await ResolveCodUsuarioAsync(conn, codUsuario, ct);
         var (tipoAnexo, link, caminho) = await ResolveAnexoFileAndTypeAsync(req.Link, file, null, null);
         var descricao = Iso88591SafeText.ForStorage(req.Descricao.Trim());
@@ -555,8 +554,7 @@ public class ReferenciasService : IReferenciasService
     public async Task<int> UpdateAnexoAsync(int codAnexo, AnexoUpsertRequest req, UploadedFileContent? file, int codUsuario, CancellationToken ct)
     {
         ValidateAnexo(req);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var usuario = await ResolveCodUsuarioAsync(conn, codUsuario, ct);
 
         var current = await conn.QueryFirstOrDefaultAsync(
@@ -609,8 +607,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<int> DeleteAnexoAsync(int codAnexo, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(
             "SELECT CODREFERENCIA, CAMINHO, LINK FROM ANEXOS WHERE CODANEXO = @cod",
             new { cod = codAnexo }
@@ -618,15 +615,14 @@ public class ReferenciasService : IReferenciasService
         if (row is null) throw new InvalidOperationException("Anexo não encontrado.");
         var d = AsDict(row);
         var codReferencia = ToInt(d, "CODREFERENCIA");
-        DeletePhysicalFile(ToStr(d, "CAMINHO"), ToStr(d, "LINK"));
         await conn.ExecuteAsync("DELETE FROM ANEXOS WHERE CODANEXO = @cod", new { cod = codAnexo });
+        DeletePhysicalFile(ToStr(d, "CAMINHO"), ToStr(d, "LINK"));
         return codReferencia;
     }
 
     public async Task<IReadOnlyList<object>> ListAutoresAsync(CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         var rows = await conn.QueryAsync("SELECT CODAUTOR, NOME, ABREVIACAO FROM AUTORES ORDER BY NOME");
         return rows.Select(r =>
         {
@@ -642,8 +638,7 @@ public class ReferenciasService : IReferenciasService
 
     public async Task<IReadOnlyList<object>> ListAutoresByReferenciaAsync(int codReferencia, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
 
         var associados = (await conn.QueryAsync<int>(
             "SELECT CODAUTOR FROM REFERENCIA_AUTORES WHERE CODREFERENCIA = @cod",
@@ -667,11 +662,13 @@ public class ReferenciasService : IReferenciasService
 
     public async Task SaveAutoresByReferenciaAsync(int codReferencia, IEnumerable<int> autorIds, CancellationToken ct)
     {
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync(ct);
-        await conn.ExecuteAsync("DELETE FROM REFERENCIA_AUTORES WHERE CODREFERENCIA = @cod", new { cod = codReferencia }, tx);
-        foreach (var codAutor in autorIds.Distinct())
+        var desired = autorIds.Distinct().ToHashSet();
+        var before = (await conn.QueryAsync<int>("SELECT CODAUTOR FROM REFERENCIA_AUTORES WHERE CODREFERENCIA=@cod WITH LOCK", new { cod = codReferencia }, tx)).ToHashSet();
+        foreach (var codAutor in before.Except(desired))
+            await conn.ExecuteAsync("DELETE FROM REFERENCIA_AUTORES WHERE CODREFERENCIA=@cod AND CODAUTOR=@codAutor", new { cod = codReferencia, codAutor }, tx);
+        foreach (var codAutor in desired.Except(before))
         {
             await conn.ExecuteAsync(
                 "INSERT INTO REFERENCIA_AUTORES (CODREFERENCIA, CODAUTOR) VALUES (@codReferencia, @codAutor)",
@@ -691,8 +688,7 @@ public class ReferenciasService : IReferenciasService
     )
     {
         limite = Math.Clamp(limite, 10, 200);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
 
         var where = new List<string> { "1=1" };
         var pRefs = new DynamicParameters();
@@ -987,8 +983,7 @@ public class ReferenciasService : IReferenciasService
     )
     {
         limite = Math.Clamp(limite, 10, 500);
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
 
         var varsRows = await conn.QueryAsync(
             @"
@@ -1234,8 +1229,7 @@ public class ReferenciasService : IReferenciasService
         if (!itens.Any())
             throw new InvalidOperationException("Selecione ao menos uma normalidade para vincular.");
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync(ct);
         foreach (var n in itens)
         {
@@ -1266,8 +1260,7 @@ public class ReferenciasService : IReferenciasService
     {
         if (req.CodNormalidade <= 0)
             throw new InvalidOperationException("Código da normalidade não informado.");
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         await conn.ExecuteAsync(
             @"
             UPDATE NORMALIDADE
@@ -1297,8 +1290,7 @@ public class ReferenciasService : IReferenciasService
     {
         if (codNormalidade <= 0)
             throw new InvalidOperationException("Normalidade inválida.");
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         await conn.ExecuteAsync(
             @"
             UPDATE NORMALIDADE
@@ -1318,8 +1310,7 @@ public class ReferenciasService : IReferenciasService
         if (codReferenciaDestino == codReferenciaOrigem)
             throw new InvalidOperationException("Origem e destino não podem ser a mesma referência.");
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync(ct);
 
         var existeDestino = await conn.ExecuteScalarAsync<int>(
@@ -1448,8 +1439,7 @@ public class ReferenciasService : IReferenciasService
             return;
         }
 
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         await conn.ExecuteAsync(
             @"
             UPDATE OR INSERT INTO NORMALIDADECOMENTARIO
@@ -1481,8 +1471,7 @@ public class ReferenciasService : IReferenciasService
     {
         if (codVariavel <= 0 || codReferencia <= 0)
             throw new InvalidOperationException("Informe variável e referência válidas.");
-        await using var conn = (FbConnection)CreateConnection();
-        await conn.OpenAsync(ct);
+        await using var conn = await OpenAuditConnectionAsync();
         if (string.IsNullOrWhiteSpace(sexo))
         {
             await conn.ExecuteAsync(

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MdwConteudos.Api.Configuration;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.Auditoria;
 
 namespace MdwConteudos.Api.Modules.Auth;
 
@@ -30,12 +31,17 @@ public class AuthService : IAuthService
     private readonly IFirebirdConnectionFactory _db;
     private readonly WebAuthOptions _auth;
     private readonly bool _development;
+    private readonly AuditWriter? _audit;
+    private readonly IHttpContextAccessor? _http;
 
-    public AuthService(IFirebirdConnectionFactory db, IOptions<WebAuthOptions> auth, IHostEnvironment? environment = null)
+    public AuthService(IFirebirdConnectionFactory db, IOptions<WebAuthOptions> auth, IHostEnvironment? environment = null,
+        AuditWriter? audit = null, IHttpContextAccessor? http = null)
     {
         _db = db;
         _auth = auth.Value;
         _development = environment?.IsDevelopment() == true;
+        _audit = audit;
+        _http = http;
     }
 
     public async Task<LoginResponse> LoginAsync(string identificacao, string senha, CancellationToken ct = default)
@@ -48,8 +54,12 @@ public class AuthService : IAuthService
                 "SELECT FIRST 1 CODUSUARIO FROM USUARIO WHERE LOWER(IDENTIFICACAO) = @id AND STATUS = -1",
                 new { id });
             if (!codUsuario.HasValue)
+            {
+                await RecordLoginAsync(false, null, ct);
                 return new LoginResponse(false, null, null, "O usuário de desenvolvimento não possui um cadastro ativo no banco.");
+            }
             var devUser = new SessionUser(codUsuario.Value, _auth.DevName, _auth.DevRole);
+            await RecordLoginAsync(true, devUser.CodUsuario, ct);
             return new LoginResponse(true, CreateWebToken(devUser), devUser, null);
         }
 
@@ -62,11 +72,22 @@ public class AuthService : IAuthService
         // Reject ambiguous identifiers even if only one account has the supplied password.
         if (matches.Count != 1 || !CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(matches[0].SENHA ?? ""), Encoding.UTF8.GetBytes(hash)))
+        {
+            await RecordLoginAsync(false, null, ct);
             return new LoginResponse(false, null, null, "Usuário, e-mail ou senha inválidos.");
+        }
         var row = matches[0];
 
         var user = new SessionUser(row.CODUSUARIO, row.NOME, row.PERFIL);
+        await RecordLoginAsync(true, user.CodUsuario, ct);
         return new LoginResponse(true, CreateWebToken(user), user, null);
+    }
+
+    private async Task RecordLoginAsync(bool success, int? actorId, CancellationToken ct)
+    {
+        if (_audit is null) return;
+        if (AuditRequest.Get(_http?.HttpContext) is { } state) state.SecurityRecorded = true;
+        await _audit.TryRecordAsync("autenticacao", "login", success ? "sucesso" : "falha", success ? null : "credenciais_invalidas", actorId, ct);
     }
 
     private bool IsDevUser(string normalizedIdentificacao, string senha)

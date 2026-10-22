@@ -90,6 +90,18 @@ public class UsersController : ControllerBase
         }
     }
 
+    [HttpPut("{codUsuario:int}/status")]
+    [RequirePermission(PermissionDomains.Usuarios, PermissionActions.Ativar)]
+    public async Task<IActionResult> SetStatus(int codUsuario, [FromBody] UserStatusRequest req, CancellationToken ct)
+    {
+        if (req.Status is not (-1 or 0)) return BadRequest(ApiResponse.Fail("Validação", "Status inválido. Use -1 para ativo ou 0 para inativo."));
+        var target = await _users.GetAsync(codUsuario, ct);
+        if (target is null) return NotFound(ApiResponse.Fail("Não encontrado"));
+        if (AccountSecurity.IsAdmin(target.Perfil) && !await IsCurrentAdmin(ct)) return Forbid();
+        if (!await _users.SetStatusAsync(codUsuario, req.Status.Value, ct)) return NotFound(ApiResponse.Fail("Não encontrado"));
+        return Ok(ApiResponse.OkMessage(req.Status == -1 ? "Usuário ativado." : "Usuário inativado."));
+    }
+
     [HttpDelete("{codUsuario:int}")]
     [RequirePermission(PermissionDomains.Usuarios, PermissionActions.Excluir)]
     public async Task<IActionResult> Delete(int codUsuario, CancellationToken ct)
