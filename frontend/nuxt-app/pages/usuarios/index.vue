@@ -8,6 +8,11 @@
     <DsPageShell>
       <div class="users-toolbar">
         <DsSearchInput v-model="search" placeholder="Pesquisar por nome..." aria-label="Pesquisar usuários por nome" wrapper-class="mb-0" class="users-search" />
+        <DsSelect v-model="statusFilter" label="Status" class="users-status-filter">
+          <option value="">Todos</option>
+          <option value="-1">Ativos</option>
+          <option value="0">Inativos</option>
+        </DsSelect>
         <span v-if="!loading && !errorMsg" class="users-count" role="status">{{ filteredUsers.length }} de {{ users.length }} usuários</span>
       </div>
       <DsAlert v-if="errorMsg" variant="error" class="mb-4">
@@ -16,13 +21,13 @@
       </DsAlert>
       <div v-else-if="loading" class="users-loading" role="status"><i class="bi bi-arrow-repeat" aria-hidden="true" /> Carregando usuários...</div>
       <DsEmptyState v-else-if="!users.length" icon="people" title="Nenhum usuário cadastrado" />
-      <DsEmptyState v-else-if="!filteredUsers.length" title="Nenhum usuário encontrado" action-label="Limpar busca" @action="search = ''" />
+      <DsEmptyState v-else-if="!filteredUsers.length" title="Nenhum usuário encontrado" action-label="Limpar filtros" @action="clearFilters" />
       <DsTable v-else class="users-table">
         <template #head>
-          <tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th><th v-if="canEdit || canDelete" class="users-actions-heading">Ações</th></tr>
+          <tr><th>Nome</th><th>Login</th><th>E-mail</th><th>Perfil</th><th>Status</th><th v-if="canEdit || canDelete" class="users-actions-heading">Ações</th></tr>
         </template>
         <tr v-for="u in filteredUsers" :key="u.codUsuario">
-          <td class="users-name">{{ u.nome }}</td><td>{{ u.identificacao }}</td><td>{{ profileLabel(u.perfil) }}</td>
+          <td class="users-name">{{ u.nome }}</td><td>{{ u.identificacao }}</td><td class="users-email">{{ u.email || '-' }}</td><td>{{ profileLabel(u.perfil) }}</td>
           <td><DsBadge :variant="u.status === -1 ? 'success' : 'default'">{{ u.status === -1 ? 'Ativo' : 'Inativo' }}</DsBadge></td>
           <td v-if="canEdit || canDelete" class="users-actions">
             <DsDropdown align="right" trigger-class="users-actions-trigger" :title="`Ações de ${u.nome}`">
@@ -59,11 +64,13 @@ interface UserItem { codUsuario: number; nome: string; identificacao: string; pe
 const api = useApi(); const auth = useAuthStore(); const swal = useSwal()
 const users = ref<UserItem[]>([]); const modalOpen = ref(false); const editingId = ref<number | null>(null); const saving = ref(false); const errorMsg = ref('')
 const search = ref(''), loading = ref(true)
+const statusFilter = ref('')
 const normalizeName = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 const filteredUsers = computed(() => {
   const query = normalizeName(search.value)
-  return users.value.filter(user => normalizeName(user.nome || '').includes(query))
+  return users.value.filter(user => normalizeName(user.nome || '').includes(query) && (statusFilter.value === '' || user.status === Number(statusFilter.value)))
 })
+function clearFilters() { search.value = ''; statusFilter.value = '' }
 function profileLabel(value: string) { return ({ admin: 'Administrador', usuario: 'Usuário', comum: 'Usuário comum' } as Record<string, string>)[value] || value }
 const canCreate = computed(() => auth.can('usuarios', 'criar'))
 const canEdit = computed(() => auth.can('usuarios', 'editar'))
@@ -103,13 +110,16 @@ onMounted(load)
 </script>
 
 <style scoped>
-.users-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.users-toolbar { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
 .users-search { flex: 1; max-width: 480px; min-width: 180px; margin-bottom: 0 !important; }
 .users-search :deep(input) { border-radius: 8px; }
-.users-count { font-size: 13px; color: #667085; white-space: nowrap; }
+.users-status-filter { min-width: 150px; }
+.users-status-filter :deep(select) { border-radius: 8px; }
+.users-count { font-size: 13px; color: #667085; white-space: nowrap; padding-bottom: 12px; }
 .users-loading { padding: 40px 16px; text-align: center; font-size: 14px; color: #667085; }
 .users-table { border-radius: 8px; }
 .users-name { font-weight: 500; min-width: 180px; }
+.users-email { min-width: 180px; overflow-wrap: anywhere; }
 .users-table :deep(td) { vertical-align: middle; }
 .users-table :deep(.users-actions-heading), .users-actions { width: 116px; text-align: right; white-space: nowrap; }
 :deep(.users-actions-trigger) { border: 1px solid #d1d5db !important; border-radius: 6px; padding: 7px 10px !important; background: white !important; font-size: 13px; color: #374151; }
