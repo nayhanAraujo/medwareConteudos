@@ -1,5 +1,9 @@
 # Recuperação de senha por e-mail
 
+O campo de login aceita usuário ou e-mail corporativo cadastrado em `USUARIO.EMAIL`, com a mesma senha atual. Caixa e espaços nas extremidades são ignorados. Conta inativa ou identificador que corresponda a mais de uma conta ativa é rejeitado com mensagem genérica. O contrato de login continua recebendo `usuario` e `senha`.
+
+Para preencher os e-mails a partir de `usuariosMedware.html`, execute manualmente `docs/sql/scripts/update-emails-corporativos-conteudo.sql` após a migração, com conexão UTF8 e autocommit desativado. O script contém 77 e-mails válidos e usa nome completo ou login; não usa os códigos do sistema de origem. Um registro vazio e o e-mail inválido de Carlos Renato foram excluídos. Leia todo o resultado, confira os casos sem correspondência/ambíguos/conflitantes e só então execute `COMMIT` ou `ROLLBACK`. Esse preenchimento é separado das migrações automáticas do pipeline. Para regenerar o arquivo, use `python -X utf8 tools/generate-corporate-email-updates.py docs/usuariosMedware.html docs/sql/scripts/update-emails-corporativos-conteudo.sql`.
+
 O login oferece `/forgot-password`, que recebe o e-mail cadastrado. O link enviado abre `/reset-password#token=...`. O token é retirado da URL após a leitura, fica em memória e nunca é armazenado no navegador. Recarregar a página após a limpeza exige abrir novamente o link recebido.
 
 ## Configuração e implantação

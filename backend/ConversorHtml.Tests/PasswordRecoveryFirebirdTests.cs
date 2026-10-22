@@ -1,5 +1,7 @@
 using Dapper;
+using System.Text.RegularExpressions;
 using FirebirdSql.Data.FirebirdClient;
+using FirebirdSql.Data.Isql;
 using Microsoft.Extensions.Options;
 using MdwConteudos.Api.Configuration;
 using MdwConteudos.Api.Infrastructure;
@@ -115,6 +117,80 @@ public sealed class PasswordRecoveryFirebirdTests : IAsyncLifetime
         await using var conn = await factory.OpenConnectionAsync();
         await Assert.ThrowsAsync<FbException>(() => conn.ExecuteAsync("UPDATE USUARIO SET EMAIL=' NAME@EXAMPLE.TEST ' WHERE IDENTIFICACAO='other'"));
     }
+
+    [FirebirdPublicationFact]
+    public async Task LoginAcceptsUsernameOrCorporateEmailWithSamePassword()
+    {
+        var auth = new AuthService(factory, Options.Create(new WebAuthOptions { JwtSecret = new string('s', 48) }));
+        var username = await auth.LoginAsync(" LOGIN ", "old-password");
+        var email = await auth.LoginAsync(" NAME@Example.Test ", "old-password");
+        Assert.True(username.Success);
+        Assert.True(email.Success);
+        Assert.Equal(username.User, email.User);
+        Assert.False((await auth.LoginAsync("name@example.test", "wrong-password")).Success);
+        Assert.False((await auth.LoginAsync("missing@example.test", "old-password")).Success);
+        await using var conn = await factory.OpenConnectionAsync();
+        await conn.ExecuteAsync("UPDATE USUARIO SET STATUS=0");
+        Assert.False((await auth.LoginAsync("name@example.test", "old-password")).Success);
+        await conn.ExecuteAsync("UPDATE USUARIO SET STATUS=-1,EMAIL=NULL");
+        Assert.True((await auth.LoginAsync("login", "old-password")).Success);
+        await conn.ExecuteAsync("UPDATE USUARIO SET SENHA=NULL");
+        Assert.False((await auth.LoginAsync("login", "old-password")).Success);
+    }
+
+    [FirebirdPublicationFact]
+    public async Task AmbiguousLoginAndEmailAreRejectedRegardlessOfPassword()
+    {
+        var auth = new AuthService(factory, Options.Create(new WebAuthOptions { JwtSecret = new string('s', 48) }));
+        await using var conn = await factory.OpenConnectionAsync();
+        await conn.ExecuteAsync("INSERT INTO USUARIO (NOME,IDENTIFICACAO,SENHA,PERFIL,STATUS) VALUES ('Other','name@example.test',@hash,'usuario',-1)", new { hash = PasswordHasher.Sha256Hex("other-password") });
+        Assert.False((await auth.LoginAsync("name@example.test", "old-password")).Success);
+        Assert.False((await auth.LoginAsync("name@example.test", "other-password")).Success);
+    }
+
+    [FirebirdPublicationFact]
+    public async Task CorporateEmailScriptMatchesSafelySupportsRollbackAndCanRepeat()
+    {
+        var root = new DirectoryInfo(Environment.GetEnvironmentVariable("PUBLICACAO_TEST_REPO") ?? Directory.GetCurrentDirectory());
+        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "docs", "sql", "scripts"))) root = root.Parent;
+        Assert.NotNull(root);
+        var sql = await File.ReadAllTextAsync(Path.Combine(root.FullName, "docs", "sql", "scripts", "update-emails-corporativos-conteudo.sql"));
+        var inputs = Regex.Matches(sql, @"SELECT CAST\('(?<login>(?:''|[^'])*)'.*?CAST\('(?<name>(?:''|[^'])*)'.*?CAST\('(?<email>(?:''|[^'])*)' AS VARCHAR\(254\)")
+            .Select(m => new { Login = m.Groups["login"].Value.Replace("''", "'"), Name = m.Groups["name"].Value.Replace("''", "'"), Email = m.Groups["email"].Value }).ToList();
+        Assert.Equal(77, inputs.Count);
+        var script = new FbScript(Regex.Replace(sql, @"(?m)^--[^\r\n]*", ""));
+        script.Parse();
+        var statement = Assert.Single(script.Results).Text;
+        await using var conn = await factory.OpenConnectionAsync();
+        async Task Seed(string name, string login, string? email = null) =>
+            await conn.ExecuteAsync("INSERT INTO USUARIO (NOME,IDENTIFICACAO,EMAIL,SENHA,PERFIL,STATUS) VALUES (@name,@login,@email,'unchanged','usuario',-1)", new { name, login, email });
+        await Seed(inputs[0].Name, "target-first", "previous@example.test");
+        await Seed("Other second name", inputs[1].Login);
+        await Seed(inputs[2].Name, "ambiguous-first");
+        await Seed("Other ambiguous name", inputs[2].Login);
+        await Seed(inputs[3].Name, "email-conflict");
+        await Seed("Email already in use", "email-owner", inputs[3].Email);
+        await Seed(inputs[4].Name, inputs[5].Login);
+        var id = await conn.ExecuteScalarAsync<int>("SELECT CODUSUARIO FROM USUARIO WHERE IDENTIFICACAO='target-first'");
+        await conn.ExecuteAsync("INSERT INTO PASSWORD_RESET (TOKEN_HASH,CODUSUARIO,CREATED_UTC,EXPIRES_UTC) VALUES ('before-import',@id,@now,@expires)", new { id, now = Now, expires = Now.AddMinutes(30) });
+        await using (var tx = await conn.BeginTransactionAsync())
+        {
+            var results = (await conn.QueryAsync<ImportRow>(statement, transaction: tx)).ToList();
+            Assert.Equal(2, results.Count(r => r.RESULTADO == "ATUALIZADO"));
+            Assert.Equal("CORRESPONDENCIA_AMBIGUA", results.Single(r => r.EMAIL_CORPORATIVO == inputs[2].Email).RESULTADO);
+            Assert.Equal("EMAIL_EM_USO", results.Single(r => r.EMAIL_CORPORATIVO == inputs[3].Email).RESULTADO);
+            Assert.Equal(2, results.Count(r => r.RESULTADO == "DESTINO_COM_VARIAS_FONTES"));
+            await tx.RollbackAsync();
+        }
+        Assert.Equal("previous@example.test", await conn.ExecuteScalarAsync<string>("SELECT EMAIL FROM USUARIO WHERE CODUSUARIO=@id", new { id }));
+        Assert.Equal(2, (await conn.QueryAsync<ImportRow>(statement)).Count(r => r.RESULTADO == "ATUALIZADO"));
+        Assert.Equal(inputs[0].Email, await conn.ExecuteScalarAsync<string>("SELECT EMAIL FROM USUARIO WHERE CODUSUARIO=@id", new { id }));
+        Assert.Equal("unchanged", await conn.ExecuteScalarAsync<string>("SELECT SENHA FROM USUARIO WHERE CODUSUARIO=@id", new { id }));
+        Assert.False(await store.RedeemAsync("before-import", "pw", Now.AddMinutes(1), default));
+        Assert.Equal(2, (await conn.QueryAsync<ImportRow>(statement)).Count(r => r.RESULTADO == "JA_ATUALIZADO"));
+    }
+
+    private sealed record ImportRow(string LOGIN_ORIGEM, string NOME_ORIGEM, string EMAIL_CORPORATIVO, int? CODUSUARIO_DESTINO, string RESULTADO);
 
     private sealed class Factory(string connectionString) : IFirebirdConnectionFactory
     {

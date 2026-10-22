@@ -5,7 +5,7 @@
       <p class="text-sm text-gray-600">Sistema de Gestão de Conteúdos</p>
     </div>
     <form class="space-y-4" @submit.prevent="onSubmit">
-      <DsInput v-model="usuario" placeholder="Usuário" autocomplete="username" required />
+      <DsInput v-model="usuario" label="Usuário ou e-mail corporativo" placeholder="Usuário ou e-mail corporativo" autocomplete="username" required />
       <DsInput v-model="senha" type="password" placeholder="Senha" autocomplete="current-password" required />
       <DsButton type="submit" block :loading="loading" :disabled="loading">
         {{ loading ? 'Entrando...' : 'Entrar' }}

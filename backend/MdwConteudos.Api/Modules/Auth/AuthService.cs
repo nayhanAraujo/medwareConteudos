@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Dapper;
 using Microsoft.Extensions.Options;
@@ -21,6 +22,7 @@ file class UsuarioRow
     public int CODUSUARIO { get; set; }
     public string NOME { get; set; } = "";
     public string PERFIL { get; set; } = "";
+    public string SENHA { get; set; } = "";
 }
 
 public class AuthService : IAuthService
@@ -53,12 +55,15 @@ public class AuthService : IAuthService
 
         var hash = PasswordHasher.Sha256Hex(senha);
         await using var conn = await _db.OpenConnectionAsync(ct);
-        var row = await conn.QueryFirstOrDefaultAsync<UsuarioRow>(
-            @"SELECT CODUSUARIO, NOME, PERFIL FROM USUARIO
-              WHERE IDENTIFICACAO = @id AND SENHA = @hash AND STATUS = -1",
-            new { id, hash });
-        if (row is null)
-            return new LoginResponse(false, null, null, "Usuário ou senha inválidos.");
+        var matches = (await conn.QueryAsync<UsuarioRow>(new CommandDefinition(
+            @"SELECT FIRST 2 CODUSUARIO, NOME, PERFIL, SENHA FROM USUARIO
+              WHERE (LOWER(TRIM(IDENTIFICACAO)) = @id OR LOWER(TRIM(EMAIL)) = @id) AND STATUS = -1",
+            new { id }, cancellationToken: ct))).ToList();
+        // Reject ambiguous identifiers even if only one account has the supplied password.
+        if (matches.Count != 1 || !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(matches[0].SENHA ?? ""), Encoding.UTF8.GetBytes(hash)))
+            return new LoginResponse(false, null, null, "Usuário, e-mail ou senha inválidos.");
+        var row = matches[0];
 
         var user = new SessionUser(row.CODUSUARIO, row.NOME, row.PERFIL);
         return new LoginResponse(true, CreateWebToken(user), user, null);
