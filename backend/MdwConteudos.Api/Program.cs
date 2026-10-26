@@ -13,6 +13,7 @@ using MdwConteudos.Api.Modules.Assistente.Vinculos;
 using MdwConteudos.Api.Modules.Assistente.Publicacao;
 using MdwConteudos.Api.Modules.Auth;
 using MdwConteudos.Api.Modules.Auditoria;
+using MdwConteudos.Api.Modules.Orcamentos;
 using MdwConteudos.Api.Modules.Cadastros;
 using MdwConteudos.Api.Modules.Dashboard;
 using MdwConteudos.Api.Modules.Documentation;
@@ -108,6 +109,11 @@ builder.Services.Configure<PublicacaoOptions>(builder.Configuration.GetSection("
 builder.Services.AddScoped<PublicacaoService>();
 builder.Services.AddHostedService<PublicacaoWorker>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<OrcamentoService>();
+builder.Services.AddScoped<IQuoteEmailSender, QuoteEmailSender>();
+builder.Services.Configure<OrcamentoAiOptions>(builder.Configuration.GetSection("OrcamentosAI"));
+builder.Services.AddScoped<IQuoteAiProvider, CursorQuoteAiProvider>();
+builder.Services.AddHostedService<OrcamentoAiWorker>();
 builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();
 builder.Services.AddScoped<IPasswordRecoveryStore, FirebirdPasswordRecoveryStore>();
 builder.Services.AddScoped<IRecoveryEmailSender, RecoveryEmailSender>();
@@ -282,6 +288,7 @@ using (var scope = app.Services.CreateScope())
 {
     using var auditScope = app.Services.CreateScope();
     await AuditSchema.ValidateAsync(auditScope.ServiceProvider.GetRequiredService<IFirebirdConnectionFactory>());
+    await OrcamentoSchema.ValidateAsync(auditScope.ServiceProvider.GetRequiredService<IFirebirdConnectionFactory>());
 }
 await HomologacaoTestUser.EnsureAsync(app);
 app.UseForwardedHeaders();

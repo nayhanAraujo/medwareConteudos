@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
@@ -19,6 +20,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets/Pacotes/*.png" />
+    <EmbeddedResource Include="Assets/Fonts/DejaVuSans.ttf" />
+    <EmbeddedResource Include="Assets/Fonts/LICENSE-DejaVu.txt" />
     <EmbeddedResource Include="../sql/script-avaliacoes.sql" LogicalName="script-avaliacoes.sql" />
   </ItemGroup>
   <ItemGroup>

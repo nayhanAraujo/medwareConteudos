@@ -36,8 +36,8 @@ public sealed class AuditQuery
 
 public static class AuditCatalog
 {
-    public static readonly string[] Modules = ["autenticacao", "usuarios", "permissoes", "scripts", "paineis", "relatorios", "variaveis", "formulas", "referencias", "pacotes", "cadastros"];
-    public static readonly string[] Actions = ["criar", "editar", "excluir", "ativar", "inativar", "aprovar", "reprovar", "vincular", "desvincular", "importar", "upload", "remover_anexo", "login", "redefinir_senha", "alterar_senha", "download", "exportar", "acesso_negado"];
+    public static readonly string[] Modules = ["autenticacao", "usuarios", "permissoes", "scripts", "paineis", "relatorios", "variaveis", "formulas", "referencias", "pacotes", "cadastros", "orcamentos"];
+    public static readonly string[] Actions = ["criar", "editar", "excluir", "ativar", "inativar", "aprovar", "reprovar", "vincular", "desvincular", "importar", "upload", "remover_anexo", "login", "redefinir_senha", "alterar_senha", "download", "exportar", "acesso_negado", "analise", "solicitar_aprovacao", "devolver", "enviar", "aceitar", "confirmar_pagamento", "encaminhar", "recusar", "cancelar", "arquivar", "nova_revisao", "analisar_ia", "cancelar_ia", "aplicar_ia", "resultado_ia", "importar_email", "confirmar_email", "email_autorizado", "email_revogado", "email_iniciado", "email_enviado", "email_incerto"];
     public static readonly string[] Results = ["sucesso", "falha", "negado", "iniciado"];
 
     public static string Utc(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Utc).ToString("O", CultureInfo.InvariantCulture);

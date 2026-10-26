@@ -34,6 +34,7 @@ public sealed class DatabaseMigrationsTests
                 await conn.ExecuteAsync("CREATE TABLE MODULORELATORIO (CODMODULO INTEGER PRIMARY KEY)");
                 await conn.ExecuteAsync("CREATE TABLE SCRIPTLAUDO (CODSCRIPTLAUDO INTEGER PRIMARY KEY)");
                 await conn.ExecuteAsync("CREATE TABLE SCRIPTVERSOES (CODVERSAO INTEGER PRIMARY KEY)");
+                await conn.ExecuteAsync("CREATE TABLE CLIENTES (CODCLIENTE INTEGER PRIMARY KEY,NOME VARCHAR(100),STATUS INTEGER)");
             }
             await permissions.EnsureSchemaAsync();
             await using (var conn = await factory.OpenConnectionAsync())
@@ -77,6 +78,9 @@ public sealed class DatabaseMigrationsTests
                 Assert.Equal("custom-icon", await conn.ExecuteScalarAsync<string>("SELECT ICONE_BASE64 FROM PACOTES WHERE CODPACOTE=1"));
                 Assert.Equal(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM PERFIL_PERMISSAO WHERE PERFIL='usuario' AND CHAVE='scripts.editar'"));
                 Assert.Equal("NEGAR", await conn.ExecuteScalarAsync<string>("SELECT MODO FROM USUARIO_PERMISSAO WHERE CODUSUARIO=42"));
+                Assert.Equal(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='ORCAMENTO'"));
+                Assert.Equal(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ORCAMENTOPOLITICA"));
+                Assert.Equal(0, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM PERFIL_PERMISSAO WHERE PERFIL='usuario' AND CHAVE='orcamentos.visualizar'"));
             }
         }
         finally { FbConnection.DropDatabase(cs); }

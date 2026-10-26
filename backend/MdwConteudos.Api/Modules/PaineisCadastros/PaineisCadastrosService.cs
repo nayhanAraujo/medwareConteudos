@@ -84,6 +84,13 @@ public sealed class PaineisCadastrosService(IFirebirdConnectionFactory connectio
             if (links > 0)
                 throw new InvalidOperationException($"O registro possui {links} painel(is) vinculado(s) e não pode ser excluído.");
 
+            if (tipo == PainelCadastroTipo.Cliente && await connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='ORCAMENTO'", transaction: transaction, cancellationToken: ct)) > 0
+                && await connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM ORCAMENTO WHERE CODCLIENTE=@Id", new { Id = id }, transaction, cancellationToken: ct)) > 0)
+                throw new InvalidOperationException("O cliente possui histórico de orçamentos e não pode ser excluído.");
+            if (tipo == PainelCadastroTipo.Cliente && await connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='CLIENTECOMERCIAL'", transaction: transaction, cancellationToken: ct)) > 0
+                && await connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM CLIENTECOMERCIAL WHERE CODCLIENTE=@Id", new { Id = id }, transaction, cancellationToken: ct)) > 0)
+                throw new InvalidOperationException("O cliente possui dados comerciais e não pode ser excluído.");
+
             var affected = await connection.ExecuteAsync(new CommandDefinition(
                 $"DELETE FROM {definition.Table} WHERE {definition.IdColumn} = @Id",
                 new { Id = id }, transaction, cancellationToken: ct));

@@ -81,7 +81,7 @@ public sealed class AuditMiddleware(RequestDelegate next)
             "scripts" => "scripts", "paineis" => "paineis", "relatorios" => "relatorios", "variaveis" => "variaveis",
             "formulas" => "formulas", "referencias" or "normalidades" => "referencias", "pacotes" => "pacotes",
             "cadastros" or "unidades" or "linguagens" or "especialidades" or "autores" or "classificacoes" or "grupos" or "codigos" or "clientes" or "modulos" => "cadastros",
-            "auditoria" => "cadastros", _ => null
+            "auditoria" => "cadastros", "orcamentos" => "orcamentos", _ => null
         };
     }
 }

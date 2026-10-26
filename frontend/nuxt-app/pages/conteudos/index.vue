@@ -8,6 +8,7 @@
 
     <div class="max-w-[90rem] mx-auto">
       <DsPageShell>
+        <DsEmptyState v-if="!visibleCards.length" icon="lock" title="Nenhum módulo disponível" />
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <DsHubCard
             v-for="(card, index) in visibleCards"
@@ -27,118 +28,16 @@
 </template>
 
 <script setup lang="ts">
-import type { DsThemeName } from '~/composables/useDsTheme'
+import { contentModules, type ContentModule } from '~/utils/contentNavigation'
 
 definePageMeta({ layout: 'default' })
 
-interface ContentCard {
-  type: string
-  title: string
-  desc: string
-  icon: string
-  themeName: DsThemeName
-  badge?: string
-  hidden?: boolean
-  nuxtPath?: string
-  flaskPath?: string
-  externalUrl?: string
-}
-
 const { irOuMigracao } = useMigracao()
 
-const cards: ContentCard[] = [
-  {
-    type: 'avaliacoes', title: 'Central de Avaliações', desc: 'Avaliações e acompanhamento dos modelos',
-    icon: 'chat-square-heart', themeName: 'green', nuxtPath: '/avaliacoes'
-  },
-  {
-    type: 'modelos_laudos',
-    title: 'Modelos de Laudos',
-    desc: 'Scripts e modelos para laudos médicos',
-    icon: 'file-earmark-medical',
-    themeName: 'blue',
-    badge: 'Mais usado',
-    nuxtPath: '/scripts/sistema'
-  },
-  {
-    type: 'mensagens_personalizadas',
-    title: 'Grupo de frases',
-    desc: 'Banco de frases e grupos do Assistente',
-    icon: 'quote',
-    themeName: 'green',
-    nuxtPath: '/assistente/frases'
-  },
-  {
-    type: 'painel_api',
-    title: 'Painéis',
-    desc: 'Dashboards e relatórios via API',
-    icon: 'bar-chart-line',
-    themeName: 'orange',
-    nuxtPath: '/paineis',
-    flaskPath: '/paineis/selecionar_tipo_listagem'
-  },
-  {
-    type: 'relatorios',
-    title: 'Relatórios',
-    desc: 'Relatórios personalizados e documentos',
-    icon: 'file-earmark-bar-graph',
-    themeName: 'gray',
-    nuxtPath: '/relatorios',
-    flaskPath: '/relatorios'
-  },
-  {
-    type: 'banco_referencias',
-    title: 'Banco de referências',
-    desc: 'Banco de referências e variáveis',
-    icon: 'database',
-    themeName: 'purple',
-    nuxtPath: '/variaveis'
-  },
-  {
-    type: 'impressos',
-    title: 'Impressos',
-    desc: 'Impressos e documentos MRD com scripts VBS',
-    icon: 'printer',
-    themeName: 'slate',
-    nuxtPath: '/impressos',
-    flaskPath: '/impressos'
-  },
-  {
-    type: 'modelos_mensagens',
-    title: 'Modelos de mensagens',
-    desc: 'Grupos e modelos de mensagens reutilizáveis',
-    icon: 'chat-square-text',
-    themeName: 'purple',
-    nuxtPath: '/conteudos/modelos-mensagens'
-  },
-  {
-    type: 'assistente',
-    title: 'Assistente',
-    desc: 'Gerencie procedimentos, scripts e modelos do banco Assistente',
-    icon: 'database-gear',
-    themeName: 'dark',
-    nuxtPath: '/assistente'
-  },
-  {
-    type: 'studio',
-    title: 'Studio',
-    desc: 'Converta imagens de laudos em HTML compatível com LaudosUX',
-    icon: 'magic',
-    themeName: 'rose',
-    nuxtPath: '/studio'
-  }
-]
-
 const auth = useAuthStore()
-const visibleCards = computed(() => cards.filter((card) => !card.hidden && (card.type !== 'avaliacoes' || auth.can('avaliacoes', 'visualizar'))))
+const visibleCards = computed(() => contentModules.filter(card => auth.can(card.domain, 'visualizar')))
 
-function onSelect(card: ContentCard) {
-  if (card.externalUrl) {
-    if (import.meta.client) {
-      window.open(card.externalUrl, '_blank', 'noopener,noreferrer')
-    }
-    return
-  }
-  irOuMigracao(card.nuxtPath, card.flaskPath)
+function onSelect(card: ContentModule) {
+  if (auth.can(card.domain, 'visualizar')) irOuMigracao(card.nuxtPath)
 }
 </script>

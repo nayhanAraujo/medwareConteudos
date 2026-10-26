@@ -24,6 +24,7 @@ public static class PermissionDomains
     public const string Configuracoes = "configuracoes";
     public const string AprovacaoConteudo = "aprovacao-conteudo";
     public const string Studio = "studio";
+    public const string Orcamentos = "orcamentos";
 }
 
 public static class PermissionActions
@@ -136,7 +137,7 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
 
         foreach (var perfil in firstInstall ? new[] { "usuario", "comum" } : Array.Empty<string>())
         {
-            foreach (var chave in Seed.Where(x => x.Acao == PermissionActions.Visualizar && x.Dominio != PermissionDomains.Studio).Select(x => x.Chave))
+            foreach (var chave in Seed.Where(x => x.Acao == PermissionActions.Visualizar && x.Dominio != PermissionDomains.Studio && x.Dominio != PermissionDomains.Orcamentos).Select(x => x.Chave))
             {
                 await conn.ExecuteAsync("""
                     UPDATE OR INSERT INTO PERFIL_PERMISSAO (PERFIL, CHAVE, DTHRULTMODIFICACAO)
@@ -367,6 +368,7 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
         var map = new Dictionary<string, string[]>
         {
             [PermissionDomains.Studio] = [PermissionActions.Visualizar, PermissionActions.Converter, PermissionActions.Voz],
+            [PermissionDomains.Orcamentos] = ["visualizar", "elaborar", "usar_ia", "aprovar", "registrar_marcos", "configurar_precos", "configurar_clientes", "configurar_regras", "importar_email", "confirmar_email", "enviar_email_confirmado"],
             [PermissionDomains.Biblioteca] = [PermissionActions.Visualizar],
             [PermissionDomains.AprovacaoConteudo] = [PermissionActions.Visualizar, PermissionActions.Aprovar],
             [PermissionDomains.Conteudos] = [PermissionActions.Visualizar, PermissionActions.Criar, PermissionActions.Editar, PermissionActions.Excluir, PermissionActions.Importar, PermissionActions.Exportar, PermissionActions.Ativar],
@@ -394,6 +396,16 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
         => value switch
         {
             "paineis" => "painéis",
+            "orcamentos" => "orçamentos",
+            "elaborar" => "Elaborar/editar",
+            "usar_ia" => "Usar IA",
+            "registrar_marcos" => "Registrar marcos comerciais",
+            "importar_email" => "Importar solicitações de e-mail",
+            "confirmar_email" => "Confirmar origem e autorizar envio por bot",
+            "enviar_email_confirmado" => "Executar envio autorizado de proposta",
+            "configurar_precos" => "Configurar preços",
+            "configurar_clientes" => "Configurar dados comerciais de clientes",
+            "configurar_regras" => "Configurar regras técnicas de orçamentos",
             "variaveis" => "variáveis",
             "formulas" => "fórmulas",
             "referencias" => "referências",

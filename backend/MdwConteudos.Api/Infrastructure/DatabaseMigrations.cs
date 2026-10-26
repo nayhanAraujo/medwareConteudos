@@ -1,6 +1,7 @@
 using MdwConteudos.Api.Modules.Avaliacoes;
 using MdwConteudos.Api.Modules.Auth;
 using MdwConteudos.Api.Modules.Auditoria;
+using MdwConteudos.Api.Modules.Orcamentos;
 using MdwConteudos.Api.Modules.Cadastros;
 using MdwConteudos.Api.Modules.Permissions;
 using MdwConteudos.Api.Modules.Web;
@@ -22,6 +23,7 @@ public static class DatabaseMigrations
             ("package-icons", () => PacoteIcone.MigrateAsync(db, ct)),
             ("report-module-icons", () => ModuloRelatorioIcone.MigrateAsync(db, ct)),
             ("evaluations", () => AvaliacaoSchema.MigrateAsync(db, ct)),
+            ("orcamentos", () => OrcamentoSchema.MigrateAsync(db, ct)),
             ("audit", () => AuditSchema.MigrateAsync(db, ct))
         };
         foreach (var step in steps)

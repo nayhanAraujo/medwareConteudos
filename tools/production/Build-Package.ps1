@@ -77,6 +77,7 @@ try {
     Invoke-Checked npm.cmd @('ci')
     Invoke-Checked npm.cmd @('run','test:docs')
     Invoke-Checked npm.cmd @('run','test:auditoria')
+    Invoke-Checked npm.cmd @('run','test:orcamentos')
     Invoke-Checked npm.cmd @('run','build')
     Copy-Item -LiteralPath '.output' -Destination "$output/nuxt" -Recurse
 } finally {
@@ -85,6 +86,9 @@ try {
     Pop-Location
 }
 Copy-Item -LiteralPath "$source/backend/agent-bridge" -Destination "$output/api/agent-bridge" -Recurse
+Copy-Item -LiteralPath "$source/backend/quote-ai-bridge" -Destination "$output/api/quote-ai-bridge" -Recurse
+Push-Location "$output/api/quote-ai-bridge"
+try { Invoke-Checked npm.cmd @('ci','--omit=dev'); Invoke-Checked npm.cmd @('test') } finally { Pop-Location }
 Push-Location "$output/api/agent-bridge"
 try { Invoke-Checked npm.cmd @('ci','--omit=dev') } finally { Pop-Location }
 Copy-Item -LiteralPath "$source/backend/manual_scripts_html_UX.md" -Destination $output
@@ -100,7 +104,7 @@ foreach ($file in Get-ChildItem $output -Recurse -File) {
         throw "Forbidden file in package: $($file.Name)"
     }
 }
-foreach ($required in @('api/MdwConteudos.Api.dll','api/appsettings.json','api/appsettings.Production.json','api/agent-bridge/node_modules/@cursor/sdk','nuxt/server/index.mjs')) {
+foreach ($required in @('api/MdwConteudos.Api.dll','api/appsettings.json','api/appsettings.Production.json','api/agent-bridge/node_modules/@cursor/sdk','api/quote-ai-bridge/node_modules/@cursor/sdk','api/quote-ai-bridge/analyze.mjs','nuxt/server/index.mjs')) {
     if (-not (Test-Path "$output/$required")) { throw "Incomplete package: $required" }
 }
 $head = & git -C $repo rev-parse HEAD
