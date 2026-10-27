@@ -63,6 +63,7 @@
                   <input v-model="checkedScripts" type="checkbox" :value="item.id" class="mt-1 shrink-0">
                   <div class="min-w-0">
                     <NuxtLink :to="`/scripts/${item.id}/editar`" class="break-words font-semibold">#{{ item.id }} · {{ item.nome }}</NuxtLink>
+                    <p v-if="item.codUniversal" class="mt-1 break-all font-mono text-xs text-gray-600">{{ item.codUniversal }}</p>
                     <div class="mt-2 flex flex-wrap gap-2 text-sm">
                       <DsBadge :variant="item.usaRegraEspecifica ? 'primary' : 'neutral'">{{ item.usaRegraEspecifica ? 'Regra específica' : 'Padrão do pacote' }}</DsBadge>
                       <DsBadge :variant="item.ativo === 1 ? 'success' : 'danger'">{{ item.ativo === 1 ? 'Ativo' : 'Inativo' }}</DsBadge>
@@ -139,6 +140,7 @@
             <div class="min-w-0 flex-1 basis-60">
               <p v-if="item.excluidoOrigem" class="break-words font-semibold">#{{ item.id }} · Script excluído na origem</p>
               <NuxtLink v-else :to="`/scripts/${item.id}/editar`" class="break-words font-semibold">#{{ item.id }} · {{ item.nome }}</NuxtLink>
+              <p v-if="item.codUniversal" class="mt-1 break-all font-mono text-xs text-gray-600">{{ item.codUniversal }}</p>
               <div class="mt-2 flex flex-wrap gap-2 text-sm">
                 <DsBadge :variant="stateVariant(item.estado)">{{ stateLabel(item.estado) }}</DsBadge>
                 <DsBadge v-if="!item.excluidoOrigem" :variant="item.aprovadoPublicacao ? 'success' : 'warning'">{{ approvalText(item) }}</DsBadge>
@@ -215,6 +217,7 @@ const swal = useSwal()
 const root = '/api/web/assistente/publicacao'
 type Option = { id: number; nome: string }
 type Publication = {
+  codUniversal?: string
   excluidoOrigem: boolean
   id: number
   nome: string
@@ -233,6 +236,7 @@ type Publication = {
   especialidadesDestino: string[]
 }
 type PackageScript = {
+  codUniversal?: string
   id: number
   nome: string
   sistema?: string
@@ -364,6 +368,7 @@ async function loadPackageScripts() {
   if (scriptSearch.value.trim()) query.set('search', scriptSearch.value.trim())
   const result = await api.get<{ items: Record<string, unknown>[]; total: number }>(`${root}/pacotes/${packageId.value}/scripts?${query}`)
   packageScripts.value = result.items.map(row => ({
+    codUniversal: read<string | undefined>(row, 'codUniversal', undefined),
     id: Number(read(row, 'id', 0)),
     nome: String(read(row, 'nome', '')),
     sistema: read<string | undefined>(row, 'sistema', undefined),
@@ -400,6 +405,7 @@ function names(ids: number[]) {
 }
 function mapPublication(row: Record<string, unknown>): Publication {
   return {
+    codUniversal: read<string | undefined>(row, 'codUniversal', undefined),
     excluidoOrigem: Boolean(read(row, 'excluidoOrigem', false)),
     id: Number(read(row, 'id', 0)),
     nome: String(read(row, 'nome', '') ?? ''),

@@ -142,7 +142,7 @@ public static class ApiPublicaOpenApiExamples
     public static JsonNode ModuloRelatorio404 => Node(new { success = false, error = "Modulo ou icone nao encontrado" });
     private static JsonObject Script => (JsonObject)Node(new
     {
-        codscriptlaudo = 20, nome = "Modelo demonstrativo", descricao = "Exemplo sintético",
+        codscriptlaudo = 20, coduniversal = "MOD-000020", nome = "Modelo demonstrativo", descricao = "Exemplo sintético",
         linguagem = "JavaScript", sistema = "Laudos UX", aprovado = true, data_verificacao = Ts,
         ativo = true, aprovado_por = "", pacote_nome = "Cardiologia", codpacote = 1,
         pacote_icone_url = "/apiconteudos/v1/pacotes/1/icone",

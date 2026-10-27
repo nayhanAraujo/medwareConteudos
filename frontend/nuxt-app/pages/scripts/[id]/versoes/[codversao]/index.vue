@@ -46,6 +46,7 @@
             <div class="flex flex-wrap justify-between gap-3 mb-4">
               <div>
                 <h3 class="font-semibold font-manrope text-ds-text">{{ versao.nomeScript }}</h3>
+                <p v-if="versao.codUniversal" class="text-sm font-mono break-all">{{ versao.codUniversal }}</p>
                 <p class="text-sm text-gray-600">{{ versao.sistema }} — {{ versao.linguagem || 'Não especificado' }}</p>
               </div>
               <div class="flex gap-2">

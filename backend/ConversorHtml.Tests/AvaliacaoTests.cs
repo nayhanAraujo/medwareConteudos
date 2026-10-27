@@ -160,9 +160,11 @@ public sealed class AvaliacaoTests : IAsyncLifetime
             IDictionary<string, object?> row = new ExpandoObject();
             foreach (var name in new[] { "NOME","DESCRICAO","LINGUAGEM","SISTEMA","APROVADO_POR","NOME_PACOTE" }) row[name] = "teste";
             row["CODSCRIPTLAUDO"] = id; row["APROVADO"] = 1; row["ATIVO"] = 1;
+            row["CODUNIVERSAL"] = $"MOD-{id:D6}";
             row["DATA_VERIFICACAO"] = null; row["CODPACOTE"] = 10; row["PACOTE_ICONE_BASE64"] = null;
             var result = await (Task<Dictionary<string, object?>>)map.Invoke(scripts, [conn, row, false, CancellationToken.None])!;
             Assert.True(result.ContainsKey("codversao"));
+            Assert.Equal($"MOD-{id:D6}", result["coduniversal"]);
             Assert.Equal(id == 1 ? (object)12 : null, result["codversao"]);
             Assert.False(result.ContainsKey("imagens"));
         }

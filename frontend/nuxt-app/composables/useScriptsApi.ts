@@ -65,6 +65,7 @@ export interface VersaoCreateMetaDto {
 }
 
 export interface ScriptVersionDetailDto {
+  codUniversal?: string
   ambienteAprovacao?: string | null
   codVersao: number
   codScriptLaudo: number
@@ -93,6 +94,7 @@ export interface ScriptVersionDetailDto {
 }
 
 export interface ScriptListItem {
+  codUniversal?: string
   ambienteAprovacao?: string | null
   codScriptLaudo: number
   codPacote?: number

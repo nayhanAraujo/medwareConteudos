@@ -177,6 +177,7 @@ public record PacoteItemDoc(
 public class ScriptItemDoc
 {
     [JsonPropertyName("codscriptlaudo")] public int Codscriptlaudo { get; set; }
+    [JsonPropertyName("coduniversal")] public string? CodUniversal { get; set; }
     [JsonPropertyName("nome")] public string? Nome { get; set; }
     [JsonPropertyName("descricao")] public string Descricao { get; set; } = "";
     [JsonPropertyName("linguagem")] public string Linguagem { get; set; } = "";

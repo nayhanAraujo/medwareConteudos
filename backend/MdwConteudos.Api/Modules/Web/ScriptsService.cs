@@ -186,7 +186,7 @@ public partial class ScriptsService
         var parameters = new DynamicParameters();
         if (!string.IsNullOrWhiteSpace(nome))
         {
-            where.Add("UPPER(s.NOME) LIKE UPPER(@nome)");
+            where.Add("(UPPER(s.NOME) LIKE UPPER(@nome) OR s.CODUNIVERSAL LIKE UPPER(@nome))");
             parameters.Add("nome", $"%{nome.Trim()}%");
         }
         if (sistema is "Laudos UX" or "Laudos Flex")
@@ -223,7 +223,7 @@ public partial class ScriptsService
         var sql = $@"
             SELECT FIRST @first SKIP @skip
                 s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.CAMINHO_PROJETO, s.SISTEMA,
-                s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.AMBIENTE_APROVACAO,
+                s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.AMBIENTE_APROVACAO, s.CODUNIVERSAL,
                 CASE WHEN s.ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                 s.APROVADO_POR, p.NOME AS NOME_PACOTE, s.CAMINHO_AZURE,
                 CASE WHEN s.DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL,
@@ -309,7 +309,7 @@ public partial class ScriptsService
                 imagens,
                 pdfs,
                 mrdList
-            ) { AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() });
+            ) { CodUniversal = d["CODUNIVERSAL"]?.ToString(), AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() });
         }
 
         return new PagedScriptsResponse(items, page, totalPages, total);
@@ -338,7 +338,7 @@ public partial class ScriptsService
         await using var conn = await OpenAuditConnectionAsync();
         var row = await conn.QueryFirstOrDefaultAsync(@"
             SELECT CODSCRIPTLAUDO, NOME, DESCRICAO, LINGUAGEM, CAMINHO_PROJETO, CAMINHO_AZURE, LINK_TESTE,
-                   SISTEMA, CODPACOTE, APROVADO, APROVADO_POR, AMBIENTE_APROVACAO, ATIVO, CRIADO_POR,
+                   SISTEMA, CODPACOTE, APROVADO, APROVADO_POR, AMBIENTE_APROVACAO, CODUNIVERSAL, ATIVO, CRIADO_POR,
                    CASE WHEN ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                    CASE WHEN DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL
             FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO = @id", new { id });
@@ -370,7 +370,7 @@ public partial class ScriptsService
             arquivos.Where(a => a.Tipo == "IMAGEM").ToList(),
             arquivos.Where(a => a.Tipo == "PDF").ToList(),
             vars
-        ) { AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() };
+        ) { CodUniversal = d["CODUNIVERSAL"]?.ToString(), AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() };
     }
 
     public async Task<bool> VerificarNomeAsync(string nome, int? excludeId = null)
@@ -775,7 +775,7 @@ public partial class ScriptsService
             SELECT sv.CODVERSAO, sv.CODSCRIPTLAUDO, sv.NUMERO_VERSAO,
                    sv.DESCRICAO_ALTERACOES, sv.ALTERACOES_INTERFACE, sv.ALTERACOES_CODIGO,
                    sv.DATA_CRIACAO, sv.USUARIO_RESPONSAVEL, sv.ATIVO, sv.APROVADO,
-                   sv.APROVADO_POR, sv.DATA_APROVACAO, sv.AMBIENTE_APROVACAO, sv.OBSERVACOES,
+                   sv.APROVADO_POR, sv.DATA_APROVACAO, sv.AMBIENTE_APROVACAO, s.CODUNIVERSAL, sv.OBSERVACOES,
                    CASE WHEN sv.ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                    CASE WHEN sv.ARQUIVO_DLL IS NOT NULL THEN 1 ELSE 0 END AS TEM_DLL,
                    s.NOME AS SCRIPT_NOME, s.DESCRICAO AS SCRIPT_DESCRICAO, s.SISTEMA,
@@ -817,7 +817,7 @@ public partial class ScriptsService
             arquivos.Where(a => a.Tipo == "PDF").ToList(),
             mrd,
             historico
-        ) { AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() };
+        ) { CodUniversal = d["CODUNIVERSAL"]?.ToString(), AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() };
     }
 
     private async Task<IReadOnlyList<ScriptVersionFileDto>> ListVersaoArquivosAsync(FbConnection conn, int codVersao)

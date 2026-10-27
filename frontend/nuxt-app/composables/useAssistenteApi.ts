@@ -1,6 +1,7 @@
 export type AssistenteEntity = Record<string, unknown> & {
   id?: number
   codigo?: number
+  codUniversal?: string | null
   status?: number | boolean
   dataModificacao?: string
 }
@@ -94,7 +95,7 @@ const domainFields: Record<string, Record<string, string>> = {
   referencias: { codigo: 'CODREFERENCIA', id: 'CODREFERENCIA', titulo: 'DESCRICAO', descricao: 'DESCRICAO', tipo: 'TIPO', conteudo: 'VALOR', valor: 'VALOR' },
   esquemas: { codigo: 'CODESQUEMA', id: 'CODESQUEMA', nome: 'DESCRICAO', descricao: 'DESCRICAO', conteudo: 'IMAGEM', imagem: 'IMAGEM' },
   'esquemas-fotos': { codigo: 'CODESQUEMAFOTOS', id: 'CODESQUEMAFOTOS', nome: 'TITULO', titulo: 'TITULO', conteudo: 'ESQUEMA', esquema: 'ESQUEMA' },
-  scripts: { codigo: 'CODSCRIPTLAUDO', id: 'CODSCRIPTLAUDO', titulo: 'TITULO', tipo: 'TIPOSCRIPT', tipoScript: 'TIPOSCRIPT', conteudo: 'ESTRUTURASCRIPT', estruturaScript: 'ESTRUTURASCRIPT', status: 'STATUS', dataModificacao: 'DATAMODIFICACAO', especialidades: 'ESPECIALIDADES', especialidade: 'ESPECIALIDADES' },
+  scripts: { codigo: 'CODSCRIPTLAUDO', id: 'CODSCRIPTLAUDO', codUniversal: 'CODUNIVERSAL', titulo: 'TITULO', tipo: 'TIPOSCRIPT', tipoScript: 'TIPOSCRIPT', conteudo: 'ESTRUTURASCRIPT', estruturaScript: 'ESTRUTURASCRIPT', status: 'STATUS', dataModificacao: 'DATAMODIFICACAO', especialidades: 'ESPECIALIDADES', especialidade: 'ESPECIALIDADES' },
   'paginas-fotos': { codigo: 'CODPAGFOTOS', id: 'CODPAGFOTOS', nome: 'TITULO', titulo: 'TITULO', conteudo: 'ESTRUTURAPAGFOTOS', estruturaPagFotos: 'ESTRUTURAPAGFOTOS', status: 'STATUS' }
 }
 

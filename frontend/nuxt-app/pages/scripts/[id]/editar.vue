@@ -1,6 +1,7 @@
 <template>
   <div>
     <DsPageHeader title="Editar Script" icon="pencil-fill" />
+    <p v-if="codUniversal" class="mb-4 font-mono text-sm break-all">{{ codUniversal }}</p>
     <ScriptsPublicationStatus :script-id="id" />
     <DsPageShell panel-class="!p-6 md:!p-8">
       <div v-if="loadingData" class="text-gray-500 py-8 text-center">Carregando...</div>
@@ -37,6 +38,7 @@ const swal = useSwal()
 
 const loading = ref(false)
 const loadingData = ref(true)
+const codUniversal = ref('')
 const pacotes = ref<{ codPacote: number; nome: string }[]>([])
 const fileRefs = ref<Record<string, File | FileList | null>>({})
 const existingImagens = ref<ScriptImagePreview[]>([])
@@ -62,6 +64,7 @@ onMounted(async () => {
   const [pacRes, scriptRes] = await Promise.all([scriptsApi.getPacotes(), scriptsApi.getScript(id)])
   pacotes.value = pacRes.data
   const s = scriptRes.data as Record<string, unknown>
+  codUniversal.value = String(s.codUniversal || '')
   form.value = {
     nome: String(s.nome || ''),
     criado_por: String(s.criadoPor || ''),

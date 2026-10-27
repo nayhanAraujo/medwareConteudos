@@ -37,6 +37,7 @@ public record ScriptListItemDto(
     IReadOnlyList<ScriptMrdDto> MrdList
 )
 {
+    public string? CodUniversal { get; init; }
     public string? AmbienteAprovacao { get; init; }
 }
 
@@ -69,6 +70,7 @@ public record ScriptDetailDto(
     IReadOnlyList<int> VariaveisAssociadas
 )
 {
+    public string? CodUniversal { get; init; }
     public string? AmbienteAprovacao { get; init; }
 }
 
@@ -149,6 +151,7 @@ public record ScriptVersionDetailDto(
     IReadOnlyList<ScriptVersionHistoryDto> Historico
 )
 {
+    public string? CodUniversal { get; init; }
     public string? AmbienteAprovacao { get; init; }
 }
 

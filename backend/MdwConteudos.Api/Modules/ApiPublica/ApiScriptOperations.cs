@@ -14,7 +14,7 @@ public class ApiScriptOperations
     private readonly bool _sandbox;
 
     private const string ScriptListSelect = @"
-        SELECT s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
+        SELECT s.CODSCRIPTLAUDO, s.CODUNIVERSAL, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
                s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.APROVADO_POR,
                p.NOME AS NOME_PACOTE, s.CODPACOTE,
                p.ICONE_BASE64 AS PACOTE_ICONE_BASE64
@@ -83,7 +83,7 @@ public class ApiScriptOperations
         var (where, p) = BuildWhere(sistema, aprovado, ativo, pacote, linguagem, new[] { "s.DATA_VERIFICACAO IS NOT NULL" });
         var sql = $@"
             SELECT FIRST 1
-            s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
+            s.CODSCRIPTLAUDO, s.CODUNIVERSAL, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.SISTEMA,
             s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.APROVADO_POR,
             p.NOME AS NOME_PACOTE, s.CODPACOTE,
             p.ICONE_BASE64 AS PACOTE_ICONE_BASE64
@@ -239,6 +239,7 @@ public class ApiScriptOperations
         var item = new Dictionary<string, object?>
         {
             ["codscriptlaudo"] = cod,
+            ["coduniversal"] = (string?)row.CODUNIVERSAL,
             ["nome"] = (string?)row.NOME,
             ["descricao"] = (string?)row.DESCRICAO ?? "",
             ["linguagem"] = (string?)row.LINGUAGEM ?? "",

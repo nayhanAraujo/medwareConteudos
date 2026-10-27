@@ -151,6 +151,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
             where.Add(@"(
                 UPPER(COALESCE(CAST(s.TITULO AS VARCHAR(512)), '')) LIKE @Search OR
                 UPPER(COALESCE(CAST(s.CODSCRIPTLAUDO AS VARCHAR(32)), '')) LIKE @Search OR
+                UPPER(COALESCE(s.CODUNIVERSAL, '')) LIKE @Search OR
                 EXISTS (
                     SELECT 1
                     FROM SCRIPTLAUDO_ESPECIALIDADE se_search

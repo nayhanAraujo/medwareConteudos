@@ -14,7 +14,7 @@
             <label class="block text-sm font-medium text-ds-text mb-1.5">Buscar</label>
             <DsSearchInput
               v-model="filtros.nome"
-              placeholder="Buscar por nome..."
+              placeholder="Buscar por nome ou código..."
               wrapper-class="mb-0"
               @enter="load(1)"
             />
@@ -96,6 +96,7 @@
             <div class="p-3 flex flex-col gap-1.5">
               <p class="text-xs font-mono text-gray-500">Código: {{ item.codScriptLaudo }}</p>
               <h3 class="font-semibold font-manrope text-sm text-ds-text line-clamp-2">{{ item.nome }}</h3>
+              <p v-if="item.codUniversal" class="text-xs font-mono text-ds-muted break-all">{{ item.codUniversal }}</p>
               <NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink>
               <div class="flex flex-wrap gap-1">
                 <DsBadge v-if="item.nomePacote" variant="primary">{{ item.nomePacote }}</DsBadge>
@@ -139,7 +140,7 @@
               />
             </td>
             <td class="font-mono whitespace-nowrap">{{ item.codScriptLaudo }}</td>
-            <td>{{ item.nome }}<NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="block text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink></td>
+            <td>{{ item.nome }}<span v-if="item.codUniversal" class="block text-xs font-mono break-all">{{ item.codUniversal }}</span><NuxtLink v-if="publications[item.codScriptLaudo]" to="/scripts/publicacao" class="block text-xs underline">Assistente: {{ publications[item.codScriptLaudo] }}</NuxtLink></td>
             <td>{{ item.sistema }}</td>
             <td>{{ item.nomePacote || '—' }}</td>
             <td>{{ item.aprovado ? 'Sim' : 'Não' }}<span v-if="item.aprovado" class="block text-xs text-gray-500 break-words">{{ item.ambienteAprovacao || 'Ambiente não informado' }}</span></td>
@@ -171,7 +172,7 @@
 
       <DsModal v-model="filterModalOpen" title="Filtros Avançados">
         <div class="space-y-4">
-          <DsInput v-model="filtros.nome" label="Nome do Script" />
+          <DsInput v-model="filtros.nome" label="Nome ou código do Script" />
           <DsSelect v-model="filtros.aprovado" label="Aprovado">
             <option value="">Todos</option>
             <option value="1">Aprovado</option>
@@ -200,6 +201,7 @@
             <div class="space-y-2">
               <p><strong>Código:</strong> {{ detailItem.codScriptLaudo }}</p>
               <p><strong>Nome:</strong> {{ detailItem.nome }}</p>
+              <p><strong>Código universal:</strong> {{ detailItem.codUniversal }}</p>
               <p><strong>Pacote:</strong> {{ detailItem.nomePacote || '—' }}</p>
               <p><strong>Sistema:</strong> {{ detailItem.sistema || '—' }}</p>
               <p><strong>Linguagem:</strong> {{ detailItem.linguagem || '—' }}</p>

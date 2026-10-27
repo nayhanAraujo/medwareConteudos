@@ -55,6 +55,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
             "CREATE TABLE SCRIPTVERSAOMRD (CODVERSAOMRD INTEGER PRIMARY KEY,CODVERSAO INTEGER,NOME_ARQUIVO VARCHAR(128),ARQUIVO_MRD BLOB SUB_TYPE BINARY,PADRAO CHAR(1))" })
             await source.ExecuteAsync(sql);
         await Migrate(source, "publicacao-conteudos.sql");
+        await ScriptCodigoUniversalSchema.MigrateAsync(new SourceFactory(sourceCs));
         await source.ExecuteAsync("INSERT INTO PACOTES VALUES (1,'Consulta')");
         await using var target = new FbConnection(targetCs);
         await target.OpenAsync();
@@ -69,11 +70,137 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
             "CREATE TABLE PROCEDIMENTO_SCRIPTLAUDO (CODSCRIPTLAUDO INTEGER,CODPROCEDIMENTO INTEGER,PRIMARY KEY(CODSCRIPTLAUDO,CODPROCEDIMENTO))" })
             await target.ExecuteAsync(sql);
         await Migrate(target, "publicacao-assistente.sql");
+        await AssistenteCodigoUniversalSchema.MigrateAsync(new SourceFactory(sourceCs), new TargetFactory(targetCs), "test");
         await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (10,'Consulta')");
         await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (20,'Local')");
         await target.ExecuteAsync("INSERT INTO ESPECIALIDADE VALUES (30,'Ecocardiografia')");
         service = new PublicacaoService(new SourceFactory(sourceCs), new TargetFactory(targetCs), Options.Create(new PublicacaoOptions { Enabled = true, SourceKey = "test" }));
         await service.SaveMapping(1, [10], default);
+    }
+
+    [FirebirdPublicationFact]
+    public async Task UniversalCodeMigrationBackfillsOnlyMappedModelsAndPreservesNativeModels()
+    {
+        await Seed();
+        await using var target = new FbConnection(targetCs);
+        await target.OpenAsync();
+        // Reproduce a pre-migration Assistente with local identities unrelated to source IDs.
+        await target.ExecuteAsync("DROP TRIGGER CON_SCRIPT_CODUNIVERSAL");
+        await target.ExecuteAsync("ALTER TABLE SCRIPTLAUDO DROP CONSTRAINT UNQ_SCRIPTLAUDO_CODUNIVERSAL");
+        await target.ExecuteAsync("ALTER TABLE SCRIPTLAUDO DROP CODUNIVERSAL");
+        await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,TITULO,STATUS,DATAMODIFICACAO) VALUES (@id,@title,0,TIMESTAMP '2020-01-01 00:00:00')", new[] {
+            new { id = 50, title = "Consulta" }, new { id = 51, title = "Titulo antigo diferente" },
+            new { id = 52, title = "Origem excluida" }, new { id = 53, title = "Outra origem" }
+        });
+        await target.ExecuteAsync("INSERT INTO CON_PUBLICACAO (ORIGEM,CODORIGEM,CODDESTINO,SUSPENSO,REVISAO) VALUES ('test',1,51,1,123)");
+        await target.ExecuteAsync("INSERT INTO CON_PUBLICACAO (ORIGEM,CODORIGEM,CODDESTINO) VALUES ('test',999,52)");
+        await target.ExecuteAsync("INSERT INTO CON_PUBLICACAO (ORIGEM,CODORIGEM,CODDESTINO) VALUES ('outra',1,53)");
+        await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO_ESPECIALIDADE VALUES (51,20)");
+        Assert.Equal(1, await AssistenteCodigoUniversalSchema.MigrateAsync(new SourceFactory(sourceCs), new TargetFactory(targetCs), "test"));
+        Assert.Equal(0, await AssistenteCodigoUniversalSchema.MigrateAsync(new SourceFactory(sourceCs), new TargetFactory(targetCs), "test"));
+        Assert.Equal("MOD-000001", await target.ExecuteScalarAsync<string>("SELECT CODUNIVERSAL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=51"));
+        Assert.Equal(3, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO WHERE CODUNIVERSAL IS NULL"));
+        Assert.Equal("Titulo antigo diferente", await target.ExecuteScalarAsync<string>("SELECT TITULO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=51"));
+        Assert.Equal(new DateTime(2020,1,1), await target.ExecuteScalarAsync<DateTime>("SELECT DATAMODIFICACAO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=51"));
+        Assert.Equal(123, await target.ExecuteScalarAsync<int>("SELECT REVISAO FROM CON_PUBLICACAO WHERE ORIGEM='test' AND CODORIGEM=1"));
+        Assert.Equal(1, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO_ESPECIALIDADE WHERE CODSCRIPTLAUDO=51"));
+        await Assert.ThrowsAsync<FbException>(() => target.ExecuteAsync("UPDATE SCRIPTLAUDO SET CODUNIVERSAL='MOD-000002' WHERE CODSCRIPTLAUDO=51"));
+        await Assert.ThrowsAsync<FbException>(() => target.ExecuteAsync("UPDATE SCRIPTLAUDO SET CODUNIVERSAL=NULL WHERE CODSCRIPTLAUDO=51"));
+        await Assert.ThrowsAsync<FbException>(() => target.ExecuteAsync("UPDATE SCRIPTLAUDO SET CODUNIVERSAL='MOD-000002' WHERE CODSCRIPTLAUDO=50"));
+        await using var tx = await target.BeginTransactionAsync();
+        await target.ExecuteScalarAsync<int>("SELECT RDB$SET_CONTEXT('USER_TRANSACTION','PUBLICACAO','1') FROM RDB$DATABASE", transaction: tx);
+        await Assert.ThrowsAsync<FbException>(() => target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (TITULO,CODUNIVERSAL) VALUES ('Duplicado','MOD-000001')", transaction: tx));
+        await tx.RollbackAsync();
+        Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM RDB$GENERATORS WHERE RDB$GENERATOR_NAME='GEN_SCRIPTLAUDO_UNIVERSAL'"));
+        await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (TITULO) VALUES ('Nativo novo')");
+        Assert.Equal(4, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO WHERE CODUNIVERSAL IS NULL"));
+    }
+
+    [FirebirdPublicationFact]
+    public async Task PublicationCopiesUniversalCodeAndRetainsItAcrossVersionAndPackageChanges()
+    {
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("ALTER SEQUENCE GEN_SCRIPTLAUDO_UNIVERSAL RESTART WITH 1000000");
+        await Seed();
+        Assert.True(await service.ProcessNext(default));
+        await using var target = new FbConnection(targetCs);
+        Assert.Equal("MOD-1000000", await target.ExecuteScalarAsync<string>("SELECT CODUNIVERSAL FROM SCRIPTLAUDO"));
+        var destination = await target.ExecuteScalarAsync<int>("SELECT CODSCRIPTLAUDO FROM SCRIPTLAUDO");
+        await source.ExecuteAsync("INSERT INTO PACOTES VALUES (2,'Novo pacote')");
+        await service.SaveMapping(2, [30], default);
+        await source.ExecuteAsync("INSERT INTO SCRIPTVERSOES (CODVERSAO,CODSCRIPTLAUDO,ATIVO,APROVADO,ARQUIVO_JSON) VALUES (5,1,'T','T',@content)", new { content = "{\"version\":5}"u8.ToArray() });
+        await source.ExecuteAsync("UPDATE SCRIPTLAUDO SET NOME='Renomeado',CODPACOTE=2 WHERE CODSCRIPTLAUDO=1");
+        await service.ProcessNext(default);
+        Assert.Equal(destination, await target.ExecuteScalarAsync<int>("SELECT CODSCRIPTLAUDO FROM SCRIPTLAUDO"));
+        Assert.Equal("MOD-1000000", await target.ExecuteScalarAsync<string>("SELECT CODUNIVERSAL FROM SCRIPTLAUDO"));
+        Assert.Equal("{\"version\":5}", await target.ExecuteScalarAsync<string>("SELECT ESTRUTURASCRIPT FROM SCRIPTLAUDO"));
+        Assert.Equal(30, await target.ExecuteScalarAsync<int>("SELECT CODESPECIALIDADE FROM SCRIPTLAUDO_ESPECIALIDADE"));
+        var result = JsonSerializer.SerializeToElement(await service.List(1, null, default, search: "mod-1000000"));
+        Assert.Equal("MOD-1000000", Assert.Single(result.GetProperty("items").EnumerateArray()).GetProperty("CodUniversal").GetString());
+        var package = JsonSerializer.SerializeToElement(await service.PackageScripts(2, 1, "MOD-1000000", 1, default));
+        Assert.Equal("MOD-1000000", Assert.Single(package.GetProperty("items").EnumerateArray()).GetProperty("CodUniversal").GetString());
+    }
+
+    [FirebirdPublicationFact]
+    public async Task UniversalCodeConflictRollsBackBackfillWithoutReassigningModels()
+    {
+        await Seed();
+        await using var source = new FbConnection(sourceCs);
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME) VALUES (2,'Segundo')");
+        await using var target = new FbConnection(targetCs);
+        await target.OpenAsync();
+        await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,TITULO) VALUES (21,'Primeiro')");
+        await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,TITULO) VALUES (22,'Segundo')");
+        await target.ExecuteAsync("INSERT INTO CON_PUBLICACAO (ORIGEM,CODORIGEM,CODDESTINO) VALUES ('test',1,21)");
+        await target.ExecuteAsync("INSERT INTO CON_PUBLICACAO (ORIGEM,CODORIGEM,CODDESTINO) VALUES ('test',2,22)");
+        await using (var tx = await target.BeginTransactionAsync())
+        {
+            await target.ExecuteScalarAsync<int>("SELECT RDB$SET_CONTEXT('USER_TRANSACTION','PUBLICACAO','1') FROM RDB$DATABASE", transaction: tx);
+            await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,TITULO,CODUNIVERSAL) VALUES (23,'Outra origem','MOD-000002')", transaction: tx);
+            await tx.CommitAsync();
+        }
+        await Assert.ThrowsAsync<InvalidOperationException>(() => AssistenteCodigoUniversalSchema.MigrateAsync(new SourceFactory(sourceCs), new TargetFactory(targetCs), "test"));
+        Assert.Equal(2, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SCRIPTLAUDO WHERE CODUNIVERSAL IS NULL"));
+        Assert.Equal("MOD-000002", await target.ExecuteScalarAsync<string>("SELECT CODUNIVERSAL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=23"));
+        Assert.Equal(2, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM CON_PUBLICACAO"));
+    }
+
+    [FirebirdPublicationFact]
+    public async Task UniversalCodeMigrationRejectsIncompatibleColumnWithoutDroppingData()
+    {
+        await Seed();
+        await using var target = new FbConnection(targetCs);
+        await target.ExecuteAsync("DROP TRIGGER CON_SCRIPT_CODUNIVERSAL");
+        await target.ExecuteAsync("ALTER TABLE SCRIPTLAUDO DROP CONSTRAINT UNQ_SCRIPTLAUDO_CODUNIVERSAL");
+        await target.ExecuteAsync("ALTER TABLE SCRIPTLAUDO DROP CODUNIVERSAL");
+        await target.ExecuteAsync("ALTER TABLE SCRIPTLAUDO ADD CODUNIVERSAL VARCHAR(12) CHARACTER SET ASCII");
+        await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,TITULO,CODUNIVERSAL) VALUES (60,'Legado','LEGADO')");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => AssistenteCodigoUniversalSchema.MigrateAsync(new SourceFactory(sourceCs), new TargetFactory(targetCs), "test"));
+        Assert.Equal("LEGADO", await target.ExecuteScalarAsync<string>("SELECT CODUNIVERSAL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=60"));
+        Assert.Equal("Legado", await target.ExecuteScalarAsync<string>("SELECT TITULO FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=60"));
+    }
+
+    [FirebirdPublicationFact]
+    public async Task ExplicitReconciliationAssignsCodeAndRejectsConflictingIdentity()
+    {
+        await Seed();
+        await using var target = new FbConnection(targetCs);
+        await target.OpenAsync();
+        await using (var tx = await target.BeginTransactionAsync())
+        {
+            await target.ExecuteScalarAsync<int>("SELECT RDB$SET_CONTEXT('USER_TRANSACTION','PUBLICACAO','1') FROM RDB$DATABASE", transaction: tx);
+            await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,TITULO,CODUNIVERSAL,STATUS) VALUES (60,'Consulta','MOD-900000',0)", transaction: tx);
+            await tx.CommitAsync();
+        }
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.Reconcile(1,60,default));
+        Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM CON_PUBLICACAO"));
+        await target.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,TITULO,STATUS) VALUES (61,'Consulta',0)");
+        await service.Reconcile(1,61,default);
+        Assert.Equal("MOD-000001", await target.ExecuteScalarAsync<string>("SELECT CODUNIVERSAL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=61"));
+        await service.ProcessNext(default);
+        Assert.Equal(61, await target.ExecuteScalarAsync<int>("SELECT CODDESTINO FROM CON_PUBLICACAO"));
+        Assert.Equal(0, await target.ExecuteScalarAsync<int>("SELECT STATUS FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=61"));
+        Assert.Equal("MOD-900000", await target.ExecuteScalarAsync<string>("SELECT CODUNIVERSAL FROM SCRIPTLAUDO WHERE CODSCRIPTLAUDO=60"));
     }
 
     [FirebirdPublicationFact]
@@ -268,13 +395,13 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     private async Task Seed()
     {
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "{}"u8.ToArray() });
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME,SISTEMA,LINGUAGEM,CODPACOTE,ATIVO,ARQUIVO_JSON,DLL,APROVADO,APROVADO_POR,DATA_VERIFICACAO) VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "{}"u8.ToArray() });
     }
 
     private async Task SeedFlex()
     {
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos Flex',NULL,1,1,NULL,@bytes,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "dll"u8.ToArray() });
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME,SISTEMA,LINGUAGEM,CODPACOTE,ATIVO,ARQUIVO_JSON,DLL,APROVADO,APROVADO_POR,DATA_VERIFICACAO) VALUES (1,'Consulta','Laudos Flex',NULL,1,1,NULL,@bytes,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "dll"u8.ToArray() });
     }
 
     [FirebirdPublicationFact]
@@ -341,7 +468,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     {
         await Seed();
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (2,'Consulta inativa','Laudos UX',NULL,1,0,@bytes,NULL,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "{}"u8.ToArray() });
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME,SISTEMA,LINGUAGEM,CODPACOTE,ATIVO,ARQUIVO_JSON,DLL,APROVADO,APROVADO_POR,DATA_VERIFICACAO) VALUES (2,'Consulta inativa','Laudos UX',NULL,1,0,@bytes,NULL,1,'Teste',CURRENT_TIMESTAMP)", new { bytes = "{}"u8.ToArray() });
         var active = JsonSerializer.SerializeToElement(await service.PackageScripts(1, 1, null, 1, default));
         var inactive = JsonSerializer.SerializeToElement(await service.PackageScripts(1, 1, null, 0, default));
         Assert.Equal(1, active.GetProperty("total").GetInt32());
@@ -354,7 +481,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     public async Task NotApprovedScriptWaitsForApprovalAndThenPublishes()
     {
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,0,NULL,NULL)", new { bytes = "{}"u8.ToArray() });
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME,SISTEMA,LINGUAGEM,CODPACOTE,ATIVO,ARQUIVO_JSON,DLL,APROVADO,APROVADO_POR,DATA_VERIFICACAO) VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,0,NULL,NULL)", new { bytes = "{}"u8.ToArray() });
         await service.ProcessNext(default);
         Assert.Equal("aguardando_aprovacao", await source.ExecuteScalarAsync<string>("SELECT ESTADO FROM ASS_PUBLICACAO"));
         await using var target = new FbConnection(targetCs);
@@ -369,7 +496,7 @@ public sealed class PublicacaoAssistenteTests : IAsyncLifetime
     public async Task ListIncludesUnqueuedNotApprovedScriptsInAwaitingApprovalSummary()
     {
         await using var source = new FbConnection(sourceCs);
-        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,0,NULL,NULL)", new { bytes = "{}"u8.ToArray() });
+        await source.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME,SISTEMA,LINGUAGEM,CODPACOTE,ATIVO,ARQUIVO_JSON,DLL,APROVADO,APROVADO_POR,DATA_VERIFICACAO) VALUES (1,'Consulta','Laudos UX',NULL,1,1,@bytes,NULL,0,NULL,NULL)", new { bytes = "{}"u8.ToArray() });
         var result = JsonSerializer.SerializeToElement(await service.List(1, null, default));
         Assert.Equal(1, result.GetProperty("total").GetInt32());
         Assert.Equal(1, result.GetProperty("summary").GetProperty("aguardando_aprovacao").GetInt32());

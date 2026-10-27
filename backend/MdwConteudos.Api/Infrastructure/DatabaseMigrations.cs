@@ -24,6 +24,7 @@ public static class DatabaseMigrations
             ("report-module-icons", () => ModuloRelatorioIcone.MigrateAsync(db, ct)),
             ("evaluations", () => AvaliacaoSchema.MigrateAsync(db, ct)),
             ("orcamentos", () => OrcamentoSchema.MigrateAsync(db, ct)),
+            ("script-universal-code", () => ScriptCodigoUniversalSchema.MigrateAsync(db, ct)),
             ("audit", () => AuditSchema.MigrateAsync(db, ct))
         };
         foreach (var step in steps)

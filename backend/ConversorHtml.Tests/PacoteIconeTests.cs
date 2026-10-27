@@ -60,6 +60,7 @@ public sealed class PacoteIconeTests
                 await c.ExecuteAsync("INSERT INTO SCRIPTLAUDO (CODSCRIPTLAUDO,NOME,LINGUAGEM) VALUES (2,'Sem pacote','HTML')");
             }
             await PacoteIcone.MigrateAsync(factory);
+            await MdwConteudos.Api.Modules.Web.ScriptCodigoUniversalSchema.MigrateAsync(factory);
             var service = new CadastrosService(factory);
             var initial = (await service.ListPacotes(default)).ToArray();
             Assert.Equal(7, initial.Length);
@@ -81,12 +82,14 @@ public sealed class PacoteIconeTests
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DataPaths:Root"] = Path.GetTempPath() }).Build();
             var scripts = new ApiScriptOperations(factory, config, new TestEnvironment());
             var scriptList = await scripts.ListScriptsAsync(null, null, null, null, "HTML", false, default);
+            Assert.Equal("MOD-000001", scriptList.Single(s => (int)s["codscriptlaudo"]! == 1)["coduniversal"]);
             Assert.Equal(package.GetProperty("icone_url").GetString(), scriptList.Single(s => (int)s["codscriptlaudo"]! == 1)["pacote_icone_url"]);
             Assert.Null(scriptList.Single(s => (int)s["codscriptlaudo"]! == 2)["pacote_icone_url"]);
             Assert.Equal(Icon(), scriptList.Single(s => (int)s["codscriptlaudo"]! == 1)["pacote_icone_base64"]);
             Assert.Null(scriptList.Single(s => (int)s["codscriptlaudo"]! == 2)["pacote_icone_base64"]);
             Assert.All(scriptList, s => Assert.False(s.ContainsKey("imagens")));
             var last = await scripts.GetUltimoVerificadoAsync(null, null, null, null, "HTML", false, default);
+            Assert.Equal("MOD-000001", last.Item!["coduniversal"]);
             Assert.Equal(package.GetProperty("icone_url").GetString(), last.Item!["pacote_icone_url"]);
             Assert.Equal(Icon(), last.Item["pacote_icone_base64"]);
             Assert.IsType<NotFoundObjectResult>(await api.GetPacoteIconeAsync(int.MaxValue, default));

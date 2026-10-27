@@ -10,6 +10,7 @@
       >
       <div class="min-w-0 flex-1">
         <div class="text-xs font-medium uppercase text-gray-500">Script #{{ scriptId }}</div>
+        <p v-if="script.codUniversal" class="mt-1 break-all font-mono text-xs text-gray-600">{{ script.codUniversal }}</p>
         <h3 class="mt-1 break-words text-sm font-semibold leading-5 text-ds-text">{{ title }}</h3>
         <div class="mt-3 flex flex-wrap items-center gap-2">
           <DsBadge :variant="typeVariant">{{ typeLabel }}</DsBadge>
