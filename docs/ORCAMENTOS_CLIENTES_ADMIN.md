@@ -8,8 +8,8 @@ O caminho informado pelo usuário é **`/cliente/{codigoAdmin}`**, no singular. 
 
 ## Fluxo
 
-1. O bot usa código Admin confiável e, quando disponível, CNPJ esperado. Nome produz somente sugestões locais, mesmo quando retorna um único nome.
-2. O backend consulta o Admin, confere o código retornado, CNPJ completo e estado ativo. O bot recebe somente código, nome, CNPJ, estado e orientação; não recebe token Admin, contatos, mensalidade ou contratos.
+1. O bot usa código Admin confiável. Nome produz somente sugestões locais, mesmo quando retorna um único nome. Documento informado não restringe a consulta por código.
+2. O backend consulta o Admin e confere o código retornado. CPF/CNPJ ausente ou inválido não bloqueia a exibição: impede somente a importação. O bot recebe somente código, nome, CPF/CNPJ, estado e orientação; não recebe token Admin, contatos, mensalidade ou contratos.
 3. Se o cliente oficial estiver ausente e não houver conflito local, a resposta indica `encontrado_admin`. O bot mantém a mensagem pendente e solicita ação humana, sem utilizar o cliente padrão e sem gerar outro código.
 4. A pessoa acessa **Orçamentos → Resolver cliente ausente no Admin** ou **Configurações → Clientes do Admin**, consulta o código, confere os dados e registra justificativa/confirmação.
 5. A consulta humana gera um identificador vinculado ao usuário, válido por 15 minutos. O POST de confirmação contém apenas esse identificador, a confirmação e o motivo: código/nome/CNPJ editáveis não são aceitos como fonte de importação.
@@ -35,14 +35,14 @@ Resolução:
 {"codigoAdmin":13687,"cnpj":null,"name":null}
 ```
 
-Também aceita CNPJ sem código para consultar vínculos locais, ou `name` com ao menos três caracteres para sugestões. **Não foi presumida uma rota de pesquisa remota por CNPJ/nome**: seu contrato ainda não foi fornecido. Se não houver código e o CNPJ não resolver localmente, pedir identificação humana/código Admin em vez de inventar uma rota ou varrer todos os clientes.
+Também aceita CPF/CNPJ sem código para consultar vínculos locais, ou `name` com ao menos três caracteres para sugestões. **Não foi presumida uma rota de pesquisa remota por CPF/CNPJ/nome**: seu contrato ainda não foi fornecido. Se não houver código e o CPF/CNPJ não resolver localmente, pedir identificação humana/código Admin em vez de inventar uma rota ou varrer todos os clientes.
 
 Retorno: `{success:true,data:{state,message,candidate,localId,canImport,suggestions}}`. `canImport` indica elegibilidade, não permissão para o bot cadastrar. Estados:
 
-- `encontrado_local`: vínculo verificado, ou cadastro legado que pode ser vinculado por um humano quando código, nome e CNPJ comercial independente corresponderem ao Admin. Conferir `canImport`/mensagem. Consulta local por CNPJ não verifica a atividade atual no Admin em tempo real.
+- `encontrado_local`: vínculo verificado, ou cadastro legado que pode ser vinculado por um humano quando código, nome e CPF/CNPJ comercial independente corresponderem ao Admin. Conferir `canImport`/mensagem. Consulta local por CPF/CNPJ não verifica a atividade atual no Admin em tempo real.
 - `encontrado_admin`: ausente localmente, elegível à confirmação humana.
-- `revisao_necessaria`: nome ou CNPJ local sem identidade Admin suficientemente comprovada, ou ambiguidade.
-- `conflito`: código ocupado, documentos divergentes, mesmo CNPJ em outro código, nome igual em outro código, cliente padrão, tamanho incompatível etc. Não sobrescrever, fundir, renumerar ou tentar outro código artificial.
+- `revisao_necessaria`: nome ou CPF/CNPJ local sem identidade Admin suficientemente comprovada, ou ambiguidade.
+- `conflito`: código ocupado, documentos divergentes, mesmo CPF/CNPJ em outro código, nome igual em outro código, cliente padrão, tamanho incompatível etc. Não sobrescrever, fundir, renumerar ou tentar outro código artificial.
 - `inativo`: cliente inativo no Admin; não cadastrar ou reativar automaticamente.
 - `nao_encontrado`: pedir informação adicional; manter o e-mail pendente.
 
@@ -80,7 +80,7 @@ Exemplo ilustrativo para o arquivo **local não versionado do ambiente correto**
 }
 ```
 
-Os mapeamentos acima são **exemplos, não confirmação da resposta remota**. Se token/cadastro estiverem em envelopes, configurar ponteiros JSON, como `/data/token` e `/data`. Os nomes dos campos são exatos. Estados remotos não reconhecidos, código divergente, CNPJ inválido, payload excessivo ou ausência de campo bloqueiam a operação; não há fallback para um cliente ativo presumido. Login envia `usuario`, `senha` e `registroAplicacao: "ADMIN"`. Usa Bearer apenas no GET fixo configurado; não aceita URL do bot, não segue redirecionamentos, não compartilha token em cabeçalhos globais e limita a operação HTTP a 15 segundos/1 MiB por resposta. Sem retentativa automática. `Enabled` e `ContractConfirmed` permanecem falsos por padrão.
+Os mapeamentos acima são **exemplos, não confirmação da resposta remota**. Se token/cadastro estiverem em envelopes, configurar ponteiros JSON, como `/data/token` e `/data`. Os nomes dos campos são exatos. Código divergente, payload excessivo ou estrutura incompatível bloqueiam a consulta. Documento inválido ou estado não reconhecido não impedem exibição, mas não autorizam importação nem presunção de cliente ativo. Login envia `usuario`, `senha` e `registroAplicacao: "ADMIN"`. Usa Bearer apenas no GET fixo configurado; não aceita URL do bot, não segue redirecionamentos, não compartilha token em cabeçalhos globais e limita a operação HTTP a 15 segundos/1 MiB por resposta. Sem retentativa automática. `Enabled` e `ContractConfirmed` permanecem falsos por padrão.
 
 ## Esquema e compatibilidade
 
@@ -91,7 +91,7 @@ Migração aditiva integrada a `--migrate-database`; SQL em `docs/sql/scripts/ad
 
 O DDL operacional de `CLIENTES` não foi obtido nem alterado nesta entrega. O código inspeciona metadados efetivos antes de inserir: exige `CODCLIENTE INTEGER`, respeita o tamanho de `NOME` e recusa campos obrigatórios extras sem default ainda não mapeados. Para identity `GENERATED ALWAYS`, usa `OVERRIDING SYSTEM VALUE`; para `BY DEFAULT`/PK comum, fornece o código explicitamente. Confere `RETURNING CODCLIENTE` e o registro gravado; se um trigger mudar código/nome/estado, desfaz a transação. Não remove triggers nem reajusta geradores. [Referência Firebird](https://www.firebirdsql.org/file/documentation/chunk/en/refdocs/fblangref40/fblangref40-dml-insert.html).
 
-**Códigos legados gerados localmente podem coincidir com códigos Admin sem representar o mesmo cliente.** Nome/código iguais não são prova suficiente. Não há adoção automática de códigos legados sem CNPJ comercial correspondente ou vínculo Admin já comprovado. Campos comerciais existentes nunca são sobrescritos; cadastros vinculados não podem ser excluídos pelo formulário genérico. Homônimos e múltiplos códigos para um mesmo CNPJ exigem revisão de gestão, não uma fusão automática.
+**Códigos legados gerados localmente podem coincidir com códigos Admin sem representar o mesmo cliente.** Nome/código iguais não são prova suficiente. Não há adoção automática de códigos legados sem CPF/CNPJ comercial correspondente ou vínculo Admin já comprovado. Campos comerciais existentes nunca são sobrescritos; cadastros vinculados não podem ser excluídos pelo formulário genérico. Homônimos e múltiplos códigos para um mesmo CPF/CNPJ exigem revisão de gestão, não uma fusão automática.
 
 O espaço de códigos continua compartilhado com cadastros locais. Não há realinhamento automático de sequência após inserção externa; um gerador local que futuramente alcançar código já ocupado poderá produzir conflito de PK, que deve ser tratado pelo operador sem renumerar registros. Antes de ativar em produção, conferir identity, triggers, charset, defaults, tamanho e a política de criação local de novos clientes. Não afirmar equivalência global de códigos sem esse levantamento.
 
@@ -102,3 +102,15 @@ CNPJ é validado com dígitos verificadores numéricos/alfanuméricos, sem presu
 Backup consistente, conferir alvo/DDL, parar apenas a API envolvida, executar migrador, publicar API/frontend compatíveis e conceder permissões explicitamente. Migração não altera `CLIENTES`, códigos, geradores ou snapshots anteriores. Não remover tabelas/vínculos já utilizados para reverter código. Nenhum migrador ou cadastro deve ser executado em banco operacional sem autorização para esse alvo.
 
 Testar em Firebird temporário: instalação limpa e repetição, script aditivo, PK/FK/unique, conflitos, repetição/concorrência, proof expirado/de outro usuário, dados oficiais alterados, identity ALWAYS/BY DEFAULT e trigger que sobrescreve código. HTTP simulado verifica autenticação, caminho singular, mapeamento, rejeição de resposta incompatível/redirecionamentos e segredo não exposto. Testar UI, permissões do bot e preservação de dados comerciais/propostas já aprovadas. **Validação real do Admin e levantamento operacional de CLIENTES permanecem pendentes.**
+# Consulta somente por Código Admin
+
+## Vínculos com CPF ou CNPJ
+
+A importação aceita CPF (11 dígitos) e CNPJ (14 posições), normalizados e com dígitos verificadores válidos. O Código Admin permanece como `CODCLIENTE`. O contrato JSON legado `cnpj` representa ambos os documentos para compatibilidade. Documento inválido não impede consulta, mas impede importação.
+
+Migração: `docs/sql/scripts/add-clienteadmin-documentofiscal.sql`, integrada a `--migrate-database`, após a criação de CLIENTEADMIN. Acrescenta `DOCUMENTOFISCAL VARCHAR(14) CHARACTER SET ASCII NOT NULL` e `UNQ_CLIENTEADMIN_DOCFISCAL`; preenche com os CNPJs anteriores sem alterar snapshots, autoria, PK/FK ou geradores. A coluna legada CNPJ permanece, mas aceita NULL para vínculos CPF. Novos vínculos CNPJ preenchem ambas as colunas. Não remover a coluna legada nesta entrega.
+
+Antes de executar no banco operacional, conferir alvo, backup consistente e parar apenas a API envolvida. Publicar código e esquema juntos; versões antigas da API não suportam vínculos CPF. Há duas etapas confirmadas: adicionar a coluna e depois preencher/endurecer as constraints. Em erro, reverter a transação atual; a coluna já confirmada pode permanecer e a execução pode ser retomada. Investigar sem apagar vínculos. A implementação não autoriza executar a migração nos bancos do usuário.
+
+A tela de consulta solicita e envia somente `codigoAdmin`. O retorno oficial deve conter o mesmo código positivo solicitado. CPF, CNPJ ausente ou documento fiscal inválido não impedem a exibição do cliente; dados incompatíveis com a importação retornam `revisao_necessaria`, com o candidato visível e sem autorização de importação. A importação continua separada, explícita e protegida pelas validações fiscais, conflitos locais e reconferência do snapshot. O campo JSON legado `cnpj` permanece compatível, mas é ignorado quando há `codigoAdmin`.
+

@@ -29,6 +29,40 @@ public sealed partial class OrcamentoFirebirdTests
     }
     private static ImportAdminClientRequest Approve(AdminClientPreview preview)=>new(preview.ConsultationId!.Value,true,"Código e CNPJ conferidos pelo responsável.");
     [FirebirdPublicationFact]
+    public async Task CpfClientCanBeImportedAndRetriedWithoutDuplicateFiscalIdentity()
+    {
+        var provider=new FakeAdminDirectory {Value=new(3270,"Pessoa de teste","529.982.247-25",true)};
+        var preview=await Service.PreviewAdminClient(new(3270),provider,default);
+        Assert.True(preview.Resolution.CanImport);
+        Assert.True((await Service.ImportAdminClient(Approve(preview),provider,default)).Created);
+        Assert.False((await Service.ImportAdminClient(Approve(preview),provider,default)).Created);
+        await OrcamentoSchema.MigrateAsync(factory);await OrcamentoSchema.MigrateAsync(factory);
+        await using var c=await factory.OpenConnectionAsync();
+        Assert.Equal("52998224725",await c.ExecuteScalarAsync<string>("SELECT DOCUMENTOFISCAL FROM CLIENTEADMIN WHERE CODCLIENTE=3270"));
+        Assert.Null(await c.ExecuteScalarAsync<string?>("SELECT CNPJ FROM CLIENTEADMIN WHERE CODCLIENTE=3270"));
+        Assert.Equal("encontrado_local",(await Service.ResolveAdminClient(new(3270),provider,default)).State);
+        provider.Value=provider.Value! with {CodigoAdmin=3271,Name="Outro cadastro"};
+        Assert.Equal("conflito",(await Service.ResolveAdminClient(new(3271),provider,default)).State);
+    }
+    [FirebirdPublicationFact]
+    public async Task FiscalMigrationPreservesLegacyCnpjAndIsRepeatable()
+    {
+        await using var c=await factory.OpenConnectionAsync();
+        await c.ExecuteAsync("ALTER TABLE CLIENTEADMIN DROP CONSTRAINT UNQ_CLIENTEADMIN_DOCFISCAL");
+        await c.ExecuteAsync("ALTER TABLE CLIENTEADMIN DROP DOCUMENTOFISCAL");
+        await c.ExecuteAsync("ALTER TABLE CLIENTEADMIN ALTER CNPJ SET NOT NULL");
+        await c.ExecuteAsync("INSERT INTO CLIENTES VALUES(4498,'Cliente legado',1)");
+        await c.ExecuteAsync("INSERT INTO CLIENTEADMIN(CODCLIENTE,CNPJ,DOCUMENTO,CODUSUARIO,DTHRCRIACAO) VALUES(4498,'11222333000181',@json,1,CURRENT_TIMESTAMP)",new {json=QuoteTextBlob.Json(new AdminClientSnapshot(4498,"Cliente legado","11222333000181",true))});
+        var dir=new DirectoryInfo(AppContext.BaseDirectory);while(dir is not null&&!File.Exists(Path.Combine(dir.FullName,"docs/sql/scripts/add-clienteadmin-documentofiscal.sql")))dir=dir.Parent;Assert.NotNull(dir);
+        var sql=File.ReadAllText(Path.Combine(dir.FullName,"docs/sql/scripts/add-clienteadmin-documentofiscal.sql"));
+        for(var attempt=0;attempt<2;attempt++)
+            foreach(Match match in Regex.Matches(sql,@"EXECUTE BLOCK AS[\s\S]*?END\^"))
+                await c.ExecuteAsync(match.Value.TrimEnd('^'));
+        await OrcamentoSchema.MigrateAsync(factory);
+        Assert.Equal("11222333000181",await c.ExecuteScalarAsync<string>("SELECT DOCUMENTOFISCAL FROM CLIENTEADMIN WHERE CODCLIENTE=4498"));
+        Assert.Equal("11222333000181",(await c.ExecuteScalarAsync<string>("SELECT CNPJ FROM CLIENTEADMIN WHERE CODCLIENTE=4498")).Trim());
+    }
+    [FirebirdPublicationFact]
     public async Task ClientAdminImportRechecksOfficialDataPreservesExternalCodeAndIsIdempotent()
     {
         var provider=new FakeAdminDirectory();provider.Value=provider.Value! with {Cnpj="11.222.333/0001-81"};var proposalId=await Service.Create(new(1,OrcamentoTests.Draft(OrcamentoTests.Item())),default);var frozen=OrcamentoJson.Write((await Service.Get(proposalId,default)).Snapshot);

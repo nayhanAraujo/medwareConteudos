@@ -37,8 +37,6 @@ public sealed class AdminClientDirectoryTests
     }
     [Theory]
     [InlineData("{\"data\":{\"codigo\":99,\"razaoSocial\":\"Clínica\",\"documento\":\"11222333000181\",\"status\":\"ATIVO\"}}")]
-    [InlineData("{\"data\":{\"codigo\":13687,\"razaoSocial\":\"Clínica\",\"documento\":\"INVALID\",\"status\":\"ATIVO\"}}")]
-    [InlineData("{\"data\":{\"codigo\":13687,\"razaoSocial\":\"Clínica\",\"documento\":\"11222333000181\",\"status\":\"UNKNOWN\"}}")]
     [InlineData("{\"unexpected\":\"TEST_SECRET\"}")]
     public async Task IncompatibleRemotePayloadNeverImportsOrLeaksItsBody(string payload)
     {
@@ -51,6 +49,27 @@ public sealed class AdminClientDirectoryTests
         var handler=new Handler(_=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.Redirect){Headers={Location=new Uri("https://other.example.com/")}}));using var http=new HttpClient(handler);
         Assert.Equal(503,(await Assert.ThrowsAsync<OrcamentoException>(()=>new AdminClientDirectory(http,Options.Create(Config())).GetAsync(13687,default))).Status);Assert.Equal(1,handler.Calls);
     }
+    [Theory]
+    [InlineData("INVALID")]
+    [InlineData("12345678901")]
+    [InlineData("")]
+    public async Task LookupByCodeReturnsClientWithoutRequiringValidFiscalIdentity(string document)
+    {
+        var payload=JsonSerializer.Serialize(new {data=new {codigo=13687,razaoSocial="Cliente",documento=document,status="UNKNOWN"}});
+        var handler=new Handler(r=>Task.FromResult(Json(r.Method==HttpMethod.Post?"""{"data":{"token":"TEST_TOKEN"}}""":payload)));
+        using var http=new HttpClient(handler);
+        var result=await new AdminClientDirectory(http,Options.Create(Config())).GetAsync(13687,default);
+        Assert.NotNull(result);Assert.Equal(13687,result.CodigoAdmin);Assert.Equal(document,result.Cnpj);
+        Assert.Throws<OrcamentoException>(()=>AdminClientIdentity.Validate(result));
+    }
+    [Theory]
+    [InlineData("529.982.247-25","52998224725")]
+    [InlineData("11.222.333/0001-81","11222333000181")]
+    public void FiscalIdentityAcceptsCpfAndCnpj(string input,string expected)=>Assert.Equal(expected,AdminClientIdentity.FiscalDocument(input));
+    [Theory]
+    [InlineData("52998224726")]
+    [InlineData("00000000000")]
+    public void InvalidCpfIsRejectedForImport(string input)=>Assert.Throws<OrcamentoException>(()=>AdminClientIdentity.FiscalDocument(input));
     private static HttpResponseMessage Json(string text)=>new(HttpStatusCode.OK){Content=new StringContent(text,Encoding.UTF8,"application/json")};
     private sealed class Handler(Func<HttpRequestMessage,Task<HttpResponseMessage>> response):HttpMessageHandler
     {

@@ -16,16 +16,20 @@ public sealed partial class OrcamentoService
 {
     public async Task<AdminClientResolution> ResolveAdminClient(ResolveAdminClientRequest request,IAdminClientDirectory directory,CancellationToken ct)
     {
-        var cnpj=string.IsNullOrWhiteSpace(request.Cnpj)?null:AdminClientIdentity.Cnpj(request.Cnpj);
+        var cnpj=request.CodigoAdmin.HasValue||string.IsNullOrWhiteSpace(request.Cnpj)?null:AdminClientIdentity.FiscalDocument(request.Cnpj);
         await using var c=await db.OpenConnectionAsync(ct);_=await Actor(c,null,ct);
         if(request.CodigoAdmin is { } code)
         {
             if(code<=0)throw new OrcamentoException(422,"Informe um código Admin positivo.");
             var official=await directory.GetAsync(code,ct);
             if(official is null)return new("nao_encontrado","Código não encontrado na API Admin. Não cadastrar por nome inferido.");
-            official=AdminClientIdentity.Validate(official);
             if(official.CodigoAdmin!=code)throw new OrcamentoException(502,"Código retornado pelo Admin é diferente do solicitado.");
-            if(cnpj is not null&&cnpj!=official.Cnpj)return new("conflito","O CNPJ informado não corresponde ao código Admin.",official);
+            // Always display the official lookup, even when fiscal data cannot be imported.
+            try { official=AdminClientIdentity.Validate(official); }
+            catch(OrcamentoException ex) when(ex.Status==422)
+            {
+                return new("revisao_necessaria","Cliente localizado pelo Código Admin. Os dados retornados estão disponíveis para consulta, mas precisam de revisão antes da importação (nome ou documento fiscal).",official);
+            }
             return await CheckAdminIdentity(c,null,official,ct);
         }
         if(cnpj is not null)
@@ -33,12 +37,12 @@ public sealed partial class OrcamentoService
             var locals=await AdminLocalCandidates(c,null,ct);
             var matches=locals.Where(r=>r.Cnpj==cnpj).ToList();
             if(matches.Count==1&&matches[0].Verified)return new("encontrado_local","Vínculo local Admin verificado. A origem e o destinatário do orçamento ainda exigem confirmação humana.",LocalId:matches[0].LocalId,Suggestions:matches);
-            return new(matches.Count>0?"revisao_necessaria":"nao_encontrado",matches.Count>0?"Há cadastro local com este CNPJ, mas a identidade Admin precisa ser conferida por código.":"CNPJ não encontrado no catálogo local. Informe codigoAdmin para consultar a API Admin; busca remota por CNPJ ainda não tem contrato confirmado.",Suggestions:matches.Take(10).ToList());
+            return new(matches.Count>0?"revisao_necessaria":"nao_encontrado",matches.Count>0?"Há cadastro local com este CPF/CNPJ, mas a identidade Admin precisa ser conferida por código.":"CPF/CNPJ não encontrado no catálogo local. Informe codigoAdmin para consultar a API Admin; busca remota por CPF/CNPJ ainda não tem contrato confirmado.",Suggestions:matches.Take(10).ToList());
         }
         QuoteCalculator.CheckText(request.Name,"Nome para sugestão",100);
-        if(string.IsNullOrWhiteSpace(request.Name)||request.Name.Trim().Length<3)throw new OrcamentoException(422,"Informe código Admin, CNPJ ou pelo menos três caracteres do nome.");
+        if(string.IsNullOrWhiteSpace(request.Name)||request.Name.Trim().Length<3)throw new OrcamentoException(422,"Informe código Admin, CPF/CNPJ ou pelo menos três caracteres do nome.");
         var suggestions=(await c.QueryAsync<AdminLocalCandidateRow>(new CommandDefinition("SELECT FIRST 11 CODCLIENTE AS Id,NOME AS Name,STATUS AS Status FROM CLIENTES WHERE NOME CONTAINING @name ORDER BY CODCLIENTE",new{name=request.Name.Trim()},cancellationToken:ct))).Select(r=>new AdminLocalCandidate(r.Id,r.Name,null,false)).ToList();
-        return new(suggestions.Count>0?"revisao_necessaria":"nao_encontrado","Nome produz apenas sugestões, nunca confirmação de identidade nem cadastro automático. Informe código Admin/CNPJ confiável.",Suggestions:suggestions.Take(10).ToList());
+        return new(suggestions.Count>0?"revisao_necessaria":"nao_encontrado","Nome produz apenas sugestões, nunca confirmação de identidade nem cadastro automático. Informe código Admin/CPF/CNPJ confiável.",Suggestions:suggestions.Take(10).ToList());
     }
     public async Task<AdminClientPreview> PreviewAdminClient(AdminClientPreviewRequest request,IAdminClientDirectory directory,CancellationToken ct)
     {
@@ -94,7 +98,7 @@ public sealed partial class OrcamentoService
             var stored=await c.QuerySingleAsync<AdminLocalCandidateRow>(new CommandDefinition("SELECT CODCLIENTE AS Id,NOME AS Name,STATUS AS Status FROM CLIENTES WHERE CODCLIENTE=@id",new{id=actual},tx,cancellationToken:ct));
             if(stored.Name!=current.Name||stored.Status!=1)throw new OrcamentoException(409,"Triggers alteraram o cadastro importado. Importação desfeita para revisão do esquema.");
         }
-        await c.ExecuteAsync(new CommandDefinition("INSERT INTO CLIENTEADMIN(CODCLIENTE,CNPJ,DOCUMENTO,CODUSUARIO,DTHRCRIACAO) VALUES(@id,@cnpj,@json,@actor,@now)",new{id=current.CodigoAdmin,cnpj=current.Cnpj,json=QuoteTextBlob.Json(current),actor=actor.Id,now=Now},tx,cancellationToken:ct));
+        await c.ExecuteAsync(new CommandDefinition("INSERT INTO CLIENTEADMIN(CODCLIENTE,CNPJ,DOCUMENTOFISCAL,DOCUMENTO,CODUSUARIO,DTHRCRIACAO) VALUES(@id,@legacy,@cnpj,@json,@actor,@now)",new{id=current.CodigoAdmin,legacy=current.Cnpj.Length==14?current.Cnpj:null,cnpj=current.Cnpj,json=QuoteTextBlob.Json(current),actor=actor.Id,now=Now},tx,cancellationToken:ct));
         await Audit(c,tx,"CLIENTES",current.CodigoAdmin.ToString(System.Globalization.CultureInfo.InvariantCulture),"importar_cliente_admin",ct);
         await tx.CommitAsync(ct);return new(current.CodigoAdmin,current.CodigoAdmin,created);
     }
@@ -112,13 +116,13 @@ public sealed partial class OrcamentoService
         await c.QuerySingleOrDefaultAsync<AdminConsultationRow>(new CommandDefinition("SELECT CODUSUARIO AS ActorId,DOCUMENTO AS Document,DTHREXPIRACAO AS Expires,CONSUMIDA AS Used FROM CLIENTEADMINCONSULTA WHERE CODCLIENTEADMINCONSULTA=@id",new{id=id.ToString("D")},tx,cancellationToken:ct))??throw new OrcamentoException(404,"Consulta Admin não encontrada.");
     private static async Task<List<AdminIdentityRow>> IdentityRows(DbConnection c,DbTransaction? tx,CancellationToken ct)
     {
-        var rows=(await c.QueryAsync<AdminIdentityRow>(new CommandDefinition("SELECT c.CODCLIENTE AS Id,c.NOME AS Name,c.STATUS AS Status,m.CNPJ AS MappedCnpj,m.DOCUMENTO AS MappingDocument,b.DOCUMENTO AS CommercialDocument FROM CLIENTES c LEFT JOIN CLIENTEADMIN m ON m.CODCLIENTE=c.CODCLIENTE LEFT JOIN CLIENTECOMERCIAL b ON b.CODCLIENTE=c.CODCLIENTE",transaction:tx,cancellationToken:ct))).ToList();
+        var rows=(await c.QueryAsync<AdminIdentityRow>(new CommandDefinition("SELECT c.CODCLIENTE AS Id,c.NOME AS Name,c.STATUS AS Status,m.DOCUMENTOFISCAL AS MappedCnpj,m.DOCUMENTO AS MappingDocument,b.DOCUMENTO AS CommercialDocument FROM CLIENTES c LEFT JOIN CLIENTEADMIN m ON m.CODCLIENTE=c.CODCLIENTE LEFT JOIN CLIENTECOMERCIAL b ON b.CODCLIENTE=c.CODCLIENTE",transaction:tx,cancellationToken:ct))).ToList();
         foreach(var row in rows)
         {
             try
             {
                 row.FiscalId=row.CommercialDocument is null?null:OrcamentoJson.Read<CommercialClient>(row.CommercialDocument).FiscalId;
-                row.Cnpj=AdminClientIdentity.TryCnpj(row.FiscalId);
+                row.Cnpj=AdminClientIdentity.TryFiscalDocument(row.FiscalId);
                 row.Mapping=row.MappingDocument is null?null:AdminClientIdentity.Validate(OrcamentoJson.Read<AdminClientSnapshot>(row.MappingDocument));
             }
             catch(Exception ex) when(ex is System.Text.Json.JsonException or OrcamentoException){throw new OrcamentoException(409,"Há documentos locais de identidade inválidos. Solicite revisão; nenhum cadastro será sobrescrito.");}
@@ -135,20 +139,20 @@ public sealed partial class OrcamentoService
         if(candidate.CodigoAdmin==1)return Conflict("O código 1 é reservado ao cliente padrão. Não substituir nem reutilizar automaticamente.");
         if(!candidate.Active)return new("inativo","O cliente está inativo no Admin. Não importar nem reativar automaticamente.",candidate);
         var rows=await IdentityRows(c,tx,ct);var current=rows.SingleOrDefault(r=>r.Id==candidate.CodigoAdmin);
-        if(rows.Any(r=>r.Id!=candidate.CodigoAdmin&&(r.Cnpj==candidate.Cnpj||r.MappedCnpj?.Trim()==candidate.Cnpj)))return Conflict("O CNPJ já pertence a outro código local. Revisão humana necessária; não fundir ou renumerar.");
+        if(rows.Any(r=>r.Id!=candidate.CodigoAdmin&&(r.Cnpj==candidate.Cnpj||r.MappedCnpj?.Trim()==candidate.Cnpj)))return Conflict("O CPF/CNPJ já pertence a outro código local. Revisão humana necessária; não fundir ou renumerar.");
         if(rows.Any(r=>r.Id!=candidate.CodigoAdmin&&AdminClientIdentity.NameKey(r.Name)==AdminClientIdentity.NameKey(candidate.Name)))return Conflict("Já existe nome igual em outro código local. Não vincular por nome; confira a identidade antes de cadastrar.");
         if(current is not null)
         {
             if(current.Status!=1)return Conflict("O cadastro local está inativo. Não reativar automaticamente.");
             if(AdminClientIdentity.NameKey(current.Name)!=AdminClientIdentity.NameKey(candidate.Name))return Conflict("O código local está ocupado por nome divergente. Não sobrescrever nem presumir equivalência com o Admin.");
-            if(!string.IsNullOrWhiteSpace(current.FiscalId)&&current.Cnpj!=candidate.Cnpj)return Conflict("O documento comercial local é diferente ou não comprova este CNPJ. Solicite revisão.");
+            if(!string.IsNullOrWhiteSpace(current.FiscalId)&&current.Cnpj!=candidate.Cnpj)return Conflict("O documento comercial local é diferente ou não comprova este CPF/CNPJ. Solicite revisão.");
             if(current.Mapping is not null)
             {
                 if(!Verified(current)||current.Mapping.Cnpj!=candidate.Cnpj)return Conflict("O vínculo Admin existente diverge do cadastro oficial/local. Não substituir automaticamente.");
                 return new("encontrado_local","Cliente local com vínculo Admin verificado.",candidate,current.Id);
             }
-            if(current.Cnpj!=candidate.Cnpj)return Conflict("Código legado sem CNPJ independente para comprovar a identidade. Nome/código iguais, isoladamente, não autorizam vinculação.");
-            return new("encontrado_local","CNPJ e nome local correspondem ao Admin. Um humano pode registrar o vínculo sem alterar o cadastro existente.",candidate,current.Id,true);
+            if(current.Cnpj!=candidate.Cnpj)return Conflict("Código legado sem CPF/CNPJ independente para comprovar a identidade. Nome/código iguais, isoladamente, não autorizam vinculação.");
+            return new("encontrado_local","CPF/CNPJ e nome local correspondem ao Admin. Um humano pode registrar o vínculo sem alterar o cadastro existente.",candidate,current.Id,true);
         }
         var size=await c.ExecuteScalarAsync<int?>(new CommandDefinition("SELECT f.RDB$CHARACTER_LENGTH FROM RDB$RELATION_FIELDS rf JOIN RDB$FIELDS f ON f.RDB$FIELD_NAME=rf.RDB$FIELD_SOURCE WHERE rf.RDB$RELATION_NAME='CLIENTES' AND rf.RDB$FIELD_NAME='NOME'",transaction:tx,cancellationToken:ct));
         if(size is null||candidate.Name.Length>size)return Conflict("Nome oficial incompatível com o tamanho do campo local. Não truncar; revisar o esquema/cadastro.");

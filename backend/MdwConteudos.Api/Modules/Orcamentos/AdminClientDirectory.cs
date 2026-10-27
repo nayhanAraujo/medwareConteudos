@@ -31,6 +31,21 @@ public interface IAdminClientDirectory { Task<AdminClientSnapshot?> GetAsync(int
 
 public static class AdminClientIdentity
 {
+    public static string FiscalDocument(string? value)
+    {
+        var normalized=(value??"").Trim().Replace(".","").Replace("-","").Replace("/","");
+        if(normalized.Length!=11)return Cnpj(value);
+        if(normalized.Any(c=>c is < '0' or > '9')||normalized.Distinct().Count()==1)
+            throw new OrcamentoException(422,"CPF inválido.");
+        for(var length=9;length<=10;length++)
+        {
+            var sum=Enumerable.Range(0,length).Sum(i=>(normalized[i]-'0')*(length+1-i));
+            var digit=(sum*10)%11;if(digit==10)digit=0;
+            if(digit!=normalized[length]-'0')throw new OrcamentoException(422,"Dígitos verificadores do CPF inválidos.");
+        }
+        return normalized;
+    }
+    public static string? TryFiscalDocument(string? value){try{return FiscalDocument(value);}catch(OrcamentoException){return null;}}
     public static string Cnpj(string? value)
     {
         var s=(value??"").Trim().ToUpperInvariant().Replace(".","").Replace("/","").Replace("-","");
@@ -46,7 +61,7 @@ public static class AdminClientIdentity
     {
         if(value.CodigoAdmin<=0||string.IsNullOrWhiteSpace(value.Name))throw new OrcamentoException(502,"Cadastro Admin sem código ou nome válido.");
         QuoteCalculator.CheckText(value.Name,"Nome oficial",300);
-        return value with {Name=value.Name.Trim(),Cnpj=Cnpj(value.Cnpj)};
+        return value with {Name=value.Name.Trim(),Cnpj=FiscalDocument(value.Cnpj)};
     }
     public static string NameKey(string value)=>value.Trim().Normalize().ToUpperInvariant();
 }
@@ -89,9 +104,11 @@ public sealed class AdminClientDirectory(HttpClient http,IOptions<AdminDirectory
             JsonElement Field(string name)=>item.TryGetProperty(name,out var v)?v:throw new JsonException();
             var code=Field(o.CodeField);var rawCode=code.ValueKind==JsonValueKind.String?code.GetString():code.GetRawText();
             if(!int.TryParse(rawCode,NumberStyles.None,CultureInfo.InvariantCulture,out var found)||found!=codigoAdmin)throw new JsonException();
-            var active=Field(o.ActiveField);var flag=active.ValueKind==JsonValueKind.String?active.GetString()!:active.GetRawText();
-            if(!o.ActiveValues.Contains(flag)&&!o.InactiveValues.Contains(flag))throw new JsonException();
-            return AdminClientIdentity.Validate(new(found,Field(o.NameField).GetString()!,Field(o.CnpjField).GetString()!,o.ActiveValues.Contains(flag)));
+            string Text(string name)=>item.TryGetProperty(name,out var value)&&value.ValueKind==JsonValueKind.String?value.GetString()!:"";
+            var flag=item.TryGetProperty(o.ActiveField,out var active)?(active.ValueKind==JsonValueKind.String?active.GetString()!:active.GetRawText()):"";
+            var document=Text(o.CnpjField);
+            // Lookup is keyed only by the requested Admin code. Fiscal validation belongs to import.
+            return new(found,Text(o.NameField),AdminClientIdentity.TryFiscalDocument(document)??document,o.ActiveValues.Contains(flag));
         }
         catch(OperationCanceledException) when(!ct.IsCancellationRequested){throw new OrcamentoException(503,"Tempo de consulta à API Admin esgotado. Nenhum cliente foi importado.");}
         catch(HttpRequestException){throw new OrcamentoException(503,"API Admin indisponível. Nenhum cliente foi importado.");}
