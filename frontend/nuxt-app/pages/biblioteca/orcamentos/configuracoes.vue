@@ -2,6 +2,7 @@
   <div>
     <DsPageHeader title="Configurações de Orçamentos" subtitle="Política comercial versionada e complemento dos clientes existentes." icon="gear" />
     <DsButton to="/biblioteca/orcamentos" variant="secondary" icon="arrow-left" class="mb-4">Carteira</DsButton>
+    <DsButton v-if="auth.can('orcamentos','importar_cliente_admin')" to="/biblioteca/orcamentos/clientes-admin" variant="secondary" class="mb-4 ml-2">Clientes do Admin</DsButton>
     <DsAlert v-if="error" variant="error" class="mb-4">{{ error }}</DsAlert>
     <DsAlert v-if="message" variant="success" class="mb-4">{{ message }}</DsAlert>
     <QuoteTechnicalSettings v-if="auth.can('orcamentos','configurar_regras')" class="mb-4" />

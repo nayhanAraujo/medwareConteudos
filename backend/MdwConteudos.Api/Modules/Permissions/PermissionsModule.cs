@@ -368,7 +368,7 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
         var map = new Dictionary<string, string[]>
         {
             [PermissionDomains.Studio] = [PermissionActions.Visualizar, PermissionActions.Converter, PermissionActions.Voz],
-            [PermissionDomains.Orcamentos] = ["visualizar", "elaborar", "usar_ia", "aprovar", "registrar_marcos", "configurar_precos", "configurar_clientes", "configurar_regras", "importar_email", "confirmar_email", "enviar_email_confirmado"],
+            [PermissionDomains.Orcamentos] = ["visualizar", "elaborar", "usar_ia", "aprovar", "registrar_marcos", "configurar_precos", "configurar_clientes", "configurar_regras", "importar_email", "confirmar_email", "enviar_email_confirmado", "consultar_clientes_admin", "importar_cliente_admin"],
             [PermissionDomains.Biblioteca] = [PermissionActions.Visualizar],
             [PermissionDomains.AprovacaoConteudo] = [PermissionActions.Visualizar, PermissionActions.Aprovar],
             [PermissionDomains.Conteudos] = [PermissionActions.Visualizar, PermissionActions.Criar, PermissionActions.Editar, PermissionActions.Excluir, PermissionActions.Importar, PermissionActions.Exportar, PermissionActions.Ativar],
@@ -401,6 +401,8 @@ public sealed class PermissionService(IFirebirdConnectionFactory db) : IPermissi
             "usar_ia" => "Usar IA",
             "registrar_marcos" => "Registrar marcos comerciais",
             "importar_email" => "Importar solicitações de e-mail",
+            "consultar_clientes_admin" => "Consultar identidade de clientes no Admin",
+            "importar_cliente_admin" => "Confirmar importação/vínculo de cliente Admin",
             "confirmar_email" => "Confirmar origem e autorizar envio por bot",
             "enviar_email_confirmado" => "Executar envio autorizado de proposta",
             "configurar_precos" => "Configurar preços",

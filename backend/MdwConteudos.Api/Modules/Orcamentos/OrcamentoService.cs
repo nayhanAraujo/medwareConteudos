@@ -46,7 +46,7 @@ public sealed partial class OrcamentoService(IFirebirdConnectionFactory db, IHtt
               CAST(RDB$GET_CONTEXT('USER_SESSION','AUD_ACTOR_ID') AS INTEGER),RDB$GET_CONTEXT('USER_SESSION','AUD_ACTOR_NAME'),'usuario','web',
               RDB$GET_CONTEXT('USER_SESSION','AUD_CORRELATION'),RDB$GET_CONTEXT('USER_SESSION','AUD_OPERATION'),RDB$GET_CONTEXT('USER_SESSION','AUD_METHOD'),
               RDB$GET_CONTEXT('USER_SESSION','AUD_PATH'),RDB$GET_CONTEXT('USER_SESSION','AUD_IP'))
-            """, new { now = Now, action, type, id, summary = $"Orçamento {id}: {action}" }, tx, cancellationToken: ct));
+            """, new { now = Now, action, type, id, summary = type == "CLIENTES" ? $"Cliente {id}: {action}" : $"Orçamento {id}: {action}" }, tx, cancellationToken: ct));
     }
     private async Task Event(DbConnection c, DbTransaction tx, Head h, string action, string next, (int Id, string Name) actor, QuoteCommand? command, CancellationToken ct)
     {

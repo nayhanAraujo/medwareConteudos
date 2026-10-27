@@ -1,6 +1,7 @@
 <template>
   <div>
     <DsPageHeader title="Central de Orçamentos" subtitle="Carteira compartilhada do departamento, da análise ao encaminhamento." icon="receipt" />
+    <DsButton v-if="auth.can('orcamentos','importar_cliente_admin')" to="/biblioteca/orcamentos/clientes-admin" variant="secondary" class="mb-4">Resolver cliente ausente no Admin</DsButton>
     <DsPageShell>
       <div class="flex flex-wrap justify-between gap-3 mb-5"><div class="flex flex-wrap gap-2"><DsSelect id="quotes-status" v-model="status" label="Estado"><option value="">Todos</option><option v-for="(label,key) in quoteStatuses" :key="key" :value="key">{{ label }}</option></DsSelect><label class="self-end text-sm flex gap-2 items-center py-3"><input v-model="archived" type="checkbox">Arquivados</label></div><div class="flex flex-wrap gap-2 items-end"><DsButton v-if="auth.can('orcamentos','configurar_precos') || auth.can('orcamentos','configurar_clientes') || auth.can('orcamentos','configurar_regras')" to="/biblioteca/orcamentos/configuracoes" variant="secondary" icon="gear">Configurações</DsButton><DsButton v-if="auth.can('orcamentos','elaborar')" icon="plus-lg" @click="creating = !creating">Novo orçamento</DsButton></div></div>
       <form v-if="creating" class="rounded-2xl bg-slate-50 border border-gray-200 p-4 mb-5 space-y-3" @submit.prevent="create">

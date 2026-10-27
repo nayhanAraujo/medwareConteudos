@@ -56,6 +56,7 @@ export const auditEntityLabels: Record<string, string> = {
 }
 
 export const auditLabels: Record<string, string> = {
+  importar_cliente_admin:'Importação/vínculo de cliente Admin',
   importar_email:'Solicitação importada do Outlook', confirmar_email:'Origem do e-mail confirmada', email_autorizado:'Envio pelo bot autorizado', email_revogado:'Envio pelo bot revogado', email_iniciado:'Envio SMTP iniciado', email_enviado:'Proposta aceita pelo SMTP', email_incerto:'Envio SMTP não confirmado',
   orcamentos: 'Orçamentos', analise: 'Análise', solicitar_aprovacao: 'Solicitação de aprovação', devolver: 'Devolução', enviar: 'Envio registrado', aceitar: 'Aceite do cliente', confirmar_pagamento: 'Pagamento confirmado', encaminhar: 'Encaminhamento', recusar: 'Recusa', cancelar: 'Cancelamento', arquivar: 'Arquivamento', nova_revisao: 'Nova revisão', analisar_ia: 'Análise por IA solicitada', aplicar_ia: 'Sugestão de IA aplicada', cancelar_ia: 'Análise por IA cancelada', resultado_ia: 'Resultado de análise por IA',
   scripts: 'Scripts', usuarios: 'Usuários', permissoes: 'Permissões', paineis: 'Painéis',

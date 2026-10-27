@@ -38,6 +38,7 @@ public static class OrcamentoSchema
         await OrcamentoAiSchema.Migrate(db, ct);
         await OrcamentoTechnicalSchema.Migrate(db, ct);
         await OrcamentoEmailSourceSchema.Migrate(db, ct);
+        await ClientAdminSchema.Migrate(db, ct);
         await ValidateAsync(db, ct);
     }
 
@@ -45,6 +46,7 @@ public static class OrcamentoSchema
     {
         await using var c = await db.OpenConnectionAsync(ct);
         await OrcamentoEmailSourceSchema.Validate(c, ct);
+        await ClientAdminSchema.Validate(c, ct);
         foreach (var table in new[] { "CLIENTECOMERCIAL", "ORCAMENTOPOLITICA", "ORCAMENTOCONFIG", "ORCAMENTO", "ORCAMENTOREVISAO", "ORCAMENTOITEM", "ORCAMENTO_USUARIO", "ORCAMENTOEVENTO", "ORCAMENTOANEXO", "ORCAMENTOPROPOSTA", "ORCAMENTOANALISE", "ORCAMENTOREGRAVERSAO", "ORCAMENTOREGRACONFIG" })
             if (await c.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME=@table", new { table }, cancellationToken: ct)) != 1)
                 throw new InvalidOperationException("Schema de orçamentos ausente. Execute --migrate-database antes de iniciar a API.");

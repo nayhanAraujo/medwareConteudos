@@ -3,6 +3,17 @@ import assert from 'node:assert/strict'
 import { newQuoteDraft, newQuoteItem, quoteCommands, quotePayload, quoteApproved, quoteEditable, quoteMoney } from '../utils/orcamentos.ts'
 import { quoteSteps, initialQuoteStep, quoteStageActions, quoteStepBlock, type QuoteStepState } from '../utils/orcamentoSteps.ts'
 import {quoteCanEmail,pendingQuoteEmailAuthorization} from '../utils/orcamentoEmail.ts'
+import {canImportAdminClient,adminClientImportPayload,type AdminClientPreviewData} from '../utils/adminClients.ts'
+
+test('Admin client import requires a live official preview and never posts editable identity or pricing',()=>{
+ const now=Date.UTC(2026,9,26),preview:AdminClientPreviewData={resolution:{state:'encontrado_admin',message:'Revisar',canImport:true,localId:null,candidate:{codigoAdmin:13687,name:'Clínica',cnpj:'11222333000181',active:true}},consultationId:'11111111-1111-4111-8111-111111111111',expiresAtUtc:'2026-10-26T00:15:00Z'}
+ assert.equal(canImportAdminClient(preview,now),true)
+ assert.equal(canImportAdminClient({...preview,expiresAtUtc:'2026-10-25T23:59:59Z'},now),false)
+ assert.equal(canImportAdminClient({...preview,resolution:{...preview.resolution,state:'conflito'}},now),false)
+ assert.equal(canImportAdminClient({...preview,resolution:{...preview.resolution,candidate:{...preview.resolution.candidate!,active:false}}},now),false)
+ assert.throws(()=>adminClientImportPayload(preview,'Revisado',false,now))
+ assert.deepEqual(adminClientImportPayload(preview,'  Identidade conferida  ',true,now),{consultationId:preview.consultationId,confirm:true,reason:'Identidade conferida'})
+})
 
 test('imported email must be confirmed before advancing and only newest unused authorization is pending',()=>{
  const state:QuoteStepState={...readyNavigation,issues:[{severity:'impedimento',step:1,message:'Confirme a origem'}]}

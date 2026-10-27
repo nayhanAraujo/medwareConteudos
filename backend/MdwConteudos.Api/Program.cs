@@ -111,6 +111,9 @@ builder.Services.AddHostedService<PublicacaoWorker>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<OrcamentoService>();
 builder.Services.AddScoped<IQuoteEmailSender, QuoteEmailSender>();
+builder.Services.Configure<AdminDirectoryOptions>(builder.Configuration.GetSection("AdminDirectory"));
+builder.Services.AddHttpClient<IAdminClientDirectory, AdminClientDirectory>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.Configure<OrcamentoAiOptions>(builder.Configuration.GetSection("OrcamentosAI"));
 builder.Services.AddScoped<IQuoteAiProvider, CursorQuoteAiProvider>();
 builder.Services.AddHostedService<OrcamentoAiWorker>();

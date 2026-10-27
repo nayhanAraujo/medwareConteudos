@@ -78,6 +78,9 @@ public sealed class PaineisCadastrosService(IFirebirdConnectionFactory connectio
         await using var transaction = await connection.BeginTransactionAsync(ct);
         try
         {
+            if (tipo == PainelCadastroTipo.Cliente && await connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='CLIENTEADMIN'", transaction: transaction, cancellationToken: ct)) > 0
+                && await connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM CLIENTEADMIN WHERE CODCLIENTE=@Id", new { Id = id }, transaction, cancellationToken: ct)) > 0)
+                throw new InvalidOperationException("O cliente possui vínculo de identidade Admin. Preserve o cadastro e o histórico; não excluir por este formulário.");
             var links = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
                 $"SELECT COUNT(*) FROM {definition.LinkTable} WHERE {definition.LinkColumn} = @Id",
                 new { Id = id }, transaction, cancellationToken: ct));

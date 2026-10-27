@@ -1,6 +1,8 @@
 # Triagem de e-mails → Orçamentos
 
-Contrato para o bot existente **Triagem de e-mails**, coordenado pelo chat **Controle do Grok Bot**. Esta entrega prepara API, persistência, permissões e telas. Não configura Outlook, não cria contas reais, não agenda o bot e não envia mensagens de produção automaticamente.
+Contrato para o bot dedicado **Gerar Orçamento**, coordenado pelo chat **Controle do Grok Bot**. **Triagem de e-mails** permanece responsável por outras triagens. Esta entrega prepara API, persistência, permissões e telas. Não configura Outlook, não cria contas reais, não agenda o bot e não envia mensagens de produção automaticamente.
+
+Para cliente ausente, seguir [resolução local/Admin e importação humana](ORCAMENTOS_CLIENTES_ADMIN.md). A consulta restrita exige `consultar_clientes_admin`; importar cliente exige permissão humana separada. Não liberar CRUD amplo ao bot. A mensagem fica pendente até a identidade ser resolvida; não usar o cliente padrão nem cadastrar por nome inferido.
 
 ## Fluxo e limites
 

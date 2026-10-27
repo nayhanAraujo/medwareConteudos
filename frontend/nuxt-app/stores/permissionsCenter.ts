@@ -20,7 +20,7 @@ export interface PermissionUserItem {
 
 export const permissionModules: PermissionModuleConfig[] = [
   { domain: 'studio', title: 'Studio', icon: 'bi-magic', actions: ['visualizar', 'converter', 'voz'] },
-  { domain: 'orcamentos', title: 'Central de Orçamentos', icon: 'bi-receipt', actions: ['visualizar', 'elaborar', 'usar_ia', 'aprovar', 'registrar_marcos', 'configurar_precos', 'configurar_clientes', 'configurar_regras', 'importar_email', 'confirmar_email', 'enviar_email_confirmado'] },
+  { domain: 'orcamentos', title: 'Central de Orçamentos', icon: 'bi-receipt', actions: ['visualizar', 'elaborar', 'usar_ia', 'aprovar', 'registrar_marcos', 'configurar_precos', 'configurar_clientes', 'configurar_regras', 'importar_email', 'confirmar_email', 'enviar_email_confirmado', 'consultar_clientes_admin', 'importar_cliente_admin'] },
   { domain: 'biblioteca', title: 'Biblioteca', icon: 'bi-folder2-open', actions: ['visualizar'] },
   { domain: 'aprovacao-conteudo', title: 'Aprovação de Conteúdo', icon: 'bi-file-earmark-check', actions: ['visualizar', 'aprovar'] },
   { domain: 'conteudos', title: 'Conteúdos', icon: 'bi-folder', actions: ['visualizar', 'criar', 'editar', 'excluir', 'importar', 'exportar', 'ativar'] },
@@ -37,6 +37,7 @@ export const permissionModules: PermissionModuleConfig[] = [
 ]
 
 const actionLabels: Record<string, string> = {
+  consultar_clientes_admin:'Consultar identidade de clientes no Admin', importar_cliente_admin:'Confirmar importação de cliente Admin',
   importar_email: 'Importar solicitações de e-mail', confirmar_email: 'Confirmar origem e autorizar envio por bot', enviar_email_confirmado: 'Executar envio autorizado de proposta',
   elaborar: 'Elaborar/editar', usar_ia: 'Usar IA', registrar_marcos: 'Registrar marcos comerciais', configurar_precos: 'Configurar preços', configurar_clientes: 'Configurar clientes', configurar_regras: 'Configurar regras técnicas',
   converter: 'Converter',

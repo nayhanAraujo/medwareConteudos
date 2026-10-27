@@ -1,6 +1,6 @@
 <template>
   <section class="mt-4 rounded-2xl border border-blue-200 p-4">
-    <h3 class="font-semibold">Envio pelo bot Triagem de e-mails</h3>
+    <h3 class="font-semibold">Envio pelo bot Gerar Orçamento</h3>
     <p class="text-sm mt-2 break-words">Destinatário confirmado: {{ recipient }}. Autorizar libera uma única tentativa de envio da proposta atual. O bot poderá executá-la assim que consultar as pendências.</p>
     <DsAlert v-if="pending" variant="info" class="mt-3">Autorização pendente. Você pode revogá-la enquanto o envio não tiver sido iniciado.</DsAlert>
     <div class="flex flex-wrap gap-2 mt-3"><DsButton v-if="!pending" variant="secondary" :disabled="disabled || busy" :loading="busy" @click="authorize">Autorizar envio pelo bot</DsButton><DsButton v-else variant="secondary" :disabled="disabled || busy" :loading="busy" @click="revoke">Revogar autorização de envio</DsButton></div>
