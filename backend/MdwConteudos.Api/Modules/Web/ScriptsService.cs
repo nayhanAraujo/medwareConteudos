@@ -186,7 +186,9 @@ public partial class ScriptsService
         var parameters = new DynamicParameters();
         if (!string.IsNullOrWhiteSpace(nome))
         {
-            where.Add("(UPPER(s.NOME) LIKE UPPER(@nome) OR s.CODUNIVERSAL LIKE UPPER(@nome))");
+            // Keep Firebird from inferring the search parameter as CODUNIVERSAL's short ASCII type.
+            const string pattern = "UPPER(CAST(@nome AS VARCHAR(8191) CHARACTER SET UTF8))";
+            where.Add($"(UPPER(s.NOME) LIKE {pattern} OR CAST(s.CODUNIVERSAL AS VARCHAR(24) CHARACTER SET UTF8) LIKE {pattern})");
             parameters.Add("nome", $"%{nome.Trim()}%");
         }
         if (sistema is "Laudos UX" or "Laudos Flex")

@@ -66,6 +66,10 @@ public sealed class ScriptCodigoUniversalTests
             Assert.Equal("MOD-000001", Assert.Single(search.Items).CodUniversal);
             Assert.Equal("MOD-000001", (await service.GetScriptAsync(1))!.CodUniversal);
             Assert.Empty((await service.ListScriptsAsync("MOD-999999", null, null, null, null, 1, 10)).Items);
+            const string botModelName = "Avaliação de Carótidas e Vertebrais Studio";
+            await conn.ExecuteAsync("UPDATE SCRIPTLAUDO SET NOME=@name WHERE CODSCRIPTLAUDO=1", new { name = botModelName });
+            Assert.Equal(1, Assert.Single((await service.ListScriptsAsync(botModelName, null, null, null, null, 1, 50)).Items).CodScriptLaudo);
+            Assert.Equal(1, Assert.Single((await service.ListScriptsAsync("Carótidas", null, null, null, null, 1, 50)).Items).CodScriptLaudo);
         }
         finally { FbConnection.DropDatabase(cs); }
     }
