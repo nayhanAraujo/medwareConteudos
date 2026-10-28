@@ -224,7 +224,7 @@ public partial class ScriptsService
 
         var sql = $@"
             SELECT FIRST @first SKIP @skip
-                s.CODSCRIPTLAUDO, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.CAMINHO_PROJETO, s.SISTEMA,
+                s.CODSCRIPTLAUDO, s.CODPACOTE, s.NOME, s.DESCRICAO, s.LINGUAGEM, s.CAMINHO_PROJETO, s.SISTEMA,
                 s.APROVADO, s.DATA_VERIFICACAO, s.ATIVO, s.AMBIENTE_APROVACAO, s.CODUNIVERSAL,
                 CASE WHEN s.ARQUIVO_JSON IS NOT NULL THEN 1 ELSE 0 END AS TEM_JSON,
                 s.APROVADO_POR, p.NOME AS NOME_PACOTE, s.CAMINHO_AZURE,
@@ -311,7 +311,7 @@ public partial class ScriptsService
                 imagens,
                 pdfs,
                 mrdList
-            ) { CodUniversal = d["CODUNIVERSAL"]?.ToString(), AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() });
+            ) { CodPacote = d["CODPACOTE"] as int?, CodUniversal = d["CODUNIVERSAL"]?.ToString(), AmbienteAprovacao = d["AMBIENTE_APROVACAO"]?.ToString() });
         }
 
         return new PagedScriptsResponse(items, page, totalPages, total);

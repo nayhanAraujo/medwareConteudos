@@ -4,6 +4,7 @@
     <DsButton v-if="useAuthStore().isAdmin" variant="secondary" icon="arrow-repeat" to="/scripts/publicacao" class="mb-4">Publicação no Assistente</DsButton>
     <ScriptsBreadcrumb :sistema="sistema" />
     <DsPageShell>
+      <ScriptsGlobalScriptSearch :sistema="sistema" :pacotes="pacotes" />
       <div class="flex justify-between items-center mb-6">
         <DsSectionTitle title="Escolha o Pacote" />
         <DsButton variant="secondary" size="sm" icon="arrow-left" @click="goSistema()">Voltar</DsButton>
@@ -41,7 +42,7 @@ const scriptsApi = useScriptsApi()
 const sistema = computed(() => String(route.query.sistema || ''))
 const busca = ref('')
 const loading = ref(true)
-const pacotes = ref<{ codPacote: number; nome: string; descricao?: string }[]>([])
+const pacotes = ref<import('~/composables/useScriptsApi').PacoteDto[]>([])
 
 const pacotesFiltrados = computed(() => {
   const q = busca.value.trim().toLowerCase()

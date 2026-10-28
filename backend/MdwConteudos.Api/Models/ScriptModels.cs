@@ -38,6 +38,7 @@ public record ScriptListItemDto(
 )
 {
     public string? CodUniversal { get; init; }
+    public int? CodPacote { get; init; }
     public string? AmbienteAprovacao { get; init; }
 }
 

@@ -66,6 +66,17 @@ public sealed class ScriptCodigoUniversalTests
             Assert.Equal("MOD-000001", Assert.Single(search.Items).CodUniversal);
             Assert.Equal("MOD-000001", (await service.GetScriptAsync(1))!.CodUniversal);
             Assert.Empty((await service.ListScriptsAsync("MOD-999999", null, null, null, null, 1, 10)).Items);
+            await conn.ExecuteAsync("INSERT INTO PACOTES (CODPACOTE,NOME) VALUES (1,'Consulta')");
+            await conn.ExecuteAsync("INSERT INTO PACOTES (CODPACOTE,NOME) VALUES (2,'Cardiologia')");
+            await conn.ExecuteAsync("UPDATE SCRIPTLAUDO SET NOME='Modelo de teste',CODPACOTE=1 WHERE CODSCRIPTLAUDO=1");
+            await conn.ExecuteAsync("UPDATE SCRIPTLAUDO SET NOME='Modelo de teste',CODPACOTE=2 WHERE CODSCRIPTLAUDO=3");
+            await conn.ExecuteAsync("UPDATE SCRIPTLAUDO SET NOME='Modelo de teste',CODPACOTE=2,ATIVO=0 WHERE CODSCRIPTLAUDO=4");
+            await conn.ExecuteAsync("UPDATE SCRIPTLAUDO SET NOME='Modelo de teste',SISTEMA='Laudos Flex' WHERE CODSCRIPTLAUDO=5");
+            var global = await service.ListScriptsAsync("Modelo de teste", "Laudos UX", null, null, 1, 1, 10);
+            Assert.Equal(2, global.TotalItems);
+            Assert.Equal(new[] { 1, 2 }, global.Items.Select(x => x.CodPacote!.Value).Order().ToArray());
+            Assert.Equal(3, (await service.ListScriptsAsync("Modelo de teste", "Laudos UX", null, null, null, 1, 10)).TotalItems);
+            Assert.Single((await service.ListScriptsAsync("Modelo de teste", "Laudos UX", 1, null, 1, 1, 10)).Items);
             const string botModelName = "Avaliação de Carótidas e Vertebrais Studio";
             await conn.ExecuteAsync("UPDATE SCRIPTLAUDO SET NOME=@name WHERE CODSCRIPTLAUDO=1", new { name = botModelName });
             Assert.Equal(1, Assert.Single((await service.ListScriptsAsync(botModelName, null, null, null, null, 1, 50)).Items).CodScriptLaudo);
