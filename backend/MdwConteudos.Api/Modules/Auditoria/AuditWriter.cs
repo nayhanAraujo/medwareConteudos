@@ -32,7 +32,7 @@ public sealed class AuditWriter(IFirebirdConnectionFactory db, ILogger<AuditWrit
                     RDB$GET_CONTEXT('USER_SESSION','AUD_CORRELATION'),RDB$GET_CONTEXT('USER_SESSION','AUD_OPERATION'),
                     RDB$GET_CONTEXT('USER_SESSION','AUD_METHOD'),RDB$GET_CONTEXT('USER_SESSION','AUD_PATH'),
                     RDB$GET_CONTEXT('USER_SESSION','AUD_IP'),@reason)
-                """, new { module, action, result, summary = action + " " + module, actorId, actorName = AuditSession.Clip(actorName), reason }, cancellationToken: timeout.Token));
+                """, new { module = new AuditText(module), action = new AuditText(action), result = new AuditText(result), summary = new AuditText(action + " " + module), actorId, actorName = new AuditText(AuditSession.Clip(actorName)), reason = new AuditText(reason) }, cancellationToken: timeout.Token));
         }
         catch
         {

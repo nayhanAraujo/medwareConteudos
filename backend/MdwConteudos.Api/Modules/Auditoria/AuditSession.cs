@@ -20,7 +20,7 @@ public static class AuditSession
         connection.ExecuteScalarAsync<int>("SELECT RDB$SET_CONTEXT('USER_TRANSACTION','AUD_SUPPRESS',@value) FROM RDB$DATABASE",
             new { value = suppress ? "1" : (string?)null }, transaction);
     private static readonly string[] Keys = ["AUD_ENABLED", "AUD_ACTOR_ID", "AUD_ACTOR_NAME", "AUD_ACTOR_KIND", "AUD_ORIGIN", "AUD_CORRELATION", "AUD_OPERATION", "AUD_METHOD", "AUD_PATH", "AUD_IP", "AUD_IMPORT", "AUD_PASSWORD_ACTION"];
-    private static readonly string SetSql = "SELECT " + string.Join(",", Keys.Select((key, i) => $"RDB$SET_CONTEXT('USER_SESSION','{key}',@v{i}) AS C{i}")) + " FROM RDB$DATABASE";
+    private static readonly string SetSql = "SELECT " + string.Join(",", Keys.Select((key, i) => $"RDB$SET_CONTEXT('USER_SESSION','{key}',CAST(@v{i} AS VARCHAR(1024) CHARACTER SET UTF8)) AS C{i}")) + " FROM RDB$DATABASE";
 
     // Called on EVERY checkout, including non-HTTP work, so pooled connections cannot retain another actor.
     public static async Task InitializeAsync(FbConnection conn, HttpContext? context, CancellationToken ct)
@@ -58,7 +58,7 @@ public static class AuditSession
             values["AUD_PASSWORD_ACTION"] = context.Request.Path.Value?.EndsWith("/reset-password", StringComparison.OrdinalIgnoreCase) == true ? "redefinir_senha" : null;
         }
         var p = new DynamicParameters();
-        for (var i = 0; i < Keys.Length; i++) p.Add("v" + i, values[Keys[i]], System.Data.DbType.String);
+        for (var i = 0; i < Keys.Length; i++) p.Add("v" + i, new AuditText(values[Keys[i]]));
         await conn.QuerySingleAsync(new CommandDefinition(SetSql, p, cancellationToken: ct));
     }
 

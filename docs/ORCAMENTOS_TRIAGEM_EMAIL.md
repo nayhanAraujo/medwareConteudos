@@ -90,6 +90,8 @@ Todas usam concorrência por versão e histórico/auditoria. Enquanto existir au
 
 ## Implantação e testes
 
+Textos da auditoria e valores de contexto usam parâmetros explicitamente UTF8 para não depender da inferência de charset da conexão legada. Esse ajuste de código não altera esquema, charset global, credenciais ou contrato da importação. `origin.subject` vazio é aceito e preservado; datas são normalizadas para UTC. `internetMessageId` é tratado como identificador opaco: usar exatamente o mesmo valor em importar/localizar, sem alternar entre entidades HTML e caracteres decodificados. Uma falha na auditoria transacional continua abortando a importação (não ignorar nem desabilitar a auditoria para contornar erros). Após publicação da API, confirmar com consulta/localização e uma tentativa controlada, sem retentativa automática. A validação temporária não substitui conferir a causa e o resultado no servidor real.
+
 Migração aditiva integrada a `--migrate-database`; alternativa SQL versionada: `docs/sql/scripts/add-orcamentoemail.sql`. Nova tabela satélite `ORCAMENTOEMAIL`, PK/FK `CODORCAMENTO BIGINT`, unique `CHAVEORIGEM`, documento UTF8 BLOB e criação UTC. `FK_ORC_EMAIL_ORC` abrevia o vínculo ORCAMENTOEMAIL → ORCAMENTO para respeitar 31 caracteres. Sem remoção/renomeação de dados existentes e sem concessão automática de acesso ao bot.
 
 Antes de aplicar: backup consistente, conferir banco/ambiente, parar apenas a API envolvida, executar migrador e conferir término, publicar API e frontend compatíveis. Não executar nos bancos operacionais sem autorização explícita. A API valida a nova estrutura na inicialização. Não reverter removendo a tabela depois de importações: preservar vínculos/histórico e coordenar rollback de código.

@@ -21,7 +21,46 @@ namespace ConversorHtml.Tests;
 
 public sealed partial class OrcamentoFirebirdTests
 {
+    [FirebirdPublicationFact]
+    public async Task EmailImportWithLatin1ConnectionPreservesAccentedAuditActor()
+    {
+        await using(var setup=await factory.OpenConnectionAsync())
+        {
+            await setup.ExecuteAsync("UPDATE USUARIO SET NOME='Robô Orçamentos' WHERE CODUSUARIO=4");
+            await setup.ExecuteAsync("ALTER DATABASE SET DEFAULT CHARACTER SET NONE");
+        }
+        var legacy=new FirebirdSql.Data.FirebirdClient.FbConnectionStringBuilder(cs){Charset="ISO8859_1"};
+        factory=new Factory(legacy.ToString(),accessor);Context(4);
+        var imported=await Service.ImportEmail(EmailImport() with {Origin=EmailImport().Origin with {Subject=""}},default);
+        await using var c=await factory.OpenConnectionAsync();
+        Assert.Equal("Robô Orçamentos",await c.ExecuteScalarAsync<string>("SELECT FIRST 1 ACTOR_NAME FROM AUDITORIA_EVENTO WHERE MODULE='orcamentos'"));
+        Assert.Contains("Orçamento",await c.ExecuteScalarAsync<string>("SELECT FIRST 1 SUMMARY FROM AUDITORIA_EVENTO WHERE MODULE='orcamentos'"));
+        var writer=new AuditWriter(factory,Microsoft.Extensions.Logging.Abstractions.NullLogger<AuditWriter>.Instance);
+        await writer.TryRecordAsync("orcamentos","ação_teste","falha",ct:default);
+        Assert.Equal("ação_teste orcamentos",await c.ExecuteScalarAsync<string>("SELECT SUMMARY FROM AUDITORIA_EVENTO WHERE ACTION='ação_teste'"));
+        Assert.Equal(imported.Id,await Service.FindEmail(new(EmailImport().Origin.Mailbox,EmailImport().Origin.InternetMessageId),default));
+    }
     private static ImportQuoteEmailRequest EmailImport()=>new(1,"Solicitação do Outlook","Incluir somente os campos indicados pelo cliente.",new("triagem@example.com","immutable-1","<request-1@example.com>","conversation-1","forwarder@example.com","client@example.com","Solicitação de orçamento",new DateTimeOffset(2026,10,26,12,0,0,TimeSpan.Zero)));
+    [FirebirdPublicationFact]
+    public async Task OutlookDraftWithEmptySubjectUnicodeAndUtcImportsTransactionally()
+    {
+        await using var c=await factory.OpenConnectionAsync();
+        await c.ExecuteAsync("INSERT INTO CLIENTES VALUES(551,'Clínica sintética',1)");
+        Context(4);
+        var input=EmailImport() with {ClientId=551,Title="Migração de dados – Clínica sintética",Scope="Migração do sistema antigo para o novo. Solicitação sujeita à revisão humana.",Origin=EmailImport().Origin with {Subject="",ReplyTo=null,InternetMessageId="&lt;synthetic-request@example.com&gt;",ReceivedAt=DateTimeOffset.Parse("2026-10-26T19:20:52Z",System.Globalization.CultureInfo.InvariantCulture)}};
+        var result=await Service.ImportEmail(input,default);
+        Assert.True(result.Created);
+        Assert.Equal(result.Id,await Service.FindEmail(new(input.Origin.Mailbox,input.Origin.InternetMessageId),default));
+        Assert.False((await Service.ImportEmail(input,default)).Created);
+        var quote=await Service.Get(long.Parse(result.Id),default);
+        Assert.Equal(551,quote.Header.ClientId);Assert.Equal(input.Title,quote.Snapshot.Draft.Title);
+        Assert.Empty(quote.EmailSource!.Origin.Subject);
+        Assert.Equal(input.Origin.InternetMessageId,quote.EmailSource.Origin.InternetMessageId);
+        Assert.Equal(TimeSpan.Zero,quote.EmailSource.Origin.ReceivedAt.Offset);
+        Assert.Equal(1,await c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ORCAMENTOEMAIL"));
+        Assert.Equal(1,await c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ORCAMENTO"));
+        Assert.True(await c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM AUDITORIA_EVENTO WHERE MODULE='orcamentos'")>0);
+    }
     [FirebirdPublicationFact]
     public async Task ImportedMessageRequiresHumanConfirmationAndOneUseDispatchAuthorization()
     {
@@ -87,7 +126,7 @@ public sealed partial class OrcamentoFirebirdTests
         {
             using var client=new HttpClient{BaseAddress=new(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single())};
             Assert.Equal(HttpStatusCode.Unauthorized,(await client.GetAsync("/api/web/orcamentos/integracoes/emails/envios-pendentes")).StatusCode);
-            client.DefaultRequestHeaders.Add("X-Test-User","4");var result=await client.PostAsJsonAsync("/api/web/orcamentos/integracoes/emails/importar",EmailImport());result.EnsureSuccessStatusCode();var body=await result.Content.ReadFromJsonAsync<JsonElement>();var id=body.GetProperty("data").GetProperty("id").GetString();
+            client.DefaultRequestHeaders.Add("X-Test-User","4");var input=EmailImport() with {Title="Migração – Clínica sintética",Origin=EmailImport().Origin with {Subject="",ReplyTo=null,InternetMessageId="&lt;http-synthetic@example.com&gt;"}};var result=await client.PostAsJsonAsync("/api/web/orcamentos/integracoes/emails/importar",input);result.EnsureSuccessStatusCode();var body=await result.Content.ReadFromJsonAsync<JsonElement>();var id=body.GetProperty("data").GetProperty("id").GetString();
             Assert.Equal(HttpStatusCode.OK,(await client.GetAsync($"/api/web/orcamentos/integracoes/emails/{id}/resumo")).StatusCode);
             Assert.Equal(HttpStatusCode.OK,(await client.GetAsync("/api/web/orcamentos/integracoes/emails/envios-pendentes")).StatusCode);
             Assert.Equal(HttpStatusCode.Forbidden,(await client.GetAsync($"/api/web/orcamentos/{id}")).StatusCode);
