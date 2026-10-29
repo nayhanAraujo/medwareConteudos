@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 // Pin and verify the SDK exposing the tool allowlist: old SDK versions silently ignore it.
 const version=JSON.parse(await readFile(new URL('./node_modules/@cursor/sdk/package.json',import.meta.url),'utf8')).version;
 if(version!=='1.0.40')throw new Error('Unsupported SDK for tool-less analysis');
+process.stdin.setEncoding('utf8');
 let raw=''; for await(const chunk of process.stdin){raw+=chunk;if(raw.length>16_000_000)throw new Error('Input too large');}
 const input=JSON.parse(raw); let agent;
 try{

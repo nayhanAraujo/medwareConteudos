@@ -88,6 +88,10 @@ Entradas e resultados permanecem privados no banco para rastreabilidade. Não h�
 
 ## Testes
 
+A comunicação API ↔ bridge Node usa UTF8 explícito em stdin, stdout e stderr, sem BOM e com rejeição de bytes inválidos. Não depender da página de código do console/IIS do Windows. O bridge também decodifica stdin como fluxo UTF8, preservando caracteres divididos entre chunks. Um teste com Node simulado e console Windows-1252 reproduz a corrupção sem a configuração explícita e valida o transporte corrigido sem chamar o fornecedor.
+
+Essa correção não exige mudança no JSON ou no esquema do banco. Publicar a API e o bridge juntos. Resultados antigos já gravados com caracteres corrompidos não são reescritos automaticamente: após publicar, descartar a classificação/análise afetada e solicitar outra explicitamente, conferindo o briefing original antes. Uma nova solicitação ao fornecedor pode gerar custo.
+
 As entradas, resultados e documentos do módulo são enviados ao driver Firebird como parâmetros explícitos de BLOB de texto. Não usar strings longas genéricas nesses parâmetros: o Dapper pode definir `Size=-1` acima de 4000 caracteres, rejeitado pelo driver antes da execução SQL. A regressão automatizada cobre anexo com texto extenso, resultado com acentos, aplicação, salvamento e cópia para nova revisão sem truncamento. Esta correção é de código e não requer alteração do esquema.
 
 `npm test` em `backend/quote-ai-bridge`; testes .NET em `backend/ConversorHtml.Tests`; testes/build Nuxt habituais. A integração automatizada usa Firebird temporário e provedor simulado: prova persistência, consentimento, permissões, aplicação explícita, rejeição de sugestão superada, cancelamento e ausência de preços arbitrados pelo modelo. O teste de segurança do bridge verifica a allowlist vazia de ferramentas. A validação real do fornecedor deve ser feita depois da configuração, com documento ilustrativo sem dados pessoais e ciência do custo.

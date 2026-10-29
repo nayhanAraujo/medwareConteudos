@@ -19,7 +19,10 @@ public sealed class CursorQuoteAiProvider(IOptions<OrcamentoAiOptions> options, 
         try
         {
             var start = new ProcessStartInfo(o.NodePath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = directory.FullName,
-                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
+                StandardInputEncoding = new UTF8Encoding(false, true),
+                StandardOutputEncoding = new UTF8Encoding(false, true),
+                StandardErrorEncoding = new UTF8Encoding(false, true) };
             start.ArgumentList.Add(script);
             // Do not propagate appsettings, Firebird passwords, proxy credentials, NODE_OPTIONS or user settings.
             start.Environment.Clear();
@@ -35,6 +38,10 @@ public sealed class CursorQuoteAiProvider(IOptions<OrcamentoAiOptions> options, 
             var result = await output; _ = await error;
             if (process.ExitCode != 0) throw new OrcamentoException(502, "O Composer não concluiu a análise. Confira a instalação e a credencial no servidor.");
             return QuoteAiSuggestion.Parse(result);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new OrcamentoException(502, "O executor de IA retornou texto com codificação inválida. Nenhum item foi aplicado.");
         }
         finally
         {
