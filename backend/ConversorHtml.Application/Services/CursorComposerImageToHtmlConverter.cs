@@ -218,6 +218,9 @@ public class CursorComposerImageToHtmlConverter : IImageConversionConverter, IIm
             Arguments = $"\"{bridgePath}\" \"{imagePath}\" \"{mimeType}\" \"{formatArg}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // Node escreve UTF-8 independentemente da pagina de codigos do Windows/IIS.
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             UseShellExecute = false,
             CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(bridgePath) ?? repoRoot

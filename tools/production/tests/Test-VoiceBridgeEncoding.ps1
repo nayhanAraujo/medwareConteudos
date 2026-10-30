@@ -1,16 +1,18 @@
 $ErrorActionPreference = 'Stop'
 
 # Exercise the same Node -> .NET redirected stream boundary without building the API.
-$sourcePath = Join-Path $PSScriptRoot '../../../backend/ConversorHtml.Application/Services/VoiceBridgeRunner.cs'
-$source = Get-Content -LiteralPath $sourcePath -Raw -Encoding UTF8
-foreach ($stream in @('StandardOutputEncoding', 'StandardErrorEncoding')) {
-    if ($source -notmatch "$stream\s*=\s*Encoding\.UTF8") {
-        throw "VoiceBridgeRunner must explicitly set $stream to UTF-8."
+foreach ($runner in @('VoiceBridgeRunner', 'CursorComposerImageToHtmlConverter')) {
+    $sourcePath = Join-Path $PSScriptRoot "../../../backend/ConversorHtml.Application/Services/$runner.cs"
+    $source = Get-Content -LiteralPath $sourcePath -Raw -Encoding UTF8
+    foreach ($stream in @('StandardOutputEncoding', 'StandardErrorEncoding')) {
+        if ($source -notmatch "$stream\s*=\s*Encoding\.UTF8") {
+            throw "$runner must explicitly set $stream to UTF-8."
+        }
     }
 }
 
 # ASCII source keeps this script compatible with Windows PowerShell 5.1 without BOM.
-$sample = ConvertFrom-Json '"C\u00c2MARAS ESQUERDAS | \u00c1trio esquerdo | Di\u00e2metro diast\u00f3lico do VE | Di\u00e2metro sist\u00f3lico do VE | se\u00e7\u00e3o | fra\u00e7\u00e3o | m\u00b2 | cm\u00b2 | cm\u00b3 | \u00b0 | \u00b5 | \u2264 | \u2265"'
+$sample = ConvertFrom-Json '"C\u00c2MARAS ESQUERDAS | \u00c1trio esquerdo | Di\u00e2metro diast\u00f3lico do VE | Di\u00e2metro sist\u00f3lico do VE | Superf\u00edcie corporal | se\u00e7\u00e3o | fra\u00e7\u00e3o | m\u00b2 | cm\u00b2 | cm\u00b3 | \u00b0 | \u00b5 | \u2264 | \u2265"'
 $payloadPath = Join-Path ([IO.Path]::GetTempPath()) ('voice-encoding-test-' + [Guid]::NewGuid().ToString('N') + '.json')
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 try {
