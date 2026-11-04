@@ -61,6 +61,17 @@
               >
                 Aprovar
               </DsButton>
+              <DsButton
+                v-if="canDelete"
+                variant="danger"
+                size="sm"
+                icon="trash"
+                :title="v.ativo === 'T' ? 'Ative outra versão antes de excluir esta' : 'Excluir versão'"
+                :aria-label="`Excluir versão ${v.numeroVersao}`"
+                :disabled="loading || deleting !== null || v.ativo === 'T'"
+                :loading="deleting === v.codVersao"
+                @click="excluir(v)"
+              >Excluir</DsButton>
             </div>
           </td>
         </tr>
@@ -83,6 +94,7 @@ const auth = useAuthStore()
 
 const versoes = ref<VersaoDto[]>([])
 const loading = ref(false)
+const deleting = ref<number | null>(null)
 const pageTitle = ref('Gerenciar Versões')
 const voltarPath = ref('/scripts')
 const filtroNumero = ref('')
@@ -92,6 +104,7 @@ const canCreate = computed(() => auth.can('scripts', 'criar'))
 const canEdit = computed(() => auth.can('scripts', 'editar'))
 const canApprove = computed(() => auth.can('scripts', 'aprovar'))
 const canActivate = computed(() => auth.can('scripts', 'ativar'))
+const canDelete = computed(() => auth.can('scripts', 'excluir'))
 
 function formatDate(d?: string) {
   if (!d) return '—'
@@ -134,6 +147,23 @@ async function ativar(codVersao: number) {
   } catch (e: unknown) {
     await swal.toast(e instanceof Error ? e.message : 'Erro', 'error')
   }
+}
+
+async function excluir(versao: VersaoDto) {
+  if (!canDelete.value || loading.value || deleting.value !== null || versao.ativo === 'T') return
+  deleting.value = versao.codVersao
+  try {
+    const confirmation = await swal.confirm(
+      `Excluir versão ${versao.numeroVersao}?`,
+      'A versão e seus arquivos vinculados serão excluídos permanentemente. Esta ação não pode ser desfeita.'
+    )
+    if (!confirmation?.isConfirmed) return
+    await scriptsApi.excluirVersao(versao.codVersao)
+    await swal.toast('Versão excluída')
+    await carregar()
+  } catch (e: unknown) {
+    await swal.toast(e instanceof Error ? e.message : 'Erro ao excluir versão', 'error')
+  } finally { deleting.value = null }
 }
 
 async function aprovar(codVersao: number) {

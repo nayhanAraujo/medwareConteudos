@@ -26,7 +26,7 @@
           Ativar
         </DsButton>
         <DsButton
-          v-if="versao && !isActive && podeExcluir"
+          v-if="versao && !isActive && podeExcluir && canDelete"
           variant="danger"
           size="sm"
           icon="trash"
@@ -213,6 +213,8 @@ const isApproved = computed(() => versao.value?.aprovado === 'T')
 const hasMrd = computed(() => (versao.value?.mrdList.length || 0) > 0)
 const anexos = computed<ScriptVersionFileDto[]>(() => [...(versao.value?.imagens || []), ...(versao.value?.pdfs || [])])
 const podeExcluir = computed(() => totalVersoes.value > 1)
+const auth = useAuthStore()
+const canDelete = computed(() => auth.can('scripts', 'excluir'))
 
 function formatDate(value?: string) {
   if (!value) return '—'
@@ -266,10 +268,11 @@ async function aprovar() {
 }
 
 async function excluir() {
-  const { isConfirmed } = (await swal.confirm('Excluir versão?', 'Esta ação não pode ser desfeita.')) || {}
-  if (!isConfirmed) return
+  if (saving.value || !canDelete.value || isActive.value || !podeExcluir.value) return
   saving.value = true
   try {
+    const { isConfirmed } = (await swal.confirm('Excluir versão?', 'A versão e seus arquivos vinculados serão excluídos permanentemente. Esta ação não pode ser desfeita.')) || {}
+    if (!isConfirmed) return
     await scriptsApi.excluirVersao(codversao)
     await swal.toast('Versão excluída')
     await router.push(`/scripts/${id}/versoes`)
