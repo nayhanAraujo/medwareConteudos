@@ -89,7 +89,7 @@ function buildPromptHtml(fileName) {
     'Você é um especialista em scripts HTML do sistema LaudosUX (Medware).',
     'Analise a imagem anexada (layout de laudo médico) e gere o HTML correspondente.',
     '',
-    'OBRIGATÓRIO: leia e siga estritamente o arquivo manual_scripts_html_UX.md na raiz do repositório (cwd).',
+    'OBRIGATÓRIO: leia e siga estritamente o arquivo "Estrutura Scripts HTML.md" na raiz do repositório (cwd).',
     '',
     'Regras essenciais do output:',
     '- Fragmento HTML apenas (sem <!DOCTYPE>, <html>, <head>, <body>, <meta>, <title>, <link>)',

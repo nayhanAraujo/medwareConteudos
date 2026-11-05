@@ -41,7 +41,12 @@ public sealed record SalvarLayoutRequest(IReadOnlyList<LayoutItemRequest>? Layou
 public sealed record ComposicaoVariavelRequest(
     int CodVariavel,
     bool ExibirGrafico,
-    int Ordem);
+    int Ordem,
+    /// <summary>
+    /// Normalidade só deste modelo/preview. Não grava em NORMALIDADE.
+    /// Quando informada, substitui as faixas do catálogo na geração do TXT.
+    /// </summary>
+    string? NormalidadeOverride = null);
 
 public sealed record ComposicaoSecaoRequest(
     int? CodSecao,

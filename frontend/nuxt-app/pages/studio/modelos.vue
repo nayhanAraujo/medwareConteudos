@@ -2,7 +2,13 @@
 definePageMeta({ layout: 'studio' })
 
 interface VariableOption { codVariavel: number; nome: string; sigla: string; formula?: string | null; normalidade?: string | null; unidade?: string | null; abreviacao?: string | null; codGrupo?: number | null; grupo?: string | null; casasDecimais: number; classificacoes?: string | null; dependencias?: number[]; dependenciasNaoEncontradas?: string[] }
-interface DraftVariable extends VariableOption { exibirGrafico: boolean }
+interface DraftVariable extends VariableOption {
+  exibirGrafico: boolean
+  /** banco = faixas do catálogo; personalizada = texto só deste modelo (não grava em NORMALIDADE). */
+  normalidadeOrigem: 'banco' | 'personalizada'
+  normalidadeBanco: string
+  normalidadePersonalizada: string
+}
 interface DraftSection { key: string; codSecao?: number; nome: string; coluna: 1 | 2; variaveis: DraftVariable[] }
 interface ApiSectionVariable { codVariavel: number; nome: string; sigla: string; exibirGrafico: boolean }
 interface ApiSection { codSecao: number; nome: string; ordem: number; x: number; y: number; variaveis: ApiSectionVariable[] }
@@ -24,7 +30,71 @@ const variableSearch = ref('')
 const groupFilter = ref('all')
 const selectedIds = ref<number[]>([])
 const expandedGroups = ref<string[]>([])
-const details = ref<VariableOption | null>(null)
+const details = ref<DraftVariable | VariableOption | null>(null)
+const detailsEditable = computed(() => {
+  const current = details.value
+  if (!current || !('normalidadeOrigem' in current)) return false
+  return sections.value.some(section => section.variaveis.some(variable => variable.codVariavel === current.codVariavel))
+})
+const detailsDraft = computed(() => (detailsEditable.value ? details.value as DraftVariable : null))
+function effectiveNormalidade(variable: DraftVariable) {
+  return variable.normalidadeOrigem === 'personalizada'
+    ? variable.normalidadePersonalizada
+    : variable.normalidadeBanco
+}
+function overridesStorageKey(id: number) {
+  return `studio-modelos-norm-overrides:v1:${id}`
+}
+function loadStoredOverrides(id: number): Record<number, string> {
+  try {
+    const raw = localStorage.getItem(overridesStorageKey(id))
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, string>
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([key, value]) => [Number(key), value] as const)
+        .filter(([key, value]) => Number.isFinite(key) && typeof value === 'string'),
+    )
+  } catch {
+    return {}
+  }
+}
+function persistOverrides() {
+  if (!modelId.value) return
+  const map: Record<number, string> = {}
+  for (const variable of sections.value.flatMap(section => section.variaveis)) {
+    if (variable.normalidadeOrigem === 'personalizada')
+      map[variable.codVariavel] = variable.normalidadePersonalizada
+  }
+  const key = overridesStorageKey(modelId.value)
+  if (Object.keys(map).length) localStorage.setItem(key, JSON.stringify(map))
+  else localStorage.removeItem(key)
+}
+function applyStoredOverrides(id: number) {
+  const stored = loadStoredOverrides(id)
+  for (const variable of sections.value.flatMap(section => section.variaveis)) {
+    const custom = stored[variable.codVariavel]
+    if (custom == null) continue
+    variable.normalidadeOrigem = 'personalizada'
+    variable.normalidadePersonalizada = custom
+    variable.normalidade = custom
+  }
+}
+function setNormalidadeOrigem(origem: 'banco' | 'personalizada') {
+  const draft = detailsDraft.value
+  if (!draft) return
+  draft.normalidadeOrigem = origem
+  if (origem === 'banco') draft.normalidadePersonalizada = draft.normalidadeBanco
+  draft.normalidade = effectiveNormalidade(draft)
+  persistOverrides()
+}
+function onPersonalizadaInput() {
+  const draft = detailsDraft.value
+  if (!draft) return
+  draft.normalidadeOrigem = 'personalizada'
+  draft.normalidade = draft.normalidadePersonalizada
+  persistOverrides()
+}
 const previewText = ref('')
 const loading = ref(false)
 const saving = ref(false)
@@ -77,14 +147,67 @@ const validationErrors = computed(() => {
 })
 
 function createKey() { sectionSequence += 1; return `draft-${Date.now()}-${sectionSequence}` }
-function serializeDraft() { return JSON.stringify({ nome: modelName.value.trim(), sections: sections.value.map(section => ({ codSecao: section.codSecao || null, nome: section.nome.trim(), coluna: section.coluna, variaveis: section.variaveis.map(variable => ({ codVariavel: variable.codVariavel, exibirGrafico: variable.exibirGrafico })) })) }) }
+function serializeDraft() {
+  return JSON.stringify({
+    nome: modelName.value.trim(),
+    sections: sections.value.map(section => ({
+      codSecao: section.codSecao || null,
+      nome: section.nome.trim(),
+      coluna: section.coluna,
+      variaveis: section.variaveis.map(variable => ({
+        codVariavel: variable.codVariavel,
+        exibirGrafico: variable.exibirGrafico,
+        normalidadeOrigem: variable.normalidadeOrigem,
+        normalidadePersonalizada: variable.normalidadeOrigem === 'personalizada' ? variable.normalidadePersonalizada : null,
+      })),
+    })),
+  })
+}
 function columnSections(column: 1 | 2) { return sections.value.filter(section => section.coluna === column) }
-function compositionPayload() { return { nome: modelName.value.trim(), secoes: ([1, 2] as const).flatMap(coluna => columnSections(coluna).map((section, index) => ({ codSecao: section.codSecao || null, nome: section.nome.trim(), coluna, ordem: index + 1, variaveis: section.variaveis.map((variable, variableIndex) => ({ codVariavel: variable.codVariavel, exibirGrafico: variable.exibirGrafico, ordem: variableIndex + 1 })) }))) } }
-function draftVariable(id: number, showChart = false): DraftVariable | null { const source = variableById.value.get(id); return source ? { ...source, exibirGrafico: showChart } : null }
+function compositionPayload() {
+  return {
+    nome: modelName.value.trim(),
+    secoes: ([1, 2] as const).flatMap(coluna => columnSections(coluna).map((section, index) => ({
+      codSecao: section.codSecao || null,
+      nome: section.nome.trim(),
+      coluna,
+      ordem: index + 1,
+      variaveis: section.variaveis.map((variable, variableIndex) => ({
+        codVariavel: variable.codVariavel,
+        exibirGrafico: variable.exibirGrafico,
+        ordem: variableIndex + 1,
+        normalidadeOverride: variable.normalidadeOrigem === 'personalizada'
+          ? variable.normalidadePersonalizada.trim()
+          : null,
+      })),
+    }))),
+  }
+}
+function draftVariable(id: number, showChart = false): DraftVariable | null {
+  const source = variableById.value.get(id)
+  if (!source) return null
+  const bank = source.normalidade || ''
+  return {
+    ...source,
+    exibirGrafico: showChart,
+    normalidadeOrigem: 'banco',
+    normalidadeBanco: bank,
+    normalidadePersonalizada: bank,
+    normalidade: bank,
+  }
+}
+function openDetails(variable: DraftVariable | VariableOption) {
+  // Prefere a instância do rascunho (editável) quando a medida já está no modelo.
+  const inModel = sections.value
+    .flatMap(section => section.variaveis)
+    .find(item => item.codVariavel === variable.codVariavel)
+  details.value = inModel || variable
+}
 function normalizeApiModel(model: ModelDetail) {
   modelId.value = model.codModelo; modelName.value = model.nome
   sections.value = [...model.secoes].sort((a, b) => (a.x >= 6 ? 2 : 1) - (b.x >= 6 ? 2 : 1) || a.y - b.y || a.ordem - b.ordem).map(section => ({ key: `section-${section.codSecao}`, codSecao: section.codSecao, nome: section.nome, coluna: section.x >= 6 ? 2 : 1, variaveis: section.variaveis.map(item => draftVariable(item.codVariavel, item.exibirGrafico)).filter(Boolean) as DraftVariable[] }))
-  previewText.value = ''; selectedIds.value = []; savedSnapshot.value = serializeDraft()
+  applyStoredOverrides(model.codModelo)
+  previewText.value = ''; selectedIds.value = []; details.value = null; savedSnapshot.value = serializeDraft()
 }
 async function loadModels() { const query = new URLSearchParams({ page: '1', pageSize: '100', nome: modelSearch.value.trim() }); const response = await api.get<{ data: ModelItem[] }>(`/api/web/modelos?${query}`); models.value = response.data || [] }
 async function loadVariables() { const response = await api.get<{ data: VariableOption[] }>('/api/web/modelos/variaveis'); variables.value = response.data || [] }
@@ -199,7 +322,17 @@ async function dropVariable(section: DraftSection, targetIndex?: number) {
 async function saveComposition() {
   if (!modelId.value || validationErrors.value.length) return void await alert('Revise a composição', validationErrors.value.join('\n') || 'Selecione um modelo.', 'warning')
   saving.value = true
-  try { const response = await api.put<{ data: ModelDetail }>(`/api/web/modelos/${modelId.value}/composicao`, compositionPayload()); normalizeApiModel(response.data); await loadModels(); await toast('Composição salva.', 'success') } catch (error) { await alert('Erro ao salvar', message(error), 'error') } finally { saving.value = false }
+  try {
+    const response = await api.put<{ data: ModelDetail }>(`/api/web/modelos/${modelId.value}/composicao`, compositionPayload())
+    persistOverrides()
+    normalizeApiModel(response.data)
+    await loadModels()
+    await toast('Composição salva. Normalidades personalizadas não alteram o banco.', 'success')
+  } catch (error) {
+    await alert('Erro ao salvar', message(error), 'error')
+  } finally {
+    saving.value = false
+  }
 }
 function discardChanges() { if (modelId.value) void loadModel(modelId.value, true) }
 async function generatePreview() {
@@ -207,7 +340,17 @@ async function generatePreview() {
   previewing.value = true
   try { const response = await api.post<{ data: { conteudo: string } }>(`/api/web/modelos/${modelId.value}/preview`, compositionPayload()); previewText.value = response.data.conteudo } catch (error) { await alert('Erro no preview', message(error), 'error') } finally { previewing.value = false }
 }
-async function downloadTxt() { if (!modelId.value) return; if (dirty.value) return void await alert('Salve antes de baixar', 'O download representa a última composição salva.', 'warning'); try { const blob = await api.getBlob(`/api/web/modelos/${modelId.value}/gerar?formato=texto&download=true`); downloadText(await blob.text(), `modelo_${modelId.value}_modo_texto.txt`) } catch (error) { await alert('Erro ao gerar TXT', message(error), 'error') } }
+async function downloadTxt() {
+  if (!modelId.value) return
+  if (validationErrors.value.length) return void await alert('Revise a composição', validationErrors.value.join('\n'), 'warning')
+  // Gera a partir do rascunho (inclui normalidade personalizada) sem gravar no banco.
+  try {
+    const response = await api.post<{ data: { conteudo: string } }>(`/api/web/modelos/${modelId.value}/preview`, compositionPayload())
+    downloadText(response.data.conteudo, `modelo_${modelId.value}_modo_texto.txt`)
+  } catch (error) {
+    await alert('Erro ao gerar TXT', message(error), 'error')
+  }
+}
 function message(error: unknown) { return error instanceof Error ? error.message : 'Erro inesperado.' }
 function beforeUnload(event: BeforeUnloadEvent) { if (dirty.value) { event.preventDefault(); event.returnValue = '' } }
 onBeforeRouteLeave(async () => { if (!dirty.value) return true; const result = await confirm('Sair sem salvar?', 'As alterações realizadas neste modelo serão perdidas.'); return result.isConfirmed })
@@ -281,12 +424,14 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload)
                     <p v-if="!section.variaveis.length" class="py-4 text-center text-xs text-ds-muted">Arraste medidas para esta seção.</p>
                     <div v-for="(variable, variableIndex) in section.variaveis" :key="variable.codVariavel" draggable="true" class="flex cursor-grab items-center gap-2 rounded border border-transparent px-2 py-1.5 text-xs hover:border-ds-border hover:bg-ds-surface-elevated" @dragstart.stop="startDrag({ type: 'section-variable', sectionKey: section.key, variableId: variable.codVariavel }, $event)" @dragend="endDrag" @dragover.prevent @drop.stop="dropVariable(section, variableIndex)">
                       <i class="bi bi-grip-vertical text-ds-muted" /><span class="min-w-0 flex-1"><strong class="block truncate text-ds-text">{{ variable.nome }}</strong><span class="text-ds-muted">{{ variable.sigla }}{{ variable.unidade ? ` · ${variable.unidade}` : '' }}</span></span>
-                      <span v-if="variable.formula" class="text-ds-primary-accent" title="Fórmula">ƒ</span><i v-if="variable.normalidade" class="bi bi-activity text-ds-success" title="Normalidade" />
+                      <span v-if="variable.formula" class="text-ds-primary-accent" title="Fórmula">ƒ</span>
+                      <i v-if="effectiveNormalidade(variable)" class="bi bi-activity" :class="variable.normalidadeOrigem === 'personalizada' ? 'text-amber-500' : 'text-ds-success'" :title="variable.normalidadeOrigem === 'personalizada' ? 'Normalidade personalizada (só neste modelo)' : 'Normalidade do banco'" />
                       <label class="flex items-center gap-1 text-ds-muted" title="Exibir gráfico"><input v-model="variable.exibirGrafico" type="checkbox" @click.stop><i class="bi bi-bar-chart" /></label>
                       <button type="button" class="studio-icon-button" title="Subir" :disabled="variableIndex === 0" @click.stop="moveVariable(section, variableIndex, -1)"><i class="bi bi-arrow-up" /></button>
                       <button type="button" class="studio-icon-button" title="Descer" :disabled="variableIndex === section.variaveis.length - 1" @click.stop="moveVariable(section, variableIndex, 1)"><i class="bi bi-arrow-down" /></button>
                       <button type="button" class="studio-icon-button" title="Mover para outra seção" @click.stop="moveVariableToOtherSection(section, variable)"><i class="bi bi-box-arrow-right" /></button>
-                      <button type="button" class="studio-icon-button" title="Detalhes" @click.stop="details = variable"><i class="bi bi-info-circle" /></button><button type="button" class="studio-icon-button text-ds-danger" title="Remover" @click.stop="removeVariable(section, variable.codVariavel)"><i class="bi bi-x-lg" /></button>
+                      <button type="button" class="studio-icon-button" title="Detalhes / normalidade" @click.stop="openDetails(variable)"><i class="bi bi-info-circle" /></button>
+                      <button type="button" class="studio-icon-button text-ds-danger" title="Remover" @click.stop="removeVariable(section, variable.codVariavel)"><i class="bi bi-x-lg" /></button>
                     </div>
                   </div>
                   <footer v-if="section.variaveis.length" class="flex justify-end border-t border-ds-border px-2 py-1"><button type="button" class="text-xs text-ds-muted hover:text-ds-danger" @click="clearSection(section)">Esvaziar seção</button></footer>
@@ -343,7 +488,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload)
                   <small class="mt-0.5 block text-ds-muted">{{ variable.sigla }}{{ variable.unidade ? ` · ${variable.unidade}` : '' }}</small>
                 </span>
                 <span v-if="variable.formula" title="Possui fórmula" class="mt-0.5 text-ds-primary-accent">ƒ</span>
-                <button type="button" class="studio-icon-button" title="Ver detalhes" @click.stop="details = variable"><i class="bi bi-info-circle" /></button>
+                <button type="button" class="studio-icon-button" title="Ver detalhes" @click.stop="openDetails(variable)"><i class="bi bi-info-circle" /></button>
               </div>
             </div>
           </section>
@@ -368,8 +513,84 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload)
 
       <div v-if="details" class="fixed inset-0 z-50 flex justify-end bg-black/45" role="dialog" aria-modal="true" @click.self="details = null">
         <aside class="h-full w-full max-w-lg overflow-auto bg-ds-surface p-6 shadow-2xl">
-          <div class="mb-5 flex items-start justify-between gap-3"><div><h2 class="text-lg font-semibold text-ds-text">{{ details.nome }}</h2><p class="text-sm text-ds-muted">{{ details.sigla }} · {{ details.grupo || 'Sem grupo' }}</p></div><button type="button" class="studio-icon-button" aria-label="Fechar" @click="details = null"><i class="bi bi-x-lg" /></button></div>
-          <dl class="space-y-4 text-sm"><div><dt class="font-semibold text-ds-muted">Unidade</dt><dd class="mt-1 text-ds-text">{{ details.unidade || 'Sem unidade' }}</dd></div><div><dt class="font-semibold text-ds-muted">Casas decimais</dt><dd class="mt-1 text-ds-text">{{ details.casasDecimais }}</dd></div><div><dt class="font-semibold text-ds-muted">Normalidades</dt><dd class="mt-1 whitespace-pre-wrap text-ds-text">{{ details.normalidade || 'Sem normalidade' }}</dd></div><div><dt class="font-semibold text-ds-muted">Classificações</dt><dd class="mt-1 text-ds-text">{{ details.classificacoes || 'Sem classificações' }}</dd></div><div><dt class="font-semibold text-ds-muted">Fórmula / função</dt><dd class="mt-1 break-words rounded bg-ds-surface-elevated p-3 font-mono text-xs text-ds-text">{{ details.formula || 'Sem fórmula' }}</dd></div><div><dt class="font-semibold text-ds-muted">Dependências</dt><dd class="mt-1 text-ds-text">{{ details.dependencias?.map(id => variableById.get(id)?.nome || id).join(', ') || 'Nenhuma' }}</dd></div></dl>
+          <div class="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-semibold text-ds-text">{{ details.nome }}</h2>
+              <p class="text-sm text-ds-muted">{{ details.sigla }} · {{ details.grupo || 'Sem grupo' }}</p>
+            </div>
+            <button type="button" class="studio-icon-button" aria-label="Fechar" @click="details = null"><i class="bi bi-x-lg" /></button>
+          </div>
+          <dl class="space-y-4 text-sm">
+            <div>
+              <dt class="font-semibold text-ds-muted">Unidade</dt>
+              <dd class="mt-1 text-ds-text">{{ details.unidade || 'Sem unidade' }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-ds-muted">Casas decimais</dt>
+              <dd class="mt-1 text-ds-text">{{ details.casasDecimais }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-ds-muted">Normalidades</dt>
+              <dd class="mt-2 space-y-3">
+                <template v-if="detailsDraft">
+                  <div class="flex rounded-ds-sm border border-ds-border p-0.5 text-xs font-medium">
+                    <button
+                      type="button"
+                      class="flex-1 rounded px-3 py-1.5 transition-colors"
+                      :class="detailsDraft.normalidadeOrigem === 'banco' ? 'bg-ds-primary/15 text-ds-primary-accent' : 'text-ds-muted hover:text-ds-text'"
+                      @click="setNormalidadeOrigem('banco')"
+                    >
+                      Do banco
+                    </button>
+                    <button
+                      type="button"
+                      class="flex-1 rounded px-3 py-1.5 transition-colors"
+                      :class="detailsDraft.normalidadeOrigem === 'personalizada' ? 'bg-ds-primary/15 text-ds-primary-accent' : 'text-ds-muted hover:text-ds-text'"
+                      @click="setNormalidadeOrigem('personalizada')"
+                    >
+                      Personalizada
+                    </button>
+                  </div>
+                  <p class="text-xs text-ds-muted">
+                    A personalização vale só neste modelo (preview/TXT). Não altera referências nem normalidades do banco.
+                  </p>
+                  <textarea
+                    v-if="detailsDraft.normalidadeOrigem === 'personalizada'"
+                    v-model="detailsDraft.normalidadePersonalizada"
+                    rows="5"
+                    class="studio-builder-input !h-auto min-h-[7rem] w-full resize-y py-2 font-mono text-xs leading-5"
+                    placeholder="Ex.: M: 19 a 23.4; F: 17.4 a 21.6"
+                    @input="onPersonalizadaInput"
+                  />
+                  <pre
+                    v-else
+                    class="whitespace-pre-wrap rounded-ds-sm bg-ds-surface-elevated p-3 text-xs text-ds-text"
+                  >{{ detailsDraft.normalidadeBanco || 'Sem normalidade no banco' }}</pre>
+                  <button
+                    v-if="detailsDraft.normalidadeOrigem === 'personalizada'"
+                    type="button"
+                    class="text-xs text-ds-primary-accent hover:underline"
+                    @click="setNormalidadeOrigem('banco')"
+                  >
+                    Restaurar do banco
+                  </button>
+                </template>
+                <pre v-else class="mt-1 whitespace-pre-wrap text-ds-text">{{ details.normalidade || 'Sem normalidade' }}</pre>
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-ds-muted">Classificações</dt>
+              <dd class="mt-1 text-ds-text">{{ details.classificacoes || 'Sem classificações' }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-ds-muted">Fórmula / função</dt>
+              <dd class="mt-1 break-words rounded bg-ds-surface-elevated p-3 font-mono text-xs text-ds-text">{{ details.formula || 'Sem fórmula' }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-ds-muted">Dependências</dt>
+              <dd class="mt-1 text-ds-text">{{ details.dependencias?.map(id => variableById.get(id)?.nome || id).join(', ') || 'Nenhuma' }}</dd>
+            </div>
+          </dl>
         </aside>
       </div>
     </StudioDsPageShell>

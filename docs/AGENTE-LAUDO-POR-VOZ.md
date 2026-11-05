@@ -1,6 +1,6 @@
 # Guia para agentes — Laudo por voz (Studio)
 
-Leia este arquivo junto com [`AGENTE-MODELOS-MODO-TEXTO.md`](AGENTE-MODELOS-MODO-TEXTO.md) e [`manual_scripts_html_UX.md`](manual_scripts_html_UX.md).
+Leia este arquivo junto com [`AGENTE-MODELOS-MODO-TEXTO.md`](AGENTE-MODELOS-MODO-TEXTO.md) e [`Estrutura Scripts HTML.md`](Estrutura%20Scripts%20HTML.md).
 
 ## Objetivo
 

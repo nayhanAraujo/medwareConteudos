@@ -126,7 +126,7 @@ function buildPromptExport(camposScriptJson, format) {
 
   return [
     'Converta o JSON Studio abaixo para HTML LaudosUX (fragmento).',
-    'Siga manual_scripts_html_UX.md — style, containerHtml, script com iniciarFuncoes().',
+    'Siga "Estrutura Scripts HTML.md" — style, containerHtml, script com iniciarFuncoes().',
     '',
     camposScriptJson,
     '',

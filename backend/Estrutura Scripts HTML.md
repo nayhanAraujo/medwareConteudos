@@ -27,7 +27,7 @@ A descrição de como funciona a criação de um laudo no UX segue em tópicos. 
 
 - O uso de CSS inline NÃO É PERMITIDO
 - A estrutura do layout OBRIGATORIAMENTE deve ser construída em duas colunas. A separação deve ser feita de acordo com a relação entre os campos e seus respectivos títulos. Os títulos estão relacionados com certas medidas de seu grupo e todos esses campos devem estar logo abaixo desse título. Pois, a ideia dessa estrutura é permitir realocar os itens (trechos de código), reestruturando o modelo. Isso permite a adaptabilidade do layout e garante que seja ajustado conforme o necessário. Além disso, esse layout se baseia na análise da imagem enviada para sua construção.
-- A implementação de elementos com ``id="Collapse"`` deve seguir a mesma quantidade de títulos para cada conjunto de medidas. Seu nome OBRIGATORIAMENTE deve ser o mesmo que seu elemento interno que representa o título para as medidas. Por exemplo, um campo ``<div id="CollapseDadosPaciente">`` tem um título interno com nome Dados do Paciente. Esse padrão de elementos criados com ``id="Collapse"`` deve ser seguido para cada trecho de medidas que deve ser impresso e ter uma conexão com seu título. Essas regras devem ser seguidas e unificadas também a partir das regras de 6 Sistema de Impressão > 6.1 Configuração para Impressão
+- A implementação de elementos com ``id="Collapse"`` deve seguir a mesma quantidade de títulos para cada conjunto de medidas. Seu nome OBRIGATORIAMENTE deve ser o mesmo que seu elemento interno que representa o título para as medidas. Por exemplo, um campo ``<div id="CollapseDadosPaciente">`` tem um título interno com nome Dados do Paciente. Cada título de sessão fica sozinho no seu ``Collapse``, como primeiro elemento desse ``div``. Vários títulos no mesmo ``Collapse`` fazem a sessão vazia sair na impressão quando outra sessão do bloco tem medida preenchida. Essas regras devem ser seguidas e unificadas também a partir das regras de 6 Sistema de Impressão > 6.1 Configuração para Impressão
 
 **1.1 Objetivo**
 
@@ -112,12 +112,56 @@ Todo conteúdo deve estar envolvido em uma div com ID específico:
 </script>
 ```
 
+**2.4 Informações sobre o modelo**
+
+Todo script HTML do Laudos UX deve ter, como primeiro elemento dentro de ``#containerHtml``, o bloco de informações do modelo. O bloco explica, na própria tela, quais equações e referências o laudo usa. Ele não entra na impressão e não guarda valor de laudo.
+
+Regras:
+
+- A ``div`` raiz usa ``class="ecodop-sobre-laudo"``, ``id="ecodopSobreLaudo"`` e ``ats="naoimprimir"``.
+- O título é ``Sobre esse modelo``.
+- O resumo cita, em poucas linhas, o que o modelo calcula e a fonte de cada cálculo. O botão ``Detalhes`` abre ``#detalhesReferencia`` com o restante da explicação.
+- O clique fica no ``onclick`` do botão. Não use ``addEventListener`` nesse botão.
+- Nenhum elemento desse bloco recebe ``id`` iniciado por ``VR_``.
+- O visual segue as classes ``ecodop-sobre-laudo``, ``ecodop-sobre-laudo-inner``, ``ecodop-sobre-icone``, ``ecodop-sobre-texto``, ``ecodop-sobre-desc``, ``ecodop-sobre-btn-detalhes`` e ``ecodop-detalhes-paragrafo``.
+
+```html
+<div id="containerHtml">
+    <div class="ecodop-sobre-laudo" id="ecodopSobreLaudo" ats="naoimprimir">
+        <div class="ecodop-sobre-laudo-inner">
+            <div class="ecodop-sobre-icones">
+                <span class="ecodop-sobre-icone"><i class="fas fa-book-medical"></i></span>
+            </div>
+            <div class="ecodop-sobre-texto">
+                <h3>Sobre esse modelo</h3>
+                <p class="ecodop-sobre-desc">
+                    <strong>O que calcula:</strong> resumo da equação e da referência<br>
+                </p>
+            </div>
+            <button type="button" class="ecodop-sobre-btn-detalhes" id="btnDetalhes"
+                onclick="var d=document.getElementById('detalhesReferencia'); var c=document.getElementById('ecodopSobreLaudo'); if(!d||!c)return; d.classList.toggle('show'); var o=d.classList.contains('show'); c.classList.toggle('detalhes-aberto', o); this.setAttribute('aria-expanded', o);"
+                aria-expanded="false">
+                <span>Detalhes</span>
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div id="detalhesReferencia">
+            <p class="ecodop-detalhes-paragrafo">
+                Explicação das equações, faixas e limites usados neste modelo.
+            </p>
+        </div>
+    </div>
+</div>
+```
+
 
 # 3. Inicialização de Scripts
 
 **Regras:**
 
-Para inicializar funções que devem ser chamadas ao carregar o script, devemos implementar a função "iniciarFuncoes" no início da tag ``<script>`` e dentro de seu corpo chamar toda função necessária para inicialização e funcionamento correto do script. Essa função deve ser chamada no fundo da tag ``<script>`` após toda a lógica, para permitir a inicialização das funções obrigatórias. As seguintes funções do JavaScript não devem ser usadas para inicialização de funções, pois não funcionam no sistema laudosUX: "document.addEventListener('DOMContentLoaded')", "window.onload" e "setTimeout". 
+Para inicializar funções que devem ser chamadas ao carregar o script, devemos implementar a função "iniciarFuncoes" no início da tag ``<script>`` e dentro de seu corpo chamar toda função necessária para inicialização e funcionamento correto do script. Essa função deve ser chamada no fundo da tag ``<script>`` após toda a lógica, para permitir a inicialização das funções obrigatórias. As seguintes funções do JavaScript não devem ser usadas para inicialização de funções, pois não funcionam no sistema laudosUX: "document.addEventListener('DOMContentLoaded')", "window.onload" e "setTimeout".
+
+O script é avaliado antes de `#containerHtml` entrar na página. Nesse momento, `document.getElementById` não encontra os campos `VR_` do modelo. Peso, altura, combos e cálculos que leem esses campos só rodam quando `document.body` já contém `#containerHtml`. Se o bloco ainda estiver fora da página, um `MutationObserver` em `document.documentElement` espera a inserção e chama a mesma inicialização. O `#containerHtml` leva o comentário `<!-- iniciarFuncoes -->`. O sistema procura esse nome no HTML da tela e chama `iniciarFuncoes` de novo quando a aba do script é selecionada. 
 
 **3.1 Método Obrigatório (Atual)**
 
@@ -226,6 +270,22 @@ Elementos que fazem o papel de título devem conter as seguintes configurações
     }
 ```
 
+Quando o título da seção tiver ícone, o ícone Font Awesome fica dentro de ``.tituloSessao`` e o texto do título fica em um ``<span class="tituloSessaoTexto">``. O afastamento entre o ícone e o título NÃO deve ser ``margin`` nem ``padding`` no ``<i>``. Na impressão o sistema troca o ``<i>`` por uma ``<img>`` e descarta a margem desse elemento, então o ícone sai colado no título. O espaço precisa estar no texto, que permanece na captura: um ``&nbsp;`` no início do span e ``padding-left`` na classe ``tituloSessaoTexto``.
+
+```html
+<div class="tituloSessao"><i class="fas fa-ruler-horizontal"></i><span class="tituloSessaoTexto">&nbsp;Medidas biométricas</span></div>
+```
+
+```css
+.tituloSessao i {
+    color: #28679d;
+}
+
+.tituloSessaoTexto {
+    padding-left: 16px;
+}
+```
+
 As configurações de estilização para elementos com o atributo **campoMedida** devem ser às seguintes: 
 
 ```css
@@ -266,11 +326,10 @@ Elementos que representam o nome da medida devem estar estilizados da seguinte m
 
 ```css
 .descricaoMedida span {
-    display: block;
     font-weight: bold;
     color: #495057;
     font-size: 16px;
-    width: 250px;
+    width: 250px
 }
 ```
 
@@ -379,7 +438,7 @@ Todos os campos que precisam ser salvos devem seguir a convenção:
 function obterDadosInterface() {
     // Captura dados básicos do paciente
     // Sempre utilize o dicionário mVariaveisAgendamento para buscar dados do sistema
-    const peso = mVariaveisAgendamento.find(v => v.valor === ‘VR_PESOPACIENTE’)
+    const peso = mVariaveisAgendamento.find(v => v.variavel === ‘VR_PESOPACIENTE’).valor
 
     const altura = parseFloat(document.getElementById('VR_ALTURA')?.value) || 0;
     
@@ -392,6 +451,29 @@ function obterDadosInterface() {
     };
    
     console.log('Dados capturados:', dadosPaciente);
+}
+```
+
+**5.2.1 Peso e altura do prontuário**
+
+Todo modelo que tenha peso e altura deve preencher esses campos ao iniciar, quando ainda estiverem vazios. Os ids são `VR_PESOPAC` e `VR_ALTURAPAC`.
+
+A fonte é a ficha do paciente, nos rótulos `lblProntuarioPeso` e `lblProntuarioAltura`. Se o rótulo não tiver número, use `mVariaveisAgendamento` com `VR_PESOPACIENTE` e `VR_ALTURAPACIENTE`.
+
+Um valor já gravado no laudo permanece. Depois do preenchimento, rode os cálculos que dependem de peso e altura. A chamada fica dentro de `iniciarFuncoes`, e só grava o número quando o modelo já está na página, como na seção 3. Grave também o atributo `value` do input, para a cópia da impressão levar o mesmo número. O rótulo da ficha vem no formato `12,50`. Troque a vírgula por ponto e ignore o texto "Não informado".
+
+```js
+function preencherPesoAltura() {
+    var pesoEl = document.getElementById('VR_PESOPAC');
+    var alturaEl = document.getElementById('VR_ALTURAPAC');
+    if (pesoEl && !pesoEl.value) {
+        var peso = lerNumeroProntuario('lblProntuarioPeso') || lerVariavelAgendamento('VR_PESOPACIENTE');
+        if (peso) pesoEl.value = peso;
+    }
+    if (alturaEl && !alturaEl.value) {
+        var altura = lerNumeroProntuario('lblProntuarioAltura') || lerVariavelAgendamento('VR_ALTURAPACIENTE');
+        if (altura) alturaEl.value = altura;
+    }
 }
 ```
 
@@ -424,13 +506,99 @@ function calcularIMC() {
 }
 ```
 
+**5.4 Navegação com Enter**
+
+Todo modelo HTML que tenha `input` ou `select` de preenchimento deve avançar o foco com Enter. O atalho do sistema, `eventoProximoCampoComEnter`, só percorre campos que possuem `tabIndex`. O HTML personalizado não recebe esse índice, então o Enter do sistema não chega nesses campos.
+
+A função fica no script do modelo, com o nome `eventoEnterCampo`. O clique fica no próprio elemento, em `onkeydown`. Não use `addEventListener` para isso: no prontuário o elemento é recriado e o listener se perde.
+
+Regras:
+
+- Cada `input` e `select` que a pessoa preenche leva `onkeydown="eventoEnterCampo(event, this)"`.
+- Campo calculado, com `disabled` ou com a classe `campoSomenteLeitura`, não entra na sequência.
+- Campo oculto, dentro de um elemento com a classe `inativo` ou sem `offsetParent`, também fica de fora.
+- A ordem é a ordem do HTML. O próximo campo visível e editável recebe o foco. No `select`, o campo perde o foco antes de seguir.
+- A função trata Enter pela tecla e pelo código 13, chama `preventDefault` e fica dentro de `try/catch`.
+
+```html
+<input class="campoMedida" onkeydown="eventoEnterCampo(event, this)" id="VR_PESOPAC" type="number">
+<select class="campoSelect" onkeydown="eventoEnterCampo(event, this)" id="VR_OBJETIVO"></select>
+```
+
+```js
+function campoPodeReceberEnter(campo) {
+    if (!campo || campo.disabled || campo.classList.contains('campoSomenteLeitura')) return false;
+    if (campo.closest('.inativo')) return false;
+    return campo.offsetParent !== null;
+}
+
+function camposEditaveis() {
+    var raiz = document.getElementById('containerHtml') || document;
+    return Array.prototype.filter.call(raiz.querySelectorAll('input.campoMedida, select.campoSelect'), campoPodeReceberEnter);
+}
+
+function eventoEnterCampo(event, atual) {
+    try {
+        if (!event || (event.key !== 'Enter' && event.keyCode !== 13)) return;
+        event.preventDefault();
+        if (atual && atual.tagName === 'SELECT') atual.blur();
+        var campos = camposEditaveis();
+        var indice = campos.indexOf(atual);
+        var proximo = indice >= 0 ? campos[indice + 1] : null;
+        if (!proximo) return;
+        proximo.focus();
+        if (typeof proximo.select === 'function') proximo.select();
+    } catch (erro) {
+        console.error('Erro ao avançar com Enter:', erro);
+    }
+}
+```
+
 # 6. Sistema de Impressão
 
 **6.1 Configuração para Impressão**
 
 **Regras**
 
-O sistema de impressão do UX segue algumas regras rigorosas para permitir a adaptação da interface à impressão e estrutura do layout correta. As personalizações de estilos do script obrigatoriamente devem estar em volta de uma ``<div class="d-flex">`` com a classe **d-flex**, fazendo com que o layout da interface seja replicado e adaptado de forma correta à impressão. Sem o uso da classe, podem ocorrer alterações de estilos personalizados de CSS da interface, causando uma impressão de layout desconfigurado. Todo conteúdo que precisa sair na impressão obrigatoriamente deve ser envolvido por uma ``<div ats="imprimir" percent="50" indexImpressao="1">``. O uso do ``ats="imprimir"`` em uma tag em volta de outras faz com que todo o seu conteúdo seja impresso. O atributo ``percent="50"`` indica a porcentagem da ocupação do conteúdo na impressão. Por exemplo, o uso de ``percent="50"`` faz com que o conteúdo interno ocupe somente metade da folha da impressão na horizontal, a vertical é determinada pelo tamanho do conteúdo impresso da interface. O atributo ``indexImpressao="1"`` é usado para especificar a posição da qual aquele conteúdo será impresso. Além desses atributos para configuração da impressão, devemos adicionar um **id** que inicia com a palavra **Collapse**. Esse nome deve OBRIGATORIAMENTE ser seguido de um sufixo que representa o título do trecho que será impresso, como ``CollapseDadosPaciente``. O id garante que o conteúdo seja impresso somente se ao menos uma medida estiver preenchida, mostrando o resultado do que foi preenchido. Além disso, para garantir a estrutura exata da impressão, os elementos contidos na ``<div>`` com o id **Collapse** não devem ter nenhum outro elemento em torno de seu conteúdo interno. O uso de outro elemento interno para cobrir o conteúdo causa um bloqueio no funcionamento da impressão, impedindo que o campo preenchido seja identificado. O comportamento para os inputs separados é semelhante. Enquanto o ``id="Collapse"`` garante que o conteúdo a ser impresso não mostre todas as medidas, a adição obrigatória da classe ``class="campoMedida"`` garante que, se aquele input estiver preenchido, ele apareça. Caso o campo não contenha a classe, esse campo aparecerá na impressão, independentemente de estar preenchido ou não, causando o comportamento inadequado. 
+O sistema de impressão do UX segue algumas regras rigorosas para permitir a adaptação da interface à impressão e estrutura do layout correta. As personalizações de estilos do script obrigatoriamente devem estar em volta de uma ``<div class="d-flex">`` com a classe **d-flex**, fazendo com que o layout da interface seja replicado e adaptado de forma correta à impressão. Sem o uso da classe, podem ocorrer alterações de estilos personalizados de CSS da interface, causando uma impressão de layout desconfigurado. Todo conteúdo que precisa sair na impressão obrigatoriamente deve ser envolvido por uma ``<div ats="imprimir" percent="50" indexImpressao="1">``. O uso do ``ats="imprimir"`` em uma tag em volta de outras faz com que todo o seu conteúdo seja impresso. O atributo ``percent="50"`` indica a porcentagem da ocupação do conteúdo na impressão. Por exemplo, o uso de ``percent="50"`` faz com que o conteúdo interno ocupe somente metade da folha da impressão na horizontal, a vertical é determinada pelo tamanho do conteúdo impresso da interface. O atributo ``indexImpressao="1"`` é usado para especificar a posição da qual aquele conteúdo será impresso. Além desses atributos para configuração da impressão, devemos adicionar um **id** que inicia com a palavra **Collapse**. Esse nome deve OBRIGATORIAMENTE ser seguido de um sufixo que representa o título do trecho que será impresso, como ``CollapseDadosPaciente``. O id garante que o conteúdo seja impresso somente se ao menos uma medida estiver preenchida, mostrando o resultado do que foi preenchido. Além disso, para garantir a estrutura exata da impressão, os elementos contidos na ``<div>`` com o id **Collapse** não devem ter nenhum outro elemento em torno de seu conteúdo interno. O uso de outro elemento interno para cobrir o conteúdo causa um bloqueio no funcionamento da impressão, impedindo que o campo preenchido seja identificado. O comportamento para os inputs separados é semelhante. Enquanto o ``id="Collapse"`` garante que o conteúdo a ser impresso não mostre todas as medidas, a adição obrigatória da classe ``class="campoMedida"`` garante que, se aquele input estiver preenchido, ele apareça. Caso o campo não contenha a classe, esse campo aparecerá na impressão, independentemente de estar preenchido ou não, causando o comportamento inadequado.
+
+**Um Collapse por título de sessão**
+
+Cada ``.tituloSessao`` tem o seu próprio ``<div id="Collapse..." ats="imprimir" percent="48" indexImpressao="1">``. O título é o primeiro elemento desse ``div``. As linhas de medida vêm em seguida, como irmãs do título. Não envolva o título e as linhas numa ``div`` extra.
+
+A impressão remove a linha cujo ``input.campoMedida`` está vazio. Depois olha os filhos do ``Collapse``, sem contar o primeiro. Se esse restante não tem texto, apaga somente o primeiro filho, que é o título. O bloco sai da folha quando não resta medida preenchida. Medida calculada com valor conta como preenchida, e a sessão dela imprime.
+
+Vários títulos dentro do mesmo ``Collapse`` não passam por essa limpeza. Um campo preenchido em qualquer sessão mantém o bloco inteiro. Os títulos das sessões vazias continuam na folha, porque a impressão só consegue apagar o primeiro título e os demais títulos ainda têm texto.
+
+```html
+<!-- Válido: a Aorta sem medida não sai; o ventrículo sai se houver valor -->
+<div id="CollapseVentriculoEsquerdo" ats="imprimir" percent="48" indexImpressao="2">
+    <div class="tituloSessao"><span class="tituloSessaoTexto">&nbsp;Ventrículo esquerdo</span></div>
+    <div class="d-flex laudo-linha">
+        <input class="campoMedida" id="VR_LVEDD" type="number">
+    </div>
+</div>
+<div id="CollapseAorta" ats="imprimir" percent="48" indexImpressao="3">
+    <div class="tituloSessao"><span class="tituloSessaoTexto">&nbsp;Aorta</span></div>
+    <div class="d-flex laudo-linha">
+        <input class="campoMedida" id="VR_AOV" type="number">
+    </div>
+</div>
+```
+
+```html
+<!-- Inválido: a Aorta vazia sai junto porque o ventrículo tem valor -->
+<div id="CollapseMedidasEsquerdas" ats="imprimir" percent="48" indexImpressao="2">
+    <div class="tituloSessao"><span class="tituloSessaoTexto">&nbsp;Ventrículo esquerdo</span></div>
+    <div class="d-flex laudo-linha">
+        <input class="campoMedida" id="VR_LVEDD" type="number">
+    </div>
+    <div class="tituloSessao"><span class="tituloSessaoTexto">&nbsp;Aorta</span></div>
+    <div class="d-flex laudo-linha">
+        <input class="campoMedida" id="VR_AOV" type="number">
+    </div>
+</div>
+```
 
 O sistema moderno de impressão utiliza o atributo ats="imprimir", percent="1" e indexImpressao="1":
 
@@ -633,6 +801,90 @@ O sistema moderno de impressão utiliza o atributo ats="imprimir", percent="1" e
 </style>
 ```
 
+**6.2 Acesso ao iframe**
+
+**Regras**
+
+Sempre que um modelo HTML criado para o LaudosUX tiver um iframe, a busca desse elemento OBRIGATORIAMENTE deve usar `window.document.getElementById`. Não pode usar apenas `document.getElementById`. Em uma versão recente do sistema, sem o `window`, o clique no botão que usa o iframe não acontece: a função não encontra o elemento e nada é executado.
+
+```js
+// ✅ BOM: o iframe é buscado em window.document
+var iframe = window.document.getElementById('iframeImpressaoReceitaOculos');
+
+// ❌ EVITAR: sem window o botão não responde
+var iframe = document.getElementById('iframeImpressaoReceitaOculos');
+```
+
+**6.3 Combo na impressão**
+
+**Regras**
+
+A impressão do Laudos UX fotografa um clone de cada `div[ats="imprimir"]`. O `cloneNode` copia o HTML do `select`, e a cópia do `.value` não faz a foto pintar a opção escolhida. A imagem sai com a primeira opção, em geral o texto "Selecione...".
+
+Todo `select` de preenchimento que possa aparecer nessa foto precisa de um texto real com a opção escolhida. O `select` continua na tela para a pessoa abrir a lista. Ele sai da foto.
+
+- A caixa já nasce no HTML. O texto da opção inicial fica em `.campoSelectEspelho` e o `select` já leva `ats="naoimprimir"`. Montar essa caixa só por script deixa a foto na primeira opção quando a preparação ainda não rodou.
+- O `onchange` escrito no HTML chama `sincronizarSelect(this)` antes das outras funções. A troca da opção atualiza o texto que a foto vai usar.
+- O `#containerHtml` contém o comentário `<!-- iniciarFuncoes -->`. O sistema chama `iniciarFuncoes` de novo quando a aba do script é selecionada, porque procura esse nome no HTML da tela. Peso, altura e a sincronização dos combos acontecem nessa chamada, com o modelo já na página.
+- A preparação também espera `#containerHtml` entrar em `document.body`. O script do modelo é avaliado antes disso. Se o container ainda não estiver no documento, um `MutationObserver` espera a inserção e então preenche os dados e sincroniza os combos.
+- Cada `select` fica dentro da caixa, por cima do texto, com `opacity: 0`, para o clique continuar abrindo a lista.
+- O `select` recebe `ats="naoimprimir"`. O aviso da opção vazia, como "Selecione...", também recebe `ats="naoimprimir"`.
+- Na preparação e em todo `onchange`, a opção escolhida recebe o atributo `selected`. As demais perdem esse atributo.
+- Opção com `value` vazio não gera texto de impressão. A foto fica sem o aviso "Selecione...".
+- O texto impresso é o texto visível da opção (`option.text`). Quando o `value` é um código interno, a impressão mostra o rótulo, por exemplo "Hadlock". O cálculo continua lendo o `value`.
+- O espelho não leva `id` iniciado por `VR_` e não usa a classe `campoMedida`.
+
+```html
+<div class="selectCaixa">
+    <div class="campoSelectEspelho">Hadlock</div>
+    <div class="selectPlaceholder" ats="naoimprimir">Selecione...</div>
+    <select class="campoSelect" id="VR_FORMULA" ats="naoimprimir" onchange="sincronizarSelect(this); calcular()">
+        <option value="">Selecione...</option>
+        <option value="hadlock" selected="selected">Hadlock</option>
+    </select>
+</div>
+```
+
+```css
+.selectCaixa { position: relative; flex: 1 1 240px; min-width: 160px; }
+.campoSelectEspelho {
+    min-height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 28px 6px 8px;
+    background: #fff;
+}
+.selectPlaceholder { position: absolute; left: 9px; top: 6px; color: #94a3b8; pointer-events: none; }
+.selectCaixa.temValor .selectPlaceholder { display: none; }
+.selectCaixa > select { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; }
+```
+
+```js
+function textoOpcaoSelecionada(select) {
+    if (!select || select.selectedIndex < 0) return "";
+    var opcao = select.options[select.selectedIndex];
+    if (!opcao || !String(opcao.value || "").trim()) return "";
+    return String(opcao.text || "").trim();
+}
+
+function sincronizarSelect(select) {
+    if (!select || !select.options) return;
+    var indice = select.selectedIndex;
+    Array.prototype.forEach.call(select.options, function (opcao, i) {
+        if (i === indice && String(opcao.value || "").trim()) opcao.setAttribute("selected", "selected");
+        else opcao.removeAttribute("selected");
+    });
+    var caixa = select.parentNode;
+    if (!caixa || !caixa.classList.contains("selectCaixa")) return;
+    var espelho = caixa.querySelector(".campoSelectEspelho");
+    if (!espelho) return;
+    var texto = textoOpcaoSelecionada(select);
+    espelho.textContent = texto;
+    if (texto) caixa.classList.add("temValor");
+    else caixa.classList.remove("temValor");
+}
+```
+
 # 7. Recursos e Bibliotecas
 
 Para carregar arquivos JSON dinamicamente, crie uma função com nome adequado do que será buscado e, a partir disso, use a base descrita no código para carregar e passar parâmetros para outras funções que dependem do arquivo. Dependendo da situação, será necessário tratar o arquivo da para permitir a busca correta.
@@ -691,6 +943,73 @@ function imprimirLaudo() {
 
 function converterHora(timestamp) {
     // Função do sistema para converter horários
+}
+```
+
+**7.1.4 Quill do laudo descritivo**
+
+**Regras**
+
+O Laudos UX já abre o editor de texto do laudo. A instância fica em `dicTextoLongo['LAUDODESCRITIVO']`. O texto narrativo do modelo entra nesse editor.
+
+O script HTML não cria outro Quill para receber esse texto. Não há `new Quill` no modelo, nem barra de ferramentas, nem `div` de editor dentro do HTML. Campos que a pessoa preenche, como indicação e urgência, continuam no formulário com id `VR_`. A frase montada a partir desses campos é gravada no Quill do sistema.
+
+- A publicação usa o Quill já existente. Se `dicTextoLongo['LAUDODESCRITIVO']` ainda não existir, a consulta se repete até 20 vezes, com 500 ms entre elas. Essa espera vale só para o editor do sistema. A inicialização dos campos do modelo continua na seção 3.
+- A colagem troca o conteúdo inteiro com `dangerouslyPasteHTML`, em modo silencioso, para não disparar o histórico do editor a cada tecla.
+- Se o foco estiver num `input` ou `textarea` do modelo, a posição do cursor é guardada e devolvida depois da colagem.
+- Conteúdo igual ao que já está no editor não é colado de novo.
+- O sistema imprime `LAUDODESCRITIVO`. O modelo não reserva um bloco `ats="imprimir"` para um editor local.
+- No editor do script, o campo do bloco HTML fica com **Imprimir** em **Não**. Sem isso, a impressão padrão também lista o conteúdo dos campos `VR_` do formulário, além do texto do Quill. Essa opção é do campo no editor. O script HTML não esconde esse texto por conta própria.
+
+```js
+function obterQuillLaudoDescritivo() {
+    if (typeof dicTextoLongo === 'undefined' || !dicTextoLongo['LAUDODESCRITIVO']) return null;
+    return dicTextoLongo['LAUDODESCRITIVO'];
+}
+
+function definirHtmlLaudoDescritivo(html) {
+    var quill = obterQuillLaudoDescritivo();
+    if (!quill || !quill.root || !quill.clipboard || !quill.clipboard.dangerouslyPasteHTML) return;
+
+    var conteudo = html || '<p><br></p>';
+    if (quill.root.innerHTML === conteudo) return;
+
+    var elementoAtivo = document.activeElement;
+    var laudoRoot = quill.root;
+    var restaurarFoco = elementoAtivo &&
+        elementoAtivo !== document.body &&
+        elementoAtivo !== laudoRoot &&
+        !laudoRoot.contains(elementoAtivo);
+    var selInicio = null;
+    var selFim = null;
+    if (restaurarFoco && (elementoAtivo.tagName === 'INPUT' || elementoAtivo.tagName === 'TEXTAREA')) {
+        selInicio = elementoAtivo.selectionStart;
+        selFim = elementoAtivo.selectionEnd;
+    }
+
+    var fonteSilenciosa = (typeof Quill !== 'undefined' && Quill.sources && Quill.sources.SILENT) ? Quill.sources.SILENT : 'silent';
+    var tamanho = quill.getLength();
+    if (tamanho > 0) quill.deleteText(0, tamanho, fonteSilenciosa);
+    quill.clipboard.dangerouslyPasteHTML(0, conteudo, fonteSilenciosa);
+
+    if (restaurarFoco && typeof elementoAtivo.focus === 'function') {
+        elementoAtivo.focus();
+        if (selInicio !== null && typeof elementoAtivo.setSelectionRange === 'function') {
+            elementoAtivo.setSelectionRange(selInicio, selFim);
+        }
+    }
+}
+
+function aguardarLaudoDescritivo(callback, tentativas) {
+    tentativas = tentativas || 0;
+    if (obterQuillLaudoDescritivo()) {
+        callback();
+        return;
+    }
+    if (tentativas >= 20) return;
+    setTimeout(function () {
+        aguardarLaudoDescritivo(callback, tentativas + 1);
+    }, 500);
 }
 ```
 
@@ -815,6 +1134,42 @@ function configurarBotaoEstatico() {
 
 // ✅ Alternativa: Usar onclick diretamente no HTML
 <button onclick="calcular()">Calcular</button>
+```
+
+**8.4 Nomes reservados do editor**
+
+**Regras**
+
+O editor executa o `<script>` do modelo na mesma página do Laudos UX, no momento de importar e de novo ao salvar o campo HTML. Uma `function` do modelo com o mesmo nome de uma função do sistema substitui a original. O botão Salvar chama `validarCampos`. Se o modelo declarar `function validarCampos`, essa chamada deixa de validar o campo, o modal não fecha e nada é gravado.
+
+Não declare no modelo, no escopo global, estas funções: `validarCampos`, `atualizarCampo`, `showMsg`, `montarCampoScriptDom` e `iniciarFuncoes` só pode existir como a inicialização do próprio modelo. Dê à função do modelo um nome próprio, como `validarLimitesNutricao`.
+
+Variáveis globais do modelo devem usar `var`. `let` e `const` no topo do script entram no escopo da página. Na segunda execução, feita pelo Salvar depois da importação, o navegador recusa a nova declaração e o script para.
+
+```js
+// ✅ BOM
+var limitePeso = 300;
+function validarLimitesNutricao() { }
+
+// ❌ EVITAR: substitui a validação do editor e o Salvar não grava
+function validarCampos() { }
+```
+
+**8.5 Sinais que o prontuário troca por ?**
+
+O editor mostra o caractere especial colado no arquivo. O prontuário troca esse caractere por `?` ao gravar o HTML, inclusive no campo HTML do Studio (`htmlPersonalizado`). Letras acentuadas do português permanecem. A conferência vale para título, tooltip, opção, faixa de normalidade, descrição do modelo e texto calculado.
+
+Não cole o glifo Unicode de menor ou igual nem o de maior ou igual no HTML do modelo. Esses dois sinais são a causa direta do `?` na tela. Escreva a entidade, como no `EcodopplercardiogramaGeometryPrime2026.html`: `&le;` no lugar de menor ou igual e `&ge;` no lugar de maior ou igual. A entidade vale no HTML estático e em texto aplicado com `innerHTML`. `textContent` não converte a entidade e mostra o código na tela. Se o `?` já apareceu, o texto foi salvo com o glifo; troque pela entidade e grave de novo.
+
+O sinal de menos comprido e o travessão continuam virando `?`. Nesses casos use o hífen do teclado, `-`. O sinal de multiplicação segue o mesmo cuidado: use `x`. O sinal de mais ou menos segue o mesmo cuidado: use `+/-`.
+
+```html
+<span>&le; 0,42</span>
+<span>&ge; 0,50</span>
+```
+
+```js
+elemento.innerHTML = 'Espessura relativa &le; 0,42';
 ```
 
 # 9. Padrões de Desenvolvimento

@@ -1097,9 +1097,13 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 section.Variaveis.Select((item, itemIndex) =>
                 {
                     var variable = byId[item.CodVariavel];
+                    var hasOverride = !string.IsNullOrWhiteSpace(item.NormalidadeOverride);
+                    // Override é só do rascunho/modelo — não altera NORMALIDADE no banco.
+                    var normalidade = hasOverride ? item.NormalidadeOverride!.Trim() : variable.Normalidade;
+                    var detalhes = hasOverride ? null : variable.NormalidadeDetalhes;
                     return new SecaoVariavelDto(variable.CodVariavel, variable.Nome, variable.Sigla,
-                        item.ExibirGrafico, itemIndex + 1, variable.Unidade, variable.Normalidade,
-                        variable.Formula, variable.NormalidadeDetalhes);
+                        item.ExibirGrafico, itemIndex + 1, variable.Unidade, normalidade,
+                        variable.Formula, detalhes);
                 }).ToArray())).ToArray();
         return new ModeloDetalhe(modelId, name, sectionDtos);
     }
