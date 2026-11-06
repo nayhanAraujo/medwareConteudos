@@ -25,7 +25,9 @@ public static class DatabaseMigrations
             ("evaluations", () => AvaliacaoSchema.MigrateAsync(db, ct)),
             ("orcamentos", () => OrcamentoSchema.MigrateAsync(db, ct)),
             ("script-universal-code", () => ScriptCodigoUniversalSchema.MigrateAsync(db, ct)),
-            ("audit", () => AuditSchema.MigrateAsync(db, ct))
+            ("audit", () => AuditSchema.MigrateAsync(db, ct)),
+            ("studio-drafts", () => services.GetService<IConfiguration>()?.GetValue<bool>("StudioDrafts:Enabled") == true
+                ? MdwConteudos.Api.Modules.StudioDrafts.StudioDraftSchema.MigrateAsync(db, ct) : Task.CompletedTask)
         };
         foreach (var step in steps)
         {

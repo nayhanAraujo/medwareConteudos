@@ -9,6 +9,7 @@ using ConversorHtml.Application.Interfaces;
 using ConversorHtml.Domain.Models;
 using Microsoft.AspNetCore.SignalR;
 using MdwConteudos.Api.Modules.FormulasModelos;
+using MdwConteudos.Api.Modules.StudioDrafts;
 
 namespace MdwConteudos.Api.Modules.RealtimeVoice;
 
@@ -43,6 +44,12 @@ public sealed class RealtimeVoiceSession
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
     private readonly object _gate = new();
     private readonly RealtimeDraft _draft;
+    private readonly Guid? _persistentId;
+    private long _persistentRevision;
+    private RealtimeSelection? _selection;
+    private string _turnGroup = Guid.NewGuid().ToString();
+    private readonly Dictionary<string, string> _responseGroups = [];
+    private string[] _keyterms = ["superfície corporal", "átrio esquerdo", "septo", "ventrículo", "normalidade", "aorta"];
     private string _expectedJson;
     private long _sequence = -1;
     private long _generation;
@@ -54,17 +61,18 @@ public sealed class RealtimeVoiceSession
     private string? _savedProposal;
     public Guid Id => _stored.Id;
     public bool IsStopped => _sessionToken.IsCancellationRequested;
-    private sealed record Call(string Id, string Response, string Name, string Arguments, string Group, long Generation, CancellationToken Token);
+    private sealed record Call(string Id, string Response, string Name, string Arguments, string Group, long Generation, CancellationToken Token, long Revision, string OperationGroup);
     private sealed class Batch { public int Pending; public bool Closed; public bool Continued; public bool Cancelled; }
     private sealed record Proposal(string Id, long Revision, SalvarComposicaoRequest Composition);
 
     public RealtimeVoiceSession(string connection, ClaimsPrincipal user, VoiceSession stored, int? model, string key,
         RealtimeVoiceOptions config, IVoiceSessionStore store, IServiceScopeFactory scopes, Func<string, object, Task> emit,
-        CancellationToken stopping, ILogger log, IRealtimeVoiceTransport? transport = null, Action<RealtimeVoiceSession>? ended = null)
+        CancellationToken stopping, ILogger log, IRealtimeVoiceTransport? transport = null, Action<RealtimeVoiceSession>? ended = null, Guid? persistentId = null)
     {
         _connection = connection; _user = user; _stored = stored; _model = model; _config = config;
         _store = store; _scopes = scopes; _emit = emit; _log = log;
         _ended = ended;
+        _persistentId = persistentId;
         _socket = transport ?? new XaiVoiceTransport(key);
         _draft = new RealtimeDraft(stored.CamposScriptJson); _expectedJson = stored.CamposScriptJson;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(stopping);
@@ -78,6 +86,16 @@ public sealed class RealtimeVoiceSession
         timeout.CancelAfter(TimeSpan.FromSeconds(25));
         try
         {
+            if (_persistentId is { } persistent)
+            {
+                await using var scope = _scopes.CreateAsyncScope();
+                var view = await scope.ServiceProvider.GetRequiredService<StudioDraftService>().Get(persistent.ToString(), int.Parse(_stored.OwnerUserId), timeout.Token);
+                _persistentRevision = view.Revision;
+                var catalog = await scope.ServiceProvider.GetRequiredService<IFormulasModelosService>().ListVariaveisAsync(timeout.Token);
+                var used = view.Document.Secoes.SelectMany(s => s.Itens).Select(i => i.CodVariavel).ToHashSet();
+                _keyterms = catalog.OrderByDescending(v => used.Contains(v.CodVariavel)).Select(v => v.Nome).Concat(_keyterms)
+                    .Where(s => !string.IsNullOrWhiteSpace(s) && s.Length <= 50).Distinct(StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
+            }
             await _socket.ConnectAsync(new Uri($"wss://api.x.ai/v1/realtime?model={Uri.EscapeDataString(_config.Model)}"), timeout.Token);
             lock (_lifecycleGate)
             {
@@ -85,7 +103,12 @@ public sealed class RealtimeVoiceSession
                 _run = RunAsync();
             }
             await _ready.Task.WaitAsync(timeout.Token);
-            await _emit("SessionReady", new { sessionId = Id, revision = _draft.Revision, camposScriptJson = _draft.Render() });
+            if (_persistentId is { } current)
+            {
+                await using var scope = _scopes.CreateAsyncScope();
+                await _emit("SessionReady", new { sessionId = Id, revision = _persistentRevision, draft = await scope.ServiceProvider.GetRequiredService<StudioDraftService>().Get(current.ToString(), int.Parse(_stored.OwnerUserId), timeout.Token) });
+            }
+            else await _emit("SessionReady", new { sessionId = Id, revision = _draft.Revision, camposScriptJson = _draft.Render() });
         }
         catch (Exception ex)
         {
@@ -181,8 +204,8 @@ public sealed class RealtimeVoiceSession
                     modalities = new[] { "text" },
                     instructions = "Você monta laudos em português brasileiro por ferramentas. Sempre consulte o rascunho para obter IDs. Preserve campos não mencionados. Use somente medidas do catálogo e esclareça ambiguidades. Reutilize grupoOperacao e substituirOperacao=true para corrigir a mesma intenção. Uma nova fala pode adicionar outra intenção; não desfaça tudo. Nunca confirme um salvamento: apenas prepare a proposta e aguarde o botão na interface. Não invente dados clínicos. Seja silencioso e conciso.",
                     turn_detection = new { type = "server_vad", silence_duration_ms = _config.SilenceDurationMs },
-                    audio = new { input = new { format = new { type = "audio/pcm", rate = 24000 } } },
-                    tools = RealtimeTools.Definitions
+                    audio = new { input = new { format = new { type = "audio/pcm", rate = 24000 }, transcription = new { language_hint = "pt-BR", keyterms = _keyterms } } },
+                    tools = _persistentId.HasValue ? StudioRealtimeAdapter.Tools : RealtimeTools.Definitions
                 } });
             }
             else if (type == "session.updated")
@@ -203,10 +226,13 @@ public sealed class RealtimeVoiceSession
                 throw new InvalidOperationException("Provider rejected session/event.");
             }
             else if (type is "input_audio_buffer.speech_started" or "input_audio_buffer.speech_stopped")
+            {
+                if (type.EndsWith("started")) _turnGroup = Guid.NewGuid().ToString();
                 await _emit("SpeechState", new { sessionId = Id, speaking = type.EndsWith("started") });
+            }
             else if (type == "conversation.item.input_audio_transcription.completed")
                 await _emit("Transcript", new { sessionId = Id, text = e.GetProperty("transcript").GetString() });
-            else if (type == "response.created") { lock (_gate) _responseActive = true; }
+            else if (type == "response.created") { lock (_gate) { _responseActive = true; if (_persistentId.HasValue) _responseGroups[e.GetProperty("response").GetProperty("id").GetString()!] = _turnGroup; } }
             else if (type == "response.function_call_arguments.done") QueueCall(e);
             else if (type == "response.done")
             {
@@ -260,7 +286,7 @@ public sealed class RealtimeVoiceSession
             _groups[group] = (generation, cts);
             if (!_batches.TryGetValue(response, out var batch)) _batches[response] = batch = new Batch();
             batch.Pending++;
-            if (!_tools.Writer.TryWrite(new Call(id, response, e.GetProperty("name").GetString()!, arguments, group, generation, cts.Token)))
+            if (!_tools.Writer.TryWrite(new Call(id, response, e.GetProperty("name").GetString()!, arguments, group, generation, cts.Token, Interlocked.Read(ref _persistentRevision), _persistentId.HasValue ? _responseGroups.GetValueOrDefault(response, _turnGroup) : group)))
                 throw new InvalidOperationException("Tool queue saturated.");
         }
     }
@@ -286,11 +312,28 @@ public sealed class RealtimeVoiceSession
                 call.Token.ThrowIfCancellationRequested();
                 await _emit("ToolStarted", new { sessionId = Id, callId = call.Id, responseId = call.Response, name = call.Name });
                 using var parsed = JsonDocument.Parse(call.Arguments);
-                RealtimeTools.Validate(call.Name, parsed.RootElement);
+                if (!_persistentId.HasValue) RealtimeTools.Validate(call.Name, parsed.RootElement);
                 await using var scope = _scopes.CreateAsyncScope();
                 await RealtimeVoiceManager.AuthorizeAsync(scope.ServiceProvider, _user, false, call.Token);
                 var service = scope.ServiceProvider.GetRequiredService<IFormulasModelosService>();
-                if (call.Name == "buscar_medidas")
+                if (_persistentId is { } persistent)
+                {
+                    var commands = scope.ServiceProvider.GetRequiredService<StudioDraftService>();
+                    var commandId = Guid.ParseExact(StudioDraftService.Hash($"{Id}:{call.Id}")[..32], "N").ToString();
+                    EnsureCurrent(call);
+                    result = await StudioRealtimeAdapter.Execute(commands, persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Name,
+                        parsed.RootElement, commandId, call.Revision, _selection, call.Token, call.OperationGroup);
+                    var payload = JsonSerializer.SerializeToElement(result, StudioDocumentEditor.Json);
+                    if (payload.TryGetProperty("draft", out var updated))
+                    {
+                        Interlocked.Exchange(ref _persistentRevision, updated.GetProperty("revision").GetInt64());
+                        await _emit("DraftUpdated", new { sessionId = Id, revision = _persistentRevision, draft = updated, commandId, callId = call.Id });
+                    }
+                    if (payload.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 1)
+                        await _emit("ChoiceRequested", new { sessionId = Id, revision = call.Revision, candidates, sectionId = _selection?.SectionId,
+                            token = scope.ServiceProvider.GetRequiredService<StudioChoices>().Issue(persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Revision, candidates.EnumerateArray().Select(x => x.GetProperty("codVariavel").GetInt32())) });
+                }
+                else if (call.Name == "buscar_medidas")
                 {
                     var search = parsed.RootElement.GetProperty("busca").GetString()!;
                     var catalog = await service.ListVariaveisAsync(call.Token);
@@ -358,6 +401,12 @@ public sealed class RealtimeVoiceSession
     {
         call.Token.ThrowIfCancellationRequested();
         lock (_gate) if (_groups[call.Group].Generation != call.Generation) throw new OperationCanceledException();
+    }
+    public void SetContext(RealtimeSelection selection)
+    {
+        if (!_persistentId.HasValue) return;
+        if ((selection.SectionId is not null && !Guid.TryParse(selection.SectionId, out _)) || (selection.ItemId is not null && !Guid.TryParse(selection.ItemId, out _))) throw new HubException("Seleção inválida.");
+        _selection = selection; Interlocked.Exchange(ref _persistentRevision, selection.Revision);
     }
     private void EnsureUnchanged()
     {

@@ -29,6 +29,7 @@ using MdwConteudos.Api.Modules.Avaliacoes;
 using MdwConteudos.Api.Services;
 using ConversorHtml.Application;
 using MdwConteudos.Api.Modules.RealtimeVoice;
+using MdwConteudos.Api.Modules.StudioDrafts;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -261,6 +262,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.Configure<StudioDraftOptions>(builder.Configuration.GetSection("StudioDrafts"));
+builder.Services.AddScoped<StudioDraftService>();
+builder.Services.AddDataProtection();
+builder.Services.AddSingleton<StudioChoices>();
 builder.Services.Configure<RealtimeVoiceOptions>(builder.Configuration.GetSection("RealtimeVoice"));
 builder.Services.AddSingleton<RealtimeVoiceManager>();
 builder.Services.AddSignalR(o =>

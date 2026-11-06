@@ -1,7 +1,7 @@
 import { HubConnectionBuilder, HttpTransportType, LogLevel } from '@microsoft/signalr'
 import type { HubConnection } from '@microsoft/signalr'
 
-export function useRealtimeVoice() {
+export function useRealtimeVoice(options?: { draftId?: () => string | null | undefined; onDraft?: (draft: unknown) => void; onChoice?: (choice: unknown) => void }) {
   const config = useRuntimeConfig()
   const auth = useAuthStore()
   const store = useVoiceSessionStore()
@@ -27,7 +27,8 @@ export function useRealtimeVoice() {
   let sessionId: string | null = null
   const uploads = new Set<Promise<void>>()
   const note = (s: string) => { activity.value = [s, ...activity.value].slice(0, 15) }
-  const belongs = (e: { sessionId: string }) => e.sessionId === sessionId && store.sessionId === sessionId
+  const actionName = (name: string) => (({consultar_rascunho:'Consultar rascunho', buscar_medidas:'Buscar medidas', criar_secao:'Criar seção', organizar_secao:'Organizar seção', incluir_medidas:'Incluir medidas e dependências', mover_medida:'Mover medida', desfazer_alteracao:'Desfazer alteração', refazer_alteracao:'Refazer alteração', preparar_salvamento:'Preparar salvamento'} as Record<string,string>)[name] || 'Atualizar rascunho')
+  const belongs = (e: { sessionId: string }) => e.sessionId === sessionId && (!!options?.draftId?.() || store.sessionId === sessionId)
 
   function audio(frame: ArrayBuffer) {
     if (!connection || !sessionId || !connected.value) return
@@ -98,9 +99,9 @@ export function useRealtimeVoice() {
   }
 
   async function start(modeloId: number | null = null) {
-    if (starting.value || connected.value || !store.sessionId) return
+    if (starting.value || connected.value || (!store.sessionId && !options?.draftId?.())) return
     starting.value = true; error.value = ''; activity.value = []; proposal.value = null
-    sequence = 0; revision.value = 0; sessionId = store.sessionId
+    sequence = 0; revision.value = 0; sessionId = options?.draftId?.() ? crypto.randomUUID() : store.sessionId
     const base = String(config.public.apiBase || '').replace(/\/$/, '')
     const hub = new HubConnectionBuilder()
       .withUrl(`${base}/api/voice/realtime/hub`, { transport: HttpTransportType.WebSockets, accessTokenFactory: () => auth.token || '' })
@@ -110,18 +111,21 @@ export function useRealtimeVoice() {
     hub.on('SessionReady', e => {
       if (!belongs(e)) return
       connected.value = true; revision.value = e.revision
-      store.updateCamposScript(e.camposScriptJson)
+      if (e.draft) options?.onDraft?.(e.draft)
+      else store.updateCamposScript(e.camposScriptJson)
     })
     hub.on('DraftUpdated', e => {
       if (!belongs(e) || e.revision <= revision.value) return
+      if (e.draft) { revision.value = e.revision; options?.onDraft?.(e.draft); return }
       const parsed = JSON.parse(e.camposScriptJson)
       if (!Array.isArray(parsed.camposScript)) { error.value = 'Resposta de rascunho inválida.'; void stop(); return }
       revision.value = e.revision; store.updateCamposScript(e.camposScriptJson); proposal.value = null
     })
     hub.on('SpeechState', e => { if (belongs(e)) speaking.value = e.speaking })
+    hub.on('ChoiceRequested', e => { if (belongs(e)) options?.onChoice?.(e) })
     hub.on('Transcript', e => { if (belongs(e)) store.addHistory({ at: new Date().toISOString(), transcript: e.text, sttSource: 'server', summary: 'Fala recebida em tempo real' }) })
-    hub.on('ToolStarted', e => { if (belongs(e)) note(`Executando: ${e.name}`) })
-    hub.on('ToolCompleted', e => { if (belongs(e)) note(`Concluído: ${e.name}`) })
+    hub.on('ToolStarted', e => { if (belongs(e)) note(`Executando: ${actionName(e.name)}`) })
+    hub.on('ToolCompleted', e => { if (belongs(e)) note(e.result?.message || `Concluído: ${actionName(e.name)}`) })
     hub.on('ToolFailed', e => { if (belongs(e)) note(e.result?.message || 'Não foi possível aplicar a ação; o rascunho foi preservado.') })
     hub.on('SaveProposed', e => { if (belongs(e) && e.revision === revision.value) proposal.value = e })
     hub.on('SaveCompleted', e => { if (belongs(e)) { saving.value = false; proposal.value = null; note('Modelo salvo no banco.') } })
@@ -136,7 +140,7 @@ export function useRealtimeVoice() {
     try {
       await hub.start()
       if (disposed) { await hub.stop(); return }
-      await hub.invoke('StartSession', { sessionId, modeloId })
+      await hub.invoke('StartSession', { sessionId, modeloId, rascunhoId: options?.draftId?.() || null })
       if (!connected.value) throw new Error('A sessão não confirmou sua configuração.')
       await listen()
     } catch (e) {
@@ -152,6 +156,9 @@ export function useRealtimeVoice() {
     try { await connection.invoke('ConfirmSave', { sessionId, proposalId: value.proposalId, revision: value.revision }) }
     catch (e) { saving.value = false; error.value = e instanceof Error ? e.message : 'Falha ao confirmar salvamento.' }
   }
+  async function setContext(value: { revision: number; sectionId: string | null; itemId: string | null }) {
+    if (connected.value && connection && options?.draftId?.()) await connection.invoke('SetContext', value)
+  }
 
   async function stop() {
     const hub = connection
@@ -161,5 +168,5 @@ export function useRealtimeVoice() {
     if (hub) { try { await hub.stop() } catch { /* Already disconnected. */ } }
   }
   onBeforeUnmount(() => { disposed = true; void stop() })
-  return { connected, listening, starting, saving, speaking, error, activity, proposal, revision, start, pause, listen, stop, confirmSave }
+  return { connected, listening, starting, saving, speaking, error, activity, proposal, revision, start, pause, listen, stop, confirmSave, setContext }
 }

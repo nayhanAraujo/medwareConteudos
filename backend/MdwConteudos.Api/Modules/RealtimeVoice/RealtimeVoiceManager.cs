@@ -39,6 +39,13 @@ public sealed class RealtimeVoiceManager(
         await using var scope = scopes.CreateAsyncScope();
         var owner = await AuthorizeAsync(scope.ServiceProvider, user, false, default);
         var draft = store.Get(request.SessionId);
+        if (request.RascunhoId is { } persistentId)
+        {
+            if (draft is not null) throw new HubException("Identificador de sessão já utilizado. Conecte novamente com um novo identificador.");
+            await scope.ServiceProvider.GetRequiredService<MdwConteudos.Api.Modules.StudioDrafts.StudioDraftService>().Get(persistentId.ToString(), owner, default);
+            draft = store.Create(new ConversorHtml.Domain.Models.VoiceSession { Id = request.SessionId, OwnerUserId = owner.ToString(), CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow, ExpiresAt = DateTime.UtcNow.AddMinutes(config.MaxSessionMinutes), CamposScriptJson = "{\"camposScript\":[]}" });
+        }
         if (draft is null || draft.OwnerUserId != owner.ToString()) throw new HubException("Rascunho não encontrado ou expirado.");
         if (request.ModeloId is { } model && await scope.ServiceProvider.GetRequiredService<IFormulasModelosService>().GetModeloAsync(model, owner, default) is null)
             throw new HubException("Modelo de destino não encontrado.");
@@ -46,16 +53,16 @@ public sealed class RealtimeVoiceManager(
         await _startGate.WaitAsync();
         try
         {
-            if (_connections.ContainsKey(connection) || _drafts.ContainsKey(draft.Id)) throw new HubException("O rascunho já está em uma sessão de tempo real.");
+            if (_connections.ContainsKey(connection) || _drafts.ContainsKey(request.RascunhoId ?? draft.Id)) throw new HubException("O rascunho já está em uma sessão de tempo real.");
             if (_connections.Count >= Math.Clamp(config.MaxSessions, 1, 100)) throw new HubException("Limite de sessões atingido. Tente novamente mais tarde.");
             session = new RealtimeVoiceSession(connection, user, draft, request.ModeloId, key, config, store, scopes,
                 (name, payload) => hub.Clients.Client(connection).SendAsync(name, payload), lifetime.ApplicationStopping,
                 logs.CreateLogger<RealtimeVoiceSession>(), ended: ended =>
                 {
                     _connections.TryRemove(new KeyValuePair<string, RealtimeVoiceSession>(connection, ended));
-                    _drafts.TryRemove(new KeyValuePair<Guid, string>(ended.Id, connection));
-                });
-            _connections[connection] = session; _drafts[draft.Id] = connection;
+                    _drafts.TryRemove(new KeyValuePair<Guid, string>(request.RascunhoId ?? ended.Id, connection));
+                }, persistentId: request.RascunhoId);
+            _connections[connection] = session; _drafts[request.RascunhoId ?? draft.Id] = connection;
         }
         finally { _startGate.Release(); }
         try { await session.StartAsync(); }
@@ -67,6 +74,11 @@ public sealed class RealtimeVoiceManager(
         var session = Get(connection, request.SessionId);
         session.Append(request);
         return Task.CompletedTask;
+    }
+    public Task SetContextAsync(string connection, RealtimeSelection selection)
+    {
+        if (!_connections.TryGetValue(connection, out var session)) throw new HubException("Sessão encerrada.");
+        session.SetContext(selection); return Task.CompletedTask;
     }
 
     public Task ConfirmAsync(string connection, ClaimsPrincipal user, RealtimeConfirmation request)

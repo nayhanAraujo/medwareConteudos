@@ -1,5 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio' })
+const integrated = ref(false)
+const integratedAvailable = ref(false)
+onMounted(async () => { try { integratedAvailable.value = (await useApi().get<{enabled: boolean}>('/api/voice/rascunhos/status')).enabled } catch {} })
 
 interface VariableOption { codVariavel: number; nome: string; sigla: string; formula?: string | null; normalidade?: string | null; unidade?: string | null; abreviacao?: string | null; codGrupo?: number | null; grupo?: string | null; casasDecimais: number; classificacoes?: string | null; dependencias?: number[]; dependenciasNaoEncontradas?: string[] }
 interface DraftVariable extends VariableOption {
@@ -360,6 +363,9 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload)
 
 <template>
   <div>
+    <label v-if="integratedAvailable" class="mb-4 flex items-center gap-2 text-sm"><input v-model="integrated" type="checkbox"> Usar editor integrado com rascunhos e versões</label>
+    <StudioIntegratedEditor v-if="integrated" />
+    <template v-else>
     <StudioDsPageHeader title="Montador Modo Texto" subtitle="Selecione medidas do banco e organize o laudo em duas colunas" icon="bi-layout-split" />
     <StudioDsPageShell class="!max-w-[1600px]">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-ds border border-ds-border bg-ds-surface p-3">
@@ -594,6 +600,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload)
         </aside>
       </div>
     </StudioDsPageShell>
+    </template>
   </div>
 </template>
 

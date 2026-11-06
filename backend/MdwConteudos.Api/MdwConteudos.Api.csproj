@@ -25,6 +25,7 @@
     <EmbeddedResource Include="../sql/script-avaliacoes.sql" LogicalName="script-avaliacoes.sql" />
     <EmbeddedResource Include="../sql/script-codigo-universal.sql" LogicalName="script-codigo-universal.sql" />
     <EmbeddedResource Include="../sql/assistente-codigo-universal.sql" LogicalName="assistente-codigo-universal.sql" />
+    <EmbeddedResource Include="../../docs/sql/scripts/add-studio-rascunhos.sql" LogicalName="studio-rascunhos.sql" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="appsettings.*.local.json;appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />

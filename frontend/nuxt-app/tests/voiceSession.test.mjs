@@ -19,7 +19,7 @@ function harness({ response, exportFails = false, applyFails = false, format = '
     addHistory(entry) { this.transcriptHistory.push(entry) }
   }
   const dependencies = {
-    computed, ref, definePageMeta() {}, onUnmounted() {}, nextTick: async () => {},
+    computed, ref, definePageMeta() {}, onMounted() {}, onUnmounted() {}, nextTick: async () => {},
     useVoiceSessionStore: () => store,
     useConversionStore: () => ({ setCurrent() {} }),
     useVoiceApi: () => ({

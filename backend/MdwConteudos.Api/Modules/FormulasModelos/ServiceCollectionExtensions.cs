@@ -6,7 +6,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddFormulasModelosModules(this IServiceCollection services)
     {
-        services.AddScoped<IFormulasModelosService, FormulasModelosService>();
+        services.AddScoped<FormulasModelosService>();
+        services.AddScoped<IFormulasModelosService>(sp => sp.GetRequiredService<FormulasModelosService>());
         return services;
     }
 }

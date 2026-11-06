@@ -359,6 +359,13 @@ public sealed class FormulasModelosService : IFormulasModelosService
             new { id, codUsuario }, ct: ct));
         if (model is null) return null;
 
+        var studioOverrides = new Dictionary<int, string?>();
+        if (await connection.ExecuteScalarAsync<int>(Cmd("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='STUDIOMODELOESTADO'", ct: ct)) > 0)
+        {
+            var customJson = await connection.ExecuteScalarAsync<string?>(Cmd("SELECT AJUSTES FROM STUDIOMODELOESTADO WHERE CODMODELO=@id", new { id }, ct: ct));
+            studioOverrides = System.Text.Json.JsonSerializer.Deserialize<Dictionary<int, string?>>(customJson ?? "{}")!;
+        }
+
         var sections = (await connection.QueryAsync<SectionRow>(Cmd(@"
             SELECT CODSECAO AS CodSecao,
                    COALESCE(NOME, '') AS Nome,
@@ -412,7 +419,8 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 section.Y,
                 section.Largura,
                 section.Altura,
-                variables));
+                variables.Select(v => studioOverrides.TryGetValue(v.CodVariavel, out var custom)
+                    ? v with { Normalidade = custom, NormalidadeDetalhes = null } : v).ToArray()));
         }
 
         return new ModeloDetalhe(model.CodModelo, model.Nome, result);
@@ -688,12 +696,22 @@ public sealed class FormulasModelosService : IFormulasModelosService
         int codUsuario,
         CancellationToken ct)
     {
-        var name = RequiredName(request.Nome, "O nome do modelo é obrigatório.");
-        var sections = NormalizeComposition(request.Secoes);
         await using var connection = await _connections.OpenConnectionAsync(ct);
         using var transaction = connection.BeginTransaction();
         try
         {
+            await WriteCompositionAsync(connection, transaction, modeloId, request, codUsuario, ct);
+            transaction.Commit();
+        }
+        catch { transaction.Rollback(); throw; }
+        return await GetModeloAsync(modeloId, codUsuario, ct) ?? throw new InvalidOperationException("Modelo não encontrado após salvar.");
+    }
+
+    public async Task WriteCompositionAsync(FbConnection connection, FbTransaction transaction, int modeloId,
+        SalvarComposicaoRequest request, int codUsuario, CancellationToken ct)
+    {
+        var name = RequiredName(request.Nome, "O nome do modelo é obrigatório.");
+        var sections = NormalizeComposition(request.Secoes);
             await EnsureModelOwnership(connection, transaction, modeloId, codUsuario, ct);
             var existingIds = (await connection.QueryAsync<int>(Cmd(
                 "SELECT CODSECAO FROM SECAOMODOTEXTO WHERE CODMODELO = @modeloId",
@@ -759,16 +777,28 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 await InsertSectionVariables(connection, transaction, sectionId, variables, ct);
             }
 
-            transaction.Commit();
-        }
-        catch
+        if (await connection.ExecuteScalarAsync<int>(Cmd("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME='STUDIOMODELOESTADO'", transaction: transaction, ct: ct)) > 0)
         {
-            transaction.Rollback();
-            throw;
+            var overrides = request.Secoes!.SelectMany(s => s.Variaveis ?? []).Where(v => v.NormalidadeOverride is not null)
+                .ToDictionary(v => v.CodVariavel, v => v.NormalidadeOverride);
+            await connection.ExecuteAsync(Cmd("UPDATE STUDIOMODELOESTADO SET AJUSTES=@json WHERE CODMODELO=@modeloId", new { json = System.Text.Json.JsonSerializer.Serialize(overrides), modeloId }, transaction, ct));
         }
+    }
 
-        return await GetModeloAsync(modeloId, codUsuario, ct)
-            ?? throw new InvalidOperationException("Modelo não encontrado após salvar a composição.");
+    public async Task<GeneratedModel> RenderCompositionAsync(SalvarComposicaoRequest request, string format, CancellationToken ct)
+    {
+        var sections = NormalizeComposition(request.Secoes);
+        await using var c = await _connections.OpenConnectionAsync(ct);
+        var rows = await LoadCatalogRowsAsync(c, null, ct);
+        ValidateCompositionDependencies(sections, rows);
+        var model = BuildDraftModel(0, request.Nome, sections, rows);
+        return format switch
+        {
+            "txt" => new("laudo.txt", GenerateText(model), "text/plain;charset=utf-8"),
+            "json" => new("laudo.json", ModoTextoToJsonStudioConverter.Convert(GenerateText(model)), "application/json;charset=utf-8"),
+            "html" => new("laudo.html", GenerateHtml(model), "text/html;charset=utf-8"),
+            _ => throw new InvalidOperationException("Formato inválido.")
+        };
     }
 
     public async Task<string> PreviewComposicaoAsync(

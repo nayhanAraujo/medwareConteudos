@@ -4,6 +4,9 @@ import type { VoiceUtteranceIntent } from '~/types/voice'
 import { resolveConversionContent } from '~/utils/conversionFormat'
 
 definePageMeta({ layout: 'studio', studioAction: 'voz' })
+const integrated = ref(false)
+const integratedAvailable = ref(false)
+onMounted(async () => { try { integratedAvailable.value = (await useApi().get<{enabled: boolean}>('/api/voice/rascunhos/status')).enabled } catch {} })
 
 const voiceStore = useVoiceSessionStore()
 const conversionStore = useConversionStore()
@@ -279,6 +282,9 @@ const onNewSession = () => {
 
 <template>
   <div>
+    <label v-if="integratedAvailable" class="mb-4 flex items-center gap-2 text-sm"><input v-model="integrated" type="checkbox" :disabled="realtimeActive"> Usar editor integrado com rascunhos e versões</label>
+    <StudioIntegratedEditor v-if="integrated" />
+    <template v-else>
     <StudioDsPageHeader
       title="Modo voz"
       subtitle="Descreva o laudo falando — ao parar, o agente Cursor monta o modelo e gera o TXT automaticamente."
@@ -384,5 +390,6 @@ const onNewSession = () => {
         </div>
       </template>
     </StudioDsPageShell>
+    </template>
   </div>
 </template>

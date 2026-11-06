@@ -1,9 +1,11 @@
 <script setup lang="ts">
-const emit = defineEmits<{ active: [value: boolean] }>()
-const { connected, listening, starting, saving, speaking, error, activity, proposal, start, pause, listen, stop, confirmSave } = useRealtimeVoice()
+const props = defineProps<{ draftId?: string; context?: { revision: number; sectionId: string | null; itemId: string | null } }>()
+const emit = defineEmits<{ active: [value: boolean]; updated: [draft: any]; choice: [choice: any] }>()
+const { connected, listening, starting, saving, speaking, error, activity, proposal, start, pause, listen, stop, confirmSave, setContext } = useRealtimeVoice({ draftId: () => props.draftId, onDraft: draft => emit('updated', draft), onChoice: choice => emit('choice', choice) })
 const models = ref<Array<{ codModelo: number; nome: string }>>([])
 const target = ref<number | null>(null)
 watch([connected, starting], () => emit('active', connected.value || starting.value), { immediate: true })
+watch([connected, () => props.context], () => { if (props.context) void setContext(props.context).catch(() => {}) }, { deep: true })
 onBeforeUnmount(() => emit('active', false))
 onMounted(async () => {
   try {
@@ -16,7 +18,7 @@ onMounted(async () => {
 <template>
   <StudioDsCard title="Voz em tempo real · xAI">
     <p class="mb-3 text-sm text-ds-muted">Fale com pausas naturais. O agente organiza o rascunho enquanto continua ouvindo. Salvar no banco exige sua confirmação.</p>
-    <label class="block text-sm text-ds-text-secondary">Modelo de destino para salvamento (opcional)
+    <label v-if="!draftId" class="block text-sm text-ds-text-secondary">Modelo de destino para salvamento (opcional)
       <select v-model="target" :disabled="connected || starting" class="mt-1 mb-3 w-full rounded border border-ds-divider bg-ds-surface p-2">
         <option :value="null">Somente rascunho</option>
         <option v-for="model in models" :key="model.codModelo" :value="model.codModelo">{{ model.nome }}</option>
