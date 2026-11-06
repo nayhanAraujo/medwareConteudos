@@ -35,7 +35,7 @@ function Is-SourceAllowed([string]$Path) {
     if ($p -match '(^|/)(node_modules|bin[^/]*|obj|\.nuxt|\.output|\.git|\.homologacao|uploads[^/]*|bd|TestResults)(/|$)') { return $false }
     if ($p -match '(^|/)(\.env[^/]*|appsettings\..*local\.json|appsettings\.(Development|Homologacao)\.json|secrets\.json|launchSettings\.json)$') { return $false }
     if ($p -match '\.(fdb|gdb|fbk|bak|pfx|key|pem|db|sqlite\d*)$') { return $false }
-    if ($p -match '^docs/' -and $p -notmatch '(AGENTE-LAUDO-POR-VOZ|AGENTE-MODELOS-MODO-TEXTO|PRODUCAO_IIS)\.md$') { return $false }
+    if ($p -match '^docs/' -and $p -notmatch '(AGENTE-LAUDO-POR-VOZ|AGENTE-MODELOS-MODO-TEXTO|PRODUCAO_IIS)\.md$' -and $p -ne 'docs/sql/scripts/add-studio-rascunhos.sql') { return $false }
     return $true
 }
 if ($WorkingTree) {
