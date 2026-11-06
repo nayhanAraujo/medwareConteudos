@@ -146,6 +146,9 @@ public class VoiceSessionsController : ControllerBase
             return BadRequest(new { message = "Transcript vazio." });
         }
 
+        if (HttpContext.RequestServices?.GetService<MdwConteudos.Api.Modules.RealtimeVoice.RealtimeVoiceManager>()?.IsActive(id) == true)
+            return Conflict(new { message = "Pare o modo em tempo real antes de aplicar uma fala pelo modo convencional." });
+
         try
         {
             var intent = ResolveUtteranceIntent(request.Intent, session);

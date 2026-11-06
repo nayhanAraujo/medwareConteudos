@@ -28,6 +28,7 @@ using MdwConteudos.Api.Modules.Web;
 using MdwConteudos.Api.Modules.Avaliacoes;
 using MdwConteudos.Api.Services;
 using ConversorHtml.Application;
+using MdwConteudos.Api.Modules.RealtimeVoice;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -235,6 +236,18 @@ if (builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(jwtSecret))
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
+        o.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Browser WebSocket transport cannot set Authorization headers.
+                // Accept query tokens ONLY for this hub; never log its query string.
+                if (context.Request.Path.StartsWithSegments("/api/voice/realtime/hub")
+                    && context.Request.Query.TryGetValue("access_token", out var token))
+                    context.Token = token;
+                return Task.CompletedTask;
+            }
+        };
         o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -248,6 +261,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.Configure<RealtimeVoiceOptions>(builder.Configuration.GetSection("RealtimeVoice"));
+builder.Services.AddSingleton<RealtimeVoiceManager>();
+builder.Services.AddSignalR(o =>
+{
+    o.MaximumReceiveMessageSize = 8 * 1024;
+    o.MaximumParallelInvocationsPerClient = 1;
+    o.EnableDetailedErrors = false;
+});
 
 var app = builder.Build();
 ProductionSecurity.Validate(app);
@@ -368,6 +389,11 @@ app.MapGet("/api/documentacao/contexto", () => Results.Ok(new
     instanceId = app.Configuration["Documentation:InstanceId"] ?? ""
 }));
 app.MapControllers();
+app.MapHub<RealtimeVoiceHub>("/api/voice/realtime/hub", o =>
+{
+    o.CloseOnAuthenticationExpiration = true;
+    o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets;
+});
 ProductionSecurity.MapHealth(app);
 app.Run();
 

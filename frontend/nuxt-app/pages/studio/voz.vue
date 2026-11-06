@@ -24,6 +24,8 @@ const {
 } = useSpeechRecognition()
 
 const sessionActive = computed(() => !!voiceStore.sessionId)
+const realtimeEnabled = ref(false)
+const realtimeActive = ref(false)
 const hasModel = computed(() => voiceStore.camposScript.camposScript.length > 0)
 const sending = ref(false)
 const generating = ref(false)
@@ -264,7 +266,7 @@ const onOpenEditor = () => {
 }
 
 const onNewSession = () => {
-  if (sending.value || generating.value) return
+  if (sending.value || generating.value || realtimeActive.value) return
   stopProgress()
   voiceStore.reset()
   resetSpeech()
@@ -294,7 +296,7 @@ const onNewSession = () => {
             Sessão <span class="font-mono text-ds-text-secondary">{{ voiceStore.sessionId }}</span>
             · modo {{ voiceStore.mode === 'fromImage' ? 'com imagem' : 'do zero' }}
           </p>
-          <StudioDsButton variant="ghost" icon="bi-arrow-counterclockwise" :disabled="showProgress" @click="onNewSession">
+          <StudioDsButton variant="ghost" icon="bi-arrow-counterclockwise" :disabled="showProgress || realtimeActive" @click="onNewSession">
             Nova sessão
           </StudioDsButton>
         </div>
@@ -310,7 +312,13 @@ const onNewSession = () => {
 
         <div class="grid gap-6 lg:grid-cols-2">
           <div class="space-y-6">
+            <label class="flex items-center gap-2 text-sm text-ds-text-secondary">
+              <input v-model="realtimeEnabled" type="checkbox" :disabled="showProgress || realtimeActive">
+              Usar agente de voz em tempo real (xAI)
+            </label>
+            <StudioRealtimeVoicePanel v-if="realtimeEnabled" @active="realtimeActive = $event" />
             <StudioVoiceRecorder
+              v-else
               :is-supported="isSupported"
               :is-listening="isListening"
               :has-model="hasModel"
