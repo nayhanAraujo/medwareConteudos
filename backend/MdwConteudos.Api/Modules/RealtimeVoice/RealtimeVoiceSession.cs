@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Security.Claims;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -25,6 +26,8 @@ public sealed class RealtimeVoiceSession
     private readonly Action<RealtimeVoiceSession>? _ended;
     private readonly IRealtimeVoiceTransport _socket;
     private readonly CancellationTokenSource _cts;
+    private readonly CancellationToken _sessionToken;
+    private readonly object _lifecycleGate = new();
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Channel<string> _audio = Channel.CreateBounded<string>(64);
     private readonly Channel<string> _control = Channel.CreateBounded<string>(64);
@@ -44,12 +47,13 @@ public sealed class RealtimeVoiceSession
     private long _sequence = -1;
     private long _generation;
     private Task? _run;
-    private int _stopped;
+    private Task? _stopTask;
+    private int _resourcesDisposed;
     private bool _responseActive;
     private Proposal? _proposal;
     private string? _savedProposal;
     public Guid Id => _stored.Id;
-    public bool IsStopped => _cts.IsCancellationRequested;
+    public bool IsStopped => _sessionToken.IsCancellationRequested;
     private sealed record Call(string Id, string Response, string Name, string Arguments, string Group, long Generation, CancellationToken Token);
     private sealed class Batch { public int Pending; public bool Closed; public bool Continued; public bool Cancelled; }
     private sealed record Proposal(string Id, long Revision, SalvarComposicaoRequest Composition);
@@ -64,44 +68,48 @@ public sealed class RealtimeVoiceSession
         _socket = transport ?? new XaiVoiceTransport(key);
         _draft = new RealtimeDraft(stored.CamposScriptJson); _expectedJson = stored.CamposScriptJson;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+        _sessionToken = _cts.Token;
         _cts.CancelAfter(TimeSpan.FromMinutes(Math.Clamp(config.MaxSessionMinutes, 1, 60)));
     }
 
     public async Task StartAsync()
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_sessionToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(25));
         try
         {
             await _socket.ConnectAsync(new Uri($"wss://api.x.ai/v1/realtime?model={Uri.EscapeDataString(_config.Model)}"), timeout.Token);
-            _run = RunAsync();
+            lock (_lifecycleGate)
+            {
+                _sessionToken.ThrowIfCancellationRequested();
+                _run = RunAsync();
+            }
             await _ready.Task.WaitAsync(timeout.Token);
             await _emit("SessionReady", new { sessionId = Id, revision = _draft.Revision, camposScriptJson = _draft.Render() });
         }
         catch (Exception ex)
         {
             _log.LogWarning("Realtime startup failed session={SessionId} connection={ConnectionId} type={ErrorType}", Id, _connection, ex.GetType().Name);
-            _cts.Cancel();
-            if (_run is null) _socket.Abort(); else await _run;
+            await StopAsync();
             throw;
         }
     }
 
     public void Append(RealtimeAudio audio)
     {
-        if (!_ready.Task.IsCompletedSuccessfully || _cts.IsCancellationRequested) throw new HubException("Sessão ainda não está pronta.");
-        if (_stored.ExpiresAt <= DateTime.UtcNow) { _cts.Cancel(); throw new HubException("Rascunho expirado."); }
-        if (audio.Audio.Length > 3000) { _cts.Cancel(); throw new HubException("Bloco de áudio inválido."); }
+        if (!_ready.Task.IsCompletedSuccessfully || IsStopped) throw new HubException("Sessão ainda não está pronta.");
+        if (_stored.ExpiresAt <= DateTime.UtcNow) { RequestStop(); throw new HubException("Rascunho expirado."); }
+        if (audio.Audio.Length > 3000) { RequestStop(); throw new HubException("Bloco de áudio inválido."); }
         byte[] bytes;
-        try { bytes = Convert.FromBase64String(audio.Audio); } catch (FormatException) { _cts.Cancel(); throw new HubException("Áudio inválido."); }
+        try { bytes = Convert.FromBase64String(audio.Audio); } catch (FormatException) { RequestStop(); throw new HubException("Áudio inválido."); }
         // Exactly 40 ms of PCM16 mono at 24 kHz. Never silently drop frames.
         if (bytes.Length != 1920 || audio.Sequence != Interlocked.Read(ref _sequence) + 1)
-        { _cts.Cancel(); throw new HubException("Sequência de áudio interrompida. Inicie novamente."); }
+        { RequestStop(); throw new HubException("Sequência de áudio interrompida. Inicie novamente."); }
         if (audio.Sequence > _clock.Elapsed.TotalMilliseconds / 40 + 25)
-        { _cts.Cancel(); throw new HubException("Taxa de áudio inválida. Inicie novamente."); }
+        { RequestStop(); throw new HubException("Taxa de áudio inválida. Inicie novamente."); }
         Interlocked.Exchange(ref _sequence, audio.Sequence);
         if (!_audio.Writer.TryWrite(JsonSerializer.Serialize(new { type = "input_audio_buffer.append", audio = audio.Audio })))
-        { _cts.Cancel(); throw new HubException("Fila de áudio cheia. Rascunho preservado; retome a gravação."); }
+        { RequestStop(); throw new HubException("Fila de áudio cheia. Rascunho preservado; retome a gravação."); }
         _sendSignal.Release();
     }
 
@@ -114,40 +122,54 @@ public sealed class RealtimeVoiceSession
     private async Task RunAsync()
     {
         var tasks = new[] { ReadAsync(), WriteAsync(), WorkerAsync(), WorkerAsync(), WorkerAsync(), SaveWorkerAsync() };
+        Exception? failure = null;
         try
         {
             var first = await Task.WhenAny(tasks);
             await first;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        { _log.LogWarning("Realtime connection failed session={SessionId} type={ErrorType}", Id, ex.GetType().Name); }
+        catch (OperationCanceledException ex) when (IsExpectedCancellation(ex)) { }
+        catch (Exception ex)
+        {
+            failure = ex;
+            _log.LogWarning("Realtime connection failed session={SessionId} type={ErrorType}", Id, ex.GetType().Name);
+        }
         finally
         {
-            _cts.Cancel(); _socket.Abort();
-            try { await Task.WhenAll(tasks); } catch { /* All child tasks observed. */ }
-            _ready.TrySetException(new InvalidOperationException("Realtime session closed before configuration was acknowledged."));
+            try { RequestStop(); } catch (Exception ex) { failure ??= ex; }
+            try { _socket.Abort(); } catch (Exception ex) { failure ??= ex; }
+            try { await Task.WhenAll(tasks); } catch { /* Inspect each task below, including cancellation tokens. */ }
+            foreach (var task in tasks)
+            {
+                try { await task; }
+                catch (OperationCanceledException ex) when (IsExpectedCancellation(ex)) { }
+                catch (Exception ex) { failure ??= ex; }
+            }
+            if (failure is null) _ready.TrySetCanceled(_sessionToken);
+            else _ready.TrySetException(failure);
             try { await _emit("SessionClosed", new { sessionId = Id, message = "Sessão encerrada. O rascunho foi preservado. Retome a gravação.", code = Id.ToString() }); } catch { }
-            _socket.Dispose();
-            _ended?.Invoke(this);
+            var disposalFailure = DisposeResources();
+            failure ??= disposalFailure;
         }
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     private async Task WriteAsync()
     {
-        while (!_cts.IsCancellationRequested)
+        while (!IsStopped)
         {
-            await _sendSignal.WaitAsync(_cts.Token);
+            await _sendSignal.WaitAsync(_sessionToken);
             if (_control.Reader.TryRead(out var json) || _audio.Reader.TryRead(out json))
-                await _socket.SendAsync(json, _cts.Token);
+                await _socket.SendAsync(json, _sessionToken);
         }
     }
 
     private async Task ReadAsync()
     {
         var configured = false;
-        while (!_cts.IsCancellationRequested)
+        while (!IsStopped)
         {
-            using var doc = await _socket.ReceiveAsync(_cts.Token);
+            using var doc = await _socket.ReceiveAsync(_sessionToken);
             if (doc is null) return;
             var e = doc.RootElement;
             var type = e.GetProperty("type").GetString();
@@ -231,7 +253,7 @@ public sealed class RealtimeVoiceSession
         lock (_gate)
         {
             if (_groups.TryGetValue(group, out var old)) { old.Cts.Cancel(); }
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(_sessionToken);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
             _operationTokens.Add(cts);
             var generation = ++_generation;
@@ -255,7 +277,7 @@ public sealed class RealtimeVoiceSession
 
     private async Task WorkerAsync()
     {
-        await foreach (var call in _tools.Reader.ReadAllAsync(_cts.Token))
+        await foreach (var call in _tools.Reader.ReadAllAsync(_sessionToken))
         {
             object result;
             var started = System.Diagnostics.Stopwatch.StartNew();
@@ -355,7 +377,7 @@ public sealed class RealtimeVoiceSession
 
     private async Task SaveWorkerAsync()
     {
-        await foreach (var item in _confirmations.Reader.ReadAllAsync(_cts.Token))
+        await foreach (var item in _confirmations.Reader.ReadAllAsync(_sessionToken))
         {
             try { await ConfirmAsync(item.User, item.Request); }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -368,7 +390,7 @@ public sealed class RealtimeVoiceSession
 
     public async Task ConfirmAsync(ClaimsPrincipal user, RealtimeConfirmation request)
     {
-        await _mutation.WaitAsync(_cts.Token);
+        await _mutation.WaitAsync(_sessionToken);
         try
         {
             EnsureUnchanged();
@@ -376,9 +398,9 @@ public sealed class RealtimeVoiceSession
             if (_proposal is not { } proposal || proposal.Id != request.ProposalId || proposal.Revision != request.Revision || _draft.Revision != request.Revision || _model is not { } model)
                 throw new HubException("Proposta expirada. Solicite uma nova proposta de salvamento.");
             await using var scope = _scopes.CreateAsyncScope();
-            var owner = await RealtimeVoiceManager.AuthorizeAsync(scope.ServiceProvider, user, true, _cts.Token);
+            var owner = await RealtimeVoiceManager.AuthorizeAsync(scope.ServiceProvider, user, true, _sessionToken);
             if (owner.ToString() != _stored.OwnerUserId) throw new HubException("Rascunho não autorizado.");
-            await scope.ServiceProvider.GetRequiredService<IFormulasModelosService>().SaveComposicaoAsync(model, proposal.Composition, owner, _cts.Token);
+            await scope.ServiceProvider.GetRequiredService<IFormulasModelosService>().SaveComposicaoAsync(model, proposal.Composition, owner, _sessionToken);
             _savedProposal = proposal.Id; _proposal = null;
             await _emit("SaveCompleted", new { sessionId = Id, modeloId = model, revision = _draft.Revision });
         }
@@ -387,13 +409,50 @@ public sealed class RealtimeVoiceSession
         finally { _mutation.Release(); }
     }
 
-    public async Task StopAsync()
+    public Task StopAsync()
     {
-        if (Interlocked.Exchange(ref _stopped, 1) != 0) { if (_run is not null) await _run; return; }
-        _cts.Cancel();
-        if (_run is null) _socket.Abort();
-        if (_run is not null) await _run;
-        lock (_gate) foreach (var token in _operationTokens) token.Dispose();
-        _socket.Dispose();
+        lock (_lifecycleGate) return _stopTask ??= StopCoreAsync();
+    }
+
+    private async Task StopCoreAsync()
+    {
+        Exception? failure = null;
+        try
+        {
+            RequestStop();
+            if (_run is null) _socket.Abort();
+            else await _run;
+        }
+        catch (Exception ex) { failure = ex; }
+        finally
+        {
+            var disposalFailure = DisposeResources();
+            failure ??= disposalFailure;
+        }
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private bool IsExpectedCancellation(OperationCanceledException exception)
+        => _sessionToken.IsCancellationRequested && exception.CancellationToken == _sessionToken;
+
+    private void RequestStop()
+    {
+        lock (_lifecycleGate) if (_resourcesDisposed == 0) _cts.Cancel();
+    }
+
+    private Exception? DisposeResources()
+    {
+        lock (_lifecycleGate)
+        {
+            if (Interlocked.Exchange(ref _resourcesDisposed, 1) != 0) return null;
+        }
+        Exception? failure = null;
+        void DisposeOne(Action action) { try { action(); } catch (Exception ex) { failure ??= ex; } }
+        // Run's child tasks have finished before disposing resources they can still use.
+        lock (_gate) foreach (var token in _operationTokens) DisposeOne(token.Dispose);
+        DisposeOne(_socket.Dispose);
+        DisposeOne(_cts.Dispose);
+        if (_ended is not null) DisposeOne(() => _ended(this));
+        return failure;
     }
 }

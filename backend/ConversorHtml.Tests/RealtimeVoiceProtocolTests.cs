@@ -18,6 +18,92 @@ namespace ConversorHtml.Tests;
 public class RealtimeVoiceProtocolTests
 {
     [Fact]
+    public async Task StopWhileWaitingForAudioControlAndToolsIsNormalAndIdempotent()
+    {
+        await using var fixture = new Fixture();
+        await fixture.Start();
+        var stops = Enumerable.Range(0, 8).Select(_ => Task.Run(() => fixture.Session.StopAsync())).ToArray();
+        await Task.WhenAll(stops).WaitAsync(TimeSpan.FromSeconds(3));
+        var stop = fixture.Session.StopAsync();
+        Assert.Same(stop, fixture.Session.StopAsync());
+        await stop;
+        Assert.True(fixture.Session.IsStopped);
+        Assert.Equal(1, fixture.Wire.Disposals);
+        Assert.Equal(1, fixture.EndedCount);
+        Assert.Single(fixture.Events.Where(e => e.Name == "SessionClosed"));
+    }
+
+    [Fact]
+    public async Task StopDuringAudioWriteCancelsWriterWithoutEscapingCancellation()
+    {
+        await using var fixture = new Fixture();
+        await fixture.Start();
+        fixture.Wire.BlockAudio = true;
+        fixture.Session.Append(new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920])));
+        await fixture.Wire.AudioWriteStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await fixture.Session.StopAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(1, fixture.Wire.Disposals);
+        Assert.Equal(1, fixture.EndedCount);
+    }
+
+    [Fact]
+    public async Task StopDuringToolCancelsAndDisposesItsToken()
+    {
+        await using var fixture = new Fixture();
+        var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Service.Query = async token =>
+        {
+            entered.TrySetResult(token);
+            await Task.Delay(Timeout.Infinite, token);
+            return [];
+        };
+        await fixture.Start();
+        fixture.Call("slow", "buscar_medidas", "{\"busca\":\"peso\"}");
+        var token = await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await fixture.Session.StopAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(token.IsCancellationRequested);
+        Assert.Throws<ObjectDisposedException>(() => { _ = token.WaitHandle; });
+        Assert.Equal(1, fixture.Wire.Disposals);
+    }
+
+    [Fact]
+    public async Task UnexpectedCancellationRemainsVisibleAndStillCleansUp()
+    {
+        var fixture = new Fixture();
+        try
+        {
+            await fixture.Start();
+            using var unrelated = new CancellationTokenSource();
+            unrelated.Cancel();
+            fixture.Wire.FailRead(new OperationCanceledException(unrelated.Token));
+            await fixture.Wait(() => fixture.Wire.Disposals == 1);
+            var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Session.StopAsync());
+            Assert.Equal(unrelated.Token, error.CancellationToken);
+            Assert.Equal(1, fixture.EndedCount);
+        }
+        finally { await fixture.DisposeProviderAsync(); }
+    }
+
+    [Fact]
+    public async Task ProviderFailureIsPreservedEvenWhenTransportDisposalFails()
+    {
+        var fixture = new Fixture();
+        try
+        {
+            await fixture.Start();
+            fixture.Wire.ThrowOnDispose = true;
+            fixture.Wire.FailRead(new IOException("Simulated provider failure"));
+            await fixture.Wait(() => fixture.EndedCount == 1);
+            var error = await Assert.ThrowsAsync<IOException>(() => fixture.Session.StopAsync());
+            Assert.Equal("Simulated provider failure", error.Message);
+            await Assert.ThrowsAsync<IOException>(() => fixture.Session.StopAsync());
+            Assert.Equal(1, fixture.Wire.Disposals);
+            Assert.Equal(1, fixture.EndedCount);
+        }
+        finally { await fixture.DisposeProviderAsync(); }
+    }
+
+    [Fact]
     public async Task AnotherUsersDraftIsRejectedBeforeOpeningProviderConnection()
     {
         await using var fixture = new Fixture();
@@ -100,14 +186,31 @@ public class RealtimeVoiceProtocolTests
     {
         private readonly Channel<string> _incoming = Channel.CreateUnbounded<string>();
         public readonly ConcurrentQueue<JsonElement> Sent = new();
+        public int Disposals;
+        public bool BlockAudio;
+        public bool ThrowOnDispose;
+        private Exception? _readFailure;
+        public readonly TaskCompletionSource AudioWriteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Outputs => Sent.Count(e => e.GetProperty("type").GetString() == "conversation.item.create");
         public int Continuations => Sent.Count(e => e.GetProperty("type").GetString() == "response.create");
         public void Push(object e) => _incoming.Writer.TryWrite(JsonSerializer.Serialize(e));
         public Task ConnectAsync(Uri uri, CancellationToken ct) => Task.CompletedTask;
-        public Task SendAsync(string json, CancellationToken ct) { Sent.Enqueue(JsonSerializer.Deserialize<JsonElement>(json)); return Task.CompletedTask; }
-        public async Task<JsonDocument?> ReceiveAsync(CancellationToken ct) => JsonDocument.Parse(await _incoming.Reader.ReadAsync(ct));
+        public async Task SendAsync(string json, CancellationToken ct)
+        {
+            var message = JsonSerializer.Deserialize<JsonElement>(json);
+            if (BlockAudio && message.GetProperty("type").GetString() == "input_audio_buffer.append")
+            { AudioWriteStarted.TrySetResult(); await Task.Delay(Timeout.Infinite, ct); }
+            Sent.Enqueue(message);
+        }
+        public void FailRead(Exception exception) { _readFailure = exception; Push(new { type = "test.failure" }); }
+        public async Task<JsonDocument?> ReceiveAsync(CancellationToken ct)
+        {
+            var message = await _incoming.Reader.ReadAsync(ct);
+            if (_readFailure is { } failure) throw failure;
+            return JsonDocument.Parse(message);
+        }
         public void Abort() { }
-        public void Dispose() { }
+        public void Dispose() { Interlocked.Increment(ref Disposals); if (ThrowOnDispose) throw new InvalidOperationException("Simulated dispose failure"); }
     }
     private sealed class Fixture : IAsyncDisposable
     {
@@ -118,6 +221,7 @@ public class RealtimeVoiceProtocolTests
         public readonly RealtimeVoiceSession Session;
         public readonly ClaimsPrincipal User = new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "Bearer"));
         public readonly VoiceSession Stored;
+        public int EndedCount;
         private readonly ServiceProvider _provider;
         public IServiceScopeFactory Scopes => _provider.GetRequiredService<IServiceScopeFactory>();
         public Fixture()
@@ -131,7 +235,7 @@ public class RealtimeVoiceProtocolTests
                 CamposScriptJson = """{"camposScript":[{"id":1,"tipo":"etiqueta","nome":"DADOS","descricao":"Dados","coluna":1,"ordem":0},{"id":2,"tipo":"numero","nome":"PESO","codVariavel":1,"etiquetaPai":"DADOS","ordem":0}]}""" });
             Session = new RealtimeVoiceSession("connection", User, Stored, 1, "test-only", new RealtimeVoiceOptions(), store,
                 _provider.GetRequiredService<IServiceScopeFactory>(), (name, payload) => { Events.Enqueue((name, JsonSerializer.SerializeToElement(payload))); return Task.CompletedTask; },
-                default, NullLogger.Instance, Wire);
+                default, NullLogger.Instance, Wire, _ => Interlocked.Increment(ref EndedCount));
         }
         public async Task Start()
         {
@@ -146,6 +250,11 @@ public class RealtimeVoiceProtocolTests
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             while (!predicate()) await Task.Delay(5, timeout.Token);
         }
-        public async ValueTask DisposeAsync() { await Session.StopAsync(); await _provider.DisposeAsync(); }
+        public ValueTask DisposeProviderAsync() => _provider.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            try { await Session.StopAsync(); }
+            finally { await _provider.DisposeAsync(); }
+        }
     }
 }
