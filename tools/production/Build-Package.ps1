@@ -91,7 +91,7 @@ Push-Location "$output/api/quote-ai-bridge"
 try { Invoke-Checked npm.cmd @('ci','--omit=dev'); Invoke-Checked npm.cmd @('test') } finally { Pop-Location }
 Push-Location "$output/api/agent-bridge"
 try { Invoke-Checked npm.cmd @('ci','--omit=dev') } finally { Pop-Location }
-Copy-Item -LiteralPath "$source/backend/manual_scripts_html_UX.md" -Destination $output
+Copy-Item -LiteralPath "$source/backend/Estrutura Scripts HTML.md" -Destination $output
 Copy-Item "$source/docs/AGENTE-LAUDO-POR-VOZ.md", "$source/docs/AGENTE-MODELOS-MODO-TEXTO.md" -Destination $output
 Copy-Item -LiteralPath "$source/backend/sql" -Destination "$output/sql" -Recurse
 if (Test-Path "$source/static") { Copy-Item -LiteralPath "$source/static" -Destination "$output/static-assets" -Recurse }
