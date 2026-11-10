@@ -195,7 +195,7 @@ public sealed class AssistenteDominiosService(IAssistantFirebirdConnectionFactor
         var item = await c.QuerySingleOrDefaultAsync(new CommandDefinition($"SELECT * FROM {d.Table} WHERE {d.Key}=@Id", new { Id = id }, cancellationToken: ct));
         if (item is null) return null;
         if (domain.Equals("frases", StringComparison.OrdinalIgnoreCase) && item is IDictionary<string, object> fraseRow && fraseRow.TryGetValue("FRASE", out var fraseValue))
-            fraseRow["FRASE"] = RtfAnsiHelper.NormalizeForEditing(fraseValue?.ToString());
+            fraseRow["FRASE"] = fraseValue?.ToString() ?? string.Empty;
         return new { item, links = await ReadLinks(c, domain, id, ct) };
     }
 

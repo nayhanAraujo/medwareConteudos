@@ -121,11 +121,11 @@
           <option :value="-1">Ativo</option>
           <option :value="0">Inativo</option>
         </DsSelect>
-        <DsTextarea v-model="phraseForm.frase" label="Conteúdo" class="md:col-span-2" :rows="8" />
+        <AssistenteRtfEditor v-model="phraseForm.frase" class="md:col-span-2" @ready="phraseEditorReady = $event" />
       </div>
       <template #footer>
         <DsButton variant="secondary" @click="phraseModal = false">Cancelar</DsButton>
-        <DsButton :loading="saving" @click="savePhrase">Salvar</DsButton>
+        <DsButton :loading="saving" :disabled="!phraseEditorReady" @click="savePhrase">Salvar</DsButton>
       </template>
     </DsModal>
 
@@ -184,6 +184,7 @@ const groupModal = ref(false)
 const linksOpen = ref(false)
 const linkedId = ref<number | null>(null)
 const phraseForm = reactive({ id: 0, codigoFrase: '', titulo: '', frase: '', codGrupo: '' as number | string, status: -1 })
+const phraseEditorReady = ref(false)
 const groupForm = reactive({ id: 0, grupo: '', codGrupoPai: '' as number | string, status: -1 })
 let groupSearchTimer: ReturnType<typeof setTimeout> | undefined
 let phraseSearchTimer: ReturnType<typeof setTimeout> | undefined
@@ -267,6 +268,7 @@ async function openPhraseEditor(row?: PhraseRow) {
 }
 
 async function savePhrase() {
+  if (!phraseEditorReady.value) return
   if (!phraseForm.codigoFrase.trim()) return void await swal.toast('Preencha Código da frase.', 'warning')
   if (!phraseForm.titulo.trim()) return void await swal.toast('Preencha Título.', 'warning')
   if (!phraseForm.codGrupo) return void await swal.toast('Selecione o grupo.', 'warning')
