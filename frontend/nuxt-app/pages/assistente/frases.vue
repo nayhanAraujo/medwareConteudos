@@ -3,7 +3,7 @@
     <DsPageHeader title="Banco de frases" subtitle="Banco de frases organizado por grupos" icon="chat-left-text">
       <template #actions>
         <DsButton variant="secondary" size="sm" to="/assistente">Voltar</DsButton>
-        <DsButton v-if="selectedGroup" variant="secondary" size="sm" icon="file-earmark-word" :loading="exporting" :disabled="loadingPhrases" @click="exportGroupDocx">Exportar grupo em DOCX</DsButton>
+        <DsButton v-if="selectedGroup" variant="secondary" size="sm" icon="file-earmark-word" :loading="exporting" :disabled="loadingPhrases" @click="exportGroupDocx">Exportar DOCX em ZIP</DsButton>
         <DsButton v-if="auth.isAdmin" variant="success" size="sm" icon="folder-plus" @click="openGroupEditor()">Novo grupo</DsButton>
         <DsButton v-if="auth.isAdmin && selectedGroup" variant="success" size="sm" icon="plus-lg" @click="openPhraseEditor()">Nova frase</DsButton>
       </template>
@@ -206,15 +206,15 @@ async function exportGroupDocx() {
       if (!result.items.length) throw new Error('A lista de frases mudou durante a exportação. Tente novamente.')
       currentPage++
     }
-    const { exportPhraseDocx } = await import('~/utils/exportPhraseDocx')
-    const blob = await exportPhraseDocx(group.nome, all)
+    const { exportPhraseDocxZip } = await import('~/utils/exportPhraseDocx')
+    const blob = await exportPhraseDocxZip(all)
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${group.nome.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'Frases'}.docx`
+    link.download = `${group.nome.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'Frases'}.zip`
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 10000)
-    await swal.toast(`${all.length} frases exportadas.`)
+    await swal.toast(`${all.length} documentos DOCX exportados em ZIP.`)
   } catch (reason) { await swal.toast(message(reason), 'error') }
   finally { exporting.value = false }
 }

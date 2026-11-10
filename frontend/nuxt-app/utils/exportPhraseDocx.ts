@@ -1,17 +1,30 @@
-import { Document, HeadingLevel, Packer, Paragraph } from 'docx'
+import { Document, Packer } from 'docx'
 import { htmlToContent } from 'docx/html'
 import DOMPurify from 'dompurify'
+import { zipSync } from 'fflate'
 
 export interface ExportPhrase { id: number; codigoFrase?: string; titulo?: string; frase?: string }
 
-export async function exportPhraseDocx(group: string, phrases: ExportPhrase[]): Promise<Blob> {
+export async function exportPhraseDocxZip(phrases: ExportPhrase[]): Promise<Blob> {
+  if (!phrases.length) throw new Error('O grupo selecionado não possui frases.')
+  const files: Record<string, Uint8Array> = {}
+  for (const phrase of phrases) {
+    const title = (phrase.titulo || 'Frase').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().slice(0, 120).replace(/[. ]+$/, '') || 'Frase'
+    const name = `${phrase.id} - ${title}.docx`
+    if (files[name]) throw new Error('A lista de frases mudou durante a exportação. Tente novamente.')
+    const document = await exportPhraseDocx([phrase])
+    files[name] = new Uint8Array(await document.arrayBuffer())
+  }
+  // DOCX files are already compressed; store them without recompressing.
+  const zip = zipSync(files, { level: 0 })
+  return new Blob([new Uint8Array(zip)], { type: 'application/zip' })
+}
+
+export async function exportPhraseDocx(phrases: ExportPhrase[]): Promise<Blob> {
   if (!phrases.length) throw new Error('O grupo selecionado não possui frases.')
   const { RTFJS } = await import('rtf.js')
   RTFJS.loggingEnabled(false)
-  const children: ReturnType<typeof htmlToContent>[number][] = [
-    new Paragraph({ text: group, heading: HeadingLevel.TITLE }),
-    new Paragraph({ text: `${phrases.length} frases`, spacing: { after: 300 } })
-  ]
+  const children: ReturnType<typeof htmlToContent>[number][] = []
   for (const phrase of phrases) {
     try {
       const value = phrase.frase || ''
@@ -28,8 +41,6 @@ export async function exportPhraseDocx(group: string, phrases: ExportPhrase[]): 
         container.append(paragraph)
       }
       if (container.querySelector('img,table,svg,object')) throw new Error('contém elementos não suportados na exportação')
-      children.push(new Paragraph({ text: phrase.titulo || `Frase ${phrase.id}`, heading: HeadingLevel.HEADING_1, keepNext: true, spacing: { before: 280, after: 120 } }))
-      children.push(new Paragraph({ text: `Código ${phrase.codigoFrase || phrase.id}`, keepNext: true, spacing: { after: 120 } }))
       const warnings: string[] = []
       const content = htmlToContent(DOMPurify.sanitize(container.innerHTML), { onWarning: warning => warnings.push(JSON.stringify(warning)) })
       if (warnings.length) throw new Error('a formatação contém recursos não suportados pelo conversor DOCX')
@@ -40,11 +51,7 @@ export async function exportPhraseDocx(group: string, phrases: ExportPhrase[]): 
   }
   return Packer.toBlob(new Document({
     styles: {
-      default: { document: { run: { font: 'Arial', size: 22, color: '000000' } } },
-      paragraphStyles: [
-        { id: 'Title', name: 'Title', basedOn: 'Normal', run: { size: 36, bold: true, color: '000000' } },
-        { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', run: { size: 28, bold: true, color: '000000' } }
-      ]
+      default: { document: { run: { font: 'Arial', size: 22, color: '000000' } } }
     },
     sections: [{ properties: { page: { margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } }, children }]
   }))
