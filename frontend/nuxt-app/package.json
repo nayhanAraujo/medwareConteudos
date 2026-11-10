@@ -19,6 +19,7 @@
     "@popperjs/core": "^2.11.8",
     "bootstrap": "^5.3.8",
     "chart.js": "^4.5.1",
+    "docx": "^9.15.3",
     "dompurify": "^3.4.17",
     "nuxt": "^4.5.2",
     "pinia": "^3.0.4",
