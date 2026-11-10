@@ -37,13 +37,36 @@ public class RealtimeVoiceProtocolTests
     public async Task StopDuringAudioWriteCancelsWriterWithoutEscapingCancellation()
     {
         await using var fixture = new Fixture();
-        await fixture.Start();
         fixture.Wire.BlockAudio = true;
+        await fixture.Start();
         fixture.Session.Append(new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920])));
         await fixture.Wire.AudioWriteStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await fixture.Session.StopAsync().WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Equal(1, fixture.Wire.Disposals);
         Assert.Equal(1, fixture.EndedCount);
+    }
+
+    [Fact]
+    public async Task StartupWaitsForConfigurationWriteBeforeAcceptingAudio()
+    {
+        await using var fixture = new Fixture();
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Wire.SessionUpdateGate = gate.Task;
+        var starting = fixture.Start();
+        await fixture.Wire.SessionUpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        try
+        {
+            Assert.False(starting.IsCompleted);
+            Assert.DoesNotContain(fixture.Events, e => e.Name == "SessionReady");
+            Assert.Throws<Microsoft.AspNetCore.SignalR.HubException>(() => fixture.Session.Append(
+                new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920]))));
+        }
+        finally { gate.TrySetResult(); }
+        await starting.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Contains(fixture.Wire.Sent, e => e.GetProperty("type").GetString() == "session.update");
+        Assert.Single(fixture.Events, e => e.Name == "SessionReady");
+        fixture.Session.Append(new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920])));
+        await fixture.Wait(() => fixture.Wire.Sent.Any(e => e.GetProperty("type").GetString() == "input_audio_buffer.append"));
     }
 
     [Fact]
@@ -190,6 +213,8 @@ public class RealtimeVoiceProtocolTests
         public bool BlockAudio;
         public bool ThrowOnDispose;
         private Exception? _readFailure;
+        public Task? SessionUpdateGate;
+        public readonly TaskCompletionSource SessionUpdateStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource AudioWriteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Outputs => Sent.Count(e => e.GetProperty("type").GetString() == "conversation.item.create");
         public int Continuations => Sent.Count(e => e.GetProperty("type").GetString() == "response.create");
@@ -198,9 +223,19 @@ public class RealtimeVoiceProtocolTests
         public async Task SendAsync(string json, CancellationToken ct)
         {
             var message = JsonSerializer.Deserialize<JsonElement>(json);
-            if (BlockAudio && message.GetProperty("type").GetString() == "input_audio_buffer.append")
+            var type = message.GetProperty("type").GetString();
+            if (type == "session.update")
+            {
+                SessionUpdateStarted.TrySetResult();
+                if (SessionUpdateGate is { } gate) await gate.WaitAsync(ct);
+            }
+            if (BlockAudio && type == "input_audio_buffer.append")
             { AudioWriteStarted.TrySetResult(); await Task.Delay(Timeout.Infinite, ct); }
             Sent.Enqueue(message);
+            // A provider can acknowledge configuration only after the writer sends it.
+            // Prequeuing this reply lets Start return before the writer has started.
+            if (type == "session.update")
+                Push(new { type = "session.updated", session = new { modalities = new[] { "text" }, turn_detection = new { type = "server_vad", silence_duration_ms = 400 } } });
         }
         public void FailRead(Exception exception) { _readFailure = exception; Push(new { type = "test.failure" }); }
         public async Task<JsonDocument?> ReceiveAsync(CancellationToken ct)
@@ -240,7 +275,6 @@ public class RealtimeVoiceProtocolTests
         public async Task Start()
         {
             Wire.Push(new { type = "session.created" });
-            Wire.Push(new { type = "session.updated", session = new { modalities = new[] { "text" }, turn_detection = new { type = "server_vad", silence_duration_ms = 400 } } });
             await Session.StartAsync();
         }
         public void Call(string id, string name, string args) => Wire.Push(new { type = "response.function_call_arguments.done", call_id = id, response_id = "r1", name, arguments = args });
