@@ -264,6 +264,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.Configure<StudioDraftOptions>(builder.Configuration.GetSection("StudioDrafts"));
 builder.Services.AddScoped<StudioDraftService>();
+builder.Services.AddSingleton<StudioJsonReviews>();
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<StudioChoices>();
 builder.Services.Configure<RealtimeVoiceOptions>(builder.Configuration.GetSection("RealtimeVoice"));

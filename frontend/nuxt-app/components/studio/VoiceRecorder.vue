@@ -6,6 +6,7 @@ const props = defineProps<{
   error: string | null
   sending?: boolean
   hasModel?: boolean
+  imported?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -33,7 +34,8 @@ const onAudioFile = (event: Event) => {
 <template>
   <StudioDsCard title="Modo voz">
     <div class="space-y-4">
-      <p class="text-sm text-ds-text-secondary">
+      <p v-if="imported" class="text-sm text-ds-text-secondary">Fale em português para criar, renomear ou mover seções e incluir ou mover medidas. Ao parar, os comandos alteram somente a estrutura. Fórmulas e configurações importadas permanecem intactas. Você também pode pedir para desfazer ou refazer.</p>
+      <p v-else class="text-sm text-ds-text-secondary">
         Fale o laudo em português (seções, medidas, unidades, normalidades). Ao <strong>parar</strong>, o agente analisa a fala e gera o TXT. Com um modelo aberto, a fala será aplicada como edição, preservando os campos não mencionados.
       </p>
 
@@ -58,7 +60,7 @@ const onAudioFile = (event: Event) => {
           :loading="sending"
           @click="emit('stop')"
         >
-          {{ hasModel ? 'Parar — aplicar edição e gerar TXT' : 'Parar — gerar modelo e TXT' }}
+          {{ imported ? 'Parar — aplicar edição' : hasModel ? 'Parar — aplicar edição e gerar TXT' : 'Parar — gerar modelo e TXT' }}
         </StudioDsButton>
 
         <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-ds-text-secondary hover:text-ds-primary-accent">
@@ -92,7 +94,7 @@ const onAudioFile = (event: Event) => {
           :disabled="!localTranscript.trim() || isListening"
           @click="emit('build')"
         >
-          {{ hasModel ? 'Aplicar fala e gerar TXT' : 'Gerar modelo e TXT' }}
+          {{ imported ? 'Aplicar edição à estrutura' : hasModel ? 'Aplicar fala e gerar TXT' : 'Gerar modelo e TXT' }}
         </StudioDsButton>
 
         <StudioDsButton

@@ -4,6 +4,8 @@ import type { CamposScriptRoot, VoiceSessionMode, VoiceSessionResponse, VoiceTra
 export const useVoiceSessionStore = defineStore('voiceSession', {
   state: () => ({
     sessionId: null as string | null,
+    isImported: false,
+    revision: 0,
     mode: 'fromScratch' as VoiceSessionMode,
     camposScriptJson: '{"camposScript":[]}' as string,
     transcriptHistory: [] as VoiceTranscriptEntry[],
@@ -24,7 +26,9 @@ export const useVoiceSessionStore = defineStore('voiceSession', {
     applySession(response: VoiceSessionResponse) {
       this.sessionId = response.id
       const rawMode = String(response.mode).toLowerCase()
-      this.mode = rawMode.includes('image') ? 'fromImage' : 'fromScratch'
+      this.mode = rawMode.includes('json') ? 'fromJson' : rawMode.includes('image') ? 'fromImage' : 'fromScratch'
+      this.isImported = response.isImported === true || this.mode === 'fromJson'
+      this.revision = response.revision ?? 0
       this.camposScriptJson = response.camposScriptJson
       this.transcriptHistory = response.transcriptHistory ?? []
       this.sourceFileName = response.sourceFileName ?? null
@@ -40,6 +44,8 @@ export const useVoiceSessionStore = defineStore('voiceSession', {
 
     reset() {
       this.sessionId = null
+      this.isImported = false
+      this.revision = 0
       this.mode = 'fromScratch'
       this.camposScriptJson = '{"camposScript":[]}'
       this.transcriptHistory = []

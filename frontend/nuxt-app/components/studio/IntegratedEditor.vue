@@ -57,7 +57,7 @@ watch(() => draft.value?.document, (current, before) => {
 }, {deep: true})
 onMounted(async () => { try { models.value = (await api.get<{data: typeof models.value}>('/api/web/modelos?pageSize=100')).data; publicationHistory.value = await api.get('/api/voice/rascunhos/publicacoes') } catch {} })
 onBeforeUnmount(() => clearTimeout(searchTimer))
-const label = (item: StudioItem) => byId.value.get(item.codVariavel || 0)?.nome || item.descricao || 'Campo pendente'
+const label = (item: StudioItem) => item.imported ? item.descricao || String(item.imported.properties.descricao || item.imported.properties.nome || 'Campo importado') : byId.value.get(item.codVariavel || 0)?.nome || item.descricao || 'Campo pendente'
 async function guarded(action: () => Promise<unknown>) { try { await action() } catch(e) { error.value = e instanceof Error ? e.message : 'Falha na operação.' } }
 async function add(ids: number[], sectionId = selectedSection.value) {
   if (!sectionId) { toast('Selecione uma seção de destino.', 'warning'); return }
@@ -149,6 +149,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
 <template>
   <div class="space-y-4">
     <StudioDsCard title="Studio integrado · rascunhos privados">
+      <StudioJsonImport destination="integrated" :disabled="voiceActive || busy || !!pending" @confirmed="result => { if (result.draft) {accept(result.draft); list()} }" />
       <div class="flex flex-wrap gap-2">
         <input v-model="newName" aria-label="Nome do novo rascunho" class="field" maxlength="120">
         <select v-model="modelId" class="field" aria-label="Modelo de origem"><option :value="null">Do zero</option><option v-for="m in models" :key="m.codModelo" :value="m.codModelo">{{ m.nome }}</option></select>
@@ -192,8 +193,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
               <button class="action" :disabled="busy || !!pending" @click.stop="confirm('Excluir seção?', 'Os campos desta seção sairão do rascunho.').then(r => r.isConfirmed && send('deleteSection', {sectionId: section.id}))">Excluir</button>
             </header>
             <div v-for="(item, index) in section.itens" :key="item.id" :data-studio-id="item.id" draggable="true" class="mb-2 rounded bg-ds-surface p-2 text-sm" :class="{'ring-1 ring-blue-500': highlight.includes(item.id), 'border border-amber-500': !item.codVariavel}" @dragstart.stop="drag = {itemId: item.id}" @dragover.stop.prevent @drop.stop.prevent="drop(section, index)" @click.stop="selectedSection = section.id; selectedItem = item.id">
-              <span>{{ label(item) }}</span><small class="ml-2">{{ byId.get(item.codVariavel || 0)?.sigla }} {{ byId.get(item.codVariavel || 0)?.unidade }}</small>
-              <small class="ml-2">{{ byId.get(item.codVariavel || 0)?.formula ? 'ƒ' : '' }} {{ item.normalidadeOverride != null ? 'Normalidade personalizada' : byId.get(item.codVariavel || 0)?.normalidade ? 'Normalidade do banco' : '' }} {{ item.exibirGrafico ? 'Gráfico' : '' }}</small>
+              <span>{{ label(item) }}</span><small class="ml-2">{{ item.imported?.properties.nome ?? byId.get(item.codVariavel || 0)?.sigla }} {{ item.imported?.properties.medida ?? byId.get(item.codVariavel || 0)?.unidade }}</small>
+              <small v-if="item.imported" class="ml-2">{{ item.imported.properties.funcao || item.imported.properties.formula ? 'ƒ' : '' }} Configuração do arquivo {{ item.exibirGrafico ? 'Gráfico' : '' }}</small>
+              <small v-else class="ml-2">{{ byId.get(item.codVariavel || 0)?.formula ? 'ƒ' : '' }} {{ item.normalidadeOverride != null ? 'Normalidade personalizada' : byId.get(item.codVariavel || 0)?.normalidade ? 'Normalidade do banco' : '' }} {{ item.exibirGrafico ? 'Gráfico' : '' }}</small>
               <button class="action" @click.stop="editingItem = JSON.parse(JSON.stringify(item))">Detalhes / editar / mover</button>
               <button class="action" :disabled="busy || !!pending" @click.stop="send('deleteItem', {itemId: item.id})">Remover</button>
             </div>
@@ -202,12 +204,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
         </div>
       </div>
       <StudioDsCard title="Revisão e exportação">
+        <p v-if="draft.document.importedJson" class="mb-3 text-sm">JSON importado: somente download JSON completo e rascunho. Publicação, TXT, HTML e mesclagem por imagem estão desabilitados para preservar todos os componentes.</p>
+        <details v-if="draft.document.importedJson" class="my-3"><summary>Componentes preservados (somente leitura)</summary><pre class="max-h-64 overflow-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(draft.document.importedJson.components, null, 2) }}</pre></details>
         <ul><li v-for="(problem, n) in problems" :key="n"><button class="text-amber-500" @click="scrollToItem(problem.itemId)">{{ problem.message }}</button></li></ul>
         <div class="mt-3 flex flex-wrap gap-2">
-          <button v-for="format in ['txt','json','html']" :key="format" class="action" :disabled="busy || !!pending || problems.length > 0" @click="generate(format)">Gerar {{ format.toUpperCase() }}</button>
-          <button class="action" :disabled="busy || !!pending || problems.length > 0" @click="guarded(() => prepare(true))">Salvar como novo modelo</button>
+          <button v-for="format in draft.document.importedJson ? ['json'] : ['txt','json','html']" :key="format" class="action" :disabled="busy || !!pending || (!draft.document.importedJson && problems.length > 0)" @click="generate(format)">Gerar {{ format.toUpperCase() }}</button>
+          <button v-if="!draft.document.importedJson" class="action" :disabled="busy || !!pending || problems.length > 0" @click="guarded(() => prepare(true))">Salvar como novo modelo</button>
           <button v-if="draft.document.modeloOrigem" class="action" :disabled="busy || !!pending || problems.length > 0" @click="guarded(() => prepare(false))">Atualizar modelo original</button>
-          <label class="action">Importar imagem <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy || !!pending" @change="guarded(() => importImage($event))"></label>
+          <label v-if="!draft.document.importedJson" class="action">Importar imagem <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy || !!pending" @change="guarded(() => importImage($event))"></label>
         </div>
         <div v-if="preview" class="mt-3"><p>Revisão {{ preview.revision }} <span v-if="outdated" class="text-amber-500">— Preview desatualizado: gere novamente</span></p><StudioModoTextoPreview v-if="preview.format === 'txt'" :text="preview.content"/><StudioHtmlPreviewFrame v-else-if="preview.format === 'html'" :html="preview.content"/><pre v-else class="max-h-64 overflow-auto text-xs">{{ preview.content }}</pre>
           <button class="action" :disabled="outdated || busy" @click="downloadPreview">Baixar exatamente esta geração</button>
@@ -229,7 +233,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
       <div v-if="editingSection || editingItem || proposal || imageReview || choices" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
         <div role="dialog" aria-modal="true" aria-label="Revisar alteração do Studio" class="max-h-[90vh] w-full max-w-xl overflow-auto rounded-lg border border-ds-divider bg-ds-surface-elevated p-5 text-ds-text">
           <template v-if="editingSection"><h3>Editar seção</h3><input v-model="editingSection.nome" class="field w-full"><select v-model="editingSection.coluna" class="field"><option :value="1">Esquerda</option><option :value="2">Direita</option></select><div class="mt-3 flex flex-wrap gap-2"><button class="action" @click="send('editSection', {sectionId: editingSection.id, name: editingSection.nome, column: editingSection.coluna, position: 0}).then(() => editingSection = null)">Salvar e mover para o início</button><button class="action" @click="send('editSection', {sectionId: editingSection.id, name: editingSection.nome, column: editingSection.coluna, position: draft!.document.secoes.length}).then(() => editingSection = null)">Salvar e mover para o fim</button><button class="action" @click="editingSection = null">Cancelar</button></div></template>
-          <template v-else-if="editingItem"><h3>{{ label(editingItem) }}</h3><pre class="my-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(byId.get(editingItem.codVariavel || 0), null, 2) }}</pre><label class="block">Vínculo com o catálogo<select v-model="editingItem.codVariavel" class="field w-full"><option :value="null">Pendente</option><option v-for="v in catalog" :key="v.codVariavel" :value="v.codVariavel">{{ v.nome }} — {{ v.sigla }}</option></select></label><label class="block mt-2"><input v-model="editingItem.exibirGrafico" type="checkbox"> Exibir gráfico</label><label class="block mt-2">Normalidade personalizada (apenas neste modelo)<textarea v-model="editingItem.normalidadeOverride" class="field w-full"/></label><button class="action" @click="editingItem.normalidadeOverride = null">Usar normalidade do banco</button><button class="action" @click="send('editItem', {itemId: editingItem.id, codVariavel: editingItem.codVariavel, chart: editingItem.exibirGrafico, normality: editingItem.normalidadeOverride}).then(() => editingItem = null)">Salvar ajustes</button><h4 class="mt-3">Mover para</h4><button v-for="s in draft!.document.secoes" :key="s.id" class="action" @click="send('moveItem', {itemId: editingItem.id, sectionId: s.id, position: 0}).then(() => editingItem = null)">{{ s.nome }} · início</button><button class="action" @click="editingItem = null">Fechar</button></template>
+          <template v-else-if="editingItem">
+            <h3>{{ label(editingItem) }}</h3>
+            <pre class="my-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(editingItem.imported?.properties || byId.get(editingItem.codVariavel || 0), null, 2) }}</pre>
+            <label class="block">Vínculo com o catálogo<select v-model="editingItem.codVariavel" class="field w-full"><option :value="null">Pendente</option><option v-for="v in catalog" :key="v.codVariavel" :value="v.codVariavel">{{ v.nome }} — {{ v.sigla }}</option></select></label>
+            <button v-if="draft?.document.importedJson" class="action" @click="send('editItem', {itemId: editingItem.id, codVariavel: editingItem.codVariavel}).then(() => editingItem = null)">Salvar associação (preservar configurações)</button>
+            <template v-else>
+              <label class="block mt-2"><input v-model="editingItem.exibirGrafico" type="checkbox"> Exibir gráfico</label>
+              <label class="block mt-2">Normalidade personalizada (apenas neste modelo)<textarea v-model="editingItem.normalidadeOverride" class="field w-full"/></label>
+              <button class="action" @click="editingItem.normalidadeOverride = null">Usar normalidade do banco</button>
+              <button class="action" @click="send('editItem', {itemId: editingItem.id, codVariavel: editingItem.codVariavel, chart: editingItem.exibirGrafico, normality: editingItem.normalidadeOverride}).then(() => editingItem = null)">Salvar ajustes</button>
+            </template>
+            <h4 class="mt-3">Mover para</h4><button v-for="s in draft!.document.secoes" :key="s.id" class="action" @click="send('moveItem', {itemId: editingItem.id, sectionId: s.id, position: 0}).then(() => editingItem = null)">{{ s.nome }} · início</button><button class="action" @click="editingItem = null">Fechar</button>
+          </template>
           <template v-else-if="proposal"><h3>Confirmar publicação</h3><p>{{ proposal.nome }} · revisão {{ proposal.revision }} · {{ proposal.sections }} seções · {{ proposal.items }} medidas.</p><p>{{ proposal.modeloId ? 'A composição do modelo de destino será substituída.' : 'Será criado um novo modelo; o original será preservado.' }}</p><button class="action" :disabled="publishing" @click="publish">Confirmar publicação</button><button class="action" :disabled="publishing" @click="proposal = null">Cancelar</button></template>
           <template v-else-if="imageReview"><h3>Revisar estrutura extraída</h3><p>Campos sem associação continuarão pendentes. Nenhuma alteração foi aplicada ainda.</p><ul><li v-for="s in imageReview.sections" :key="s.id">{{ s.nome }}<ul><li v-for="i in s.itens" :key="i.id">{{ i.descricao }} · {{ i.codVariavel ? 'associação encontrada' : 'vínculo pendente' }}</li></ul></li></ul><button class="action" :disabled="imageReview.revision !== draft?.revision" @click="send('importSections', {sections: imageReview.sections}).then(() => imageReview = null)">Aplicar como operação reversível</button><button class="action" @click="imageReview = null">Cancelar</button></template>
           <template v-else-if="choices"><h3>Qual medida deseja?</h3><p>Selecione uma seção e escolha a medida desejada. Nenhuma opção será adicionada automaticamente.</p><select v-model="selectedSection" class="field"><option v-for="s in draft!.document.secoes" :key="s.id" :value="s.id">{{ s.nome }}</option></select><button v-for="v in choices.candidates" :key="v.codVariavel" class="action block" :disabled="choices.revision !== draft?.revision || !selectedSection" @click="resolveChoice(v.codVariavel)">{{ v.nome }} · {{ v.sigla }} · {{ v.unidade }} · {{ v.grupo }}</button><button class="action" @click="choices = null">Cancelar</button></template>

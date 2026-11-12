@@ -1,4 +1,4 @@
-export type VoiceSessionMode = 'fromScratch' | 'fromImage'
+export type VoiceSessionMode = 'fromScratch' | 'fromImage' | 'fromJson'
 export type VoiceSttSource = 'browser' | 'server'
 export type VoiceUtteranceIntent = 'build' | 'edit'
 
@@ -10,6 +10,8 @@ export interface VoiceTranscriptEntry {
 }
 
 export interface VoiceSessionResponse {
+  revision?: number | null
+  isImported?: boolean
   id: string
   mode: VoiceSessionMode | string
   camposScriptJson: string
@@ -20,6 +22,7 @@ export interface VoiceSessionResponse {
 }
 
 export interface VoiceUtteranceResponse {
+  revision?: number | null
   camposScriptJson: string
   summary: string
   warnings: string[]

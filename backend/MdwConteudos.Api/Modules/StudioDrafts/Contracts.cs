@@ -1,9 +1,11 @@
 namespace MdwConteudos.Api.Modules.StudioDrafts;
 
 public sealed class StudioDraftOptions { public bool Enabled { get; set; } }
-public sealed record StudioItem(string Id, int? CodVariavel, string? Descricao = null, bool ExibirGrafico = false, string? NormalidadeOverride = null);
-public sealed record StudioSection(string Id, string Nome, int Coluna, List<StudioItem> Itens, int? CodSecao = null);
-public sealed record StudioDocument(string Nome, List<StudioSection> Secoes, int? ModeloOrigem = null, long? VersaoOrigem = null);
+public sealed record StudioImportedElement(int Position, System.Text.Json.Nodes.JsonObject Properties);
+public sealed record StudioJsonData(System.Text.Json.Nodes.JsonObject Root, List<StudioImportedElement> Components, string FileName);
+public sealed record StudioItem(string Id, int? CodVariavel, string? Descricao = null, bool ExibirGrafico = false, string? NormalidadeOverride = null, StudioImportedElement? Imported = null);
+public sealed record StudioSection(string Id, string Nome, int Coluna, List<StudioItem> Itens, int? CodSecao = null, StudioImportedElement? Imported = null);
+public sealed record StudioDocument(string Nome, List<StudioSection> Secoes, int? ModeloOrigem = null, long? VersaoOrigem = null, StudioJsonData? ImportedJson = null);
 public sealed record DraftView(string Id, long Revision, bool Archived, StudioDocument Document, DateTime UpdatedAt);
 public sealed record DraftCommand(string CommandId, long ExpectedRevision, string Type, System.Text.Json.JsonElement Payload, string? Group = null, string Source = "manual");
 public sealed record DraftCreate(string Nome, int? ModeloId = null, Guid? VoiceSessionId = null, Guid? PublicacaoId = null);

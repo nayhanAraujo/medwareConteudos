@@ -7,14 +7,21 @@ const props = defineProps<{
 
 const grouped = computed(() => {
   const sections: Array<{ title: string; fields: CampoScript[] }> = []
+  const byToken = new Map<string, { title: string; fields: CampoScript[] }>()
+  for (const campo of props.campos) if (campo.tipo === 'etiqueta') {
+    const section = {title: `${campo.descricao ?? campo.nome ?? 'Seção'} · coluna ${campo.coluna ?? 1}`, fields: [] as CampoScript[]}
+    sections.push(section); if (campo.nome) byToken.set(campo.nome, section)
+  }
   let current: { title: string; fields: CampoScript[] } | null = null
 
   for (const campo of props.campos) {
     if (campo.tipo === 'etiqueta') {
-      current = { title: campo.descricao ?? campo.nome ?? 'Seção', fields: [] }
-      sections.push(current)
+      current = campo.nome ? byToken.get(campo.nome) ?? null : null
       continue
     }
+    if (campo.tipo !== 'numero' || campo.coluna === -1) continue
+    const parent = campo.etiquetaPai ? byToken.get(campo.etiquetaPai) : current
+    if (parent) { parent.fields.push(campo); continue }
     if (!current) {
       current = { title: 'Campos', fields: [] }
       sections.push(current)
@@ -56,6 +63,10 @@ const grouped = computed(() => {
       </div>
     </div>
 
+    <details class="mt-4">
+      <summary class="cursor-pointer text-xs text-ds-muted">Componentes preservados (somente leitura)</summary>
+      <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(campos.filter(c => c.tipo !== 'numero' && c.tipo !== 'etiqueta' || c.coluna === -1), null, 2) }}</pre>
+    </details>
     <details class="mt-4">
       <summary class="cursor-pointer text-xs text-ds-muted">JSON bruto</summary>
       <pre class="mt-2 max-h-48 overflow-auto rounded-ds-btn bg-ds-surface p-2 text-xs text-ds-text-secondary">{{ JSON.stringify({ camposScript: campos }, null, 2) }}</pre>

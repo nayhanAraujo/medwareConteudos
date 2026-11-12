@@ -112,7 +112,7 @@ export function useRealtimeVoice(options?: { draftId?: () => string | null | und
       if (!belongs(e)) return
       connected.value = true; revision.value = e.revision
       if (e.draft) options?.onDraft?.(e.draft)
-      else store.updateCamposScript(e.camposScriptJson)
+      else { store.updateCamposScript(e.camposScriptJson); if (store.isImported) store.revision = e.revision }
     })
     hub.on('DraftUpdated', e => {
       if (!belongs(e) || e.revision <= revision.value) return
@@ -120,6 +120,7 @@ export function useRealtimeVoice(options?: { draftId?: () => string | null | und
       const parsed = JSON.parse(e.camposScriptJson)
       if (!Array.isArray(parsed.camposScript)) { error.value = 'Resposta de rascunho inválida.'; void stop(); return }
       revision.value = e.revision; store.updateCamposScript(e.camposScriptJson); proposal.value = null
+      if (store.isImported) store.revision = e.revision
     })
     hub.on('SpeechState', e => { if (belongs(e)) speaking.value = e.speaking })
     hub.on('ChoiceRequested', e => { if (belongs(e)) options?.onChoice?.(e) })

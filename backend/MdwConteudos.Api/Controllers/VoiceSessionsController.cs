@@ -74,6 +74,7 @@ public class VoiceSessionsController : ControllerBase
         var sessionMode = Enum.TryParse<VoiceSessionMode>(mode, ignoreCase: true, out var parsed)
             ? parsed
             : VoiceSessionMode.FromScratch;
+        if (sessionMode == VoiceSessionMode.FromJson) return BadRequest(new { message = "Utilize a importação de JSON com revisão e confirmação." });
 
         if (sessionMode == VoiceSessionMode.FromImage && (image is null || image.Length == 0))
         {
@@ -152,7 +153,17 @@ public class VoiceSessionsController : ControllerBase
         try
         {
             var intent = ResolveUtteranceIntent(request.Intent, session);
-            var result = await _voiceService.ApplyUtteranceAsync(
+            ConversorHtml.Application.Interfaces.VoiceApplyResult result;
+            if (session.ImportedDocumentJson is not null)
+            {
+                var models = HttpContext.RequestServices.GetRequiredService<MdwConteudos.Api.Modules.FormulasModelos.IFormulasModelosService>();
+                var catalog = await models.ListVariaveisAsync(cancellationToken);
+                var revision = session.ImportedRevision;
+                var plan = await _voiceService.PlanStructureAsync(MdwConteudos.Api.Modules.StudioDrafts.ImportedVoiceEditor.Document(session),
+                    catalog.Select(v => new { v.CodVariavel, v.Nome, v.Sigla, v.Unidade, v.Grupo }), request.Transcript.Trim(), cancellationToken);
+                result = MdwConteudos.Api.Modules.StudioDrafts.ImportedVoiceEditor.Apply(session, plan, revision, catalog);
+            }
+            else result = await _voiceService.ApplyUtteranceAsync(
                 session,
                 request.Transcript.Trim(),
                 intent,
@@ -168,26 +179,35 @@ public class VoiceSessionsController : ControllerBase
                     throw new InvalidOperationException("O processamento retornou um modelo inválido ou vazio. O laudo anterior foi preservado.");
                 }
             }
-            session.CamposScriptJson = result.CamposScriptJson;
-            session.TranscriptHistory.Add(new VoiceTranscriptEntry
+            lock (session.EditGate)
             {
-                At = DateTime.UtcNow,
-                Transcript = request.Transcript.Trim(),
-                SttSource = request.SttSource,
-                Summary = result.Summary
-            });
-            _store.Update(session);
+                if (session.ImportedDocumentJson is null) session.CamposScriptJson = result.CamposScriptJson;
+                session.TranscriptHistory.Add(new VoiceTranscriptEntry
+                {
+                    At = DateTime.UtcNow,
+                    Transcript = request.Transcript.Trim(),
+                    SttSource = request.SttSource,
+                    Summary = result.Summary
+                });
+                _store.Update(session);
+            }
 
             return Ok(new VoiceUtteranceResponseDto
             {
+                Revision = result.Revision,
                 CamposScriptJson = result.CamposScriptJson,
                 Summary = result.Summary,
                 Warnings = result.Warnings.ToList()
             });
         }
+        catch (MdwConteudos.Api.Modules.StudioDrafts.StudioException ex)
+        {
+            return StatusCode(ex.Status, new { message = ex.Message });
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Falha ao aplicar utterance na sessão {SessionId}", id);
+            if (session.ImportedDocumentJson is not null) _logger.LogWarning("Falha na edição estruturada session={SessionId} type={ErrorType}", id, ex.GetType().Name);
+            else _logger.LogError(ex, "Falha ao aplicar utterance na sessão {SessionId}", id);
             return StatusCode(StatusCodes.Status502BadGateway, new { message = "Não foi possível aplicar a fala. O laudo anterior foi preservado. Tente novamente.", traceId = HttpContext.TraceIdentifier });
         }
     }
@@ -207,6 +227,8 @@ public class VoiceSessionsController : ControllerBase
         }
 
         var format = ConversionFormatParser.Parse(request.Format);
+        if (session.ImportedDocumentJson is not null && format != ConversionOutputFormat.JsonStudio)
+            return BadRequest(new { message = "Este modelo importado só pode ser baixado como JSON completo; TXT e HTML perderiam componentes." });
 
         try
         {
@@ -215,7 +237,9 @@ public class VoiceSessionsController : ControllerBase
                 if (IsEmptyModel(session.CamposScriptJson))
                     return BadRequest(new { message = "Gere um modelo com campos antes de exportar o JSON Studio." });
 
-                using var model = System.Text.Json.JsonDocument.Parse(session.CamposScriptJson);
+                var output = session.ImportedDocumentJson is not null
+                    ? MdwConteudos.Api.Modules.StudioDrafts.StudioJsonImport.Export(MdwConteudos.Api.Modules.StudioDrafts.ImportedVoiceEditor.Document(session)) : session.CamposScriptJson;
+                using var model = System.Text.Json.JsonDocument.Parse(output);
                 return Ok(new ConversionResponseDto
                 {
                     Format = format,
@@ -337,6 +361,8 @@ public class VoiceSessionsController : ControllerBase
 
     private static VoiceSessionResponseDto MapSession(VoiceSession session) => new()
     {
+        IsImported = session.ImportedDocumentJson is not null,
+        Revision = session.ImportedDocumentJson is not null ? session.ImportedRevision : null,
         Id = session.Id,
         Mode = session.Mode,
         CamposScriptJson = session.CamposScriptJson,

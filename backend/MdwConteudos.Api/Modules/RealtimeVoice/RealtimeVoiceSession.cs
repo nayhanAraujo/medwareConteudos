@@ -73,6 +73,7 @@ public sealed class RealtimeVoiceSession
         _store = store; _scopes = scopes; _emit = emit; _log = log;
         _ended = ended;
         _persistentId = persistentId;
+        _persistentRevision = stored.ImportedRevision;
         _socket = transport ?? new XaiVoiceTransport(key);
         _draft = new RealtimeDraft(stored.CamposScriptJson); _expectedJson = stored.CamposScriptJson;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(stopping);
@@ -108,7 +109,7 @@ public sealed class RealtimeVoiceSession
                 await using var scope = _scopes.CreateAsyncScope();
                 await _emit("SessionReady", new { sessionId = Id, revision = _persistentRevision, draft = await scope.ServiceProvider.GetRequiredService<StudioDraftService>().Get(current.ToString(), int.Parse(_stored.OwnerUserId), timeout.Token) });
             }
-            else await _emit("SessionReady", new { sessionId = Id, revision = _draft.Revision, camposScriptJson = _draft.Render() });
+            else await _emit("SessionReady", new { sessionId = Id, revision = _stored.ImportedDocumentJson is not null ? _stored.ImportedRevision : _draft.Revision, camposScriptJson = _stored.ImportedDocumentJson is not null ? _stored.CamposScriptJson : _draft.Render() });
         }
         catch (Exception ex)
         {
@@ -205,7 +206,7 @@ public sealed class RealtimeVoiceSession
                     instructions = "Você monta laudos em português brasileiro por ferramentas. Sempre consulte o rascunho para obter IDs. Preserve campos não mencionados. Use somente medidas do catálogo e esclareça ambiguidades. Reutilize grupoOperacao e substituirOperacao=true para corrigir a mesma intenção. Uma nova fala pode adicionar outra intenção; não desfaça tudo. Nunca confirme um salvamento: apenas prepare a proposta e aguarde o botão na interface. Não invente dados clínicos. Seja silencioso e conciso.",
                     turn_detection = new { type = "server_vad", silence_duration_ms = _config.SilenceDurationMs },
                     audio = new { input = new { format = new { type = "audio/pcm", rate = 24000 }, transcription = new { language_hint = "pt-BR", keyterms = _keyterms } } },
-                    tools = _persistentId.HasValue ? StudioRealtimeAdapter.Tools : RealtimeTools.Definitions
+                    tools = _persistentId.HasValue || _stored.ImportedDocumentJson is not null ? StudioRealtimeAdapter.Tools : RealtimeTools.Definitions
                 } });
             }
             else if (type == "session.updated")
@@ -312,7 +313,7 @@ public sealed class RealtimeVoiceSession
                 call.Token.ThrowIfCancellationRequested();
                 await _emit("ToolStarted", new { sessionId = Id, callId = call.Id, responseId = call.Response, name = call.Name });
                 using var parsed = JsonDocument.Parse(call.Arguments);
-                if (!_persistentId.HasValue) RealtimeTools.Validate(call.Name, parsed.RootElement);
+                if (!_persistentId.HasValue && _stored.ImportedDocumentJson is null) RealtimeTools.Validate(call.Name, parsed.RootElement);
                 await using var scope = _scopes.CreateAsyncScope();
                 await RealtimeVoiceManager.AuthorizeAsync(scope.ServiceProvider, _user, false, call.Token);
                 var service = scope.ServiceProvider.GetRequiredService<IFormulasModelosService>();
@@ -332,6 +333,22 @@ public sealed class RealtimeVoiceSession
                     if (payload.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 1)
                         await _emit("ChoiceRequested", new { sessionId = Id, revision = call.Revision, candidates, sectionId = _selection?.SectionId,
                             token = scope.ServiceProvider.GetRequiredService<StudioChoices>().Issue(persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Revision, candidates.EnumerateArray().Select(x => x.GetProperty("codVariavel").GetInt32())) });
+                }
+                else if (_stored.ImportedDocumentJson is not null && call.Name != "buscar_medidas")
+                {
+                    if (call.Name == "consultar_rascunho") result = new { status = "completed", revision = _stored.ImportedRevision, document = ImportedVoiceEditor.Document(_stored) };
+                    else if (call.Name == "preparar_salvamento") result = new { status = "unavailable", message = "Modelo importado: baixe o JSON completo. A publicação perderia componentes." };
+                    else
+                    {
+                        var catalog = await service.ListVariaveisAsync(call.Token);
+                        EnsureCurrent(call);
+                        var edit = ImportedVoiceEditor.Apply(_stored, new([new(call.Name, parsed.RootElement.Clone())], "Estrutura atualizada por voz.", []), call.Revision, catalog);
+                        _expectedJson = edit.CamposScriptJson;
+                        Interlocked.Exchange(ref _persistentRevision, _stored.ImportedRevision);
+                        _store.Update(_stored);
+                        result = new { status = "completed", revision = _stored.ImportedRevision, document = ImportedVoiceEditor.Document(_stored), warnings = edit.Warnings };
+                        await _emit("DraftUpdated", new { sessionId = Id, revision = _stored.ImportedRevision, camposScriptJson = _expectedJson, callId = call.Id });
+                    }
                 }
                 else if (call.Name == "buscar_medidas")
                 {

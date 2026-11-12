@@ -26,7 +26,14 @@ public static class StudioRealtimeAdapter
         if (name == "preparar_salvamento") return new { status = "awaiting_confirmation", message = "Use os botões de publicação da interface para conferir revisão, destino e confirmar." };
         string Section() => p.TryGetProperty("secaoId", out var s) && !string.IsNullOrWhiteSpace(s.GetString()) ? s.GetString()!
             : selection?.Revision == revision && selection.SectionId is { } selected ? selected : throw new StudioException(409, "Selecione uma seção atual ou informe o destino.");
-        (string Type, object Payload) action = name switch
+        var (type, payload) = Map(name, p, Section);
+        var updated = await drafts.Command(id, owner, new(commandId, revision, type, JsonSerializer.SerializeToElement(payload), Group: group, Source: "voz"), ct);
+        return new { status = "completed", draft = updated };
+    }
+    public static (string Type, object Payload) Map(string name, JsonElement p, Func<string>? contextualSection = null)
+    {
+        string Section() => contextualSection is not null ? contextualSection() : p.GetProperty("secaoId").GetString()!;
+        return name switch
         {
             "criar_secao" => ("createSection", new { name = p.GetProperty("nome").GetString(), column = p.GetProperty("coluna").GetInt32() }),
             "organizar_secao" => ("editSection", new { sectionId = Section(), name = p.GetProperty("nome").GetString(), column = p.GetProperty("coluna").GetInt32(), position = p.GetProperty("posicao").GetInt32() }),
@@ -36,8 +43,5 @@ public static class StudioRealtimeAdapter
             "refazer_alteracao" => ("redo", new { }),
             _ => throw new StudioException(400, "Ferramenta não permitida.")
         };
-        var (type, payload) = action;
-        var updated = await drafts.Command(id, owner, new(commandId, revision, type, JsonSerializer.SerializeToElement(payload), Group: group, Source: "voz"), ct);
-        return new { status = "completed", draft = updated };
     }
 }

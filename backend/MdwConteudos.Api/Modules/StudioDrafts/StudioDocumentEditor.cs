@@ -12,6 +12,9 @@ public static class StudioDocumentEditor
     public static string Title(string value) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= 120 ? value.Trim() : throw new StudioException(400, "Informe um nome de até 120 caracteres.");
     public static StudioDocument Apply(StudioDocument original, DraftCommand command, IReadOnlyList<VariavelOpcao> catalog)
     {
+        if (original.ImportedJson is not null && command.Type == "importSections") throw new StudioException(400, "Importação por imagem não pode ser mesclada a este JSON.");
+        if (original.ImportedJson is not null && command.Type == "editItem" && (command.Payload.TryGetProperty("normality", out _) || command.Payload.TryGetProperty("chart", out _)))
+            throw new StudioException(400, "As configurações importadas são somente leitura. É permitido apenas associar a medida.");
         var doc = Copy(original);
         var p = command.Payload;
         string Text(string key) => p.GetProperty(key).GetString() ?? "";
@@ -37,10 +40,15 @@ public static class StudioDocumentEditor
                 if (requested.Length is < 1 or > 500) throw new StudioException(400, "Quantidade inválida de medidas.");
                 var map = catalog.ToDictionary(v => v.CodVariavel);
                 var existing = doc.Secoes.SelectMany(s => s.Itens).Where(i => i.CodVariavel.HasValue).Select(i => i.CodVariavel!.Value).ToHashSet();
-                var order = ModeloModoTextoRules.ResolveDependencyOrder(requested, catalog.ToDictionary(v => v.CodVariavel, v => v.Dependencias ?? []));
+                if (doc.ImportedJson is not null)
+                {
+                    var tokens = StudioJsonImport.Elements(doc).Select(e => StudioJsonImport.Text(e.Properties, "nome")).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    foreach (var v in catalog.Where(v => tokens.Contains(v.Codigo ?? v.Sigla))) existing.Add(v.CodVariavel);
+                }
+                var order = ModeloModoTextoRules.ResolveDependencyOrder(requested, catalog.ToDictionary(v => v.CodVariavel, v => doc.ImportedJson is not null && existing.Contains(v.CodVariavel) ? (IReadOnlyList<int>)Array.Empty<int>() : v.Dependencias ?? []));
                 foreach (var id in order)
                 {
-                    if (!map.TryGetValue(id, out var variable) || variable.DependenciasNaoEncontradas?.Count > 0) throw new StudioException(400, "Medida ou dependência não encontrada.");
+                    if (!map.TryGetValue(id, out var variable) || (!existing.Contains(id) && variable.DependenciasNaoEncontradas?.Count > 0)) throw new StudioException(400, "Medida ou dependência não encontrada.");
                     if (existing.Add(id)) target.Itens.Add(new(Token(), id));
                 }
                 break;
@@ -55,7 +63,7 @@ public static class StudioDocumentEditor
             case "editItem":
                 itemId = Text("itemId"); source = doc.Secoes.FirstOrDefault(s => s.Itens.Any(i => i.Id == itemId)) ?? throw new StudioException(400, "Campo não encontrado.");
                 item = source.Itens.First(i => i.Id == itemId);
-                var cod = p.TryGetProperty("codVariavel", out var code) && code.ValueKind != JsonValueKind.Null ? code.GetInt32() : item.CodVariavel;
+                var cod = p.TryGetProperty("codVariavel", out var code) ? code.ValueKind == JsonValueKind.Null ? (int?)null : code.GetInt32() : item.CodVariavel;
                 if (cod.HasValue && !catalog.Any(v => v.CodVariavel == cod)) throw new StudioException(400, "Medida não encontrada.");
                 source.Itens[source.Itens.IndexOf(item)] = item with { CodVariavel = cod,
                     ExibirGrafico = p.TryGetProperty("chart", out var chart) ? chart.GetBoolean() : item.ExibirGrafico,
@@ -66,6 +74,7 @@ public static class StudioDocumentEditor
                 break;
             default: throw new StudioException(400, "Comando não permitido.");
         }
+        if (doc.ImportedJson is not null) doc = StudioJsonImport.Synchronize(original, doc, catalog);
         Shape(doc);
         var structural = Validate(doc, catalog).FirstOrDefault(e => e.Code is "duplicate" or "cycle");
         if (structural is not null) throw new StudioException(400, structural.Message);
@@ -75,17 +84,20 @@ public static class StudioDocumentEditor
     public static void Shape(StudioDocument document)
     {
         Title(document.Nome);
+        if (document.ImportedJson is not null && StudioJsonImport.Elements(document).Count() > 500) throw new StudioException(400, "Limite de 500 elementos importados.");
         if (document.Secoes.Count > 100 || document.Secoes.Sum(s => s.Itens.Count) > 500) throw new StudioException(400, "Limite de 100 seções e 500 campos.");
         var ids = document.Secoes.Select(s => s.Id).Concat(document.Secoes.SelectMany(s => s.Itens).Select(i => i.Id)).ToArray();
         if (ids.Any(s => !Guid.TryParse(s, out _)) || ids.Distinct().Count() != ids.Length || document.Secoes.Any(s => s.Coluna is not (1 or 2)))
             throw new StudioException(400, "Identificadores ou colunas inválidos.");
         foreach (var s in document.Secoes) Title(s.Nome);
         if (document.Secoes.SelectMany(s => s.Itens).Any(i => i.NormalidadeOverride?.Length > 8192 || i.Descricao?.Length > 255)
-            || JsonSerializer.Serialize(document, Json).Length > 1024 * 1024) throw new StudioException(400, "Conteúdo do rascunho excede os limites permitidos.");
+            || System.Text.Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(document, Json)) > (document.ImportedJson is null ? 1 : 2) * 1024 * 1024) throw new StudioException(400, "Conteúdo do rascunho excede os limites permitidos.");
     }
 
     public static IReadOnlyList<DraftProblem> Validate(StudioDocument document, IReadOnlyList<VariavelOpcao> catalog)
     {
+        if (document.ImportedJson is not null) return StudioJsonImport.Problems(document)
+            .Concat(document.Secoes.SelectMany(s => s.Itens).Where(i => !i.CodVariavel.HasValue).Select(i => new DraftProblem("import_unlinked", "Campo preservado sem associação ao catálogo.", i.Id))).ToArray();
         var errors = new List<DraftProblem>(); var used = new HashSet<int>(); var map = catalog.ToDictionary(v => v.CodVariavel);
         if (document.Secoes.Count == 0) errors.Add(new("empty", "Inclua uma seção."));
         if (document.Secoes.GroupBy(s => s.Nome.Trim(), StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)) errors.Add(new("section_name", "Existem seções com nomes repetidos."));
@@ -104,7 +116,7 @@ public static class StudioDocumentEditor
         return errors;
     }
 
-    public static SalvarComposicaoRequest Composition(StudioDocument d, bool copy = false) => new(d.Nome,
+    public static SalvarComposicaoRequest Composition(StudioDocument d, bool copy = false) => d.ImportedJson is not null ? throw new StudioException(400, "Modelos importados podem ser salvos como rascunho e exportados em JSON. A publicação perderia componentes.") : new(d.Nome,
         d.Secoes.Select((s, n) => new ComposicaoSecaoRequest(copy ? null : s.CodSecao, s.Nome, s.Coluna,
             d.Secoes.Take(n + 1).Count(x => x.Coluna == s.Coluna), s.Itens.Select((i, index) => new ComposicaoVariavelRequest(i.CodVariavel!.Value, i.ExibirGrafico, index + 1, i.NormalidadeOverride)).ToArray())).ToArray());
 

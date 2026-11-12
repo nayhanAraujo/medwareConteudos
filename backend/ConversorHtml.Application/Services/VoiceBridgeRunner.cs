@@ -116,6 +116,11 @@ internal static class VoiceBridgeRunner
             if (process.ExitCode != 0)
             {
                 var detail = string.IsNullOrWhiteSpace(stderr.ToString()) ? stdout.ToString() : stderr.ToString();
+                if (command == "structure")
+                {
+                    logger.LogError("Voice bridge estruturado falhou, exit {Exit}; conteúdo omitido.", process.ExitCode);
+                    throw new InvalidOperationException("Não foi possível interpretar os comandos. O modelo importado foi preservado.");
+                }
                 logger.LogError("Voice bridge falhou ({Command}, exit {Exit}): {Detail}", command, process.ExitCode, detail);
                 throw new InvalidOperationException($"Voice bridge falhou: {Truncate(detail, 500)}");
             }

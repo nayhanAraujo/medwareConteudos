@@ -17,6 +17,8 @@ public class VoiceTranscriptEntryDto
 
 public class VoiceSessionResponseDto
 {
+    public long? Revision { get; set; }
+    public bool IsImported { get; set; }
     public Guid Id { get; set; }
     public VoiceSessionMode Mode { get; set; }
     public string CamposScriptJson { get; set; } = string.Empty;
@@ -35,6 +37,7 @@ public class VoiceUtteranceRequestDto
 
 public class VoiceUtteranceResponseDto
 {
+    public long? Revision { get; set; }
     public string CamposScriptJson { get; set; } = string.Empty;
     public string Summary { get; set; } = string.Empty;
     public List<string> Warnings { get; set; } = [];

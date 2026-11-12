@@ -9,6 +9,8 @@ namespace ConversorHtml.Application.Services;
 
 public class CursorVoiceLaudoService : IVoiceLaudoService
 {
+    public Task<VoiceStructurePlan> PlanStructureAsync(object document, object catalog, string transcript, CancellationToken ct = default)
+        => VoiceBridgeRunner.RunJsonAsync<VoiceStructurePlan>(_cursorOptions, _voiceOptions, _logger, "structure", new { document, catalog, transcript }, ct);
     private readonly IOptions<CursorOptions> _cursorOptions;
     private readonly IOptions<VoiceOptions> _voiceOptions;
     private readonly ILogger<CursorVoiceLaudoService> _logger;

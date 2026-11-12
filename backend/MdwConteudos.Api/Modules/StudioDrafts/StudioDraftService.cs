@@ -42,11 +42,13 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
         => await c.QuerySingleOrDefaultAsync<DraftRow>(Q(RowSql + " WHERE CODRASCUNHO=@id AND CODUSUARIO=@owner" + (locked ? " WITH LOCK" : ""), new { id, owner }, tx, ct))
            ?? throw new StudioException(404, "Rascunho não encontrado.");
 
-    public async Task<DraftView> Create(int owner, DraftCreate request, CancellationToken ct)
+    public async Task<DraftView> Create(int owner, DraftCreate request, CancellationToken ct, StudioDocument? importedDocument = null, string? importedId = null)
     {
         Enabled();
-        var doc = new StudioDocument(StudioDocumentEditor.Title(request.Nome), []);
+        var doc = importedDocument is null ? new StudioDocument(StudioDocumentEditor.Title(request.Nome), []) : StudioDocumentEditor.Copy(importedDocument);
         await using var c = await db.OpenConnectionAsync(ct);
+        if (importedId is not null && await c.ExecuteScalarAsync<int>(Q("SELECT COUNT(*) FROM STUDIORASCUNHO WHERE CODRASCUNHO=@importedId AND CODUSUARIO=@owner", new { importedId, owner }, null, ct)) > 0)
+            return (await Owned(c, null, importedId, owner, ct)).View();
         if (request.PublicacaoId is { } published)
         {
             var snapshotJson = await c.ExecuteScalarAsync<string?>(Q("SELECT DOCUMENTO FROM STUDIOPUBLICACAO WHERE CODPUBLICACAO=@published AND CODUSUARIO=@owner AND ESTADO='publicada'", new { published = published.ToString(), owner }, null, ct)) ?? throw new StudioException(404, "Publicação não encontrada.");
@@ -67,10 +69,11 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
         {
             var session = voice.Get(sessionId);
             if (session is null || session.OwnerUserId != owner.ToString()) throw new StudioException(404, "Sessão de voz não encontrada.");
-            doc = FromCampos(session.CamposScriptJson, doc.Nome, await models.ListVariaveisAsync(ct));
+            doc = session.ImportedDocumentJson is { } imported ? JsonSerializer.Deserialize<StudioDocument>(imported, Json)!
+                : FromCampos(session.CamposScriptJson, doc.Nome, await models.ListVariaveisAsync(ct));
         }
         StudioDocumentEditor.Shape(doc);
-        var id = StudioDocumentEditor.Token(); var now = DateTime.UtcNow; var json = JsonSerializer.Serialize(doc, Json);
+        var id = importedId ?? StudioDocumentEditor.Token(); var now = DateTime.UtcNow; var json = JsonSerializer.Serialize(doc, Json);
         using var tx = c.BeginTransaction();
         await c.ExecuteAsync(Q("INSERT INTO STUDIORASCUNHO(CODRASCUNHO,CODUSUARIO,NOME,DOCUMENTO,DTHRCRIACAO,DTHRULTMODIFICACAO) VALUES(@id,@owner,@nome,@json,@now,@now)", new { id, owner, nome = doc.Nome, json, now }, tx, ct));
         await Record(c, tx, id, 0, new(StudioDocumentEditor.Token(), 0, "create", JsonSerializer.SerializeToElement(new { })), Hash(doc), doc, "Rascunho criado", new { }, ct);
@@ -154,7 +157,8 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
                     doc = command.Type == "undo" ? StudioDocumentEditor.Reverse(doc, before, after) : StudioDocumentEditor.Reverse(doc, after, before);
                 }
                 details = targets.Select(t => t.Number).ToArray();
-                if (StudioDocumentEditor.Validate(doc, catalog).Any(p => p.Code is "cycle" or "duplicate" or "dependency")) throw new StudioException(409, "A reversão invalidaria dependências do rascunho.");
+                if (doc.ImportedJson is not null) StudioJsonImport.EnsureSafeChange(row.View().Document, doc);
+                else if (StudioDocumentEditor.Validate(doc, catalog).Any(p => p.Code is "cycle" or "duplicate" or "dependency")) throw new StudioException(409, "A reversão invalidaria dependências do rascunho.");
             }
         }
         else if (command.Type is not ("archive" or "unarchive")) doc = StudioDocumentEditor.Apply(doc, command, catalog);
@@ -184,13 +188,20 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
 
     public async Task<object> Validate(string id, int owner, CancellationToken ct)
     {
-        var draft = await Get(id, owner, ct); var catalog = await models.ListVariaveisAsync(ct);
+        var draft = await Get(id, owner, ct);
+        if (draft.Document.ImportedJson is not null) return new { revision = draft.Revision, metadataHash = Hash(draft.Document), problems = StudioDocumentEditor.Validate(draft.Document, []) };
+        var catalog = await models.ListVariaveisAsync(ct);
         return new { revision = draft.Revision, metadataHash = Hash(catalog), problems = StudioDocumentEditor.Validate(draft.Document, catalog) };
     }
     public async Task<(GeneratedModel File, long Revision, string MetadataHash)> Export(string id, int owner, long revision, string format, CancellationToken ct)
     {
         var draft = await Get(id, owner, ct);
         if (draft.Revision != revision) throw new StudioException(409, "Preview desatualizado. Gere novamente.");
+        if (draft.Document.ImportedJson is not null)
+        {
+            if (format != "json") throw new StudioException(400, "Este modelo importado só pode ser exportado como JSON completo.");
+            return (new GeneratedModel("modelo-importado.json", StudioJsonImport.Export(draft.Document), "application/json; charset=utf-8"), revision, Hash(draft.Document));
+        }
         var catalog = await models.ListVariaveisAsync(ct); var errors = StudioDocumentEditor.Validate(draft.Document, catalog);
         if (errors.Count > 0) throw new StudioException(400, string.Join(" ", errors.Select(e => e.Message)));
         var file = await models.RenderCompositionAsync(StudioDocumentEditor.Composition(draft.Document), format, ct);
@@ -202,6 +213,7 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
     public async Task<object> Prepare(string id, int owner, PublicationRequest request, CancellationToken ct)
     {
         var draft = await Get(id, owner, ct);
+        if (draft.Document.ImportedJson is not null) throw new StudioException(400, "Este modelo importado pode ser recuperado como rascunho e baixado em JSON. A publicação perderia componentes.");
         if (draft.Revision != request.ExpectedRevision || draft.Archived) throw new StudioException(409, "Revisão indisponível para publicação.");
         var doc = draft.Document with { Nome = StudioDocumentEditor.Title(request.Nome) };
         var catalog = await models.ListVariaveisAsync(ct); var errors = StudioDocumentEditor.Validate(doc, catalog);

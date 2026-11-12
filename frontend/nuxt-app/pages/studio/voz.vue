@@ -2,6 +2,7 @@
 import type { ConversionFormat, ConversionRecord } from '~/types/conversion'
 import type { VoiceUtteranceIntent } from '~/types/voice'
 import { resolveConversionContent } from '~/utils/conversionFormat'
+import type { VoiceSessionResponse } from '~/types/voice'
 
 definePageMeta({ layout: 'studio', studioAction: 'voz' })
 const integrated = ref(false)
@@ -93,6 +94,14 @@ const onStartSession = async (mode: 'fromScratch' | 'fromImage', image?: File) =
   }
 }
 
+const onJsonImported = (result: {session?: VoiceSessionResponse}) => {
+  if (!result.session) return
+  voiceStore.applySession(result.session)
+  outputFormat.value = null; generatedHtml.value = ''; generatedText.value = ''; validation.value = null
+  resetSpeech()
+  toast('Modelo JSON importado. As configurações originais foram preservadas.', 'success')
+}
+
 const applyTranscript = async (intent: VoiceUtteranceIntent) => {
   if (sending.value || generating.value || !voiceStore.sessionId || !editableTranscript.value.trim()) return false
 
@@ -107,11 +116,13 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
   try {
     const result = await applyUtterance(sessionId, text, effectiveIntent, 'browser')
     if (voiceStore.sessionId !== sessionId) return false
+    if (voiceStore.isImported && result.revision != null && result.revision < voiceStore.revision) return false
     const model = JSON.parse(result.camposScriptJson)
     if (!Array.isArray(model?.camposScript) || (hasModel.value && model.camposScript.length === 0)) {
       throw new Error('O processamento retornou um modelo inválido ou vazio. O laudo anterior foi preservado.')
     }
     voiceStore.updateCamposScript(result.camposScriptJson)
+    if (voiceStore.isImported && result.revision != null) voiceStore.revision = result.revision
     voiceStore.addHistory({
       at: new Date().toISOString(),
       transcript: text,
@@ -123,6 +134,14 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
     const isWarning = result.warnings.length > 0
       || result.summary.toLowerCase().includes('não foi possível')
       || result.summary.toLowerCase().includes('nenhuma alteração')
+
+    if (voiceStore.isImported) {
+      generatedHtml.value = ''; generatedText.value = ''; outputFormat.value = null; validation.value = null
+      toast(result.summary, isWarning ? 'warning' : 'success')
+      if (result.warnings.length) toast(result.warnings.join(' '), 'warning')
+      transcript.value = ''; speechError.value = null
+      return true
+    }
 
     if (hasFields && !isWarning) {
       try {
@@ -215,7 +234,7 @@ const onUploadAudio = async (file: File) => {
   try {
     const text = await transcribeAudio(file, file.name)
     editableTranscript.value = text
-    toast('Áudio transcrito — clique em Gerar modelo e TXT ou pare após revisar', 'success')
+    toast(voiceStore.isImported ? 'Áudio transcrito — revise e aplique a edição à estrutura.' : 'Áudio transcrito — clique em Gerar modelo e TXT ou pare após revisar', 'success')
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Falha na transcrição'
     toast(msg, 'error')
@@ -226,7 +245,7 @@ const onUploadAudio = async (file: File) => {
 
 const onGenerate = async () => {
   if (sending.value || generating.value || !voiceStore.sessionId) return
-  const format = await chooseConversionFormat()
+  const format = voiceStore.isImported ? 'jsonStudio' : await chooseConversionFormat()
   if (!format) return
 
   generating.value = true
@@ -287,11 +306,13 @@ const onNewSession = () => {
     <template v-else>
     <StudioDsPageHeader
       title="Modo voz"
-      subtitle="Descreva o laudo falando — ao parar, o agente Cursor monta o modelo e gera o TXT automaticamente."
+      :subtitle="voiceStore.isImported ? 'Edite a estrutura por voz e baixe o JSON completo, preservando as configurações originais.' : 'Descreva o laudo falando — ao parar, o agente Cursor monta o modelo e gera o TXT automaticamente.'"
       icon="bi-mic"
     />
 
     <StudioDsPageShell>
+      <StudioJsonImport destination="conventional" :disabled="sending || generating || realtimeActive || isListening" @confirmed="onJsonImported" />
+      <p v-if="voiceStore.isImported" class="mb-4 text-sm text-amber-500">Modelo importado: fórmulas e configurações preservadas. Edite seções e medidas por voz e baixe o JSON completo. Esta sessão expira e não sobrevive ao reinício da API.</p>
       <div v-if="!sessionActive" class="max-w-2xl">
         <StudioVoiceSessionSetup ref="setupRef" @start="onStartSession" />
       </div>
@@ -324,6 +345,7 @@ const onNewSession = () => {
             </label>
             <StudioRealtimeVoicePanel v-if="realtimeEnabled" @active="realtimeActive = $event" />
             <StudioVoiceRecorder
+              :imported="voiceStore.isImported"
               v-else
               :is-supported="isSupported"
               :is-listening="isListening"
@@ -343,6 +365,7 @@ const onNewSession = () => {
           <div class="space-y-6">
             <StudioVoiceModelPreview :campos="voiceStore.camposScript.camposScript" />
             <StudioVoiceGeneratePanel
+              :imported="voiceStore.isImported"
               :loading="generating"
               :has-session="sessionActive"
               :output-format="outputFormat"

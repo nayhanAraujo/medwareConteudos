@@ -9,10 +9,12 @@ const script = source.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1]
 const code = stripTypeScriptTypes(script.replace(/^import .*$/gm, ''))
 const initialModel = JSON.stringify({ camposScript: [{ nome: 'ALTURA' }, { nome: 'PESO' }] })
 
-function harness({ response, exportFails = false, applyFails = false, format = 'modoTexto', generated } = {}) {
+function harness({ response, exportFails = false, applyFails = false, format = 'modoTexto', generated, imported = false } = {}) {
   const calls = []
   const messages = []
   const store = {
+    isImported: imported,
+    revision: 0,
     sessionId: 'session', camposScriptJson: initialModel, transcriptHistory: [],
     get camposScript() { return JSON.parse(this.camposScriptJson) },
     updateCamposScript(json) { this.camposScriptJson = json },
@@ -49,6 +51,29 @@ test('existing voice model sends edit even when build was requested', async () =
   assert.equal(await page.applyTranscript('build'), true)
   assert.equal(page.calls[0][2], 'edit')
   assert.equal(page.generatedText.value, 'TXT atualizado')
+})
+
+test('imported model edits structure without automatically requesting a lossy TXT export', async () => {
+  const page = harness({ imported: true, exportFails: true })
+  assert.equal(await page.applyTranscript('edit'), true)
+  assert.equal(page.generatedText.value, '')
+  assert.equal(page.store.camposScriptJson, initialModel)
+  assert.ok(page.messages.every(m => !String(m[0]).includes('não foi possível gerar o TXT')))
+})
+
+test('imported model explicitly generates JSON regardless of the normal export chooser', async () => {
+  const page = harness({ imported: true, format: 'html', generated: {format:'jsonStudio',text:initialModel,html:'',apiMismatch:false} })
+  await page.onGenerate()
+  assert.equal(page.outputFormat.value, 'jsonStudio')
+  assert.equal(page.generatedText.value, initialModel)
+})
+
+test('older imported voice responses cannot replace a newer confirmed revision', async () => {
+  const page = harness({imported:true,response:{revision:1,camposScriptJson:'{"camposScript":[{"nome":"OLD"}]}',summary:'Antigo',warnings:[]}})
+  page.store.revision = 2
+  assert.equal(await page.applyTranscript('edit'),false)
+  assert.equal(page.store.camposScriptJson,initialModel)
+  assert.equal(page.store.revision,2)
 })
 
 test('stopping a recording edits the current model', async () => {
