@@ -781,7 +781,7 @@ public sealed class FormulasModelosService : IFormulasModelosService
         {
             var overrides = request.Secoes!.SelectMany(s => s.Variaveis ?? []).Where(v => v.NormalidadeOverride is not null)
                 .ToDictionary(v => v.CodVariavel, v => v.NormalidadeOverride);
-            await connection.ExecuteAsync(Cmd("UPDATE STUDIOMODELOESTADO SET AJUSTES=@json WHERE CODMODELO=@modeloId", new { json = System.Text.Json.JsonSerializer.Serialize(overrides), modeloId }, transaction, ct));
+            await connection.ExecuteAsync(Cmd("UPDATE STUDIOMODELOESTADO SET AJUSTES=@json WHERE CODMODELO=@modeloId", new { json = new FirebirdTextBlob(System.Text.Json.JsonSerializer.Serialize(overrides)), modeloId }, transaction, ct));
         }
     }
 

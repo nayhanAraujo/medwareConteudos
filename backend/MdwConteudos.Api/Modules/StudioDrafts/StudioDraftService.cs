@@ -73,7 +73,7 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
                 : FromCampos(session.CamposScriptJson, doc.Nome, await models.ListVariaveisAsync(ct));
         }
         StudioDocumentEditor.Shape(doc);
-        var id = importedId ?? StudioDocumentEditor.Token(); var now = DateTime.UtcNow; var json = JsonSerializer.Serialize(doc, Json);
+        var id = importedId ?? StudioDocumentEditor.Token(); var now = DateTime.UtcNow; var json = new FirebirdTextBlob(JsonSerializer.Serialize(doc, Json));
         using var tx = c.BeginTransaction();
         await c.ExecuteAsync(Q("INSERT INTO STUDIORASCUNHO(CODRASCUNHO,CODUSUARIO,NOME,DOCUMENTO,DTHRCRIACAO,DTHRULTMODIFICACAO) VALUES(@id,@owner,@nome,@json,@now,@now)", new { id, owner, nome = doc.Nome, json, now }, tx, ct));
         await Record(c, tx, id, 0, new(StudioDocumentEditor.Token(), 0, "create", JsonSerializer.SerializeToElement(new { })), Hash(doc), doc, "Rascunho criado", new { }, ct);
@@ -165,14 +165,14 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
         StudioDocumentEditor.Shape(doc);
         var revision = row.Revision + 1; var now = DateTime.UtcNow;
         var archived = command.Type == "archive" ? 1 : command.Type == "unarchive" ? 0 : row.Archived;
-        var json = JsonSerializer.Serialize(doc, Json);
+        var json = new FirebirdTextBlob(JsonSerializer.Serialize(doc, Json));
         await c.ExecuteAsync(Q("UPDATE STUDIORASCUNHO SET REVISAO=@revision,NOME=@nome,DOCUMENTO=@json,ARQUIVADO=@archived,DTHRULTMODIFICACAO=@now WHERE CODRASCUNHO=@id", new { revision, nome = doc.Nome, json, archived, now, id }, tx, ct));
         await Record(c, tx, id, revision, command, sha, doc, Description(command.Type), details, ct);
         tx.Commit(); return new(id, revision, archived == 1, doc, now);
     }
     private static Task Record(FbConnection c, FbTransaction tx, string id, long number, DraftCommand command, string sha, StudioDocument doc, string description, object details, CancellationToken ct)
         => c.ExecuteAsync(Q("INSERT INTO STUDIOREVISAO(CODRASCUNHO,NUMERO,CODCOMANDO,SHA256,TIPO,ORIGEM,GRUPOOPERACAO,DESCRICAO,DOCUMENTO,DETALHES,DTHRCRIACAO) VALUES(@id,@number,@commandId,@sha,@type,@source,@grp,@description,@document,@details,@now)",
-            new { id, number, commandId = command.CommandId, sha, type = command.Type, source = command.Source, grp = command.Group ?? command.CommandId, description, document = JsonSerializer.Serialize(doc, Json), details = JsonSerializer.Serialize(details, Json), now = DateTime.UtcNow }, tx, ct));
+            new { id, number, commandId = command.CommandId, sha, type = command.Type, source = command.Source, grp = command.Group ?? command.CommandId, description, document = new FirebirdTextBlob(JsonSerializer.Serialize(doc, Json)), details = new FirebirdTextBlob(JsonSerializer.Serialize(details, Json)), now = DateTime.UtcNow }, tx, ct));
     private static string Description(string type) => type switch { "createSection" => "Seção criada", "editSection" => "Seção reorganizada", "addMeasures" => "Medidas e dependências incluídas", "moveItem" => "Medida movida", "editItem" => "Medida atualizada", "undo" => "Operação desfeita", "redo" => "Operação refeita", "importSections" => "Importação revisada aplicada", "restore" => "Versão restaurada", _ => "Rascunho atualizado" };
 
     public async Task Delete(string id, int owner, long revision, CancellationToken ct)
@@ -228,7 +228,7 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
         }
         var proposal = StudioDocumentEditor.Token(); var metadata = Hash(catalog);
         await c.ExecuteAsync(Q("INSERT INTO STUDIOPUBLICACAO(CODPUBLICACAO,CODUSUARIO,CODRASCUNHO,REVISAO,CODMODELO,VERSAOMODELO,NOME,ESTADO,DOCUMENTO,HASHCATALOGO,DTHRCRIACAO) VALUES(@proposal,@owner,@id,@revision,@modelId,@version,@name,'pendente',@document,@metadata,@now)",
-            new { proposal, owner, id, revision = draft.Revision, modelId = request.ModeloId, version, name = doc.Nome, document = JsonSerializer.Serialize(doc, Json), metadata, now = DateTime.UtcNow }, null, ct));
+            new { proposal, owner, id, revision = draft.Revision, modelId = request.ModeloId, version, name = doc.Nome, document = new FirebirdTextBlob(JsonSerializer.Serialize(doc, Json)), metadata, now = DateTime.UtcNow }, null, ct));
         return new { proposalId = proposal, revision = draft.Revision, modeloId = request.ModeloId, nome = doc.Nome, sections = doc.Secoes.Count, items = doc.Secoes.Sum(s => s.Itens.Count) };
     }
     private sealed class Publication
@@ -260,7 +260,7 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
         var savedSections = (await c.QueryAsync<(int CodSecao, string Nome)>(Q("SELECT CODSECAO,NOME FROM SECAOMODOTEXTO WHERE CODMODELO=@modelId", new { modelId }, tx, ct))).ToDictionary(s => s.Nome, s => s.CodSecao, StringComparer.OrdinalIgnoreCase);
         doc = doc with { ModeloOrigem = modelId, VersaoOrigem = version, Secoes = doc.Secoes.Select(s => s with { CodSecao = savedSections[s.Nome] }).ToList() };
         var newRevision = row.Revision + 1;
-        await c.ExecuteAsync(Q("UPDATE STUDIORASCUNHO SET DOCUMENTO=@json,REVISAO=@newRevision,DTHRULTMODIFICACAO=@now WHERE CODRASCUNHO=@id", new { json = JsonSerializer.Serialize(doc, Json), newRevision, now = DateTime.UtcNow, id }, tx, ct));
+        await c.ExecuteAsync(Q("UPDATE STUDIORASCUNHO SET DOCUMENTO=@json,REVISAO=@newRevision,DTHRULTMODIFICACAO=@now WHERE CODRASCUNHO=@id", new { json = new FirebirdTextBlob(JsonSerializer.Serialize(doc, Json)), newRevision, now = DateTime.UtcNow, id }, tx, ct));
         await Record(c, tx, id, newRevision, new(proposalId, row.Revision, "published", JsonSerializer.SerializeToElement(new { }), Source: "sistema"), Hash(proposalId), doc, "Modelo publicado com confirmação", new { }, ct);
         await c.ExecuteAsync(Q("UPDATE STUDIOPUBLICACAO SET ESTADO='publicada',CODMODELO=@modelId WHERE CODPUBLICACAO=@proposalId", new { modelId, proposalId }, tx, ct));
         tx.Commit(); return new { modeloId = modelId, published = true };
