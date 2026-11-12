@@ -111,7 +111,10 @@ public class StudioJsonImportTests
         Assert.Equal(2, updated.Secoes[0].Itens.Count);
         foreach (var property in before.Secoes[0].Itens[0].Imported!.Properties.Where(p => p.Key != "linha"))
             Assert.True(JsonNode.DeepEquals(property.Value, updated.Secoes[0].Itens[0].Imported!.Properties[property.Key]));
-        Assert.Contains("<<VR_PESO>> * 2", StudioJsonImport.Export(updated));
+        using var exported = JsonDocument.Parse(StudioJsonImport.Export(updated));
+        var calculated = Assert.Single(exported.RootElement.GetProperty("camposScript").EnumerateArray(),
+            field => field.TryGetProperty("nome", out var name) && name.GetString() == "CALC");
+        Assert.Equal("<<VR_PESO>> * 2", calculated.GetProperty("funcao").GetString());
     }
 
     [Fact]
