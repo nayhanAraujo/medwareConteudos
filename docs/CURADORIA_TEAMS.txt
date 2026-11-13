@@ -1,0 +1,146 @@
+CURADORIA DE CONHECIMENTO — ABA CONFIGURÁVEL TEAMS
+Preparação de código em 13/11/2026. Não representa instalação ou coleta ativa.
+
+URLs previstas (as duas novas páginas exigem deploy antes do uso no Teams):
+Configuração: https://conteudo.medware.com.br/curadoria/teams/configurar
+Conteúdo/website: https://conteudo.medware.com.br/curadoria/teams/aba
+Privacidade: https://conteudo.medware.com.br/curadoria/privacidade
+Termos: https://conteudo.medware.com.br/curadoria/termos
+
+ARQUIVOS DA ENTREGA
+
+Criados:
+- frontend/nuxt-app/pages/curadoria/teams/configurar.vue
+- frontend/nuxt-app/pages/curadoria/teams/aba.vue
+- frontend/nuxt-app/components/curadoria/CuradoriaTeamsPage.vue
+- frontend/nuxt-app/composables/useCuradoriaTeams.ts
+- frontend/nuxt-app/utils/curadoriaTeams.ts
+- frontend/nuxt-app/server/middleware/curadoriaTeamsHeaders.ts
+- frontend/nuxt-app/tests/curadoriaTeams.test.mjs
+- docs/CURADORIA_TEAMS.txt
+
+Alterados:
+- frontend/nuxt-app/utils/curadoriaPublicRoutes.ts
+- frontend/nuxt-app/layouts/curadoria.vue
+- frontend/nuxt-app/tests/curadoriaPublicPages.test.mjs
+- frontend/nuxt-app/package.json
+- frontend/nuxt-app/package-lock.json
+
+O comando test:curadoria já é executado pelo empacotador; foi ampliado para os
+novos testes. Nenhuma mudança de banco, backend .NET ou template IIS foi necessária.
+
+DEVELOPER PORTAL / MANIFESTO ESTÁVEL 1.30
+
+Em Recursos do aplicativo -> Aplicativo de grupo e canal:
+- URL de configuração: a URL /curadoria/teams/configurar acima.
+- Escopo: somente groupChat (manter exatamente esse casing).
+- Contexto: somente privateChatTab.
+- Permitir atualização da configuração: desmarcado; canUpdateConfiguration=false.
+- validDomains: conteudo.medware.com.br, sem protocolo e sem caminho.
+- Não selecionar team, contextos de reunião ou recursos SharePoint para o piloto.
+- Não adicionar bot ou Azure Bot como requisito para esta aba.
+
+Trecho ilustrativo para conferir no manifesto exportado, não um pacote completo:
+"configurableTabs": [{
+  "configurationUrl": "https://conteudo.medware.com.br/curadoria/teams/configurar",
+  "canUpdateConfiguration": false,
+  "scopes": ["groupChat"],
+  "context": ["privateChatTab"]
+}],
+"validDomains": ["conteudo.medware.com.br"]
+
+groupChat no schema abrange chats, inclusive 1:1; a seleção do chat em grupo
+autorizado Desenvolvimento | Demandas é responsabilidade do operador. Estas
+páginas não autenticam nem identificam esse grupo pelo nome/ID e não impõem uma
+allowlist de conversas ao futuro coletor. Esse controle exige implementação
+separada. O contexto do SDK adapta a experiência; não é autenticação.
+
+Preservar os metadados e o registro Entra já configurados pelo responsável.
+Não publicar Client ID, tenant, chat ID ou credenciais nas páginas ou URLs.
+A permissão RSC ChatMessage.Read.Chat do tipo Application é uma etapa separada
+do registro da aba. Salvar a aba não comprova consentimento RSC, emissão de
+token, leitura Graph ou funcionamento do coletor.
+
+Ícones/pacote: conferir icons.color (PNG 192x192) e icons.outline (PNG 32x32,
+transparente, contorno branco), com arquivos correspondentes dentro do ZIP e
+manifest.json na raiz. Não acrescentar ícones fictícios nem trocar o pacote
+existente sem revisão. O pacote real não foi fornecido/validado nesta entrega.
+Após preencher os campos, exportar e validar no Developer Portal, corrigindo
+todos os erros. Não declarar que o pacote passou antes dessa validação real.
+
+COMPORTAMENTO DAS PÁGINAS
+
+TeamsJS @microsoft/teams-js 2.59.0, fixado no package.json/package-lock.json.
+Importação apenas no cliente; initialize/getContext e saves têm espera limitada.
+O contexto precisa indicar host Teams/TeamsModern, frame settings, chat e ausência
+de equipe/canal/reunião para habilitar a configuração. A checkbox começa
+desmarcada e o botão Salvar do host permanece inválido até confirmação explícita.
+O onSave utiliza somente entityId estável não sensível e URLs HTTPS constantes.
+notifySuccess ocorre somente depois da resolução de setConfig. Falha/timeout não
+ativa coleta e não produz confirmação falsa. Em timeout, conferir a aba antes de
+repetir: a página não pode desfazer uma operação já concluída pelo host.
+
+Fora do Teams, são apresentadas orientações, não uma instalação simulada.
+A página informativa funciona também em navegador comum, sem sessão web/API.
+Ambas adaptam temas padrão, escuro e alto contraste quando informados pelo SDK.
+Os links documentais abrem nova janela, evitando carregá-los no iframe do Teams.
+Não há formulário de senha, Graph, ODBC, leitura, envio ou edição de mensagens.
+O SDK não é usado para obter token. Nenhum contexto/identificador é persistido
+em armazenamento do navegador ou incorporado às URLs.
+
+IFRAME / IIS / PROXY
+
+O template público já encaminha esses caminhos ao Nuxt SSR. Não criar regra
+para a API .NET nem liberar /curadoria/** inteiro. Só as duas páginas Teams
+novas se somam às duas páginas documentais públicas existentes.
+
+Middleware Nitro aplica, somente nas duas rotas Teams exatas:
+Content-Security-Policy: frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.cloud.microsoft https://*.microsoft365.com https://*.office.com;
+Cache-Control: no-store
+
+Os wildcards se limitam às famílias Microsoft indicadas na documentação atual
+de hospedagem; não há frame-ancestors * nem liberação para sites arbitrários.
+Nenhuma necessidade de Outlook, reuniões ou SharePoint foi adicionada ao app.
+X-Frame-Options conflitante é removido apenas da resposta dessas páginas no
+Nuxt, nunca globalmente. Não foi necessário alterar o template IIS: a inspeção
+HEAD da página de privacidade já publicada retornou HTTP 200 sem CSP/XFO.
+Isso não comprova a resposta final das novas páginas após deploy.
+
+O IIS/proxy pode acrescentar cabeçalhos DEPOIS do Nuxt. Após deploy, conferir
+as duas respostas HTTPS finais: não podem ter X-Frame-Options DENY/SAMEORIGIN
+ou outra política CSP com frame-ancestors incompatível. Políticas CSP múltiplas
+são aplicadas em conjunto. Se existir herança conflitante no servidor, o operador
+deve revisar uma exceção somente para essas duas respostas no site envolvido,
+preservando as demais diretivas/proteções. Não remover cabeçalhos globais nem
+editar outros sites. Não usar X-Frame-Options ALLOW-FROM como solução moderna.
+Não encaminhar a aba a login: isso não é SSO e não ativa acesso ao Graph.
+
+VALIDAÇÃO E PENDÊNCIAS
+
+Automação local: npm run test:curadoria, testes de permissões/documentação e
+build Nuxt em cópia isolada. Os testes do SDK são simulados: cobrem ambiente,
+confirmação, ordem de setConfig/notifySuccess, falhas, espera limitada, concorrência,
+desmontagem e tema. Não equivalem a uma instalação Teams.
+
+Conferência desta entrega: 16 testes de Curadoria, 8 de permissões e 24 do portal
+de API passaram; build Nuxt aprovado com Node 22.20.0 em cópia isolada. A abertura
+local confirmou HTTP 200, cabeçalhos restritos e vizinhos protegidos. O navegador
+foi verificado em 1366, 768 e 360 pixels, inclusive navegação por teclado e links
+em nova janela. O SDK real fixado também foi exercitado com um host interceptado
+e simulado por postMessage, cobrindo falha, sucesso posterior e temas escuro/alto
+contraste. Todas essas respostas do host eram artificiais; não houve login ou
+instalação Microsoft, chamadas Graph, ODBC ou coleta de mensagens.
+
+Após deploy autorizado: conferir HTTPS/headers/URLs sem login, validar pacote e
+ícones no Developer Portal, instalar exclusivamente no chat em grupo autorizado,
+testar o diálogo Salvar e a aba em Teams web/desktop e, quando aplicável, mobile.
+Separadamente, validar consentimento RSC e uma leitura Graph autorizada com o
+coletor próprio. Esses passos NÃO foram executados nesta entrega.
+
+Documentação oficial consultada:
+https://learn.microsoft.com/en-us/microsoftteams/platform/tabs/how-to/create-tab-pages/configuration-page
+https://learn.microsoft.com/en-us/microsoftteams/platform/tabs/how-to/tab-requirements
+https://developer.microsoft.com/json-schemas/teams/v1.30/MicrosoftTeams.schema.json
+https://learn.microsoft.com/en-us/javascript/api/@microsoft/teams-js/pages.config?view=msteams-client-js-latest
+https://learn.microsoft.com/en-us/javascript/api/@microsoft/teams-js/framecontexts?view=msteams-client-js-latest
+https://github.com/OfficeDev/microsoft-teams-library-js

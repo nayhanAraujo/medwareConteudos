@@ -28,15 +28,17 @@ function middleware(auth) {
 const route = path => ({ path, fullPath: path, meta: {} })
 const anonymous = () => ({ loadFromStorage() {}, isAuthenticated: false, can: () => false })
 
-test('only the two exact document paths are added as public routes', () => {
-  for (const path of ['/curadoria/privacidade', '/curadoria/termos']) assert.equal(isPublicCuradoriaPath(path), true)
-  for (const path of ['/curadoria', '/curadoria/admin', '/curadoria/termos/editar', '/curadoria/privacidade-extra', '/Curadoria/termos', '/api/web/curadoria', '/biblioteca', '/studio'])
+const publicCuradoriaPaths = ['/curadoria/privacidade', '/curadoria/termos', '/curadoria/teams/configurar', '/curadoria/teams/aba']
+
+test('only the exact document and Teams page paths are public', () => {
+  for (const path of publicCuradoriaPaths) assert.equal(isPublicCuradoriaPath(path), true)
+  for (const path of ['/curadoria', '/curadoria/admin', '/curadoria/teams', '/curadoria/teams/aba/admin', '/curadoria/teams/configurar-extra', '/curadoria/termos/editar', '/curadoria/privacidade-extra', '/Curadoria/termos', '/api/web/curadoria', '/biblioteca', '/studio'])
     assert.equal(isPublicCuradoriaPath(path), false, path)
 })
 
 test('documents bypass auth initialization and the client auth plugin without storage or session', () => {
   const forbidden = new Proxy({}, { get() { throw new Error('Public document accessed auth state') } })
-  for (const path of ['/curadoria/privacidade', '/curadoria/termos']) {
+  for (const path of publicCuradoriaPaths) {
     assert.equal(middleware(forbidden)(route(path)), undefined)
     const plugin = loadDefinition(pluginSource, 'defineNuxtPlugin', {
       isPublicCuradoriaPath, useRoute: () => route(path), useAuthStore() { throw new Error('Public document accessed auth plugin') }
@@ -103,7 +105,7 @@ test('existing IIS template forwards both document paths to Nuxt, not the API', 
   const rules = [...xml.matchAll(/<rule\b[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/rule>/g)]
     .filter(([, name]) => !['HTTPS', 'Trusted proxy scheme'].includes(name))
     .map(([, name, body]) => ({ name, match: new RegExp(body.match(/<match url="([^"]+)"/)[1]), body }))
-  for (const path of ['curadoria/privacidade', 'curadoria/termos']) {
+  for (const path of publicCuradoriaPaths.map(path => path.slice(1))) {
     const first = rules.find(rule => rule.match.test(path))
     assert.equal(first.name, 'Nuxt SSR')
     assert.ok(first.body.includes('http://127.0.0.1:3000/'))
