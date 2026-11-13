@@ -32,6 +32,8 @@ export default defineNuxtConfig({
     }
   },
   runtimeConfig: {
+    // Private runtime-only value. Never put the pilot pin in runtimeConfig.public.
+    curadoriaPilotChatSha256: '',
     apiServerBase,
     docsApiBase: process.env.NUXT_DOCS_API_BASE || apiServerBase,
     docsSandboxBase: process.env.NUXT_DOCS_SANDBOX_BASE || 'http://localhost:5081',

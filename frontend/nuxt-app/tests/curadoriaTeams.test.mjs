@@ -26,7 +26,7 @@ function fixture(options = {}) {
       async setConfig(value) { calls.push(['config', value]); if (options.saveError) throw new Error('private host failure'); await options.pending?.promise }
     } }
   }
-  const controller = createCuradoriaTeamsController(options.kind || 'configuration', () => options.load || Promise.resolve(sdk), state => views.push(state), options.timeout || 500)
+  const controller = createCuradoriaTeamsController(options.kind || 'configuration', () => options.load || Promise.resolve(sdk), state => views.push(state), options.timeout || 500, options.checkPilot)
   const event = () => ({ success: 0, failures: [], notifySuccess() { this.success++; calls.push('success') }, notifyFailure(message) { this.failures.push(message); calls.push('failure') } })
   return { calls, views, controller, event, get handler() { return handler }, get onTheme() { return onTheme }, get latest() { return views.at(-1) } }
 }
@@ -63,6 +63,7 @@ test('success is never notified before setConfig resolves and a concurrent save 
   const pending = deferred(); const f = fixture({ pending }); await f.controller.start(); f.controller.setConfirmed(true)
   const first = f.event(), second = f.event(); f.handler(first); f.handler(second)
   assert.equal(first.success, 0); assert.equal(f.latest.mode, 'saving'); assert.equal(second.failures.length, 1)
+  await finishUntil(() => f.calls.some(c => c[0] === 'config'))
   assert.equal(f.calls.filter(c => c[0] === 'config').length, 1)
   pending.resolve(); await finishUntil(() => first.success === 1); f.controller.dispose()
 })
@@ -121,13 +122,89 @@ test('diagnostic contains only allowlisted host/frame and identifier presence, i
   assert.equal(f.latest.mode, 'unsupported')
   assert.deepEqual(f.latest.diagnostic, {
     host: 'TeamsModern', frame: 'settings', configurationSupported: true,
-    chatIdPresent: false, teamIdPresent: false, channelIdPresent: false, meetingIdPresent: true
+    chatIdPresent: false, teamIdPresent: false, channelIdPresent: false, meetingIdPresent: true, pilotCheck: 'not-checked'
   })
   assert.ok(!JSON.stringify(f.views).includes('private-meeting')); f.controller.dispose()
   const g = fixture({ context: { ...context(), app: { ...context().app, host: { name: 'private-host' } }, page: { frameContext: 'private-frame' } } })
   await g.controller.start()
   assert.equal(g.latest.diagnostic.host, 'outro'); assert.equal(g.latest.diagnostic.frame, 'outro')
   assert.ok(!JSON.stringify(g.views).includes('private-')); g.controller.dispose()
+})
+
+test('only a privately matched pilot chat can bypass incidental meeting ID, with confirmation and save-time recheck', async () => {
+  const data = { ...context(), meeting: { id: 'private-meeting' } }
+  let checks = 0
+  const f = fixture({ context: data, checkPilot: async chat => { checks++; return chat === 'fixture-chat' } })
+  await f.controller.start()
+  assert.equal(f.latest.mode, 'ready'); assert.equal(f.latest.confirmed, false)
+  assert.equal(f.latest.diagnostic.pilotCheck, 'matched'); assert.equal(checks, 1)
+  assert.deepEqual(f.calls.filter(c => c[0] === 'valid'), [['valid', false]])
+  const unchecked = f.event(); f.handler(unchecked); assert.equal(unchecked.failures.length, 1)
+  f.controller.setConfirmed(true); f.controller.setConfirmed(false)
+  assert.deepEqual(f.calls.at(-1), ['valid', false])
+  f.controller.setConfirmed(true)
+  const event = f.event(); f.handler(event); await finishUntil(() => event.success === 1)
+  assert.equal(checks, 2)
+  assert.ok(!JSON.stringify({ views: f.views, calls: f.calls }).includes('private-meeting'))
+  f.controller.dispose()
+})
+
+test('pilot failure, timeout or another chat cannot bypass meeting block; incompatible frames/hosts/scopes cannot even request an exception', async () => {
+  const base = { ...context(), meeting: { id: 'fixture-meeting' } }
+  for (const checkPilot of [async () => false, async () => { throw new Error('private failure') }, () => new Promise(() => {})]) {
+    const f = fixture({ context: base, checkPilot, timeout: 15 }); await f.controller.start()
+    assert.equal(f.latest.mode, 'unsupported'); assert.equal(f.latest.canConfigure, false)
+    assert.equal(f.latest.diagnostic.pilotCheck, 'not-confirmed'); assert.equal(f.handler, undefined)
+    assert.ok(!JSON.stringify(f.views).includes('private failure')); f.controller.dispose()
+  }
+  const contexts = [
+    { ...base, team: { internalId: 'fixture-team' } }, { ...base, team: { groupId: 'fixture-group' } },
+    { ...base, channel: { id: 'fixture-channel' } }, { ...base, chat: undefined },
+    ...['content', 'sidePanel', 'meetingStage', 'task'].map(frameContext => ({ ...base, page: { frameContext } })),
+    { ...base, app: { ...base.app, host: { name: 'Office' } } }
+  ]
+  for (const data of contexts) {
+    let checks = 0
+    const f = fixture({ context: data, checkPilot: async () => { checks++; return true } }); await f.controller.start()
+    assert.equal(f.latest.canConfigure, false); assert.equal(checks, 0); assert.equal(f.handler, undefined); f.controller.dispose()
+  }
+})
+
+test('changed pin or changed SDK target blocks save instead of reusing a previously matched exception', async () => {
+  for (const changeTarget of [true, false]) {
+    const data = { ...context(), meeting: { id: 'fixture-meeting' } }
+    let allowed = true
+    const f = fixture({ context: data, checkPilot: async chat => allowed && chat === 'fixture-chat' })
+    await f.controller.start(); f.controller.setConfirmed(true)
+    if (changeTarget) data.chat.id = 'other-chat'
+    else allowed = false
+    const event = f.event(); f.handler(event); await finishUntil(() => event.failures.length === 1)
+    assert.equal(event.success, 0); assert.equal(f.latest.canConfigure, false)
+    assert.equal(f.latest.confirmed, false); assert.equal(f.latest.mode, 'unsupported')
+    assert.ok(!f.calls.some(c => c[0] === 'config')); assert.deepEqual(f.calls.filter(c => c[0] === 'valid').at(-1), ['valid', false])
+    f.controller.dispose()
+  }
+})
+
+test('a normal configuration cannot switch to an unpinned meeting chat, team or channel before save', async () => {
+  for (const extra of [{ meeting: { id: 'fixture-meeting' } }, { team: { internalId: 'fixture-team' } }, { channel: { id: 'fixture-channel' } }]) {
+    const data = context(), f = fixture({ context: data })
+    await f.controller.start(); f.controller.setConfirmed(true); Object.assign(data, extra)
+    const event = f.event(); f.handler(event); await finishUntil(() => event.failures.length === 1)
+    assert.equal(event.success, 0); assert.equal(f.latest.canConfigure, false)
+    assert.ok(!f.calls.some(c => c[0] === 'config')); f.controller.dispose()
+  }
+})
+
+test('disposing a pending pilot check never enables configuration; matched content remains informational', async () => {
+  const pending = deferred()
+  const f = fixture({ context: { ...context(), meeting: { id: 'fixture-meeting' } }, checkPilot: () => pending.promise })
+  const starting = f.controller.start(); await finishUntil(() => f.latest.diagnostic?.pilotCheck === 'checking')
+  f.controller.dispose(); const count = f.views.length; pending.resolve(true); await starting
+  assert.equal(f.views.length, count); assert.equal(f.handler, undefined)
+  const g = fixture({ kind: 'content', context: { ...context(), page: { frameContext: 'content' }, meeting: { id: 'fixture-meeting' } }, checkPilot: async () => true })
+  await g.controller.start(); assert.equal(g.latest.mode, 'ready'); assert.equal(g.latest.canConfigure, false)
+  assert.equal(g.handler, undefined); assert.equal(g.latest.diagnostic, null); assert.deepEqual(g.calls, ['initialize']); g.controller.dispose()
 })
 
 test('content without a chat ID or with incompatible identifiers is informational only, never configures', async () => {

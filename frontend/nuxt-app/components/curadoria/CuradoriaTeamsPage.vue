@@ -16,6 +16,7 @@
         <div><dt>Identificador de equipe presente</dt><dd>{{ yesNo(view.diagnostic.teamIdPresent) }}</dd></div>
         <div><dt>Identificador de canal presente</dt><dd>{{ yesNo(view.diagnostic.channelIdPresent) }}</dd></div>
         <div><dt>Identificador de reunião presente</dt><dd>{{ yesNo(view.diagnostic.meetingIdPresent) }}</dd></div>
+        <div><dt>Exceção restrita ao piloto</dt><dd>{{ pilotLabels[view.diagnostic.pilotCheck] }}</dd></div>
       </dl>
       <p>O Teams pode não informar o chat antes de salvar a aba. Este diagnóstico não identifica o grupo e não comprova autorização de acesso.</p>
     </details>
@@ -56,6 +57,7 @@
 const props = defineProps<{ configuration?: boolean }>()
 const { view, setConfirmed } = useCuradoriaTeams(props.configuration ? 'configuration' : 'content')
 const yesNo = (value: boolean) => value ? 'Sim' : 'Não'
+const pilotLabels = { 'not-needed': 'Não necessária', 'not-checked': 'Não verificada', checking: 'Verificando', matched: 'Confirmada', 'not-confirmed': 'Não confirmada ou indisponível' }
 </script>
 
 <style scoped>

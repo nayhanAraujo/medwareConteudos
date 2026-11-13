@@ -8,6 +8,7 @@ export interface CuradoriaTeamsDiagnostic {
   teamIdPresent: boolean
   channelIdPresent: boolean
   meetingIdPresent: boolean
+  pilotCheck: 'not-needed' | 'not-checked' | 'checking' | 'matched' | 'not-confirmed'
 }
 export interface CuradoriaTeamsView {
   mode: 'loading' | 'browser' | 'unsupported' | 'ready' | 'saving' | 'saved' | 'error'
@@ -73,13 +74,15 @@ export function createCuradoriaTeamsController(
   kind: CuradoriaTeamsKind,
   loadSdk: () => Promise<CuradoriaTeamsSdk>,
   update: (view: CuradoriaTeamsView) => void,
-  timeoutMs = 8000
+  timeoutMs = 8000,
+  checkPilot: (chatId: string) => Promise<boolean> = async () => false
 ) {
   const state = initialCuradoriaTeamsView()
   let sdk: CuradoriaTeamsSdk | undefined
   let alive = true
   let started = false
   let registered = false
+  let pilotRequired = false
   const emit = () => { if (alive) update({ ...state }) }
   const failure = (event: SaveEvent, message: string) => { try { event.notifyFailure(message) } catch { /* Host may already have closed the frame. */ } }
   const validity = (valid: boolean) => { if (registered && sdk) sdk.pages.config.setValidityState(valid) }
@@ -94,6 +97,35 @@ export function createCuradoriaTeamsController(
     emit()
     try {
       validity(false)
+      // Revalidate the scoped exception at save time, including a changed SDK context
+      // or a pin removed/changed by the operator since this dialog was opened.
+      {
+        let permitted = false
+        try {
+          permitted = await bounded((async () => {
+            const current = await sdk!.app.getContext()
+            const compatible = ['Teams', 'TeamsModern'].includes(current.app.host.name) && current.page.frameContext === 'settings' &&
+              sdk!.pages.config.isSupported() && !hasIdentifier(current.team?.internalId) && !hasIdentifier(current.team?.groupId) &&
+              !hasIdentifier(current.channel?.id)
+            if (!compatible) return false
+            if (pilotRequired || hasIdentifier(current.meeting?.id)) {
+              return hasIdentifier(current.chat?.id) && await checkPilot(current.chat!.id!) === true
+            }
+            return true
+          })(), timeoutMs)
+        } catch { /* A failed check must not restore the previous validity. */ }
+        if (!alive) { failure(event, 'A página foi fechada.'); return }
+        if (!permitted) {
+          state.canConfigure = false
+          state.confirmed = false
+          state.mode = 'unsupported'
+          if (state.diagnostic) state.diagnostic = { ...state.diagnostic, pilotCheck: 'not-confirmed' }
+          state.message = 'O chat do piloto não pôde ser confirmado novamente. Reabra a configuração após conferir a configuração privada do Nuxt.'
+          emit()
+          failure(event, 'O chat do piloto não foi confirmado. A aba não foi salva.')
+          return
+        }
+      }
       await bounded(sdk.pages.config.setConfig({ ...CURADORIA_TAB_CONFIG }), timeoutMs)
       if (!alive) { failure(event, 'A página foi fechada. Confira a aba no Teams antes de tentar novamente.'); return }
       state.mode = 'saved'
@@ -132,7 +164,6 @@ export function createCuradoriaTeamsController(
         const teamIdPresent = hasIdentifier(context.team?.internalId) || hasIdentifier(context.team?.groupId)
         const channelIdPresent = hasIdentifier(context.channel?.id)
         const meetingIdPresent = hasIdentifier(context.meeting?.id)
-        const excludedContext = teamIdPresent || channelIdPresent || meetingIdPresent
         state.theme = theme(context.app.theme)
         sdk.app.registerOnThemeChangeHandler(value => { if (alive) { state.theme = theme(value); emit() } })
 
@@ -143,17 +174,28 @@ export function createCuradoriaTeamsController(
             host: teamsHost ? host : host ? 'outro' : 'não informado',
             frame: frame === 'settings' || frame === 'content' ? frame : frame ? 'outro' : 'não informado',
             configurationSupported: supported,
-            chatIdPresent, teamIdPresent, channelIdPresent, meetingIdPresent
+            chatIdPresent, teamIdPresent, channelIdPresent, meetingIdPresent,
+            pilotCheck: meetingIdPresent ? 'not-checked' : 'not-needed'
           })
           if (settings && supported) sdk.pages.config.setValidityState(false)
+          if (teamsHost && settings && supported && chatIdPresent && meetingIdPresent && !teamIdPresent && !channelIdPresent) {
+            state.diagnostic = { ...state.diagnostic, pilotCheck: 'checking' }
+            state.message = 'Conferindo a exceção restrita ao chat do piloto…'
+            emit()
+            try { pilotRequired = await bounded(checkPilot(context.chat!.id!), timeoutMs) === true } catch { pilotRequired = false }
+            if (!alive) return
+            state.diagnostic = { ...state.diagnostic, pilotCheck: pilotRequired ? 'matched' : 'not-confirmed' }
+          }
           // A settings dialog may not supply chat.id before the tab exists. Empty optional
           // objects are not evidence of a team/channel/meeting. Keep the positive host,
-          // settings and capability checks; reject concrete incompatible identifiers.
+          // settings and capability checks; reject concrete incompatible identifiers
+          // except the privately pinned, previously verified pilot group chat.
           // This is presentation only: manifesto scope + explicit operator confirmation
           // select the pilot chat. Neither this context nor its absence grants RSC access.
-          if (!teamsHost || excludedContext || !settings || !supported) {
+          if (!teamsHost || teamIdPresent || channelIdPresent || (meetingIdPresent && !pilotRequired) || !settings || !supported) {
             state.mode = 'unsupported'
             state.message = 'Esta configuração deve ser aberta ao adicionar uma aba ao chat em grupo autorizado no Teams. Equipes, canais, reuniões e outros aplicativos não fazem parte deste piloto.'
+            if (state.diagnostic.pilotCheck === 'not-confirmed') state.message = 'O Teams informou uma reunião, mas o chat não foi confirmado pela exceção privada do piloto. Confira a configuração do Nuxt; outros chats continuam bloqueados.'
           } else {
             sdk.pages.config.registerOnSaveHandler(event => { void save(event) })
             registered = true
@@ -162,7 +204,12 @@ export function createCuradoriaTeamsController(
             state.message = 'Confirme abaixo o destino do piloto. Depois use Salvar na janela do Teams para adicionar a aba informativa.'
           }
         } else {
-          state.mode = teamsHost && chatIdPresent && !excludedContext && frame === 'content' ? 'ready' : 'unsupported'
+          let pilotContent = false
+          if (teamsHost && frame === 'content' && chatIdPresent && meetingIdPresent && !teamIdPresent && !channelIdPresent) {
+            try { pilotContent = await bounded(checkPilot(context.chat!.id!), timeoutMs) === true } catch { /* Keep generic informational mode. */ }
+            if (!alive) return
+          }
+          state.mode = teamsHost && chatIdPresent && !teamIdPresent && !channelIdPresent && (!meetingIdPresent || pilotContent) && frame === 'content' ? 'ready' : 'unsupported'
           state.message = state.mode === 'ready'
             ? 'Aba informativa exibida no Teams. Nenhuma leitura de mensagens é realizada por esta página.'
             : 'Página informativa do piloto. Sua exibição não comprova instalação, consentimento ou acesso a mensagens.'

@@ -74,7 +74,8 @@ TeamsJS @microsoft/teams-js 2.59.0, fixado no package.json/package-lock.json.
 Importação apenas no cliente; initialize/getContext e saves têm espera limitada.
 O contexto precisa indicar host Teams/TeamsModern, frame settings e suporte a
 pages.config para habilitar a configuração. Identificadores concretos de equipe
-(internalId ou groupId), canal ou reunião bloqueiam o fluxo, mesmo com chat.
+(internalId ou groupId) ou canal bloqueiam o fluxo, mesmo com chat. Um identificador
+de reunião também bloqueia, salvo a exceção privada e exata descrita abaixo.
 Objetos opcionais vazios não são tratados como esses identificadores. O chat ID
 não é obrigatório DURANTE a configuração: ele pode não estar disponível antes
 de a aba existir. Isso não prova que se trata do grupo autorizado. O manifesto
@@ -125,6 +126,96 @@ em 1366/768/360 px, sem chamadas API/Graph, sessão ou armazenamento do navegado
 HTTP/SSR, cabeçalhos específicos e rotas privadas vizinhas também conferidos.
 Esses testes NÃO validam o contexto real recebido do Teams do usuário.
 Nenhum commit, push, deploy, serviço IIS/NSSM ou banco foi alterado por esse teste.
+
+EXCEÇÃO RESTRITA AO CHAT DO PILOTO
+
+Evidência posterior informada por Nayhan: o Graph retornou ChatType=group para
+Desenvolvimento | Demandas, enquanto o Teams informa chat.id e meeting.id no
+diálogo settings. O JavaScript público da correção 54b22cc foi observado no
+asset CLI1Aogj.js e reproduziu o bloqueio com esses mesmos booleanos em host
+simulado. A causa imediata é a regra meetingIdPresent; não é evidência de falha
+de permissão, nem prova de que o chat seja uma reunião.
+O pacote instalado foi confirmado pelo usuário: version 1.0.0, manifesto 1.30,
+groupChat/privateChatTab e canUpdateConfiguration=true. Este último difere da
+recomendação inicial false, mas não é usado como condição do bloqueio. Não foi
+alterado o manifesto por esta correção.
+
+A nova exceção exige host Teams/TeamsModern, frame settings, pages.config
+suportado, chat.id presente e ausência de equipe/canal. Quando meeting.id está
+presente, o cliente calcula SHA-256 dos bytes UTF-8 EXATOS de chat.id, somente
+em memória, e envia apenas o digest no corpo JSON a:
+POST /api/curadoria/teams/piloto
+O Nuxt compara com uma impressão digital privada configurada pelo operador.
+Não há busca Graph automática, token, chamada .NET/ODBC, coleta ou publicação.
+O digest identifica de forma pseudônima o chat; não é credencial/autenticação
+e deve ser tratado como configuração privada. Um navegador adulterado pode
+forjar o pedido; esta checagem NÃO protege dados nem substitui a allowlist e a
+autorização do futuro coletor.
+
+Somente uma correspondência exata libera essa exceção. A checkbox continua
+desmarcada; marcar/desmarcar altera a validade do host. Antes de setConfig, o
+SDK e a correspondência são consultados novamente. Troca de alvo, pin removido,
+rede/timeout/erro bloqueiam o salvamento sem reaproveitar a validade anterior.
+Em conteúdo, o mesmo pin pode reconhecer o piloto, mas nunca habilita salvar.
+Outros chats com meeting.id, equipes/canais, hosts e frames incompatíveis seguem
+bloqueados. Sem meeting.id, o fluxo anterior de configuração é preservado.
+
+Resposta do endpoint: somente {"allowed":true|false}, sem contexto ou digest.
+Cache-Control no-store; sem cookies, tokens ou logs de corpo. Corpo JSON limitado
+a 256 bytes, leitura de no máximo 5 segundos; campos extras, IDs brutos, query
+switches e configuração inválida não habilitam a exceção. A ausência de pin
+retorna 503 sem impedir a inicialização do sistema ou o uso de outras telas.
+O diagnóstico público mostra somente o estado da conferência, nunca o pin.
+
+CONFIGURAÇÃO OBRIGATÓRIA ANTES DO TESTE REAL
+
+1. Na MESMA janela PowerShell com a sessão Graph delegada já autorizada, na raiz
+   do repositório, executar (não abrir outro powershell -File):
+   & '.\tools\production\Get-CuradoriaPilotFingerprint.ps1'
+   O helper não instala, não conecta e não solicita consentimento. Exige um
+   único chat com esse nome, ChatType group e ID não vazio. Não escolhe o primeiro
+   de nomes duplicados. Consulta metadados, não mensagens. A saída é uma linha:
+   NUXT_CURADORIA_PILOT_CHAT_SHA256=sha256:<64 caracteres hexadecimais minúsculos>
+   Não enviar a linha ao Git, a este chat ou a logs compartilhados. Não retirar
+   o prefixo sha256:, que também evita conversão numérica automática do Nuxt.
+2. Configurar essa linha SOMENTE no ambiente do serviço NSSM MdwConteudoNuxt.
+   Não é uma chave de appsettings.Production.local.json da API .NET. O valor fica
+   fora de runtimeConfig.public e não é incorporado ao bundle/payload do navegador.
+   No NSSM GUI (nssm edit MdwConteudoNuxt), aba Environment: preservar todas as
+   variáveis existentes e acrescentar/substituir APENAS essa linha. Não usar
+   um nssm set AppEnvironmentExtra que substitua toda a lista. Não configurar
+   variáveis globais da máquina nem de outros serviços.
+3. Após publicação/autorização operacional, reiniciar somente MdwConteudoNuxt
+   para carregar a variável (o deploy normal também reinicia esse componente).
+   O deploy existente preserva AppEnvironmentExtra ao trocar a release. Não há
+   necessidade de alterar bancos, pool da API, portas ou serviços globais.
+4. O template public.web.config ganhou uma regra EXATA para o endpoint acima,
+   antes de API and Swagger. Ela pertence apenas ao site público deste projeto.
+   O pacote/deploy normal leva esse template; não alterar regras globais do IIS.
+5. No diálogo do piloto, Exceção restrita ao piloto deve indicar Confirmada.
+   Marcar a confirmação e usar Salvar. A validação real Teams permanece pendente;
+   pin ausente ou diferente deve continuar com a checkbox bloqueada.
+
+Em desenvolvimento, definir NUXT_CURADORIA_PILOT_CHAT_SHA256 somente na janela
+que inicia npm run dev (ou no .env local ignorado). Não usar um valor padrão,
+curinga, lista pública ou fallback que libere qualquer chat.
+O helper será incluído no pacote como deployment/Get-CuradoriaPilotFingerprint.ps1,
+mas deve ser executado na máquina/janela onde já existe a sessão Graph autorizada.
+
+Validação local desta exceção: 32 testes da Curadoria, 8 de permissões e 24 do
+portal de API aprovados (64 no total). Curadoria/permissões também executados
+com Node 22.20.0 em staging isolado. Helper testado em Windows PowerShell 5.1
+com Graph inteiramente simulado, inclusive duplicidades, tipo meeting, falta
+de sessão/permissão e ID vazio. Nenhuma consulta real ao Graph foi feita.
+Build Nuxt de produção aprovado. SDK real 2.59.0 com host inteiramente simulado
+e servidor Nuxt local comprovou match privado em runtime, ausência do pin no
+SSR, pedido só com digest/sem cookies, chat com meeting.id habilitado somente
+no piloto, rejeição de outro chat/equipe/canal/sem chat/rede indisponível,
+marcar/desmarcar, falha/sucesso e troca do alvo antes de salvar. Layouts, temas,
+HTTP/SSR e vizinhos protegidos conferidos em 1366/768/360 px. Os processos de
+teste foram encerrados. Falta configurar a impressão digital real privadamente
+no serviço e validar no Teams após publicação autorizada; simulação não é
+evidência de sucesso real nesse ambiente. Sem alteração de bancos/serviços reais.
 
 IFRAME / IIS / PROXY
 
