@@ -6,6 +6,20 @@
 
     <div class="curadoria-status" role="status" aria-live="polite" aria-atomic="true">{{ view.message }}</div>
 
+    <details v-if="configuration && view.diagnostic" class="curadoria-diagnostic" :open="view.mode === 'unsupported'">
+      <summary>Diagnóstico da configuração (sem dados pessoais)</summary>
+      <dl>
+        <div><dt>Host</dt><dd>{{ view.diagnostic.host }}</dd></div>
+        <div><dt>Frame</dt><dd>{{ view.diagnostic.frame }}</dd></div>
+        <div><dt>Configuração suportada</dt><dd>{{ yesNo(view.diagnostic.configurationSupported) }}</dd></div>
+        <div><dt>Identificador de chat presente</dt><dd>{{ yesNo(view.diagnostic.chatIdPresent) }}</dd></div>
+        <div><dt>Identificador de equipe presente</dt><dd>{{ yesNo(view.diagnostic.teamIdPresent) }}</dd></div>
+        <div><dt>Identificador de canal presente</dt><dd>{{ yesNo(view.diagnostic.channelIdPresent) }}</dd></div>
+        <div><dt>Identificador de reunião presente</dt><dd>{{ yesNo(view.diagnostic.meetingIdPresent) }}</dd></div>
+      </dl>
+      <p>O Teams pode não informar o chat antes de salvar a aba. Este diagnóstico não identifica o grupo e não comprova autorização de acesso.</p>
+    </details>
+
     <section v-if="configuration" aria-labelledby="configuration-title">
       <h2 id="configuration-title">Adicionar somente a aba informativa</h2>
       <p>O salvamento deve ocorrer dentro do Microsoft Teams, ao adicionar esta aba ao chat em grupo <strong>Desenvolvimento | Demandas</strong>. No navegador comum, esta página apresenta orientações, mas não instala o aplicativo.</p>
@@ -41,6 +55,7 @@
 <script setup lang="ts">
 const props = defineProps<{ configuration?: boolean }>()
 const { view, setConfirmed } = useCuradoriaTeams(props.configuration ? 'configuration' : 'content')
+const yesNo = (value: boolean) => value ? 'Sim' : 'Não'
 </script>
 
 <style scoped>
@@ -56,4 +71,11 @@ p { margin: 0 0 .8rem; }
 input { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; margin-top: .3rem; accent-color: var(--curadoria-link); }
 input:focus-visible { outline: 3px solid var(--curadoria-link); outline-offset: 4px; }
 .curadoria-help { font-size: .95rem; color: var(--curadoria-muted); }
+.curadoria-diagnostic { margin: -1rem 0 1.5rem; font-size: .85rem; color: var(--curadoria-muted); }
+summary { cursor: pointer; }
+summary:focus-visible { outline: 3px solid var(--curadoria-link); outline-offset: 4px; }
+dl { margin: .75rem 0; }
+dl > div { display: flex; flex-wrap: wrap; gap: .3rem .75rem; }
+dt { font-weight: 600; }
+dd { margin: 0; }
 </style>

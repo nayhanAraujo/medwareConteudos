@@ -7,7 +7,7 @@ const read = relative => readFile(new URL(relative, import.meta.url), 'utf8')
 const imported = source => import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`)
 const { createCuradoriaTeamsController, CURADORIA_TAB_CONFIG } = await imported(await read('../utils/curadoriaTeams.ts'))
 const { isTeamsCuradoriaPath } = await imported(await read('../utils/curadoriaPublicRoutes.ts'))
-const context = () => ({ app: { host: { name: 'TeamsModern' }, theme: 'default' }, page: { frameContext: 'settings' }, chat: {} })
+const context = () => ({ app: { host: { name: 'TeamsModern' }, theme: 'default' }, page: { frameContext: 'settings' }, chat: { id: 'fixture-chat' } })
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 
 function fixture(options = {}) {
@@ -43,6 +43,11 @@ test('initializes the SDK before configuration, requires explicit confirmation a
   assert.equal(invalid.failures.length, 1); assert.equal(invalid.success, 0)
   f.controller.setConfirmed(true)
   assert.deepEqual(f.calls.at(-1), ['valid', true])
+  f.controller.setConfirmed(false)
+  assert.deepEqual(f.calls.at(-1), ['valid', false])
+  const unchecked = f.event(); f.handler(unchecked)
+  assert.equal(unchecked.success, 0); assert.equal(unchecked.failures.length, 1)
+  f.controller.setConfirmed(true)
   const saved = f.event(); f.handler(saved)
   await finishUntil(() => saved.success === 1)
   assert.deepEqual(f.calls.find(c => c[0] === 'config')[1], CURADORIA_TAB_CONFIG)
@@ -70,12 +75,19 @@ test('save failure is sanitized, notifies failure only and lets the host offer a
   assert.ok(!JSON.stringify(f.views).includes('private')); f.controller.dispose()
 })
 
-test('initialization errors, unsupported hosts/frames and missing group chat context never enable saving', async () => {
+test('initialization errors, unsupported capabilities/hosts/frames and concrete incompatible scopes never enable saving', async () => {
   const contexts = [
     { ...context(), app: { ...context().app, host: { name: 'Office' } } },
+    { ...context(), app: { ...context().app, host: { name: '' } } },
     { ...context(), page: { frameContext: 'content' } },
-    { ...context(), chat: undefined },
-    { ...context(), team: {} }, { ...context(), channel: {} }, { ...context(), meeting: {} }
+    { ...context(), page: { frameContext: 'sidePanel' } },
+    { ...context(), page: {} },
+    ...[undefined, { id: 'fixture-chat' }].flatMap(chat => [
+      { ...context(), chat, team: { internalId: 'private-team' } },
+      { ...context(), chat, team: { groupId: 'private-group' } },
+      { ...context(), chat, channel: { id: 'private-channel' } },
+      { ...context(), chat, meeting: { id: 'private-meeting' } }
+    ])
   ]
   for (const options of [{ initError: true }, { supported: false }, ...contexts.map(context => ({ context }))]) {
     const f = fixture(options); await f.controller.start(); f.controller.setConfirmed(true)
@@ -83,6 +95,48 @@ test('initialization errors, unsupported hosts/frames and missing group chat con
     assert.equal(f.latest.canConfigure, false); assert.equal(f.handler, undefined)
     assert.ok(!f.calls.some(c => Array.isArray(c) && c[0] === 'valid' && c[1] === true))
     assert.ok(!JSON.stringify(f.views).includes('private SDK')); f.controller.dispose()
+  }
+})
+
+test('settings can configure before chat ID exists and ignore empty optional scope objects, without auto-confirming', async () => {
+  for (const host of ['Teams', 'TeamsModern']) {
+    for (const chat of [undefined, {}, { id: '' }, { id: 'fixture-chat' }]) {
+      const data = { ...context(), app: { ...context().app, host: { name: host } }, chat, team: {}, channel: { id: '' }, meeting: { id: ' ' } }
+      const f = fixture({ context: data }); await f.controller.start()
+      assert.equal(f.latest.mode, 'ready'); assert.equal(f.latest.canConfigure, true)
+      assert.equal(f.latest.confirmed, false); assert.equal(typeof f.handler, 'function')
+      assert.deepEqual(f.calls.filter(c => c[0] === 'valid'), [['valid', false]])
+      f.controller.setConfirmed(true); assert.deepEqual(f.calls.at(-1), ['valid', true])
+      f.controller.setConfirmed(false); assert.deepEqual(f.calls.at(-1), ['valid', false])
+      f.controller.setConfirmed(true)
+      const saved = f.event(); f.handler(saved); await finishUntil(() => saved.success === 1)
+      assert.equal(f.latest.mode, 'saved'); f.controller.dispose()
+    }
+  }
+})
+
+test('diagnostic contains only allowlisted host/frame and identifier presence, including unsupported scope', async () => {
+  const f = fixture({ context: { ...context(), chat: undefined, meeting: { id: 'private-meeting' } } })
+  await f.controller.start()
+  assert.equal(f.latest.mode, 'unsupported')
+  assert.deepEqual(f.latest.diagnostic, {
+    host: 'TeamsModern', frame: 'settings', configurationSupported: true,
+    chatIdPresent: false, teamIdPresent: false, channelIdPresent: false, meetingIdPresent: true
+  })
+  assert.ok(!JSON.stringify(f.views).includes('private-meeting')); f.controller.dispose()
+  const g = fixture({ context: { ...context(), app: { ...context().app, host: { name: 'private-host' } }, page: { frameContext: 'private-frame' } } })
+  await g.controller.start()
+  assert.equal(g.latest.diagnostic.host, 'outro'); assert.equal(g.latest.diagnostic.frame, 'outro')
+  assert.ok(!JSON.stringify(g.views).includes('private-')); g.controller.dispose()
+})
+
+test('content without a chat ID or with incompatible identifiers is informational only, never configures', async () => {
+  for (const extra of [{ chat: undefined }, { meeting: { id: 'fixture-meeting' } }, { team: { internalId: 'fixture-team' } }, { channel: { id: 'fixture-channel' } }]) {
+    const f = fixture({ kind: 'content', context: { ...context(), ...extra, page: { frameContext: 'content' } } })
+    await f.controller.start()
+    assert.equal(f.latest.mode, 'unsupported'); assert.equal(f.latest.canConfigure, false)
+    assert.equal(f.latest.diagnostic, null); assert.equal(f.handler, undefined)
+    assert.deepEqual(f.calls, ['initialize']); f.controller.dispose()
   }
 })
 

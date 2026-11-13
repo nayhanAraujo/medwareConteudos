@@ -1,11 +1,21 @@
 export type CuradoriaTeamsTheme = 'default' | 'dark' | 'contrast'
 export type CuradoriaTeamsKind = 'configuration' | 'content'
+export interface CuradoriaTeamsDiagnostic {
+  host: 'Teams' | 'TeamsModern' | 'outro' | 'não informado'
+  frame: 'settings' | 'content' | 'outro' | 'não informado'
+  configurationSupported: boolean
+  chatIdPresent: boolean
+  teamIdPresent: boolean
+  channelIdPresent: boolean
+  meetingIdPresent: boolean
+}
 export interface CuradoriaTeamsView {
   mode: 'loading' | 'browser' | 'unsupported' | 'ready' | 'saving' | 'saved' | 'error'
   message: string
   theme: CuradoriaTeamsTheme
   confirmed: boolean
   canConfigure: boolean
+  diagnostic: CuradoriaTeamsDiagnostic | null
 }
 
 // Fixed public destinations. Context, query strings and identifiers never enter configuration URLs.
@@ -20,10 +30,10 @@ interface SaveEvent { notifySuccess(): void; notifyFailure(reason?: string): voi
 interface TeamsContext {
   app: { theme: string; host: { name: string } }
   page: { frameContext: string }
-  chat?: object
-  team?: object
-  channel?: object
-  meeting?: object
+  chat?: { id?: string }
+  team?: { internalId?: string; groupId?: string }
+  channel?: { id?: string }
+  meeting?: { id?: string }
 }
 export interface CuradoriaTeamsSdk {
   app: {
@@ -40,7 +50,11 @@ export interface CuradoriaTeamsSdk {
 }
 
 export function initialCuradoriaTeamsView(): CuradoriaTeamsView {
-  return { mode: 'loading', message: 'Verificando o ambiente do Teams…', theme: 'default', confirmed: false, canConfigure: false }
+  return { mode: 'loading', message: 'Verificando o ambiente do Teams…', theme: 'default', confirmed: false, canConfigure: false, diagnostic: null }
+}
+
+function hasIdentifier(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0
 }
 
 function theme(value: string): CuradoriaTeamsTheme {
@@ -111,16 +125,33 @@ export function createCuradoriaTeamsController(
         if (!alive) return
         sdk = prepared.loaded
         const context = prepared.context
-        const teamsHost = context.app.host.name === 'Teams' || context.app.host.name === 'TeamsModern'
-        const chatContext = !!context.chat && !context.team && !context.channel && !context.meeting
+        const host = context.app.host.name
+        const frame = context.page.frameContext
+        const teamsHost = host === 'Teams' || host === 'TeamsModern'
+        const chatIdPresent = hasIdentifier(context.chat?.id)
+        const teamIdPresent = hasIdentifier(context.team?.internalId) || hasIdentifier(context.team?.groupId)
+        const channelIdPresent = hasIdentifier(context.channel?.id)
+        const meetingIdPresent = hasIdentifier(context.meeting?.id)
+        const excludedContext = teamIdPresent || channelIdPresent || meetingIdPresent
         state.theme = theme(context.app.theme)
         sdk.app.registerOnThemeChangeHandler(value => { if (alive) { state.theme = theme(value); emit() } })
 
         if (kind === 'configuration') {
-          const settings = context.page.frameContext === 'settings'
+          const settings = frame === 'settings'
           const supported = sdk.pages.config.isSupported()
+          state.diagnostic = Object.freeze({
+            host: teamsHost ? host : host ? 'outro' : 'não informado',
+            frame: frame === 'settings' || frame === 'content' ? frame : frame ? 'outro' : 'não informado',
+            configurationSupported: supported,
+            chatIdPresent, teamIdPresent, channelIdPresent, meetingIdPresent
+          })
           if (settings && supported) sdk.pages.config.setValidityState(false)
-          if (!teamsHost || !chatContext || !settings || !supported) {
+          // A settings dialog may not supply chat.id before the tab exists. Empty optional
+          // objects are not evidence of a team/channel/meeting. Keep the positive host,
+          // settings and capability checks; reject concrete incompatible identifiers.
+          // This is presentation only: manifesto scope + explicit operator confirmation
+          // select the pilot chat. Neither this context nor its absence grants RSC access.
+          if (!teamsHost || excludedContext || !settings || !supported) {
             state.mode = 'unsupported'
             state.message = 'Esta configuração deve ser aberta ao adicionar uma aba ao chat em grupo autorizado no Teams. Equipes, canais, reuniões e outros aplicativos não fazem parte deste piloto.'
           } else {
@@ -131,7 +162,7 @@ export function createCuradoriaTeamsController(
             state.message = 'Confirme abaixo o destino do piloto. Depois use Salvar na janela do Teams para adicionar a aba informativa.'
           }
         } else {
-          state.mode = teamsHost && chatContext && context.page.frameContext === 'content' ? 'ready' : 'unsupported'
+          state.mode = teamsHost && chatIdPresent && !excludedContext && frame === 'content' ? 'ready' : 'unsupported'
           state.message = state.mode === 'ready'
             ? 'Aba informativa exibida no Teams. Nenhuma leitura de mensagens é realizada por esta página.'
             : 'Página informativa do piloto. Sua exibição não comprova instalação, consentimento ou acesso a mensagens.'

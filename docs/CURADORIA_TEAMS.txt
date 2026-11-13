@@ -1,7 +1,7 @@
 CURADORIA DE CONHECIMENTO — ABA CONFIGURÁVEL TEAMS
 Preparação de código em 13/11/2026. Não representa instalação ou coleta ativa.
 
-URLs previstas (as duas novas páginas exigem deploy antes do uso no Teams):
+URLs públicas (a correção de configuração exige novo deploy autorizado):
 Configuração: https://conteudo.medware.com.br/curadoria/teams/configurar
 Conteúdo/website: https://conteudo.medware.com.br/curadoria/teams/aba
 Privacidade: https://conteudo.medware.com.br/curadoria/privacidade
@@ -72,8 +72,17 @@ COMPORTAMENTO DAS PÁGINAS
 
 TeamsJS @microsoft/teams-js 2.59.0, fixado no package.json/package-lock.json.
 Importação apenas no cliente; initialize/getContext e saves têm espera limitada.
-O contexto precisa indicar host Teams/TeamsModern, frame settings, chat e ausência
-de equipe/canal/reunião para habilitar a configuração. A checkbox começa
+O contexto precisa indicar host Teams/TeamsModern, frame settings e suporte a
+pages.config para habilitar a configuração. Identificadores concretos de equipe
+(internalId ou groupId), canal ou reunião bloqueiam o fluxo, mesmo com chat.
+Objetos opcionais vazios não são tratados como esses identificadores. O chat ID
+não é obrigatório DURANTE a configuração: ele pode não estar disponível antes
+de a aba existir. Isso não prova que se trata do grupo autorizado. O manifesto
+restrito a groupChat/privateChatTab e a confirmação do operador continuam
+necessários; nenhum deles substitui autorização/allowlist do futuro coletor.
+Na página de conteúdo, o estado específico de chat ainda exige chat.id; sem ele
+a página permanece somente informativa, sem habilitar configuração.
+A checkbox começa
 desmarcada e o botão Salvar do host permanece inválido até confirmação explícita.
 O onSave utiliza somente entityId estável não sensível e URLs HTTPS constantes.
 notifySuccess ocorre somente depois da resolução de setConfig. Falha/timeout não
@@ -87,6 +96,35 @@ Os links documentais abrem nova janela, evitando carregá-los no iframe do Teams
 Não há formulário de senha, Graph, ODBC, leitura, envio ou edição de mensagens.
 O SDK não é usado para obter token. Nenhum contexto/identificador é persistido
 em armazenamento do navegador ou incorporado às URLs.
+
+CORREÇÃO DO BLOQUEIO DE CONFIGURAÇÃO
+
+O código anterior exigia !!context.chat e rejeitava qualquer objeto opcional
+team/channel/meeting, inclusive vazio. Os testes reproduzem o falso bloqueio
+em settings sem chat.id e com objetos vazios. O SDK 2.59.0 mapeia chatId ausente
+para chat undefined; sua configuração de exemplo não exige esse identificador.
+Isso é evidência do comportamento do código, NÃO prova de qual campo faltou
+no diálogo real reportado. Nenhum contexto real do usuário foi capturado.
+
+A página inclui um diagnóstico recolhível (aberto no estado unsupported): host
+e frame apenas em valores conhecidos ou rótulos genéricos, suporte a configuração
+e booleanos de presença de identificadores de chat/equipe/canal/reunião. Nenhum
+ID, nome de usuário, tenant, contexto bruto ou erro privado é exibido ou salvo.
+Se o bloqueio persistir após deploy autorizado, fornecer somente esse diagnóstico.
+Não copiar o contexto inteiro do SDK nem tokens para investigação.
+
+Validação local da correção: 19 testes de Curadoria, 8 de permissões e 24 do
+portal de API passaram. Build Nuxt com Node 22.20.0 aprovado em cópia isolada;
+permanecem avisos de dependências/CSS/chunks já existentes, sem impedir o build.
+O SDK real fixado foi exercitado no navegador com host Microsoft inteiramente
+interceptado/simulado: settings sem chatId habilita a checkbox, marcar/desmarcar
+altera a validade, falha não notifica sucesso e a nova tentativa só confirma
+depois de setConfig. Equipe, canal, reunião e host Office simulados permanecem
+bloqueados. Diagnóstico e temas conferidos visualmente; sem overflow horizontal
+em 1366/768/360 px, sem chamadas API/Graph, sessão ou armazenamento do navegador.
+HTTP/SSR, cabeçalhos específicos e rotas privadas vizinhas também conferidos.
+Esses testes NÃO validam o contexto real recebido do Teams do usuário.
+Nenhum commit, push, deploy, serviço IIS/NSSM ou banco foi alterado por esse teste.
 
 IFRAME / IIS / PROXY
 
@@ -122,7 +160,7 @@ build Nuxt em cópia isolada. Os testes do SDK são simulados: cobrem ambiente,
 confirmação, ordem de setConfig/notifySuccess, falhas, espera limitada, concorrência,
 desmontagem e tema. Não equivalem a uma instalação Teams.
 
-Conferência desta entrega: 16 testes de Curadoria, 8 de permissões e 24 do portal
+Conferência da entrega inicial: 16 testes de Curadoria, 8 de permissões e 24 do portal
 de API passaram; build Nuxt aprovado com Node 22.20.0 em cópia isolada. A abertura
 local confirmou HTTP 200, cabeçalhos restritos e vizinhos protegidos. O navegador
 foi verificado em 1366, 768 e 360 pixels, inclusive navegação por teclado e links
@@ -143,4 +181,5 @@ https://learn.microsoft.com/en-us/microsoftteams/platform/tabs/how-to/tab-requir
 https://developer.microsoft.com/json-schemas/teams/v1.30/MicrosoftTeams.schema.json
 https://learn.microsoft.com/en-us/javascript/api/@microsoft/teams-js/pages.config?view=msteams-client-js-latest
 https://learn.microsoft.com/en-us/javascript/api/@microsoft/teams-js/framecontexts?view=msteams-client-js-latest
+https://learn.microsoft.com/en-us/javascript/api/@microsoft/teams-js/app.context?view=msteams-client-js-latest
 https://github.com/OfficeDev/microsoft-teams-library-js
