@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import {analyzeStudioRemoval} from '~/utils/studioDependencies'
+import type {DependencyNode, RemovalBlock} from '~/utils/studioDependencies'
 definePageMeta({ layout: 'studio' })
 const integrated = ref(false)
 const integratedAvailable = ref(false)
@@ -24,6 +26,22 @@ const { toast, alert, confirm } = useStudioSwal()
 const { downloadText } = useHtmlPreview()
 const models = ref<ModelItem[]>([])
 const variables = ref<VariableOption[]>([])
+const removalBlock = ref<RemovalBlock | null>(null)
+const lastBlocked = ref('')
+function permitRemoval(ids: Set<string>, operation: string) {
+  const nodes: DependencyNode[] = sections.value.flatMap(s => s.variaveis.map(v => ({key:`catalog:${v.codVariavel}`,itemId:`${s.key}:${v.codVariavel}`,codVariavel:v.codVariavel,token:v.sigla,nome:v.nome,sectionId:s.key,sectionName:s.nome,preserved:false,dependencies:(v.dependencias || []).map(id=>`catalog:${id}`)})))
+  const block = analyzeStudioRemoval(nodes,new Set(nodes.filter(n=>!ids.has(n.itemId)).map(n=>n.key)),operation)
+  if(block){removalBlock.value=block;lastBlocked.value='Alteração bloqueada: as medidas necessárias aos cálculos foram mantidas.'}
+  return !block
+}
+function locateDependents(block: RemovalBlock) {
+  const dependent = block.dependents[0]?.measure
+  if(!dependent)return
+  const section=sections.value.find(s=>s.key===dependent.sectionId || s.variaveis.some(v=>v.codVariavel===dependent.codVariavel))
+  const key=section ? `${section.key}:${dependent.codVariavel}` : dependent.itemId
+  const target=[...document.querySelectorAll<HTMLElement>('[data-studio-id]')].find(e=>e.dataset.studioId===key)
+  target?.scrollIntoView({behavior:'smooth',block:'center'});target?.focus();target?.classList.add('ring-2','ring-amber-500')
+}
 const modelId = ref<number | null>(null)
 const modelName = ref('')
 const sections = ref<DraftSection[]>([])
@@ -268,8 +286,8 @@ function addVariablesWithDependencies(section: DraftSection, ids: number[], targ
   for (const id of ids) visit(id)
   const additions = ordered.map(id => draftVariable(id)).filter(Boolean) as DraftVariable[]; section.variaveis.splice(targetIndex ?? section.variaveis.length, 0, ...additions); return addedDependencies
 }
-function clearSection(section: DraftSection) { section.variaveis = [] }
-async function removeSection(section: DraftSection) { const result = await confirm('Excluir seção', `Remover "${section.nome}" da composição?`); if (result.isConfirmed) sections.value = sections.value.filter(item => item.key !== section.key) }
+function clearSection(section: DraftSection) { if(permitRemoval(new Set(section.variaveis.map(v=>`${section.key}:${v.codVariavel}`)),'clearSection'))section.variaveis = [] }
+async function removeSection(section: DraftSection) { if(!permitRemoval(new Set(section.variaveis.map(v=>`${section.key}:${v.codVariavel}`)),'deleteSection'))return;const result = await confirm('Excluir seção', `Remover "${section.nome}" da composição?`); if (result.isConfirmed) sections.value = sections.value.filter(item => item.key !== section.key) }
 function moveSection(section: DraftSection, direction: -1 | 1) { const column = columnSections(section.coluna); const index = column.findIndex(item => item.key === section.key); const target = index + direction; if (target < 0 || target >= column.length) return; const a = sections.value.findIndex(item => item.key === column[index]!.key); const b = sections.value.findIndex(item => item.key === column[target]!.key); [sections.value[a], sections.value[b]] = [sections.value[b]!, sections.value[a]!] }
 function moveSectionToColumn(section: DraftSection) { section.coluna = section.coluna === 1 ? 2 : 1 }
 function moveVariable(section: DraftSection, index: number, direction: -1 | 1) { const target = index + direction; if (target < 0 || target >= section.variaveis.length) return; [section.variaveis[index], section.variaveis[target]] = [section.variaveis[target]!, section.variaveis[index]!] }
@@ -283,7 +301,7 @@ function moveVariableToOtherSection(source: DraftSection, variable: DraftVariabl
   source.variaveis = source.variaveis.filter(item => item.codVariavel !== variable.codVariavel)
   target.variaveis.push(variable)
 }
-function removeVariable(section: DraftSection, id: number) { section.variaveis = section.variaveis.filter(variable => variable.codVariavel !== id) }
+function removeVariable(section: DraftSection, id: number) { if(permitRemoval(new Set([`${section.key}:${id}`]),'deleteItem'))section.variaveis = section.variaveis.filter(variable => variable.codVariavel !== id) }
 
 function startDrag(payload: DragPayload, event?: DragEvent) { dragPayload.value = payload; event?.dataTransfer?.setData('text/plain', JSON.stringify(payload)); if (event?.dataTransfer) event.dataTransfer.effectAllowed = payload.type === 'bank-variable' || payload.type === 'group' ? 'copy' : 'move' }
 function endDrag() { dragPayload.value = null }
@@ -332,6 +350,7 @@ async function saveComposition() {
     await loadModels()
     await toast('Composição salva. Normalidades personalizadas não alteram o banco.', 'success')
   } catch (error) {
+    if((error as {code?:string})?.code==='measure_in_use'){removalBlock.value=(error as {details:RemovalBlock}).details;lastBlocked.value='Alteração bloqueada: a composição foi preservada.';return}
     await alert('Erro ao salvar', message(error), 'error')
   } finally {
     saving.value = false
@@ -362,6 +381,8 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload)
 </script>
 
 <template>
+  <StudioDependencyNotice :block="removalBlock" @close="removalBlock=null" @locate="locateDependents" />
+  <p v-if="lastBlocked" role="status" class="my-2 text-sm text-amber-500">{{ lastBlocked }}</p>
   <div>
     <label v-if="integratedAvailable" class="mb-4 flex items-center gap-2 text-sm"><input v-model="integrated" type="checkbox"> Usar editor integrado com rascunhos e versões</label>
     <StudioIntegratedEditor v-if="integrated" />
@@ -428,7 +449,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', beforeUnload)
                   </header>
                   <div class="min-h-16 space-y-1 p-2" @dragover.prevent @drop.stop="dropVariable(section)">
                     <p v-if="!section.variaveis.length" class="py-4 text-center text-xs text-ds-muted">Arraste medidas para esta seção.</p>
-                    <div v-for="(variable, variableIndex) in section.variaveis" :key="variable.codVariavel" draggable="true" class="flex cursor-grab items-center gap-2 rounded border border-transparent px-2 py-1.5 text-xs hover:border-ds-border hover:bg-ds-surface-elevated" @dragstart.stop="startDrag({ type: 'section-variable', sectionKey: section.key, variableId: variable.codVariavel }, $event)" @dragend="endDrag" @dragover.prevent @drop.stop="dropVariable(section, variableIndex)">
+                    <div v-for="(variable, variableIndex) in section.variaveis" :key="variable.codVariavel" :data-studio-id="`${section.key}:${variable.codVariavel}`" tabindex="-1" draggable="true" class="flex cursor-grab items-center gap-2 rounded border border-transparent px-2 py-1.5 text-xs hover:border-ds-border hover:bg-ds-surface-elevated" @dragstart.stop="startDrag({ type: 'section-variable', sectionKey: section.key, variableId: variable.codVariavel }, $event)" @dragend="endDrag" @dragover.prevent @drop.stop="dropVariable(section, variableIndex)">
                       <i class="bi bi-grip-vertical text-ds-muted" /><span class="min-w-0 flex-1"><strong class="block truncate text-ds-text">{{ variable.nome }}</strong><span class="text-ds-muted">{{ variable.sigla }}{{ variable.unidade ? ` · ${variable.unidade}` : '' }}</span></span>
                       <span v-if="variable.formula" class="text-ds-primary-accent" title="Fórmula">ƒ</span>
                       <i v-if="effectiveNormalidade(variable)" class="bi bi-activity" :class="variable.normalidadeOrigem === 'personalizada' ? 'text-amber-500' : 'text-ds-success'" :title="variable.normalidadeOrigem === 'personalizada' ? 'Normalidade personalizada (só neste modelo)' : 'Normalidade do banco'" />

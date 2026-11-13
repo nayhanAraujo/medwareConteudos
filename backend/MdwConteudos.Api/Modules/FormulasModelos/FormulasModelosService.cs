@@ -6,6 +6,7 @@ using ConversorHtml.Application.Services;
 using Dapper;
 using FirebirdSql.Data.FirebirdClient;
 using MdwConteudos.Api.Infrastructure;
+using MdwConteudos.Api.Modules.StudioDrafts;
 
 namespace MdwConteudos.Api.Modules.FormulasModelos;
 
@@ -431,6 +432,12 @@ public sealed class FormulasModelosService : IFormulasModelosService
         await using var connection = await _connections.OpenConnectionAsync(ct);
         var rows = await LoadCatalogRowsAsync(connection, null, ct);
 
+        return CatalogOptions(rows);
+    }
+
+    private static IReadOnlyList<VariavelOpcao> CatalogOptions(IReadOnlyList<CatalogVariableRow> rows)
+    {
+
         var tokenMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in rows)
         {
@@ -565,6 +572,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
             await EnsureSectionNameAvailable(connection, transaction, modeloId, secaoId, name, ct);
             var variables = NormalizeSectionVariables(request.Variaveis);
             await ValidateVariableIds(connection, transaction, variables.Select(x => x.CodVariavel).ToArray(), ct);
+            var before = await RemovalDocument(connection, transaction, modeloId, ct);
+            var after = before with { Secoes = before.Secoes.Select(s => s.Id == secaoId.ToString() ? s with {
+                Itens = variables.Select(v => new StudioItem($"{secaoId}:{v.CodVariavel}", v.CodVariavel)).ToList() } : s).ToList() };
+            StudioDependencyGuard.Ensure(before, after, CatalogOptions(await LoadCatalogRowsAsync(connection, transaction, ct)), "updateSection");
             await connection.ExecuteAsync(Cmd(@"
                 UPDATE SECAOMODOTEXTO SET NOME = @name
                 WHERE CODSECAO = @secaoId AND CODMODELO = @modeloId",
@@ -587,6 +598,9 @@ public sealed class FormulasModelosService : IFormulasModelosService
         try
         {
             await EnsureSectionOwnership(connection, transaction, modeloId, secaoId, codUsuario, ct);
+            var before = await RemovalDocument(connection, transaction, modeloId, ct);
+            StudioDependencyGuard.Ensure(before, before with {Secoes = before.Secoes.Where(s => s.Id != secaoId.ToString()).ToList()},
+                CatalogOptions(await LoadCatalogRowsAsync(connection, transaction, ct)), "deleteSection");
             await connection.ExecuteAsync(Cmd("DELETE FROM SECAO_VARIAVEL WHERE CODSECAO = @secaoId", new { secaoId }, transaction, ct));
             await connection.ExecuteAsync(Cmd(@"
                 DELETE FROM SECAOMODOTEXTO WHERE CODSECAO = @secaoId AND CODMODELO = @modeloId",
@@ -721,6 +735,10 @@ public sealed class FormulasModelosService : IFormulasModelosService
                 throw new InvalidOperationException("A composição contém uma seção inválida ou repetida.");
 
             var catalog = await LoadCatalogRowsAsync(connection, transaction, ct);
+            var before = await RemovalDocument(connection, transaction, modeloId, ct);
+            var after = new StudioDocument(name, sections.Select((s,index) => new StudioSection(s.CodSecao?.ToString() ?? "new:" + index, s.Nome, s.Coluna,
+                s.Variaveis.Select(v => new StudioItem($"{s.CodSecao}:{v.CodVariavel}", v.CodVariavel)).ToList())).ToList());
+            StudioDependencyGuard.Ensure(before, after, CatalogOptions(catalog), "saveComposition");
             ValidateCompositionDependencies(sections, catalog);
 
             if (await connection.ExecuteScalarAsync<int>(Cmd(@"
@@ -930,17 +948,26 @@ public sealed class FormulasModelosService : IFormulasModelosService
         public string? FunctionName { get; set; }
     }
 
+    private static async Task<StudioDocument> RemovalDocument(FbConnection c, IDbTransaction tx, int modeloId, CancellationToken ct)
+    {
+        var sections = (await c.QueryAsync<(int Code,string Name)>(Cmd("SELECT CODSECAO,NOME FROM SECAOMODOTEXTO WHERE CODMODELO=@modeloId ORDER BY ORDEM,CODSECAO", new {modeloId},tx,ct))).ToArray();
+        var items = (await c.QueryAsync<(int Section,int Variable)>(Cmd("SELECT SV.CODSECAO,SV.CODVARIAVEL FROM SECAO_VARIAVEL SV JOIN SECAOMODOTEXTO S ON S.CODSECAO=SV.CODSECAO WHERE S.CODMODELO=@modeloId",new {modeloId},tx,ct))).ToArray();
+        return new("Modelo",sections.Select(s => new StudioSection(s.Code.ToString(),s.Name,1,items.Where(i => i.Section == s.Code)
+            .Select(i => new StudioItem($"{s.Code}:{i.Variable}",i.Variable)).ToList())).ToList());
+    }
+
     private static async Task EnsureModelOwnership(FbConnection connection, IDbTransaction transaction, int modelId, int userId, CancellationToken ct)
     {
-        if (await connection.ExecuteScalarAsync<int>(Cmd(@"
-                SELECT COUNT(*) FROM MODELOMODOTEXTO
-                WHERE CODMODELO = @modelId AND CODUSUARIO = @userId",
-                new { modelId, userId }, transaction, ct)) == 0)
+        if (await connection.ExecuteScalarAsync<int?>(Cmd(@"
+                SELECT CODMODELO FROM MODELOMODOTEXTO
+                WHERE CODMODELO = @modelId AND CODUSUARIO = @userId WITH LOCK",
+                new { modelId, userId }, transaction, ct)) is null)
             throw new InvalidOperationException("Modelo não encontrado ou sem permissão de acesso.");
     }
 
     private static async Task EnsureSectionOwnership(FbConnection connection, IDbTransaction transaction, int modelId, int sectionId, int userId, CancellationToken ct)
     {
+        await EnsureModelOwnership(connection, transaction, modelId, userId, ct);
         if (await connection.ExecuteScalarAsync<int>(Cmd(@"
                 SELECT COUNT(*)
                 FROM SECAOMODOTEXTO S

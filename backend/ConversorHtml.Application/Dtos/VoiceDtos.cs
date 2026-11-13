@@ -17,6 +17,8 @@ public class VoiceTranscriptEntryDto
 
 public class VoiceSessionResponseDto
 {
+    public string? DocumentHash { get; set; }
+    public object? Dependencies { get; set; }
     public long? Revision { get; set; }
     public bool IsImported { get; set; }
     public Guid Id { get; set; }
@@ -37,6 +39,7 @@ public class VoiceUtteranceRequestDto
 
 public class VoiceUtteranceResponseDto
 {
+    public string? DocumentHash { get; set; }
     public long? Revision { get; set; }
     public string CamposScriptJson { get; set; } = string.Empty;
     public string Summary { get; set; } = string.Empty;

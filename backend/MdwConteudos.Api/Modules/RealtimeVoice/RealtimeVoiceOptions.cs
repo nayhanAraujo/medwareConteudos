@@ -10,7 +10,7 @@ public sealed class RealtimeVoiceOptions
     public int MaxSessionMinutes { get; set; } = 20;
 }
 
-public sealed record RealtimeStart(Guid SessionId, int? ModeloId = null, Guid? RascunhoId = null);
+public sealed record RealtimeStart(Guid SessionId, int? ModeloId = null, Guid? RascunhoId = null, bool InteractiveChoices = false);
 public sealed record RealtimeSelection(long Revision, string? SectionId, string? ItemId);
 public sealed record RealtimeAudio(Guid SessionId, long Sequence, string Audio);
 public sealed record RealtimeConfirmation(Guid SessionId, string ProposalId, long Revision);

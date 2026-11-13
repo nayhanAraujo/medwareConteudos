@@ -14,6 +14,7 @@ public class VoiceSession
     public List<string> ImportedUndo { get; set; } = [];
     public List<string> ImportedRedo { get; set; } = [];
     public object EditGate { get; } = new();
+    public Dictionary<string,string> ManualCommandHashes { get; } = [];
     public List<VoiceTranscriptEntry> TranscriptHistory { get; set; } = [];
     public string? SourceFileName { get; set; }
     public string? ImageBase64 { get; set; }

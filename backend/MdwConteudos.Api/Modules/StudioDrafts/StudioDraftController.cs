@@ -13,7 +13,9 @@ public sealed class StudioErrors : ExceptionFilterAttribute
 {
     public override void OnException(ExceptionContext context)
     {
-        if (context.Exception is StudioException e)
+        if (context.Exception is MeasureInUseException blocked)
+            context.Result = new ConflictObjectResult(new {code = blocked.Code, message = blocked.Message, details = blocked.Details});
+        else if (context.Exception is StudioException e)
             context.Result = new ObjectResult(new { message = e.Message }) { StatusCode = e.Status };
         else if (context.Exception is ArgumentException or System.Text.Json.JsonException or KeyNotFoundException or InvalidOperationException)
             context.Result = new BadRequestObjectResult(new { message = context.Exception.Message });
@@ -27,7 +29,7 @@ public sealed class StudioErrors : ExceptionFilterAttribute
 
 [ApiController, Route("api/voice/rascunhos"), Authorize, StudioErrors, RequestSizeLimit(2 * 1024 * 1024)]
 [RequirePermission("studio", "visualizar")]
-public sealed class StudioDraftController(StudioDraftService drafts, IFormulasModelosService models, IImageMeasureAnalyzer analyzer, StudioChoices choices) : ControllerBase
+public sealed class StudioDraftController(StudioDraftService drafts, IFormulasModelosService models, IImageMeasureAnalyzer analyzer, StudioChoices choices, MdwConteudos.Api.Modules.RealtimeVoice.RealtimeVoiceManager? realtime = null) : ControllerBase
 {
     private int Owner => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     [HttpGet("status")] public async Task<IActionResult> Status(CancellationToken ct) => Ok(new { enabled = await drafts.Available(ct) });
@@ -43,12 +45,42 @@ public sealed class StudioDraftController(StudioDraftService drafts, IFormulasMo
     [HttpPost] public async Task<IActionResult> Create(DraftCreate request, CancellationToken ct) => Ok(await drafts.Create(Owner, request, ct));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Ok(await drafts.Get(id.ToString(), Owner, ct));
     [HttpPost("{id:guid}/comandos")] public async Task<IActionResult> Command(Guid id, DraftCommand request, CancellationToken ct) => Ok(await drafts.Command(id.ToString(), Owner, request, ct));
+    public sealed record SpokenEdit(string Transcript,string CommandId,long ExpectedRevision);
+    [HttpPost("{id:guid}/utterance"), RequirePermission("studio","voz")]
+    public async Task<IActionResult> ApplySpeech(Guid id, SpokenEdit request, [FromServices] IVoiceLaudoService planner, CancellationToken ct)
+    {
+        if(string.IsNullOrWhiteSpace(request.Transcript) || request.Transcript.Length>8000 || !Guid.TryParse(request.CommandId,out _)) throw new StudioException(400,"Informe uma instrução e um identificador válidos.");
+        var group = "voice-step:" + StudioDraftService.Hash(new {request.Transcript,request.ExpectedRevision});
+        var previous=(await drafts.History(id.ToString(),Owner,ct)).FirstOrDefault(h=>h.CommandId.Trim()==request.CommandId);
+        var current=await drafts.Get(id.ToString(),Owner,ct);
+        if(previous is not null){if(previous.Group.Trim()!=group)throw new StudioException(409,"Identificador já utilizado para outra instrução.");return Ok(current);}
+        if(current.Revision!=request.ExpectedRevision)throw new StudioException(409,"O modelo mudou. Confira o estado atual e grave novamente.");
+        if(realtime?.IsActive(id)==true)throw new StudioException(409,"Encerre a conversação contínua antes de aplicar a gravação por etapas.");
+        var catalog=await models.ListVariaveisAsync(ct);
+        var plan=await planner.PlanStructureAsync(current.Document,catalog.Select(v=>new {v.CodVariavel,v.Nome,v.Sigla,v.Unidade,v.Grupo}),request.Transcript,ct);
+        if(plan.Commands is null || plan.Commands.Count is <1 or >20)throw new StudioException(400,"Não foi possível identificar uma alteração estrutural. O modelo foi preservado.");
+        var commands=plan.Commands.Select(call=>{var(type,payload)=StudioRealtimeAdapter.Map(call.Name,call.Arguments);return new DraftCommand(Guid.NewGuid().ToString(),current.Revision,type,System.Text.Json.JsonSerializer.SerializeToElement(payload));}).ToArray();
+        if(commands.Length>1&&commands.Any(c=>c.Type is "undo" or "redo"))throw new StudioException(400,"Solicite desfazer ou refazer separadamente.");
+        var command=commands.Length==1 ? commands[0] with {CommandId=request.CommandId,Group=group,Source="voz"}
+            : new DraftCommand(request.CommandId,current.Revision,"batch",System.Text.Json.JsonSerializer.SerializeToElement(new {commands}),group,"voz");
+        return Ok(await drafts.Command(id.ToString(),Owner,command,ct));
+    }
     [HttpPost("{id:guid}/escolhas")]
     public async Task<IActionResult> ResolveChoice(Guid id, StudioChoice request, CancellationToken ct)
     {
         var revision = choices.Validate(request.Token, id.ToString(), Owner, request.CodVariavel);
-        return Ok(await drafts.Command(id.ToString(), Owner, new(request.CommandId, revision, "addMeasures",
-            System.Text.Json.JsonSerializer.SerializeToElement(new { sectionId = request.SectionId, ids = new[] { request.CodVariavel } })), ct));
+        var updated = await drafts.Command(id.ToString(), Owner, new(request.CommandId, revision, "addMeasures",
+            System.Text.Json.JsonSerializer.SerializeToElement(new { sectionId = request.SectionId, ids = new[] { request.CodVariavel } })), ct);
+        realtime?.CompleteChoice(id, request.Token, updated.Revision);
+        return Ok(updated);
+    }
+    public sealed record DismissChoice(string Token);
+    [HttpPost("{id:guid}/escolhas/cancelar")]
+    public async Task<IActionResult> CancelChoice(Guid id, DismissChoice request, CancellationToken ct)
+    {
+        await drafts.Get(id.ToString(), Owner, ct);
+        realtime?.CompleteChoice(id, request.Token);
+        return NoContent();
     }
     [HttpGet("{id:guid}/comandos/{commandId:guid}")]
     public async Task<IActionResult> CommandResult(Guid id, Guid commandId, CancellationToken ct)

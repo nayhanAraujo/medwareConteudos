@@ -1,7 +1,7 @@
 import { HubConnectionBuilder, HttpTransportType, LogLevel } from '@microsoft/signalr'
 import type { HubConnection } from '@microsoft/signalr'
 
-export function useRealtimeVoice(options?: { draftId?: () => string | null | undefined; onDraft?: (draft: unknown) => void; onChoice?: (choice: unknown) => void }) {
+export function useRealtimeVoice(options?: { interactiveChoices?: boolean; draftId?: () => string | null | undefined; onDraft?: (draft: unknown) => void; onChoice?: (choice: unknown) => void; onBlocked?: (block: unknown) => void; summarize?: (name: string, result: any) => string }) {
   const config = useRuntimeConfig()
   const auth = useAuthStore()
   const store = useVoiceSessionStore()
@@ -11,6 +11,8 @@ export function useRealtimeVoice(options?: { draftId?: () => string | null | und
   const saving = ref(false)
   const error = ref('')
   const speaking = ref(false)
+  const processing = ref(false)
+  const activeTools = new Set<string>()
   const revision = ref(0)
   const activity = ref<string[]>([])
   const proposal = ref<{ proposalId: string; revision: number; modeloId: number; nome: string } | null>(null)
@@ -101,6 +103,7 @@ export function useRealtimeVoice(options?: { draftId?: () => string | null | und
   async function start(modeloId: number | null = null) {
     if (starting.value || connected.value || (!store.sessionId && !options?.draftId?.())) return
     starting.value = true; error.value = ''; activity.value = []; proposal.value = null
+    activeTools.clear();processing.value=false
     sequence = 0; revision.value = 0; sessionId = options?.draftId?.() ? crypto.randomUUID() : store.sessionId
     const base = String(config.public.apiBase || '').replace(/\/$/, '')
     const hub = new HubConnectionBuilder()
@@ -112,36 +115,37 @@ export function useRealtimeVoice(options?: { draftId?: () => string | null | und
       if (!belongs(e)) return
       connected.value = true; revision.value = e.revision
       if (e.draft) options?.onDraft?.(e.draft)
-      else { store.updateCamposScript(e.camposScriptJson); if (store.isImported) store.revision = e.revision }
+      else { store.updateCamposScript(e.camposScriptJson,e.documentHash); store.revision = e.revision }
     })
     hub.on('DraftUpdated', e => {
       if (!belongs(e) || e.revision <= revision.value) return
       if (e.draft) { revision.value = e.revision; options?.onDraft?.(e.draft); return }
       const parsed = JSON.parse(e.camposScriptJson)
       if (!Array.isArray(parsed.camposScript)) { error.value = 'Resposta de rascunho inválida.'; void stop(); return }
-      revision.value = e.revision; store.updateCamposScript(e.camposScriptJson); proposal.value = null
-      if (store.isImported) store.revision = e.revision
+      revision.value = e.revision; store.updateCamposScript(e.camposScriptJson,e.documentHash); proposal.value = null
+      store.revision = e.revision
     })
     hub.on('SpeechState', e => { if (belongs(e)) speaking.value = e.speaking })
-    hub.on('ChoiceRequested', e => { if (belongs(e)) options?.onChoice?.(e) })
+    hub.on('ChoiceRequested', e => { if (belongs(e)) { if (e.draft) options?.onDraft?.(e.draft); options?.onChoice?.(e) } })
     hub.on('Transcript', e => { if (belongs(e)) store.addHistory({ at: new Date().toISOString(), transcript: e.text, sttSource: 'server', summary: 'Fala recebida em tempo real' }) })
-    hub.on('ToolStarted', e => { if (belongs(e)) note(`Executando: ${actionName(e.name)}`) })
-    hub.on('ToolCompleted', e => { if (belongs(e)) note(e.result?.message || `Concluído: ${actionName(e.name)}`) })
-    hub.on('ToolFailed', e => { if (belongs(e)) note(e.result?.message || 'Não foi possível aplicar a ação; o rascunho foi preservado.') })
+    hub.on('ToolStarted', e => { if (belongs(e)) {activeTools.add(e.callId);processing.value=true;note(`Aplicando: ${actionName(e.name)}`)} })
+    hub.on('ToolCompleted', e => { if (belongs(e)) {activeTools.delete(e.callId);processing.value=activeTools.size>0;note(options?.summarize?.(e.name,e.result) || e.result?.message || `Concluído: ${actionName(e.name)}`)} })
+    hub.on('ToolFailed', e => { if (belongs(e)) {activeTools.delete(e.callId);processing.value=activeTools.size>0;if(e.result?.code==='measure_in_use')options?.onBlocked?.(e.result.details);note(e.result?.message || 'Não foi possível aplicar a ação; o rascunho foi preservado.')} })
     hub.on('SaveProposed', e => { if (belongs(e) && e.revision === revision.value) proposal.value = e })
     hub.on('SaveCompleted', e => { if (belongs(e)) { saving.value = false; proposal.value = null; note('Modelo salvo no banco.') } })
     hub.on('SaveFailed', e => { if (belongs(e)) { saving.value = false; error.value = e.message } })
-    hub.on('SessionClosed', e => { if (belongs(e)) { error.value = `${e.message} Código: ${e.code}`; void stop() } })
+    hub.on('SessionClosed', e => { if (connection === hub && belongs(e)) { error.value = `${e.message} Código: ${e.code}`; void stop() } })
     hub.onclose(() => {
       if (connection !== hub) return
       connection = null; connected.value = false; speaking.value = false; proposal.value = null; saving.value = false
+      activeTools.clear();processing.value=false
       error.value ||= 'Conexão encerrada. Seu rascunho foi preservado; conecte novamente para continuar.'
       void releaseMicrophone()
     })
     try {
       await hub.start()
       if (disposed) { await hub.stop(); return }
-      await hub.invoke('StartSession', { sessionId, modeloId, rascunhoId: options?.draftId?.() || null })
+      await hub.invoke('StartSession', { sessionId, modeloId, rascunhoId: options?.draftId?.() || null, interactiveChoices: options?.interactiveChoices === true })
       if (!connected.value) throw new Error('A sessão não confirmou sua configuração.')
       await listen()
     } catch (e) {
@@ -164,10 +168,11 @@ export function useRealtimeVoice(options?: { draftId?: () => string | null | und
   async function stop() {
     const hub = connection
     connection = null; connected.value = false; proposal.value = null; speaking.value = false; saving.value = false
+    activeTools.clear();processing.value=false
     await releaseMicrophone()
     // No reconnect/replay: losing this connection cancels unfinished operations on the server.
-    if (hub) { try { await hub.stop() } catch { /* Already disconnected. */ } }
+    if (hub) { try { if(hub.state === 'Connected') await hub.invoke('StopSession') } catch { /* Disconnected sessions are also stopped server-side. */ } finally { await hub.stop() } }
   }
   onBeforeUnmount(() => { disposed = true; void stop() })
-  return { connected, listening, starting, saving, speaking, error, activity, proposal, revision, start, pause, listen, stop, confirmSave, setContext }
+  return { connected, listening, starting, saving, speaking, processing, error, activity, proposal, revision, start, pause, listen, stop, confirmSave, setContext }
 }

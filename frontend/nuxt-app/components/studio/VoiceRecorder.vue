@@ -103,7 +103,7 @@ const onAudioFile = (event: Event) => {
           variant="secondary"
           :loading="sending"
           :disabled="!localTranscript.trim() || isListening"
-          title="Comandos como: remover peso, adicionar altura em cm, criar seção valvas"
+          title="Comandos como: adicionar altura em cm, mover uma medida ou criar seção Valvas"
           @click="emit('edit')"
         >
           Editar modelo com voz

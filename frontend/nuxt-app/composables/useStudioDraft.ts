@@ -1,4 +1,5 @@
 import type { StudioDraft, StudioRevision, StudioVariable } from '~/types/studioDraft'
+import type {RemovalBlock, DependencyNode} from '~/utils/studioDependencies'
 
 export function useStudioDraft() {
   const api = useApi()
@@ -10,6 +11,8 @@ export function useStudioDraft() {
   const problems = ref<Array<{code: string; message: string; itemId?: string}>>([])
   const busy = ref(false)
   const error = ref('')
+  const blocked = ref<RemovalBlock | null>(null)
+  const dependencies = ref<DependencyNode[]>([])
   const sync = ref('Rascunho salvo')
   const pending = ref<{ commandId: string; expectedRevision: number; type: string; payload: unknown; group?: string } | null>(null)
   const selectedSection = ref<string | null>(null)
@@ -39,11 +42,12 @@ export function useStudioDraft() {
     try {
       const [versions, validation] = await Promise.all([
         api.get<StudioRevision[]>(`/api/voice/rascunhos/${id}/historico`),
-        api.get<{revision: number; metadataHash: string; problems: typeof problems.value}>(`/api/voice/rascunhos/${id}/validacao`)
+        api.get<{revision: number; metadataHash: string; problems: typeof problems.value; dependencies?: DependencyNode[]}>(`/api/voice/rascunhos/${id}/validacao`)
       ])
       if (draft.value?.id !== id) return
       history.value = versions
       problems.value = validation.problems
+      dependencies.value = validation.dependencies || []
       metadataChanged.value = !!preview.value && (validation.metadataHash !== preview.value.metadataHash || validation.revision !== preview.value.revision)
       return true
     } catch (e) { error.value = e instanceof Error ? e.message : 'Não foi possível validar o rascunho.'; return false }
@@ -67,6 +71,9 @@ export function useStudioDraft() {
       accept(await api.post<StudioDraft>(`/api/voice/rascunhos/${draft.value.id}/comandos`, request))
       pending.value = null; sync.value = 'Rascunho salvo'
     } catch (e) {
+      if ((e as {code?: string})?.code === 'measure_in_use') {
+        blocked.value = (e as {details: RemovalBlock}).details; pending.value = null; sync.value = 'Rascunho preservado'; error.value = ''; return
+      }
       error.value = e instanceof Error ? e.message : 'Falha de sincronização'
       sync.value = 'Falha de sincronização — confira o comando pendente'
     } finally { busy.value = false }
@@ -93,8 +100,8 @@ export function useStudioDraft() {
     busy.value = true
     try {
       preview.value = await api.post(`/api/voice/rascunhos/${draft.value.id}/exportar`, { revision: draft.value.revision, format })
-      metadataChanged.value = false
-    } catch (e) { error.value = e instanceof Error ? e.message : 'Falha ao gerar.' } finally { busy.value = false }
+      metadataChanged.value = false;error.value='';return true
+    } catch (e) { error.value = e instanceof Error ? e.message : 'Falha ao gerar.';return false } finally { busy.value = false }
   }
   onMounted(async () => {
     try { await list(); const data = await api.get<{data: StudioVariable[]}>('/api/web/modelos/variaveis'); catalog.value = data.data } catch (e) { error.value = e instanceof Error ? e.message : 'Falha ao abrir o editor.' }
@@ -107,5 +114,5 @@ export function useStudioDraft() {
     }, 5000)
   })
   onBeforeUnmount(() => { disposed = true; if (poll) clearInterval(poll) })
-  return { api, draft, entries, history, catalog, problems, busy, error, sync, pending, selectedSection, selectedItem, preview, outdated, accept, refreshDetails, list, open, create, send, reconcile, discardPending, generate }
+  return { api, draft, entries, history, catalog, problems, busy, error, blocked, dependencies, sync, pending, selectedSection, selectedItem, preview, outdated, accept, refreshDetails, list, open, create, send, reconcile, discardPending, generate }
 }

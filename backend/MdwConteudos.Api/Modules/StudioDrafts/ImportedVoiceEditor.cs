@@ -25,6 +25,7 @@ public static class ImportedVoiceEditor
                 if (source.Count == 0) throw new StudioException(409, "Não há alteração para desfazer/refazer nesta sessão.");
                 doc = JsonSerializer.Deserialize<StudioDocument>(source[^1], StudioDocumentEditor.Json)!;
                 source.RemoveAt(source.Count - 1); target.Add(original);
+                StudioDependencyGuard.Ensure(Document(session), doc, catalog, "restore");
                 StudioJsonImport.EnsureSafeChange(Document(session), doc);
             }
             else
@@ -36,13 +37,14 @@ public static class ImportedVoiceEditor
                 }
                 undo.Add(original); redo.Clear();
             }
+            StudioDependencyGuard.Ensure(Document(session), doc, catalog, "restore");
             var output = StudioJsonImport.Export(doc);
             session.ImportedDocumentJson = JsonSerializer.Serialize(doc, StudioDocumentEditor.Json);
             session.CamposScriptJson = output; session.ImportedUndo = undo; session.ImportedRedo = redo;
             // Bound session-only history; persistent drafts retain their complete history.
             if (session.ImportedUndo.Count > 50) session.ImportedUndo.RemoveAt(0);
             session.ImportedRevision++;
-            return new(output, plan.Summary ?? "Estrutura atualizada.", StudioJsonImport.Problems(doc).Select(p => p.Message).ToArray(), session.ImportedRevision);
+            return new(output, plan.Summary ?? "Estrutura atualizada.", StudioJsonImport.Problems(doc).Select(p => p.Message).ToArray(), session.ImportedRevision, StudioDraftService.Hash(session.ImportedDocumentJson));
         }
     }
 }

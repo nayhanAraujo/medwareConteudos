@@ -157,11 +157,13 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
                     doc = command.Type == "undo" ? StudioDocumentEditor.Reverse(doc, before, after) : StudioDocumentEditor.Reverse(doc, after, before);
                 }
                 details = targets.Select(t => t.Number).ToArray();
+                StudioDependencyGuard.Ensure(row.View().Document, doc, catalog, command.Type);
                 if (doc.ImportedJson is not null) StudioJsonImport.EnsureSafeChange(row.View().Document, doc);
                 else if (StudioDocumentEditor.Validate(doc, catalog).Any(p => p.Code is "cycle" or "duplicate" or "dependency")) throw new StudioException(409, "A reversão invalidaria dependências do rascunho.");
             }
         }
         else if (command.Type is not ("archive" or "unarchive")) doc = StudioDocumentEditor.Apply(doc, command, catalog);
+        StudioDependencyGuard.Ensure(row.View().Document, doc, catalog, command.Type);
         StudioDocumentEditor.Shape(doc);
         var revision = row.Revision + 1; var now = DateTime.UtcNow;
         var archived = command.Type == "archive" ? 1 : command.Type == "unarchive" ? 0 : row.Archived;
@@ -189,9 +191,9 @@ public sealed class StudioDraftService(IFirebirdConnectionFactory db, FormulasMo
     public async Task<object> Validate(string id, int owner, CancellationToken ct)
     {
         var draft = await Get(id, owner, ct);
-        if (draft.Document.ImportedJson is not null) return new { revision = draft.Revision, metadataHash = Hash(draft.Document), problems = StudioDocumentEditor.Validate(draft.Document, []) };
+        if (draft.Document.ImportedJson is not null) return new { revision = draft.Revision, metadataHash = Hash(draft.Document), problems = StudioDocumentEditor.Validate(draft.Document, []), dependencies = StudioDependencyGuard.Graph(draft.Document,[]) };
         var catalog = await models.ListVariaveisAsync(ct);
-        return new { revision = draft.Revision, metadataHash = Hash(catalog), problems = StudioDocumentEditor.Validate(draft.Document, catalog) };
+        return new { revision = draft.Revision, metadataHash = Hash(catalog), problems = StudioDocumentEditor.Validate(draft.Document, catalog), dependencies = StudioDependencyGuard.Graph(draft.Document,catalog) };
     }
     public async Task<(GeneratedModel File, long Revision, string MetadataHash)> Export(string id, int owner, long revision, string format, CancellationToken ct)
     {

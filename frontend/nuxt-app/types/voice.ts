@@ -10,6 +10,8 @@ export interface VoiceTranscriptEntry {
 }
 
 export interface VoiceSessionResponse {
+  documentHash?: string | null
+  dependencies?: import('~/utils/studioDependencies').DependencyNode[]
   revision?: number | null
   isImported?: boolean
   id: string
@@ -22,6 +24,7 @@ export interface VoiceSessionResponse {
 }
 
 export interface VoiceUtteranceResponse {
+  documentHash?: string | null
   revision?: number | null
   camposScriptJson: string
   summary: string

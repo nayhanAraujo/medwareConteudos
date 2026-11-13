@@ -28,7 +28,7 @@ public static class StudioRealtimeAdapter
             : selection?.Revision == revision && selection.SectionId is { } selected ? selected : throw new StudioException(409, "Selecione uma seção atual ou informe o destino.");
         var (type, payload) = Map(name, p, Section);
         var updated = await drafts.Command(id, owner, new(commandId, revision, type, JsonSerializer.SerializeToElement(payload), Group: group, Source: "voz"), ct);
-        return new { status = "completed", draft = updated };
+        return new { status = "completed", draft = updated, operation = new {type, payload} };
     }
     public static (string Type, object Payload) Map(string name, JsonElement p, Func<string>? contextualSection = null)
     {

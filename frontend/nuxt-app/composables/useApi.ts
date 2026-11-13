@@ -15,6 +15,9 @@ export function useApi() {
     const message = data?.message || data?.error || `Erro HTTP ${status}`
     return data?.traceId ? `${message} Código de atendimento: ${data.traceId}` : message
   }
+  function failure(data: {message?: string; error?: string; traceId?: string; code?: string; details?: unknown}, status: number) {
+    return Object.assign(new Error(errorMessage(data,status)), {status, code: data?.code, details: data?.details, traceId: data?.traceId})
+  }
 
   async function handleUnauthorized() {
     auth.logout()
@@ -43,7 +46,7 @@ export function useApi() {
       await handleUnauthorized()
     }
     if (!res.ok) {
-      throw new Error(errorMessage(data, res.status))
+      throw failure(data, res.status)
     }
     return data as T
   }
@@ -56,7 +59,7 @@ export function useApi() {
     if (res.status === 401 && !path.includes('/api/web/auth/login')) {
       await handleUnauthorized()
     }
-    if (!res.ok) throw new Error(errorMessage(data, res.status))
+    if (!res.ok) throw failure(data, res.status)
     return data as T
   }
 
@@ -69,7 +72,7 @@ export function useApi() {
     }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      throw new Error(errorMessage(data, res.status))
+      throw failure(data, res.status)
     }
     return res.blob()
   }

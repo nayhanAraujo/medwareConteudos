@@ -3,11 +3,16 @@ import type { ConversionFormat, ConversionRecord } from '~/types/conversion'
 import type { VoiceUtteranceIntent } from '~/types/voice'
 import { resolveConversionContent } from '~/utils/conversionFormat'
 import type { VoiceSessionResponse } from '~/types/voice'
+import type {RemovalBlock} from '~/utils/studioDependencies'
 
 definePageMeta({ layout: 'studio', studioAction: 'voz' })
 const integrated = ref(false)
 const integratedAvailable = ref(false)
-onMounted(async () => { try { integratedAvailable.value = (await useApi().get<{enabled: boolean}>('/api/voice/rascunhos/status')).enabled } catch {} })
+const capabilities=ref({guidedVoice:false,persistentDrafts:false,realtimeVoice:false,conventionalVoice:true})
+const conventionalOptions=ref(false)
+const voiceBlock=ref<RemovalBlock|null>(null)
+const temporaryView=ref<{locate:(block:RemovalBlock)=>void}|null>(null)
+onMounted(async () => { try { capabilities.value=await useApi().get<typeof capabilities.value>('/api/voice/capabilities');integratedAvailable.value=capabilities.value.persistentDrafts } catch {try{integratedAvailable.value=(await useApi().get<{enabled:boolean}>('/api/voice/rascunhos/status')).enabled}catch{}} })
 
 const voiceStore = useVoiceSessionStore()
 const conversionStore = useConversionStore()
@@ -116,13 +121,13 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
   try {
     const result = await applyUtterance(sessionId, text, effectiveIntent, 'browser')
     if (voiceStore.sessionId !== sessionId) return false
-    if (voiceStore.isImported && result.revision != null && result.revision < voiceStore.revision) return false
+    if (result.revision != null && result.revision < voiceStore.revision) return false
     const model = JSON.parse(result.camposScriptJson)
     if (!Array.isArray(model?.camposScript) || (hasModel.value && model.camposScript.length === 0)) {
       throw new Error('O processamento retornou um modelo inválido ou vazio. O laudo anterior foi preservado.')
     }
-    voiceStore.updateCamposScript(result.camposScriptJson)
-    if (voiceStore.isImported && result.revision != null) voiceStore.revision = result.revision
+    voiceStore.updateCamposScript(result.camposScriptJson,result.documentHash)
+    if (result.revision != null) voiceStore.revision = result.revision
     voiceStore.addHistory({
       at: new Date().toISOString(),
       transcript: text,
@@ -168,6 +173,7 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
     return hasFields && !isWarning
   } catch (e: unknown) {
     if (voiceStore.sessionId === sessionId) voiceStore.updateCamposScript(previousModel)
+    if((e as {code?:string})?.code==='measure_in_use'){voiceBlock.value=(e as {details:RemovalBlock}).details;return false}
     const msg = e instanceof Error ? e.message : 'Falha ao processar fala'
     toast(msg, 'error')
     return false
@@ -274,9 +280,11 @@ const onGenerate = async () => {
     }
     conversionStore.setCurrent(record)
     toast('Laudo gerado', result.validation.isValid ? 'success' : 'warning')
+    return true
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Falha ao gerar laudo'
     toast(msg, 'error')
+    return false
   } finally {
     generating.value = false
     stopProgress()
@@ -286,6 +294,8 @@ const onGenerate = async () => {
 const onOpenEditor = () => {
   router.push('/studio/editor')
 }
+async function guidedDownload(){if(!await onGenerate())return;if(outputFormat.value==='jsonStudio')downloadJson(generatedText.value,'modelo.json');else if(outputFormat.value==='modoTexto')downloadText(generatedText.value,'modelo.txt');else if(outputFormat.value==='html')downloadHtml(generatedHtml.value,'modelo.html')}
+function locateVoiceDependents(block:RemovalBlock){if(temporaryView.value){temporaryView.value.locate(block);return}const target=block.dependents[0]?.measure;if(!target)return;nextTick(()=>[...document.querySelectorAll<HTMLElement>('[data-source-id]')].find(e=>e.dataset.sourceId===(target.sourceId??target.itemId))?.scrollIntoView({behavior:'smooth',block:'center'}))}
 
 const onNewSession = () => {
   if (sending.value || generating.value || realtimeActive.value) return
@@ -301,6 +311,15 @@ const onNewSession = () => {
 
 <template>
   <div>
+    <StudioDependencyNotice :block="voiceBlock" @close="voiceBlock=null" @locate="locateVoiceDependents" />
+    <div v-if="capabilities.guidedVoice&&!conventionalOptions" class="mx-auto max-w-[1680px] px-4 py-6 sm:px-6">
+      <p class="mb-4 text-sm text-ds-text-secondary">Abra um modelo, fale a alteração e confira o resultado antes de salvar ou baixar.</p>
+      <StudioIntegratedEditor v-if="capabilities.persistentDrafts" guided :realtime-available="capabilities.realtimeVoice" />
+      <StudioTemporaryVoice v-else ref="temporaryView" :realtime-available="capabilities.realtimeVoice" :busy="showProgress" :listening="isListening" :speech-supported="isSupported" :speech-error="speechError" v-model:transcript="editableTranscript" @started="session=>onJsonImported({session})" @speak="startSpeech" @stop="stopSpeech" @apply="onBuildModel" @download="guidedDownload" @blocked="voiceBlock=$event" />
+      <details class="mt-6 rounded border border-ds-divider p-4 text-sm"><summary>Outras opções de edição</summary><button class="mt-3 rounded border border-ds-divider p-2" @click="conventionalOptions=true">Abrir fluxo convencional</button></details>
+    </div>
+    <template v-else>
+    <button v-if="capabilities.guidedVoice" class="m-4 rounded border border-ds-divider p-2" :disabled="realtimeActive||isListening||showProgress" @click="conventionalOptions=false">Voltar à edição guiada</button>
     <label v-if="integratedAvailable" class="mb-4 flex items-center gap-2 text-sm"><input v-model="integrated" type="checkbox" :disabled="realtimeActive"> Usar editor integrado com rascunhos e versões</label>
     <StudioIntegratedEditor v-if="integrated" />
     <template v-else>
@@ -343,7 +362,7 @@ const onNewSession = () => {
               <input v-model="realtimeEnabled" type="checkbox" :disabled="showProgress || realtimeActive">
               Usar agente de voz em tempo real (xAI)
             </label>
-            <StudioRealtimeVoicePanel v-if="realtimeEnabled" @active="realtimeActive = $event" />
+            <StudioRealtimeVoicePanel v-if="realtimeEnabled" @active="realtimeActive = $event" @blocked="voiceBlock=$event" />
             <StudioVoiceRecorder
               :imported="voiceStore.isImported"
               v-else
@@ -413,6 +432,7 @@ const onNewSession = () => {
         </div>
       </template>
     </StudioDsPageShell>
+    </template>
     </template>
   </div>
 </template>

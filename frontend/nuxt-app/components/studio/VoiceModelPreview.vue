@@ -3,7 +3,12 @@ import type { CampoScript } from '~/types/voice'
 
 const props = defineProps<{
   campos: CampoScript[]
+  friendly?:boolean
+  removable?:boolean
+  disabled?:boolean
+  title?:string
 }>()
+const emit=defineEmits<{remove:[sourceId:string]}>()
 
 const grouped = computed(() => {
   const sections: Array<{ title: string; fields: CampoScript[] }> = []
@@ -34,7 +39,7 @@ const grouped = computed(() => {
 </script>
 
 <template>
-  <StudioDsCard title="Modelo (camposScript)">
+  <StudioDsCard :title="title||(friendly?'Seu modelo':'Modelo (camposScript)')">
     <div v-if="!campos.length" class="text-sm text-ds-muted">
       Modelo vazio. Use o microfone para adicionar campos.
     </div>
@@ -45,11 +50,12 @@ const grouped = computed(() => {
           <li
             v-for="(field, fi) in section.fields"
             :key="`${field.nome}-${fi}`"
+            :data-source-id="field.id" tabindex="-1"
             class="flex flex-wrap items-center gap-2 text-sm text-ds-text-secondary"
           >
             <span class="text-ds-text">{{ field.descricao }}</span>
-            <span v-if="field.nome" class="rounded bg-ds-surface-elevated px-1.5 py-0.5 text-xs font-mono">{{ field.nome }}</span>
-            <span v-if="field.tipo" class="text-xs text-ds-muted">({{ field.tipo }})</span>
+            <span v-if="field.nome&&!friendly" class="rounded bg-ds-surface-elevated px-1.5 py-0.5 text-xs font-mono">{{ field.nome }}</span>
+            <span v-if="field.tipo&&!friendly" class="text-xs text-ds-muted">({{ field.tipo }})</span>
             <span v-if="field.medida" class="text-xs">{{ field.medida }}</span>
             <span
               v-for="(ref, ri) in field.referenciaNormalidade ?? []"
@@ -58,6 +64,7 @@ const grouped = computed(() => {
             >
               {{ ref.sexo }}: {{ ref.valorMin }}–{{ ref.valorMax }}
             </span>
+            <button v-if="removable&&field.id!=null" type="button" :disabled="disabled" class="ml-auto rounded border border-ds-divider px-2 py-1 text-xs disabled:opacity-50" @click="emit('remove',String(field.id))">Remover</button>
           </li>
         </ul>
       </div>

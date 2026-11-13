@@ -43,8 +43,10 @@ public sealed class RealtimeVoiceSession
     private readonly List<CancellationTokenSource> _operationTokens = [];
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
     private readonly object _gate = new();
+    private readonly RealtimeChoiceGate _choiceGate = new();
     private readonly RealtimeDraft _draft;
     private readonly Guid? _persistentId;
+    private readonly bool _interactiveChoices;
     private long _persistentRevision;
     private RealtimeSelection? _selection;
     private string _turnGroup = Guid.NewGuid().ToString();
@@ -61,21 +63,27 @@ public sealed class RealtimeVoiceSession
     private string? _savedProposal;
     public Guid Id => _stored.Id;
     public bool IsStopped => _sessionToken.IsCancellationRequested;
-    private sealed record Call(string Id, string Response, string Name, string Arguments, string Group, long Generation, CancellationToken Token, long Revision, string OperationGroup);
-    private sealed class Batch { public int Pending; public bool Closed; public bool Continued; public bool Cancelled; }
+    private sealed record Call(string Id, string Response, string Name, string Arguments, string Group, long Generation, CancellationToken Token, long Revision, string OperationGroup, long ChoiceEpoch);
+    private sealed class Batch { public int Pending; public bool Closed; public bool Continued; public bool Cancelled; public bool AwaitingChoice; }
     private sealed record Proposal(string Id, long Revision, SalvarComposicaoRequest Composition);
 
     public RealtimeVoiceSession(string connection, ClaimsPrincipal user, VoiceSession stored, int? model, string key,
         RealtimeVoiceOptions config, IVoiceSessionStore store, IServiceScopeFactory scopes, Func<string, object, Task> emit,
-        CancellationToken stopping, ILogger log, IRealtimeVoiceTransport? transport = null, Action<RealtimeVoiceSession>? ended = null, Guid? persistentId = null)
+        CancellationToken stopping, ILogger log, IRealtimeVoiceTransport? transport = null, Action<RealtimeVoiceSession>? ended = null, Guid? persistentId = null, bool interactiveChoices = false)
     {
         _connection = connection; _user = user; _stored = stored; _model = model; _config = config;
         _store = store; _scopes = scopes; _emit = emit; _log = log;
         _ended = ended;
         _persistentId = persistentId;
+        _interactiveChoices = interactiveChoices || persistentId.HasValue;
         _persistentRevision = stored.ImportedRevision;
         _socket = transport ?? new XaiVoiceTransport(key);
-        _draft = new RealtimeDraft(stored.CamposScriptJson); _expectedJson = stored.CamposScriptJson;
+        _draft = new RealtimeDraft(stored.CamposScriptJson, stored.ImportedRevision); _expectedJson = stored.CamposScriptJson;
+        if (persistentId is null && stored.ImportedDocumentJson is null)
+        {
+            stored.CamposScriptJson = _expectedJson = _draft.Render();
+            store.Update(stored);
+        }
         _cts = CancellationTokenSource.CreateLinkedTokenSource(stopping);
         _sessionToken = _cts.Token;
         _cts.CancelAfter(TimeSpan.FromMinutes(Math.Clamp(config.MaxSessionMinutes, 1, 60)));
@@ -109,7 +117,7 @@ public sealed class RealtimeVoiceSession
                 await using var scope = _scopes.CreateAsyncScope();
                 await _emit("SessionReady", new { sessionId = Id, revision = _persistentRevision, draft = await scope.ServiceProvider.GetRequiredService<StudioDraftService>().Get(current.ToString(), int.Parse(_stored.OwnerUserId), timeout.Token) });
             }
-            else await _emit("SessionReady", new { sessionId = Id, revision = _stored.ImportedDocumentJson is not null ? _stored.ImportedRevision : _draft.Revision, camposScriptJson = _stored.ImportedDocumentJson is not null ? _stored.CamposScriptJson : _draft.Render() });
+            else await _emit("SessionReady", new { sessionId = Id, revision = _stored.ImportedDocumentJson is not null ? _stored.ImportedRevision : _draft.Revision, camposScriptJson = _stored.ImportedDocumentJson is not null ? _stored.CamposScriptJson : _draft.Render(), documentHash = StudioDraftService.Hash(_stored.ImportedDocumentJson??_stored.CamposScriptJson) });
         }
         catch (Exception ex)
         {
@@ -287,8 +295,13 @@ public sealed class RealtimeVoiceSession
             _groups[group] = (generation, cts);
             if (!_batches.TryGetValue(response, out var batch)) _batches[response] = batch = new Batch();
             batch.Pending++;
-            if (!_tools.Writer.TryWrite(new Call(id, response, e.GetProperty("name").GetString()!, arguments, group, generation, cts.Token, Interlocked.Read(ref _persistentRevision), _persistentId.HasValue ? _responseGroups.GetValueOrDefault(response, _turnGroup) : group)))
+            var name = e.GetProperty("name").GetString()!;
+            var choiceEpoch = _choiceGate.Queue(id, name);
+            if (!_tools.Writer.TryWrite(new Call(id, response, name, arguments, group, generation, cts.Token, Interlocked.Read(ref _persistentRevision), _persistentId.HasValue ? _responseGroups.GetValueOrDefault(response, _turnGroup) : group, choiceEpoch)))
+            {
+                _choiceGate.EndSearch(id);
                 throw new InvalidOperationException("Tool queue saturated.");
+            }
         }
     }
 
@@ -299,7 +312,7 @@ public sealed class RealtimeVoiceSession
         var ready = _batches.Values.Where(b => b.Closed && b.Pending == 0 && !b.Continued).ToArray();
         if (ready.Length == 0) return;
         foreach (var b in ready) b.Continued = true;
-        if (ready.Any(b => !b.Cancelled)) { _responseActive = true; Send(new { type = "response.create" }); }
+        if (!_choiceGate.HasPending && ready.Any(b => !b.Cancelled && !b.AwaitingChoice)) { _responseActive = true; Send(new { type = "response.create" }); }
     }
 
     private async Task WorkerAsync()
@@ -322,8 +335,10 @@ public sealed class RealtimeVoiceSession
                     var commands = scope.ServiceProvider.GetRequiredService<StudioDraftService>();
                     var commandId = Guid.ParseExact(StudioDraftService.Hash($"{Id}:{call.Id}")[..32], "N").ToString();
                     EnsureCurrent(call);
-                    result = await StudioRealtimeAdapter.Execute(commands, persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Name,
-                        parsed.RootElement, commandId, call.Revision, _selection, call.Token, call.OperationGroup);
+                    result = _choiceGate.CanExecute(call.ChoiceEpoch, call.Name)
+                        ? await StudioRealtimeAdapter.Execute(commands, persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Name,
+                            parsed.RootElement, commandId, call.Revision, _selection, call.Token, call.OperationGroup)
+                        : new { status = _choiceGate.RequiresDecision(call.ChoiceEpoch) ? "awaiting_user_choice" : "retry_after_search", message = "Aguarde a consulta terminar e, se houver sugestões, a escolha ou o cancelamento na interface. Não adivinhe uma opção." };
                     var payload = JsonSerializer.SerializeToElement(result, StudioDocumentEditor.Json);
                     if (payload.TryGetProperty("draft", out var updated))
                     {
@@ -331,9 +346,17 @@ public sealed class RealtimeVoiceSession
                         await _emit("DraftUpdated", new { sessionId = Id, revision = _persistentRevision, draft = updated, commandId, callId = call.Id });
                     }
                     if (payload.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 1)
-                        await _emit("ChoiceRequested", new { sessionId = Id, revision = call.Revision, candidates, sectionId = _selection?.SectionId,
-                            token = scope.ServiceProvider.GetRequiredService<StudioChoices>().Issue(persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Revision, candidates.EnumerateArray().Select(x => x.GetProperty("codVariavel").GetInt32())) });
+                    {
+                        var current = await commands.Get(persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Token);
+                        var token = scope.ServiceProvider.GetRequiredService<StudioChoices>().Issue(persistent.ToString(), int.Parse(_stored.OwnerUserId), current.Revision, candidates.EnumerateArray().Select(x => x.GetProperty("codVariavel").GetInt32()));
+                        var offered = _choiceGate.Offer(call.ChoiceEpoch, token);
+                        result = new { status = "awaiting_user_choice", message = "Aguarde a seleção explícita na interface.", candidates, revision = current.Revision };
+                        if (offered)
+                            await _emit("ChoiceRequested", new { sessionId = Id, draftId = persistent.ToString(), revision = current.Revision, draft = current, candidates, sectionId = _selection?.SectionId, token });
+                    }
                 }
+                else if (_interactiveChoices && !_choiceGate.CanExecute(call.ChoiceEpoch, call.Name))
+                    result = new { status = _choiceGate.RequiresDecision(call.ChoiceEpoch) ? "awaiting_user_choice" : "retry_after_search", message = "Aguarde a escolha ou o cancelamento na interface. Não adivinhe uma medida." };
                 else if (_stored.ImportedDocumentJson is not null && call.Name != "buscar_medidas")
                 {
                     if (call.Name == "consultar_rascunho") result = new { status = "completed", revision = _stored.ImportedRevision, document = ImportedVoiceEditor.Document(_stored) };
@@ -347,7 +370,7 @@ public sealed class RealtimeVoiceSession
                         Interlocked.Exchange(ref _persistentRevision, _stored.ImportedRevision);
                         _store.Update(_stored);
                         result = new { status = "completed", revision = _stored.ImportedRevision, document = ImportedVoiceEditor.Document(_stored), warnings = edit.Warnings };
-                        await _emit("DraftUpdated", new { sessionId = Id, revision = _stored.ImportedRevision, camposScriptJson = _expectedJson, callId = call.Id });
+                        await _emit("DraftUpdated", new { sessionId = Id, revision = _stored.ImportedRevision, camposScriptJson = _expectedJson, documentHash = StudioDraftService.Hash(_stored.ImportedDocumentJson??_stored.CamposScriptJson), callId = call.Id });
                     }
                 }
                 else if (call.Name == "buscar_medidas")
@@ -355,9 +378,21 @@ public sealed class RealtimeVoiceSession
                     var search = parsed.RootElement.GetProperty("busca").GetString()!;
                     var catalog = await service.ListVariaveisAsync(call.Token);
                     EnsureCurrent(call);
-                    result = new { status = "completed", medidas = catalog.Where(v => System.Globalization.CultureInfo.GetCultureInfo("pt-BR").CompareInfo.IndexOf($"{v.Nome} {v.Sigla} {v.Grupo}", search,
+                    var matches = catalog.Where(v => System.Globalization.CultureInfo.GetCultureInfo("pt-BR").CompareInfo.IndexOf($"{v.Nome} {v.Sigla} {v.Grupo}", search,
                             System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.IgnoreNonSpace) >= 0)
-                        .Take(30).Select(v => new { v.CodVariavel, v.Nome, v.Sigla, v.Grupo, v.Unidade, v.Dependencias }) };
+                        .Take(30).ToArray();
+                    result = new { status = "completed", medidas = matches };
+                    if (_interactiveChoices && matches.Length > 1)
+                    {
+                        var token = scope.ServiceProvider.GetRequiredService<StudioChoices>().Issue(Id.ToString(), int.Parse(_stored.OwnerUserId), _stored.ImportedRevision, matches.Select(v=>v.CodVariavel));
+                        var sections = _stored.ImportedDocumentJson is not null
+                            ? ImportedVoiceEditor.Document(_stored).Secoes.Select(s=>new {id=s.Id,nome=s.Nome})
+                            : System.Text.Json.Nodes.JsonNode.Parse(_stored.CamposScriptJson)!["camposScript"]!.AsArray().OfType<System.Text.Json.Nodes.JsonObject>()
+                                .Where(f=>StudioJsonImport.Text(f,"tipo")=="etiqueta").Select(f=>new {id=f["id"]!.ToString(),nome=StudioJsonImport.Text(f,"descricao")});
+                        if (_choiceGate.Offer(call.ChoiceEpoch, token))
+                            await _emit("ChoiceRequested",new {sessionId=Id,draftId=Id.ToString(),revision=_stored.ImportedRevision,candidates=matches,sections=sections.ToArray(),token});
+                        result = new {status="awaiting_user_choice",message="Aguarde a escolha explícita na interface."};
+                    }
                 }
                 else
                 {
@@ -386,9 +421,11 @@ public sealed class RealtimeVoiceSession
                                 result = new { status = "completed", edit = _draft.Apply(call.Name, parsed.RootElement, catalog), campos = _draft.Describe() };
                                 _proposal = null;
                                 _stored.CamposScriptJson = _expectedJson = _draft.Render();
+                                _stored.ImportedRevision = _draft.Revision;
+                                Interlocked.Exchange(ref _persistentRevision, _draft.Revision);
                                 _store.Update(_stored);
                             }
-                            await _emit("DraftUpdated", new { sessionId = Id, revision = _draft.Revision, camposScriptJson = _expectedJson, callId = call.Id });
+                            await _emit("DraftUpdated", new { sessionId = Id, revision = _draft.Revision, camposScriptJson = _expectedJson, documentHash = StudioDraftService.Hash(_stored.CamposScriptJson), callId = call.Id });
                         }
                     }
                     finally { _mutation.Release(); }
@@ -399,7 +436,8 @@ public sealed class RealtimeVoiceSession
             catch (OperationCanceledException) { result = new { status = "cancelled", message = "Operação substituída ou cancelada." }; }
             catch (Exception ex)
             {
-                result = new { status = "error", message = ex is InvalidOperationException or HubException ? ex.Message : "Falha ao executar a ferramenta. Rascunho preservado." };
+                result = ex is MeasureInUseException blocked ? new {status = "error", code = blocked.Code, message = blocked.Message, details = blocked.Details} :
+                    (object)new { status = "error", message = ex is InvalidOperationException or HubException ? ex.Message : "Falha ao executar a ferramenta. Rascunho preservado." };
                 await _emit("ToolFailed", new { sessionId = Id, callId = call.Id, result });
             }
             lock (_gate)
@@ -409,9 +447,19 @@ public sealed class RealtimeVoiceSession
                 _log.LogInformation("Realtime tool session={SessionId} call={CallId} response={ResponseId} name={ToolName} status={Status} durationMs={DurationMs}",
                     Id, call.Id, call.Response, call.Name, JsonSerializer.SerializeToElement(result).GetProperty("status").GetString(), started.ElapsedMilliseconds);
                 Send(new { type = "conversation.item.create", item = new { type = "function_call_output", call_id = call.Id, output = JsonSerializer.Serialize(result) } });
+                if (JsonSerializer.SerializeToElement(result).GetProperty("status").GetString() == "awaiting_user_choice") _batches[call.Response].AwaitingChoice = true;
+                _choiceGate.EndSearch(call.Id);
                 _batches[call.Response].Pending--; ContinueReadyBatches();
             }
         }
+    }
+
+    public void CompleteChoice(string token, long? revision = null)
+    {
+        if (!_choiceGate.Complete(token) || !revision.HasValue) return;
+        long current;
+        do { current = Interlocked.Read(ref _persistentRevision); if (current >= revision.Value) return; }
+        while (Interlocked.CompareExchange(ref _persistentRevision, revision.Value, current) != current);
     }
 
     private void EnsureCurrent(Call call)

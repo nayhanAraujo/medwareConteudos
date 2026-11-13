@@ -70,6 +70,22 @@ compartilhada para o armazenamento de sessões.
 
 ## Protocolo e consistência
 
+No editor integrado, uma busca ambígua abre sugestões e pausa as alterações do
+agente até a escolha explícita ou **Cancelar sugestões**. Consultas paralelas não
+podem substituir a pergunta nem incluir automaticamente uma das candidatas.
+O áudio continua sendo recebido; não há continuação automática do agente enquanto
+a pergunta aguarda decisão. Após escolher, prossiga com a próxima instrução de voz.
+
+A janela não fecha por atualização periódica ou mudança da revisão. Se outra
+edição invalidar seu contexto, ela permanece visível com aviso e exige cancelar
+e solicitar novas sugestões. Erros de aplicação ficam dentro da janela; repetir
+a tentativa usa o mesmo identificador, evitando inclusão duplicada. A seção
+escolhida na janela é independente de mudanças de seleção no canvas.
+
+`POST /api/voice/rascunhos/{id}/escolhas/cancelar` recebe `{token}` e libera a
+pergunta da sessão ativa somente após conferir a propriedade do rascunho.
+A seleção continua usando ticket privado, candidatos autorizados e revisão esperada.
+
 - Hub: `StartSession({sessionId, modeloId?})`, `AppendAudio({sessionId, sequence, audio})`,
   `ConfirmSave({sessionId, proposalId, revision})`, `StopSession()`.
 - Áudio: blocos de 40 ms = 960 amostras PCM16 little-endian mono a 24 kHz,

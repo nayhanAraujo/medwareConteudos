@@ -61,7 +61,7 @@ public sealed class RealtimeVoiceManager(
                 {
                     _connections.TryRemove(new KeyValuePair<string, RealtimeVoiceSession>(connection, ended));
                     _drafts.TryRemove(new KeyValuePair<Guid, string>(request.RascunhoId ?? ended.Id, connection));
-                }, persistentId: request.RascunhoId);
+                }, persistentId: request.RascunhoId, interactiveChoices: request.InteractiveChoices);
             _connections[connection] = session; _drafts[request.RascunhoId ?? draft.Id] = connection;
         }
         finally { _startGate.Release(); }
@@ -93,6 +93,12 @@ public sealed class RealtimeVoiceManager(
         if (!_connections.TryGetValue(connection, out var s) || s.Id != id || s.IsStopped)
             throw new HubException("Sessão encerrada. O rascunho foi preservado; inicie novamente.");
         return s;
+    }
+
+    public void CompleteChoice(Guid draftId, string token, long? revision = null)
+    {
+        if (_drafts.TryGetValue(draftId, out var connection) && _connections.TryGetValue(connection, out var session))
+            session.CompleteChoice(token, revision);
     }
 
     public async Task StopAsync(string connection)

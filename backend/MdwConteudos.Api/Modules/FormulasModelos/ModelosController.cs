@@ -10,6 +10,7 @@ namespace MdwConteudos.Api.Modules.FormulasModelos;
 [ApiController]
 [Route("api/web/modelos")]
 [Authorize]
+[MdwConteudos.Api.Modules.StudioDrafts.StudioErrors]
 public sealed class ModelosController : ControllerBase
 {
     private readonly IFormulasModelosService _service;

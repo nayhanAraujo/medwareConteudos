@@ -21,6 +21,11 @@ public static class StudioDocumentEditor
         StudioSection Section(string key = "sectionId") => doc.Secoes.FirstOrDefault(s => s.Id == Text(key)) ?? throw new StudioException(400, "Seção não encontrada.");
         switch (command.Type)
         {
+            case "batch":
+                var batch = p.GetProperty("commands").Deserialize<List<DraftCommand>>(Json) ?? [];
+                if (batch.Count is < 1 or > 20 || batch.Any(c => c.Type is not ("rename" or "createSection" or "editSection" or "addMeasures" or "moveItem"))) throw new StudioException(400,"Solicite operações estruturais válidas.");
+                foreach (var child in batch) doc = Apply(doc, child, catalog);
+                return doc;
             case "rename": doc = doc with { Nome = Title(Text("name")) }; break;
             case "createSection":
                 var col = p.GetProperty("column").GetInt32();
@@ -74,6 +79,7 @@ public static class StudioDocumentEditor
                 break;
             default: throw new StudioException(400, "Comando não permitido.");
         }
+        StudioDependencyGuard.Ensure(original, doc, catalog, command.Type);
         if (doc.ImportedJson is not null) doc = StudioJsonImport.Synchronize(original, doc, catalog);
         Shape(doc);
         var structural = Validate(doc, catalog).FirstOrDefault(e => e.Code is "duplicate" or "cycle");

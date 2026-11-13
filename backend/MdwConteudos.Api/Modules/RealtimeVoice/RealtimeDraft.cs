@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using ConversorHtml.Application.Services;
 using MdwConteudos.Api.Modules.FormulasModelos;
+using MdwConteudos.Api.Modules.StudioDrafts;
 
 namespace MdwConteudos.Api.Modules.RealtimeVoice;
 
@@ -15,8 +16,9 @@ public sealed class RealtimeDraft
     private JsonArray Fields => _root["camposScript"]!.AsArray();
     private sealed record Edit(string Group, Dictionary<int, JsonNode?> Before, Dictionary<int, JsonNode?> After);
 
-    public RealtimeDraft(string json)
+    public RealtimeDraft(string json, long revision = 0)
     {
+        Revision = revision;
         _root = JsonNode.Parse(json)?.AsObject() ?? throw new InvalidOperationException("Rascunho inválido.");
         if (_root["camposScript"] is not JsonArray fields) throw new InvalidOperationException("Rascunho inválido.");
         // Assign stable identities also to legacy voice models.
@@ -52,6 +54,7 @@ public sealed class RealtimeDraft
             if (name == "desfazer_alteracao")
             {
                 Undo(group);
+                StudioDependencyGuard.EnsureVoice(original.ToJsonString(), _root.ToJsonString(), catalog);
                 ValidateDependencies(catalog);
                 Revision++;
                 return new { revision = Revision };
@@ -112,6 +115,7 @@ public sealed class RealtimeDraft
                     }
                 }
             }
+            StudioDependencyGuard.EnsureVoice(original.ToJsonString(), _root.ToJsonString(), catalog);
             ValidateDependencies(catalog);
             if (Fields.Count > 500) throw new InvalidOperationException("Limite de 500 itens por rascunho atingido.");
             var after = Snapshot();

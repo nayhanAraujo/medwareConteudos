@@ -2,7 +2,7 @@ using ConversorHtml.Domain.Enums;
 using ConversorHtml.Domain.Models;
 namespace ConversorHtml.Application.Interfaces;
 
-public record VoiceApplyResult(string CamposScriptJson, string Summary, IReadOnlyList<string> Warnings, long? Revision = null);
+public record VoiceApplyResult(string CamposScriptJson, string Summary, IReadOnlyList<string> Warnings, long? Revision = null, string? DocumentHash = null);
 
 public record VoiceExportResult(string Content, ConversionOutputFormat Format);
 public sealed record VoiceStructureCall(string Name, System.Text.Json.JsonElement Arguments);

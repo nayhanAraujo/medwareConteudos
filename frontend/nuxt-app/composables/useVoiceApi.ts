@@ -10,10 +10,11 @@ import type {
 export function useVoiceApi() {
   const api = useApi()
 
-  const createSession = async (mode: VoiceSessionMode, image?: File): Promise<VoiceSessionResponse> => {
+  const createSession = async (mode: VoiceSessionMode, image?: File, modeloId?: number): Promise<VoiceSessionResponse> => {
     const formData = new FormData()
     formData.append('mode', mode === 'fromImage' ? 'FromImage' : 'FromScratch')
     if (image) formData.append('image', image)
+    if (modeloId) formData.append('modeloId', String(modeloId))
 
     return await api.postForm<VoiceSessionResponse>('/api/voice/sessions', formData)
   }

@@ -64,7 +64,8 @@ public class VoiceSessionsController : ControllerBase
     public async Task<ActionResult<VoiceSessionResponseDto>> CreateSession(
         [FromForm] string? mode,
         IFormFile? image,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromForm] int? modeloId = null)
     {
         var ownerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (User.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(ownerUserId))
@@ -93,6 +94,14 @@ public class VoiceSessionsController : ControllerBase
             UpdatedAt = now,
             ExpiresAt = now.AddMinutes(ttlMinutes)
         };
+        if(modeloId is { } modelId)
+        {
+            var models=HttpContext.RequestServices.GetRequiredService<MdwConteudos.Api.Modules.FormulasModelos.IFormulasModelosService>();
+            var model=await models.GetModeloAsync(modelId,int.Parse(ownerUserId),cancellationToken);
+            if(model is null)return NotFound(new {message="Modelo não encontrado."});
+            var generated=await models.GenerateModeloAsync(modelId,int.Parse(ownerUserId),"texto",cancellationToken);
+            session.CamposScriptJson=ConversorHtml.Application.Services.ModoTextoToJsonStudioConverter.Convert(generated.Conteudo);session.SourceFileName=model.Nome;
+        }
 
         if (sessionMode == VoiceSessionMode.FromImage && image is not null)
         {
@@ -168,6 +177,12 @@ public class VoiceSessionsController : ControllerBase
                 request.Transcript.Trim(),
                 intent,
                 cancellationToken);
+            if (session.ImportedDocumentJson is null)
+            {
+                var models = HttpContext.RequestServices?.GetService<MdwConteudos.Api.Modules.FormulasModelos.IFormulasModelosService>();
+                var catalog = models is null ? [] : await models.ListVariaveisAsync(cancellationToken);
+                MdwConteudos.Api.Modules.StudioDrafts.StudioDependencyGuard.EnsureVoice(session.CamposScriptJson, result.CamposScriptJson, catalog);
+            }
             // Nunca grave uma resposta inválida ou vazia sobre um laudo existente.
             using (var model = System.Text.Json.JsonDocument.Parse(result.CamposScriptJson))
             {
@@ -181,7 +196,7 @@ public class VoiceSessionsController : ControllerBase
             }
             lock (session.EditGate)
             {
-                if (session.ImportedDocumentJson is null) session.CamposScriptJson = result.CamposScriptJson;
+                if (session.ImportedDocumentJson is null) { session.CamposScriptJson = result.CamposScriptJson; session.ImportedRevision++; }
                 session.TranscriptHistory.Add(new VoiceTranscriptEntry
                 {
                     At = DateTime.UtcNow,
@@ -194,11 +209,16 @@ public class VoiceSessionsController : ControllerBase
 
             return Ok(new VoiceUtteranceResponseDto
             {
-                Revision = result.Revision,
+                Revision = result.Revision ?? session.ImportedRevision,
+                DocumentHash = result.DocumentHash ?? MdwConteudos.Api.Modules.StudioDrafts.StudioDraftService.Hash(result.CamposScriptJson),
                 CamposScriptJson = result.CamposScriptJson,
                 Summary = result.Summary,
                 Warnings = result.Warnings.ToList()
             });
+        }
+        catch (MdwConteudos.Api.Modules.StudioDrafts.MeasureInUseException ex)
+        {
+            return Conflict(new {code = ex.Code, message = ex.Message, details = ex.Details});
         }
         catch (MdwConteudos.Api.Modules.StudioDrafts.StudioException ex)
         {
@@ -361,8 +381,10 @@ public class VoiceSessionsController : ControllerBase
 
     private static VoiceSessionResponseDto MapSession(VoiceSession session) => new()
     {
+        DocumentHash = MdwConteudos.Api.Modules.StudioDrafts.StudioDraftService.Hash(session.ImportedDocumentJson??session.CamposScriptJson),
+        Dependencies = session.ImportedDocumentJson is not null ? MdwConteudos.Api.Modules.StudioDrafts.StudioDependencyGuard.Graph(MdwConteudos.Api.Modules.StudioDrafts.ImportedVoiceEditor.Document(session),[]) : MdwConteudos.Api.Modules.StudioDrafts.StudioDependencyGuard.VoiceGraph(session.CamposScriptJson,[]),
         IsImported = session.ImportedDocumentJson is not null,
-        Revision = session.ImportedDocumentJson is not null ? session.ImportedRevision : null,
+        Revision = session.ImportedRevision,
         Id = session.Id,
         Mode = session.Mode,
         CamposScriptJson = session.CamposScriptJson,

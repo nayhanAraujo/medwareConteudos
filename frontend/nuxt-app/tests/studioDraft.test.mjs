@@ -10,7 +10,7 @@ const document = {nome: 'Laudo', secoes: []}
 function fixture() {
   const calls = []
   let server = {id:'draft', revision:0, archived:false, document, updatedAt:''}
-  let failWrite = false, offline = false, commandFound = false
+  let failWrite = false, offline = false, commandFound = false, blocked = false
   const api = {
     async get(path) {
       if (offline) throw new Error('offline')
@@ -21,6 +21,7 @@ function fixture() {
     },
     async post(path, request) {
       calls.push({path, request})
+      if (blocked) throw Object.assign(new Error('Não é possível remover Peso.'),{code:'measure_in_use',details:{removed:[{nome:'Peso'}],dependents:[{measure:{nome:'Superfície Corporal'}}]}})
       if (failWrite) throw new Error('Connection failed')
       server = {...server, revision:server.revision + 1, document:{...document, nome:'Updated'}}
       return server
@@ -29,7 +30,7 @@ function fixture() {
   const deps = {ref, computed, watch, useApi:()=>api, useAuthStore:()=>({user:{codusuario:1}}), onMounted(){}, onBeforeUnmount(){}}
   const create = new Function(...Object.keys(deps), `${code}; return useStudioDraft;`)(...Object.values(deps))
   const state = create(); state.accept(server)
-  return {state, calls, failWrite:()=>{failWrite=true}, offline:()=>{offline=true}, committed:()=>{commandFound=true; server={...server,revision:1}}, advance:()=>{server={...server,revision:5}}}
+  return {state, calls, block:()=>{blocked=true}, failWrite:()=>{failWrite=true}, offline:()=>{offline=true}, committed:()=>{commandFound=true; server={...server,revision:1}}, advance:()=>{server={...server,revision:5}}}
 }
 
 test('commands carry revision and idempotency key, and only server success updates document', async () => {
@@ -84,4 +85,14 @@ test('preview is stale after a document or metadata revision change', async () =
   f.state.preview.value={content:'TXT',format:'txt',revision:0,metadataHash:'old'}
   await f.state.refreshDetails()
   assert.equal(f.state.outdated.value,true)
+})
+
+
+test('dependency rejection preserves revision, clears pending command and shows a business notice',async()=>{
+  const f=fixture();f.block();await f.state.send('deleteItem',{itemId:'peso'})
+  assert.equal(f.state.draft.value.revision,0)
+  assert.equal(f.state.pending.value,null)
+  assert.equal(f.state.blocked.value.removed[0].nome,'Peso')
+  assert.equal(f.state.error.value,'')
+  assert.equal(f.state.sync.value,'Rascunho preservado')
 })

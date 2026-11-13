@@ -94,7 +94,7 @@ public sealed class StudioJsonImportController(StudioJsonReviews reviews, IFormu
                     ImportedDocumentJson = JsonSerializer.Serialize(doc, StudioDocumentEditor.Json), CamposScriptJson = StudioJsonImport.Export(doc),
                     SourceFileName = doc.ImportedJson!.FileName, CreatedAt = now, UpdatedAt = now, ExpiresAt = now.AddMinutes(Math.Clamp(config.GetValue("Voice:SessionTtlMinutes", 120), 1, 1440)) });
                 result = new { destination = request.Destination, session = new VoiceSessionResponseDto { Id = session.Id, Mode = session.Mode, CamposScriptJson = session.CamposScriptJson,
-                    IsImported = true, Revision = session.ImportedRevision, SourceFileName = session.SourceFileName, CreatedAt = session.CreatedAt, UpdatedAt = session.UpdatedAt } };
+                    IsImported = true, Revision = session.ImportedRevision, DocumentHash = StudioDraftService.Hash(session.ImportedDocumentJson!), Dependencies = StudioDependencyGuard.Graph(doc,catalog), SourceFileName = session.SourceFileName, CreatedAt = session.CreatedAt, UpdatedAt = session.UpdatedAt } };
             }
             review.Result = result; return Ok(result);
         }

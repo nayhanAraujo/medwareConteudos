@@ -124,7 +124,7 @@ public class StudioJsonImportTests
         Assert.Contains(StudioJsonImport.Problems(doc), p => p.Message.Contains("NAO_EXISTE"));
         var renamed = StudioDocumentEditor.Apply(doc, Command("rename", new {name = "Novo"}), Catalog);
         Assert.NotEmpty(StudioJsonImport.Export(renamed));
-        Assert.Throws<StudioException>(() => StudioDocumentEditor.Apply(doc, Command("deleteItem", new {itemId = doc.Secoes[0].Itens[0].Id}), Catalog));
+        Assert.Throws<MeasureInUseException>(() => StudioDocumentEditor.Apply(doc, Command("deleteItem", new {itemId = doc.Secoes[0].Itens[0].Id}), Catalog));
         Assert.Contains("const n", StudioJsonImport.Export(doc)); // Retained as data, never evaluated.
     }
 

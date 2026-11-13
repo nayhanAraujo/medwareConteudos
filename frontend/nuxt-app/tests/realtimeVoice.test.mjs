@@ -7,7 +7,7 @@ import { ref } from 'vue'
 const source = await readFile(new URL('../composables/useRealtimeVoice.ts', import.meta.url), 'utf8')
 const code = stripTypeScriptTypes(source.replace(/^import .*$/gm, '').replace('export function', 'function'))
 
-function fixture() {
+function fixture(options) {
   const events = new Map(), calls = []
   const store = { sessionId: 'draft-1', camposScriptJson: '{"camposScript":[]}',
     updateCamposScript(json) { this.camposScriptJson = json }, addHistory() {} }
@@ -24,8 +24,16 @@ function fixture() {
     HubConnectionBuilder: class { withUrl() { return this } configureLogging() { return this } build() { return hub } }
   }
   const create = new Function(...Object.keys(deps), `${code}; return useRealtimeVoice;`)(...Object.values(deps))
-  return { client: create(), events, calls, store }
+  return { client: create(options), events, calls, store }
 }
+
+test('choice events synchronize their draft snapshot before opening suggestions', async () => {
+  const received=[]
+  const f=fixture({onDraft:value=>received.push(['draft',value.revision]),onChoice:value=>received.push(['choice',value.revision])})
+  await f.client.start()
+  f.events.get('ChoiceRequested')({sessionId:'draft-1',revision:3,draft:{id:'draft',revision:3},token:'question'})
+  assert.deepEqual(received,[['draft',3],['choice',3]])
+})
 
 test('old or foreign draft events cannot replace a newer draft', async () => {
   const f = fixture(); await f.client.start()
