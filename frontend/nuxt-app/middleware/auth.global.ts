@@ -1,6 +1,10 @@
 import { contentRouteDomain } from '~/utils/contentNavigation'
+import { isPublicCuradoriaPath } from '~/utils/curadoriaPublicRoutes'
 
 export default defineNuxtRouteMiddleware((to) => {
+  // Public documents must not depend on a session, storage or module permissions.
+  if (isPublicCuradoriaPath(to.path)) return
+
   const auth = useAuthStore()
   auth.loadFromStorage()
 

@@ -78,6 +78,7 @@ try {
     Invoke-Checked npm.cmd @('run','test:docs')
     Invoke-Checked npm.cmd @('run','test:auditoria')
     Invoke-Checked npm.cmd @('run','test:orcamentos')
+    Invoke-Checked npm.cmd @('run','test:curadoria')
     Invoke-Checked npm.cmd @('run','build')
     Copy-Item -LiteralPath '.output' -Destination "$output/nuxt" -Recurse
 } finally {
