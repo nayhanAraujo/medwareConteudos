@@ -1134,6 +1134,35 @@ public partial class ScriptsService
         await tx.CommitAsync();
     }
 
+    public Task DeactivateVersaoAsync(int codVersao, string usuario) => RemoveVersaoStateAsync(codVersao, usuario, true);
+
+    public Task RevokeVersaoApprovalAsync(int codVersao, string usuario) => RemoveVersaoStateAsync(codVersao, usuario, false);
+
+    private async Task RemoveVersaoStateAsync(int codVersao, string usuario, bool deactivate)
+    {
+        await using var conn = await OpenAuditConnectionAsync();
+        await using var tx = conn.BeginTransaction(IsolationLevel.ReadCommitted);
+        var row = await conn.QueryFirstOrDefaultAsync(@"
+            SELECT NUMERO_VERSAO, ATIVO, APROVADO FROM SCRIPTVERSOES
+            WHERE CODVERSAO = @codVersao WITH LOCK", new { codVersao }, tx);
+        if (row == null) throw new InvalidOperationException("Versão não encontrada.");
+        var d = (IDictionary<string, object>)row;
+        if (NormalizeFlag(d[deactivate ? "ATIVO" : "APROVADO"]) != "T")
+        {
+            await tx.CommitAsync();
+            return;
+        }
+        await conn.ExecuteAsync(deactivate
+            ? "UPDATE SCRIPTVERSOES SET ATIVO='F' WHERE CODVERSAO=@codVersao"
+            : "UPDATE SCRIPTVERSOES SET APROVADO='F', APROVADO_POR=NULL, AMBIENTE_APROVACAO=NULL, DATA_APROVACAO=NULL WHERE CODVERSAO=@codVersao",
+            new { codVersao }, tx);
+        var action = deactivate ? "INATIVACAO" : "DESAPROVACAO";
+        var description = deactivate ? "inativada" : "desaprovada";
+        await InsertVersaoHistoricoAsync(conn, tx, codVersao, action,
+            $"Versão {d["NUMERO_VERSAO"]} {description} por {usuario}", usuario);
+        await tx.CommitAsync();
+    }
+
     public async Task DeleteVersaoAsync(int codVersao, string usuario)
     {
         await using var conn = await OpenAuditConnectionAsync();

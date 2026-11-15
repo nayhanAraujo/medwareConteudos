@@ -340,6 +340,35 @@ public class WebScriptsController : ControllerBase
         }
     }
 
+    [HttpPost("versoes/{codVersao:int}/inativar")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Ativar)]
+    public async Task<IActionResult> InativarVersao(int codVersao)
+    {
+        try
+        {
+            var user = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "Admin";
+            await _scripts.DeactivateVersaoAsync(codVersao, user);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("versoes/{codVersao:int}/desaprovar")]
+    [RequirePermission(PermissionDomains.Scripts, PermissionActions.Aprovar)]
+    public async Task<IActionResult> DesaprovarVersao(int codVersao)
+    {
+        try
+        {
+            var user = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "Admin";
+            await _scripts.RevokeVersaoApprovalAsync(codVersao, user);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("versoes/{codVersao:int}/exportar/{tipo}")]
     [RequirePermission(PermissionDomains.Scripts, PermissionActions.Exportar)]
     public async Task<IActionResult> ExportVersaoArquivo(int codVersao, string tipo)

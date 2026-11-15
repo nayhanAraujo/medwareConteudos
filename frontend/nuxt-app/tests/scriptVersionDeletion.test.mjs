@@ -14,7 +14,7 @@ test('Version deletion respects permission, active status, confirmation, failure
   const calls = []
   let confirmed = false, fail = false
   const deps = {
-    canDelete: { value: false }, loading: { value: false }, deleting: { value: null },
+    canDelete: { value: false }, loading: { value: false }, deleting: { value: null }, changing: { value: false },
     swal: { confirm: async () => ({ isConfirmed: confirmed }), toast: async (...args) => calls.push(['toast', ...args]) },
     scriptsApi: { excluirVersao: async id => { if (fail) throw Error('Versão vinculada'); calls.push(['delete', id]) } },
     carregar: async () => calls.push(['refresh'])

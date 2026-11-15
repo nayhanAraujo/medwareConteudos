@@ -269,6 +269,8 @@ export function useScriptsApi() {
   ) => api.putForm<{ success: boolean }>(`/api/web/scripts/versoes/${codVersao}`, buildVersaoFormData(body, files))
 
   const ativarVersao = (codVersao: number) => api.post(`/api/web/scripts/versoes/${codVersao}/ativar`)
+  const inativarVersao = (codVersao: number) => api.post(`/api/web/scripts/versoes/${codVersao}/inativar`)
+  const desaprovarVersao = (codVersao: number) => api.post(`/api/web/scripts/versoes/${codVersao}/desaprovar`)
   const aprovarVersao = (codVersao: number, ambienteAprovacao: string) => api.post(`/api/web/scripts/versoes/${codVersao}/aprovar`, { ambienteAprovacao })
   const excluirVersao = (codVersao: number) => api.del(`/api/web/scripts/versoes/${codVersao}`)
   const excluirVersaoAnexo = (codArquivo: number) => api.del(`/api/web/scripts/versoes/anexos/${codArquivo}`)
@@ -355,6 +357,8 @@ export function useScriptsApi() {
     createVersao,
     updateVersao,
     ativarVersao,
+    inativarVersao,
+    desaprovarVersao,
     aprovarVersao,
     excluirVersao,
     excluirVersaoAnexo,

@@ -45,9 +45,9 @@
             <span v-if="v.aprovado === 'T'" class="block text-xs text-gray-500 mt-1 break-words">{{ v.ambienteAprovacao || 'Ambiente não informado' }}</span>
           </td>
           <td>
-            <DsBadge v-if="v.ativo === 'T'" variant="success">Ativa</DsBadge>
-            <DsButton v-else-if="canActivate" variant="secondary" size="sm" @click="ativar(v.codVersao)">Ativar</DsButton>
-            <DsBadge v-else variant="warning">Inativa</DsBadge>
+            <DsBadge :variant="v.ativo === 'T' ? 'success' : 'warning'">{{ v.ativo === 'T' ? 'Ativa' : 'Inativa' }}</DsBadge>
+            <DsButton v-if="canActivate && v.ativo === 'T'" variant="secondary" size="sm" icon="pause-circle" :disabled="busy" @click="alterarEstado(v, 'inativar')">Inativar</DsButton>
+            <DsButton v-else-if="canActivate" variant="secondary" size="sm" icon="play-circle" :disabled="busy" @click="ativar(v.codVersao)">Ativar</DsButton>
           </td>
           <td>
             <div class="flex flex-wrap gap-1">
@@ -57,10 +57,12 @@
                 v-if="canApprove && v.aprovado !== 'T'"
                 variant="ghost"
                 size="sm"
+                :disabled="busy"
                 @click="aprovar(v.codVersao)"
               >
                 Aprovar
               </DsButton>
+              <DsButton v-if="canApprove && v.aprovado === 'T'" variant="secondary" size="sm" icon="hand-thumbs-down" :disabled="busy" @click="alterarEstado(v, 'desaprovar')">Desaprovar</DsButton>
               <DsButton
                 v-if="canDelete"
                 variant="danger"
@@ -68,7 +70,7 @@
                 icon="trash"
                 :title="v.ativo === 'T' ? 'Ative outra versão antes de excluir esta' : 'Excluir versão'"
                 :aria-label="`Excluir versão ${v.numeroVersao}`"
-                :disabled="loading || deleting !== null || v.ativo === 'T'"
+                :disabled="busy || v.ativo === 'T'"
                 :loading="deleting === v.codVersao"
                 @click="excluir(v)"
               >Excluir</DsButton>
@@ -95,6 +97,8 @@ const auth = useAuthStore()
 const versoes = ref<VersaoDto[]>([])
 const loading = ref(false)
 const deleting = ref<number | null>(null)
+const changing = ref(false)
+const busy = computed(() => loading.value || deleting.value !== null || changing.value)
 const pageTitle = ref('Gerenciar Versões')
 const voltarPath = ref('/scripts')
 const filtroNumero = ref('')
@@ -140,17 +144,37 @@ onMounted(async () => {
 })
 
 async function ativar(codVersao: number) {
+  if (!canActivate.value || busy.value) return
+  changing.value = true
   try {
     await scriptsApi.ativarVersao(codVersao)
     await swal.toast('Versão ativada!')
     await carregar()
   } catch (e: unknown) {
     await swal.toast(e instanceof Error ? e.message : 'Erro', 'error')
-  }
+  } finally { changing.value = false }
+}
+
+async function alterarEstado(versao: VersaoDto, acao: 'inativar' | 'desaprovar') {
+  if (busy.value || (acao === 'inativar' ? !canActivate.value : !canApprove.value)) return
+  changing.value = true
+  try {
+    const texto = acao === 'inativar'
+      ? 'Sem versão ativa, as exportações e a publicação no Assistente passam a usar o modelo principal, conforme suas regras de aprovação e publicação.'
+      : 'A versão perderá a aprovação e o ambiente registrado. Se estiver ativa, sua publicação no Assistente ficará indisponível até nova aprovação; o modelo principal não será selecionado automaticamente.'
+    const confirmation = await swal.confirm(`${acao === 'inativar' ? 'Inativar' : 'Desaprovar'} versão ${versao.numeroVersao}?`, texto)
+    if (!confirmation?.isConfirmed) return
+    if (acao === 'inativar') await scriptsApi.inativarVersao(versao.codVersao)
+    else await scriptsApi.desaprovarVersao(versao.codVersao)
+    await swal.toast(acao === 'inativar' ? 'Versão inativada' : 'Versão desaprovada')
+    await carregar()
+  } catch (e: unknown) {
+    await swal.toast(e instanceof Error ? e.message : 'Erro ao alterar versão', 'error')
+  } finally { changing.value = false }
 }
 
 async function excluir(versao: VersaoDto) {
-  if (!canDelete.value || loading.value || deleting.value !== null || versao.ativo === 'T') return
+  if (!canDelete.value || loading.value || deleting.value !== null || changing.value || versao.ativo === 'T') return
   deleting.value = versao.codVersao
   try {
     const confirmation = await swal.confirm(
@@ -167,14 +191,16 @@ async function excluir(versao: VersaoDto) {
 }
 
 async function aprovar(codVersao: number) {
-  const ambiente = await swal.approvalEnvironment('Aprovar versão')
-  if (ambiente === null) return
+  if (!canApprove.value || busy.value) return
+  changing.value = true
   try {
+    const ambiente = await swal.approvalEnvironment('Aprovar versão')
+    if (ambiente === null) return
     await scriptsApi.aprovarVersao(codVersao, ambiente)
     await swal.toast('Versão aprovada!')
     await carregar()
   } catch (e: unknown) {
     await swal.toast(e instanceof Error ? e.message : 'Erro', 'error')
-  }
+  } finally { changing.value = false }
 }
 </script>
