@@ -35,7 +35,8 @@ definePageMeta({ layout: 'default' })
 const { irOuMigracao } = useMigracao()
 
 const auth = useAuthStore()
-const visibleCards = computed(() => contentModules.filter(card => auth.can(card.domain, 'visualizar')))
+const hiddenCardTypes = new Set(['modelos_mensagens', 'pacotes', 'modelos'])
+const visibleCards = computed(() => contentModules.filter(card => !hiddenCardTypes.has(card.type) && auth.can(card.domain, 'visualizar')))
 
 function onSelect(card: ContentModule) {
   if (auth.can(card.domain, 'visualizar')) irOuMigracao(card.nuxtPath)
