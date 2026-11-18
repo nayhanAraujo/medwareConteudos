@@ -154,18 +154,27 @@
           </tr>
         </DsTable>
 
-        <div v-if="totalPages > 1" class="flex justify-center gap-2 mt-6">
-          <DsButton variant="secondary" size="sm" :disabled="page <= 1" @click="load(page - 1)">Anterior</DsButton>
-          <DsButton
-            v-for="p in totalPages"
-            :key="p"
-            :variant="p === page ? 'primary' : 'secondary'"
-            size="sm"
-            @click="load(p)"
-          >
-            {{ p }}
-          </DsButton>
-          <DsButton variant="secondary" size="sm" :disabled="page >= totalPages" @click="load(page + 1)">Próxima</DsButton>
+        <div class="flex flex-wrap items-center justify-center gap-3 mt-6">
+          <div class="flex items-center gap-2">
+            <label for="scripts-page-size" class="text-sm text-gray-600">Itens por página</label>
+            <select id="scripts-page-size" v-model="pageSize" :disabled="loading" class="border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm">
+              <option v-for="size in [10, 20, 30, 40, 50]" :key="size" :value="String(size)">{{ size }}</option>
+            </select>
+          </div>
+          <div v-if="totalPages > 1" class="flex flex-wrap justify-center gap-2">
+            <DsButton variant="secondary" size="sm" :disabled="loading || page <= 1" @click="load(page - 1)">Anterior</DsButton>
+            <DsButton
+              v-for="p in totalPages"
+              :key="p"
+              :variant="p === page ? 'primary' : 'secondary'"
+              size="sm"
+              :disabled="loading"
+              @click="load(p)"
+            >
+              {{ p }}
+            </DsButton>
+            <DsButton variant="secondary" size="sm" :disabled="loading || page >= totalPages" @click="load(page + 1)">Próxima</DsButton>
+          </div>
         </div>
         <p class="text-sm text-gray-500 text-center mt-2">{{ totalItems }} script(s) encontrado(s)</p>
       </DsPageShell>
@@ -328,6 +337,7 @@ const hasParams = computed(() => isSistemaValido(sistema.value) && !!pacote.valu
 const loading = ref(false)
 const items = ref<import('~/composables/useScriptsApi').ScriptListItem[]>([])
 const page = ref(1)
+const pageSize = ref('10')
 const totalPages = ref(0)
 const totalItems = ref(0)
 const viewMode = ref<'cards' | 'list'>('cards')
@@ -440,7 +450,7 @@ async function load(p = 1) {
       nome: filtros.nome,
       aprovado: filtros.aprovado || undefined,
       page: p,
-      pageSize: 10
+      pageSize: Number(pageSize.value)
     }
     let res = await scriptsApi.listScripts({ ...baseQuery, ativo: filtros.ativo })
     if (!res.data.length && filtros.ativo === '1') {
@@ -565,7 +575,7 @@ async function confirmTransfer() {
     selectedScriptIds.value = []
     selectAll.value = false
     const remainingTotal = Math.max(0, totalItems.value - transferred)
-    const targetPage = Math.max(1, Math.min(page.value, Math.ceil(remainingTotal / 10)))
+    const targetPage = Math.max(1, Math.min(page.value, Math.ceil(remainingTotal / Number(pageSize.value))))
     await load(targetPage)
     await swal.toast(`${transferred} script${transferred === 1 ? '' : 's'} transferido${transferred === 1 ? '' : 's'} com sucesso.`, 'success')
   } catch (error) {
@@ -583,5 +593,6 @@ onMounted(async () => {
 })
 watch(() => route.query, () => load(1))
 watch(() => [filtros.aprovado, filtros.ativo], () => load(1))
+watch(pageSize, () => load(1))
 watch(transferDestination, loadTransferPreview)
 </script>
