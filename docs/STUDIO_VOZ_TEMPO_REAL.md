@@ -144,3 +144,27 @@ expiração JWT, micrófone negado, pausas, consulta lenta com áudio contínuo,
 correções sucessivas, proposta invalidada por outra edição, confirmação duplicada,
 queda da conexão e saturação da rede. Conferir o download JSON/TXT após a edição.
 Não é necessária migração de banco de dados.
+
+### Inicialização e regressões de sincronização
+
+A sessão somente libera áudio quando o envio de `session.update` terminou com
+sucesso **e** o leitor validou `session.updated`. As duas condições são sinalizadas
+independentemente, pois leitura e escrita podem avançar em ordens diferentes.
+Os loops pertencem à sessão e executam fora do contexto de sincronização do
+chamador; a tarefa principal continua sendo aguardada no encerramento, inclusive
+quando o cancelamento acontece antes de ela começar a executar.
+
+O pipeline de 18/11/2026 registrou timeout de três segundos no teste
+`StartupWaitsForConfigurationWriteBeforeAcceptingAudio`. O log não informa em qual
+continuação houve atraso; uma execução isolada dos binários locais anteriores
+passou, portanto o incidente do CI não foi reproduzido localmente. A correção
+remove a captura do contexto do chamador pelos loops e explicita a barreira dupla
+de prontidão, sem aumentar os timeouts.
+
+As regressões usam bloqueios controlados para cobrir envio pendente, confirmação
+pendente, confirmação recebida antes de o envio concluir, falha no envio,
+cancelamento durante a configuração e um contexto de sincronização deliberadamente
+sem processamento. O transporte informa que a confirmação foi processada somente
+na leitura seguinte, evitando uma corrida entre a retirada da mensagem e as
+asserções. Validar os testes novos na compilação manual ou no próximo pipeline;
+executar `--no-build` antes disso avalia somente os binários anteriores.

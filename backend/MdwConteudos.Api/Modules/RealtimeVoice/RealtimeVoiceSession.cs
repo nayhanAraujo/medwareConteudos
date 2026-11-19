@@ -31,7 +31,7 @@ public sealed class RealtimeVoiceSession
     private readonly object _lifecycleGate = new();
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Channel<string> _audio = Channel.CreateBounded<string>(64);
-    private readonly Channel<string> _control = Channel.CreateBounded<string>(64);
+    private readonly Channel<(string Json, bool Configuration)> _control = Channel.CreateBounded<(string, bool)>(64);
     private readonly Channel<Call> _tools = Channel.CreateBounded<Call>(16);
     private readonly Channel<(ClaimsPrincipal User, RealtimeConfirmation Request)> _confirmations = Channel.CreateBounded<(ClaimsPrincipal, RealtimeConfirmation)>(4);
     private readonly ConcurrentDictionary<string, byte> _confirmationIds = new();
@@ -58,6 +58,8 @@ public sealed class RealtimeVoiceSession
     private Task? _run;
     private Task? _stopTask;
     private int _resourcesDisposed;
+    private int _configurationWritten;
+    private int _configurationAccepted;
     private bool _responseActive;
     private Proposal? _proposal;
     private string? _savedProposal;
@@ -105,13 +107,17 @@ public sealed class RealtimeVoiceSession
                 _keyterms = catalog.OrderByDescending(v => used.Contains(v.CodVariavel)).Select(v => v.Nome).Concat(_keyterms)
                     .Where(s => !string.IsNullOrWhiteSpace(s) && s.Length <= 50).Distinct(StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
             }
-            await _socket.ConnectAsync(new Uri($"wss://api.x.ai/v1/realtime?model={Uri.EscapeDataString(_config.Model)}"), timeout.Token);
+            await _socket.ConnectAsync(new Uri($"wss://api.x.ai/v1/realtime?model={Uri.EscapeDataString(_config.Model)}"), timeout.Token).ConfigureAwait(false);
             lock (_lifecycleGate)
             {
                 _sessionToken.ThrowIfCancellationRequested();
-                _run = RunAsync();
+                // These session-owned pumps must not inherit a request/test synchronization
+                // context. Do not pass the session token to Task.Run: even an early stop
+                // must enter RunAsync's cleanup and complete the readiness waiter.
+                _run = Task.Run(RunAsync);
             }
-            await _ready.Task.WaitAsync(timeout.Token);
+            await _ready.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+            _sessionToken.ThrowIfCancellationRequested();
             if (_persistentId is { } current)
             {
                 await using var scope = _scopes.CreateAsyncScope();
@@ -145,10 +151,16 @@ public sealed class RealtimeVoiceSession
         _sendSignal.Release();
     }
 
-    private void Send(object value)
+    private void Send(object value, bool configuration = false)
     {
-        if (!_control.Writer.TryWrite(JsonSerializer.Serialize(value))) throw new InvalidOperationException("Control queue saturated.");
+        if (!_control.Writer.TryWrite((JsonSerializer.Serialize(value), configuration))) throw new InvalidOperationException("Control queue saturated.");
         _sendSignal.Release();
+    }
+
+    private void TryReady()
+    {
+        if (Volatile.Read(ref _configurationWritten) == 1 && Volatile.Read(ref _configurationAccepted) == 1 && !IsStopped)
+            _ready.TrySetResult();
     }
 
     private async Task RunAsync()
@@ -191,8 +203,16 @@ public sealed class RealtimeVoiceSession
         while (!IsStopped)
         {
             await _sendSignal.WaitAsync(_sessionToken);
-            if (_control.Reader.TryRead(out var json) || _audio.Reader.TryRead(out json))
-                await _socket.SendAsync(json, _sessionToken);
+            if (_control.Reader.TryRead(out var message))
+            {
+                await _socket.SendAsync(message.Json, _sessionToken);
+                if (message.Configuration)
+                {
+                    Interlocked.Exchange(ref _configurationWritten, 1);
+                    TryReady();
+                }
+            }
+            else if (_audio.Reader.TryRead(out var json)) await _socket.SendAsync(json, _sessionToken);
         }
     }
 
@@ -215,17 +235,19 @@ public sealed class RealtimeVoiceSession
                     turn_detection = new { type = "server_vad", silence_duration_ms = _config.SilenceDurationMs },
                     audio = new { input = new { format = new { type = "audio/pcm", rate = 24000 }, transcription = new { language_hint = "pt-BR", keyterms = _keyterms } } },
                     tools = _persistentId.HasValue || _stored.ImportedDocumentJson is not null ? StudioRealtimeAdapter.Tools : RealtimeTools.Definitions
-                } });
+                } }, configuration: true);
             }
             else if (type == "session.updated")
             {
+                if (!configured) throw new InvalidOperationException("Unexpected session configuration acknowledgement.");
                 try { ValidateCapabilities(e.GetProperty("session"), _config.SilenceDurationMs); }
                 catch
                 {
                     _log.LogWarning("xAI capability validation rejected session={SessionId}; expected text-only and server_vad intervalMs={SilenceMs}. Run the capability probe before enabling this feature.", Id, _config.SilenceDurationMs);
                     throw;
                 }
-                _ready.TrySetResult();
+                Interlocked.Exchange(ref _configurationAccepted, 1);
+                TryReady();
             }
             else if (type == "error")
             {

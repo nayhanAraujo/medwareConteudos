@@ -53,9 +53,9 @@ public class RealtimeVoiceProtocolTests
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.Wire.SessionUpdateGate = gate.Task;
         var starting = fixture.Start();
-        await fixture.Wire.SessionUpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         try
         {
+            await fixture.Wire.SessionUpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.False(starting.IsCompleted);
             Assert.DoesNotContain(fixture.Events, e => e.Name == "SessionReady");
             Assert.Throws<Microsoft.AspNetCore.SignalR.HubException>(() => fixture.Session.Append(
@@ -67,6 +67,119 @@ public class RealtimeVoiceProtocolTests
         Assert.Single(fixture.Events, e => e.Name == "SessionReady");
         fixture.Session.Append(new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920])));
         await fixture.Wait(() => fixture.Wire.Sent.Any(e => e.GetProperty("type").GetString() == "input_audio_buffer.append"));
+    }
+
+    [Fact]
+    public async Task ConfigurationWriteAloneDoesNotAcceptAudioBeforeProviderAcknowledgement()
+    {
+        await using var fixture = new Fixture();
+        fixture.Wire.AutoAcknowledge = false;
+        var starting = fixture.Start();
+        try
+        {
+            await fixture.Wire.SessionUpdateWritten.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.False(starting.IsCompleted);
+            Assert.DoesNotContain(fixture.Events, e => e.Name == "SessionReady");
+            Assert.Throws<Microsoft.AspNetCore.SignalR.HubException>(() => fixture.Session.Append(
+                new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920]))));
+        }
+        finally { fixture.Wire.Acknowledge(); }
+        await starting.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Single(fixture.Events, e => e.Name == "SessionReady");
+    }
+
+    [Fact]
+    public async Task ProviderAcknowledgementAloneDoesNotAcceptAudioBeforeSendCompletes()
+    {
+        await using var fixture = new Fixture();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Wire.SessionUpdateCompletionGate = completion.Task;
+        var starting = fixture.Start();
+        try
+        {
+            await fixture.Wire.SessionUpdatedProcessed.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.False(starting.IsCompleted);
+            Assert.DoesNotContain(fixture.Events, e => e.Name == "SessionReady");
+            Assert.Throws<Microsoft.AspNetCore.SignalR.HubException>(() => fixture.Session.Append(
+                new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920]))));
+        }
+        finally { completion.TrySetResult(); }
+        await starting.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Single(fixture.Events, e => e.Name == "SessionReady");
+    }
+
+    [Fact]
+    public async Task StartupPumpsDoNotDependOnTheCallersSynchronizationContext()
+    {
+        await using var fixture = new Fixture();
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Wire.SessionUpdateGate = gate.Task;
+        var caller = SynchronizationContext.Current;
+        var paused = new PausedContext();
+        Task starting;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            starting = fixture.Start();
+        }
+        finally { SynchronizationContext.SetSynchronizationContext(caller); }
+        try
+        {
+            await fixture.Wire.SessionUpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.False(starting.IsCompleted);
+        }
+        finally { gate.TrySetResult(); }
+        await starting.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(0, paused.Posts);
+        Assert.Single(fixture.Events, e => e.Name == "SessionReady");
+    }
+
+    [Fact]
+    public async Task StopDuringConfigurationWriteCancelsStartupAndDisposesOnlyOnce()
+    {
+        await using var fixture = new Fixture();
+        fixture.Wire.SessionUpdateGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        var starting = fixture.Start();
+        await fixture.Wire.SessionUpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await fixture.Session.StopAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting.WaitAsync(TimeSpan.FromSeconds(3)));
+        Assert.DoesNotContain(fixture.Events, e => e.Name == "SessionReady");
+        Assert.Equal(1, fixture.Wire.Disposals);
+        Assert.Equal(1, fixture.EndedCount);
+    }
+
+    [Fact]
+    public async Task FailedConfigurationSendCannotPublishReadyEvenIfProviderAlreadyAcknowledged()
+    {
+        var fixture = new Fixture();
+        try
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            fixture.Wire.SessionUpdateCompletionGate = completion.Task;
+            fixture.Wire.FailConfigurationSend = true;
+            var starting = fixture.Start();
+            try
+            {
+                await fixture.Wire.SessionUpdatedProcessed.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                Assert.Throws<Microsoft.AspNetCore.SignalR.HubException>(() => fixture.Session.Append(
+                    new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920]))));
+            }
+            finally { completion.TrySetResult(); }
+            var failure = await Assert.ThrowsAsync<IOException>(() => starting.WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.Equal("Simulated configuration send failure", failure.Message);
+            Assert.DoesNotContain(fixture.Events, e => e.Name == "SessionReady");
+            Assert.Equal(1, fixture.Wire.Disposals);
+            Assert.Equal(1, fixture.EndedCount);
+            await Assert.ThrowsAsync<IOException>(() => fixture.Session.StopAsync());
+        }
+        finally { await fixture.DisposeProviderAsync(); }
+    }
+
+    private sealed class PausedContext : SynchronizationContext
+    {
+        public int Posts;
+        // Intentionally do not drain callbacks: session I/O must not require this context.
+        public override void Post(SendOrPostCallback callback, object? state) => Interlocked.Increment(ref Posts);
     }
 
     [Fact]
@@ -214,7 +327,13 @@ public class RealtimeVoiceProtocolTests
         public bool ThrowOnDispose;
         private Exception? _readFailure;
         public Task? SessionUpdateGate;
+        public Task? SessionUpdateCompletionGate;
+        public bool AutoAcknowledge = true;
+        public bool FailConfigurationSend;
+        private bool _acknowledgementReturned;
         public readonly TaskCompletionSource SessionUpdateStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource SessionUpdateWritten = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource SessionUpdatedProcessed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource AudioWriteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Outputs => Sent.Count(e => e.GetProperty("type").GetString() == "conversation.item.create");
         public int Continuations => Sent.Count(e => e.GetProperty("type").GetString() == "response.create");
@@ -235,14 +354,25 @@ public class RealtimeVoiceProtocolTests
             // A provider can acknowledge configuration only after the writer sends it.
             // Prequeuing this reply lets Start return before the writer has started.
             if (type == "session.update")
-                Push(new { type = "session.updated", session = new { modalities = new[] { "text" }, turn_detection = new { type = "server_vad", silence_duration_ms = 400 } } });
+            {
+                SessionUpdateWritten.TrySetResult();
+                if (AutoAcknowledge) Acknowledge();
+                if (SessionUpdateCompletionGate is { } completion) await completion.WaitAsync(ct);
+                if (FailConfigurationSend) throw new IOException("Simulated configuration send failure");
+            }
         }
+        public void Acknowledge() => Push(new { type = "session.updated", session = new { modalities = new[] { "text" }, turn_detection = new { type = "server_vad", silence_duration_ms = 400 } } });
         public void FailRead(Exception exception) { _readFailure = exception; Push(new { type = "test.failure" }); }
         public async Task<JsonDocument?> ReceiveAsync(CancellationToken ct)
         {
+            // A subsequent receive proves the session reader finished handling the ack;
+            // merely dequeuing it would leave a race with the assertions in the test.
+            if (_acknowledgementReturned) SessionUpdatedProcessed.TrySetResult();
             var message = await _incoming.Reader.ReadAsync(ct);
             if (_readFailure is { } failure) throw failure;
-            return JsonDocument.Parse(message);
+            var document = JsonDocument.Parse(message);
+            if (document.RootElement.GetProperty("type").GetString() == "session.updated") _acknowledgementReturned = true;
+            return document;
         }
         public void Abort() { }
         public void Dispose() { Interlocked.Increment(ref Disposals); if (ThrowOnDispose) throw new InvalidOperationException("Simulated dispose failure"); }
@@ -272,10 +402,10 @@ public class RealtimeVoiceProtocolTests
                 _provider.GetRequiredService<IServiceScopeFactory>(), (name, payload) => { Events.Enqueue((name, JsonSerializer.SerializeToElement(payload))); return Task.CompletedTask; },
                 default, NullLogger.Instance, Wire, _ => Interlocked.Increment(ref EndedCount));
         }
-        public async Task Start()
+        public Task Start()
         {
             Wire.Push(new { type = "session.created" });
-            await Session.StartAsync();
+            return Session.StartAsync();
         }
         public void Call(string id, string name, string args) => Wire.Push(new { type = "response.function_call_arguments.done", call_id = id, response_id = "r1", name, arguments = args });
         public void Done() => Wire.Push(new { type = "response.done", response = new { id = "r1", status = "completed" } });
