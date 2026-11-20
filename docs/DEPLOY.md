@@ -25,8 +25,7 @@ Em produção, o Nuxt costuma ser servido como build estático ou SSR (`node .ou
 | Software | Versão mínima | Onde é usado |
 |----------|---------------|--------------|
 | **.NET SDK** | 10.x | Compilar e publicar `MdwConteudos.Api` |
-| **Node.js** | **22+** | Obrigatório para `backend/agent-bridge` (`@cursor/sdk`) |
-| **Node.js** | 18+ | Suficiente só para `frontend/nuxt-app` (recomendado **22+** em todo o servidor) |
+| **Node.js** | **22.x** | Padrão do frontend e do bridge `@cursor/sdk`; o empacotamento IIS exige Node 22 e o pipeline fixa 22.20.0. |
 | **npm** | 9+ | Instalar dependências frontend e bridge |
 | **Firebird** | 3.x+ | Bancos REFERENCIAS e ASSISTENTE acessíveis pela API |
 
@@ -67,7 +66,7 @@ Produção:
 npm ci --omit=dev
 ```
 
-> `node_modules` não vai para o git (`.gitignore`). Após cada deploy, rode `npm ci` em `backend/agent-bridge` no servidor **ou** copie a pasta `node_modules` junto com o publish.
+> `node_modules` não vai para o Git. O [pacote IIS](PRODUCAO_IIS.md) já inclui as dependências de produção do bridge; não rode `npm ci` na release publicada. A instalação manual é para fluxos que não usam esse pacote.
 
 ### 3. API .NET (restore)
 
@@ -175,7 +174,7 @@ A API localiza a raiz pelo conteúdo (`backend/MdwConteudos.Api` e `frontend/nux
 
 ```powershell
 cd backend\MdwConteudos.Api
-dotnet user-secrets set "Cursor:ApiKey" "crsr_sua_chave"
+dotnet user-secrets set "Cursor:ApiKey" "<chave-do-Cursor>"
 ```
 
 Chave em: [cursor.com/dashboard/integrations](https://cursor.com/dashboard/integrations)
@@ -263,7 +262,7 @@ Objetos esperados no ASSISTENTE:
 - [ ] `dotnet publish` da API para pasta de deploy
 - [ ] Copiar para o servidor, **mantendo a estrutura**:
   - `backend/agent-bridge/` (com `convert.mjs`, `package.json`, `package-lock.json`)
-  - `backend/manual_scripts_html_UX.md` (manual do agente)
+  - `backend/Estrutura Scripts HTML.md` (manual do agente)
   - `static/` e `uploads/` conforme uso
 - [ ] No servidor: `npm ci` em `backend/agent-bridge`
 - [ ] `npm ci && npm run build` em `frontend/nuxt-app`
@@ -361,7 +360,7 @@ Configuração em `appsettings.json`:
 | Bridge | `backend/agent-bridge/convert.mjs` (4º arg: `html` ou `modoTexto`) |
 | Dependência npm | `@cursor/sdk` (Node >= 22) |
 | Timeout | `Cursor:TimeoutSeconds` (padrão 300) |
-| Manual HTML LaudosUX | `backend/manual_scripts_html_UX.md` |
+| Manual HTML LaudosUX | `backend/Estrutura Scripts HTML.md` |
 | Manual TXT modo texto | `backend/AGENTE-MODELOS-MODO-TEXTO.md` |
 
 Erros comuns:
@@ -389,7 +388,7 @@ Usadas por alguns fluxos legados/migrados ([`ScriptsService.cs`](../backend/MdwC
 - [README.md](../README.md) — visão geral e dev rápido
 - [CUTOVER.md](CUTOVER.md) — cutover Flask → Nuxt + proxy IIS
 - [azure-pipelines-migracao.example.yml](azure-pipelines-migracao.example.yml) — rascunho CI (atualizar Node para 22.x se incluir Studio)
-- [manual_scripts_html_UX.md](../backend/manual_scripts_html_UX.md) — regras HTML LaudosUX para o agente
+- [Estrutura Scripts HTML](../backend/Estrutura%20Scripts%20HTML.md) — regras HTML LaudosUX para o agente
 # Produção IIS: procedimento vigente
 
 Para a nova VM Azure Windows, seguir [PRODUCAO_IIS.md](PRODUCAO_IIS.md) e `tools/production`. Este procedimento substitui as instruções históricas abaixo de NSSM, Kestrel público e cópia manual. O conteúdo abaixo é referência de desenvolvimento/integrações, não configuração aprovada de produção.

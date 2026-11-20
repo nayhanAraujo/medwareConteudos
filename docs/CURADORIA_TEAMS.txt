@@ -181,10 +181,10 @@ CONFIGURAÇÃO OBRIGATÓRIA ANTES DO TESTE REAL
 2. Configurar essa linha SOMENTE no ambiente do serviço NSSM MdwConteudoNuxt.
    Não é uma chave de appsettings.Production.local.json da API .NET. O valor fica
    fora de runtimeConfig.public e não é incorporado ao bundle/payload do navegador.
-   No NSSM GUI (nssm edit MdwConteudoNuxt), aba Environment: preservar todas as
-   variáveis existentes e acrescentar/substituir APENAS essa linha. Não usar
-   um nssm set AppEnvironmentExtra que substitua toda a lista. Não configurar
-   variáveis globais da máquina nem de outros serviços.
+   Em produção, siga a seção "Exceção do chat piloto da Curadoria no Teams" de
+   PRODUCAO_IIS.md: alterar apenas AppEnvironmentExtra, preservando as outras
+   entradas. Não abrir a interface de edição do NSSM para essa operação, não
+   substituir a lista inteira e não configurar variáveis globais da máquina.
 3. Após publicação/autorização operacional, reiniciar somente MdwConteudoNuxt
    para carregar a variável (o deploy normal também reinicia esse componente).
    O deploy existente preserva AppEnvironmentExtra ao trocar a release. Não há

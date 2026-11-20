@@ -9,10 +9,21 @@ Ficam deliberadamente no legado: `uploads/uploaddll`, automação E2E e os módu
 **Portal da API:** `/apiconteudos/docs`. Configuração, acesso e proxy em [docs/API_PORTAL.md](docs/API_PORTAL.md); preparação segura de cópias em [docs/API_HOMOLOGACAO.md](docs/API_HOMOLOGACAO.md).
 
 - .NET 10 SDK
-- Node.js 18+ (frontend Nuxt); **Node.js 22+** obrigatório para o conversor Studio (`backend/agent-bridge`)
+- Node.js **22.x** para Nuxt e bridges do Studio; o pipeline IIS usa **22.20.0**.
 - Firebird (bancos configurados em `bd/` ou por variáveis de ambiente)
 
-**Deploy em servidor:** checklist completo em [docs/DEPLOY.md](docs/DEPLOY.md) (pacotes npm, variáveis de ambiente, Studio/Cursor, verificação pós-deploy).
+**Produção no IIS:** [guia do pipeline e operação](docs/PRODUCAO_IIS.md). Para runtime e diagnóstico da aplicação, consulte [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Guias por ferramenta
+
+| Ferramenta | Documentação |
+|---|---|
+| Scripts: busca, paginação, versões e catálogo | [Operação e permissões](docs/SCRIPTS_VERSOES.md), [código universal](docs/scripts-codigo-universal.md) |
+| Assistente: editor visual de frases e exportação | [Frases RTF e DOCX em ZIP](docs/ASSISTENTE_FRASES.md) |
+| Studio: editor integrado e voz | [Rascunhos e revisões](docs/STUDIO_RASCUNHOS.md), [importação JSON](docs/STUDIO_IMPORTACAO_JSON.md), [voz guiada](docs/STUDIO_VOZ_GUIADO.md) e [voz em tempo real](docs/STUDIO_VOZ_TEMPO_REAL.md) |
+| Curadoria no Teams | [Aba informativa, manifesto e piloto](docs/CURADORIA_TEAMS.txt) |
+| Orçamentos | [Central](docs/CENTRAL_ORCAMENTOS.md), [análise IA](docs/ORCAMENTOS_IA.md), [triagem de e-mails](docs/ORCAMENTOS_TRIAGEM_EMAIL.md) e [clientes do Admin](docs/ORCAMENTOS_CLIENTES_ADMIN.md) |
+| Auditoria, avaliações e acesso | [Central de Auditoria](docs/central-auditoria.md), [Central de Avaliações](docs/central-avaliacoes.md) e [recuperação de senha](docs/recuperacao-senha.md) |
 
 ## Subir em desenvolvimento
 
@@ -37,6 +48,7 @@ dotnet test backend\MdwConteudos.slnx
 
 ```powershell
 cd frontend\nuxt-app
+npm ci
 npm run dev
 ```
 
@@ -63,10 +75,10 @@ cd backend\agent-bridge
 npm install
 
 cd ..\MdwConteudos.Api
-dotnet user-secrets set "Cursor:ApiKey" "crsr_sua_chave"
+dotnet user-secrets set "Cursor:ApiKey" "<chave-do-Cursor>"
 ```
 
-Alternativa: variável `CURSOR_API_KEY`. Para testar sem Cursor, em `appsettings.json`: `"Conversion": { "Provider": "Mock" }`.
+Alternativa para conversão e voz convencional: variável `CURSOR_API_KEY` no processo da API, usada quando `Cursor:ApiKey` está vazio. Use uma chave autorizada a executar agentes no Cursor SDK. Não versione a configuração privada nem compartilhe a chave. Para testar sem Cursor, configure `"Conversion": { "Provider": "Mock" }` apenas em desenvolvimento.
 
 ### 5. Studio — Laudo por voz
 
@@ -81,7 +93,8 @@ Dev offline sem Cursor: `"Voice": { "Provider": "Mock" }` em `appsettings.json`.
 Manual do agente: [`docs/AGENTE-LAUDO-POR-VOZ.md`](docs/AGENTE-LAUDO-POR-VOZ.md).  
 Microfone exige **HTTPS** ou **localhost**.
 
-Manual do agente HTML: [`backend/manual_scripts_html_UX.md`](backend/manual_scripts_html_UX.md).  
+Manual do agente HTML: [Estrutura Scripts HTML](backend/Estrutura%20Scripts%20HTML.md).
+
 Manual modo texto: [`backend/AGENTE-MODELOS-MODO-TEXTO.md`](backend/AGENTE-MODELOS-MODO-TEXTO.md).  
 Instalação completa, produção e troubleshooting: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
@@ -122,6 +135,8 @@ Migrações Firebird:
 | API interna (sem JWT) | `/api/v1` |
 | Conversor Studio (HTML / TXT) | `/api/conversions` |
 | Laudo por voz (Studio) | `/api/voice/sessions` |
+| Rascunhos e capacidades do Studio | `/api/voice/rascunhos`, `/api/voice/capabilities` |
+| Voz em tempo real (SignalR opcional) | `/api/voice/realtime/hub` |
 | Publicação no Assistente | `/api/web/assistente/publicacao` |
 | Web (Nuxt + JWT usuário) | `/api/web` |
 | Swagger | `/swagger` |

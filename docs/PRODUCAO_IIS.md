@@ -1,6 +1,6 @@
 # Produção IIS — nova VM Azure Windows
 
-Procedimento vigente: IIS + ARR + URL Rewrite, API ASP.NET Core 10 pelo Hosting Bundle, Nuxt SSR Node **22** via **NSSM** e Firebird no mesmo host. Nenhum script instala remotamente ou baixa NSSM. Instalar previamente os componentes e usar PowerShell 7 elevado com WebAdministration disponível. Verificar certificado com chave privada em LocalMachine/My, SAN do domínio e renovação. Usar o NSSM já adotado pelo servidor, em caminho protegido e com versão confirmada por `nssm version`.
+Procedimento vigente: IIS + ARR + URL Rewrite, API ASP.NET Core 10 pelo Hosting Bundle, Nuxt SSR Node **22** via **NSSM** e Firebird no mesmo host. Nenhum script instala remotamente ou baixa NSSM. Para operações IIS no servidor, use Windows PowerShell **5.1** elevado com WebAdministration; para o empacotamento, use PowerShell **7**. Verifique certificado com chave privada em LocalMachine/My, SAN do domínio e renovação. Use o binário NSSM já aprovado no servidor.
 
 ## Diretórios e isolamento
 
@@ -17,6 +17,8 @@ API IIS vinculada exclusivamente a 127.0.0.1:5080; Node a 127.0.0.1:3000. Abrir 
 Executar em agente Windows limpo, SDK .NET 10 e Node **22.20.0** (mesma versão homologada no servidor), sem variáveis de aplicação/segredos herdadas. Por padrão o build usa **HEAD commitado**; `-WorkingTree` permite validar alterações pendentes, copiando apenas arquivos conhecidos do Git e não ignorados. Cada execução usa staging novo, testes .NET, dotnet publish, npm ci, testes do portal e Nuxt node-server SSR. O bridge inclui dependências de produção e os três manuais. Configuração base e Production permanecem; .env, arquivos locais, bancos, backups, uploads, homologação e caches ficam excluídos. Assets estáticos de aplicação vão em `static-assets`, separados dos anexos. Manifesto SHA256 e `build-info.json` registram integridade e versões. Proteger transporte e manifesto; o staging temporário fica retido para diagnóstico.
 
 ## Configurar e validar
+
+O exemplo de instalação abaixo é para uma instância nova (objetos `MdwApi`, `MdwPublic` e `MdwNuxt`). A produção existente usa `MdwConteudoApi`, `MdwConteudo` e `MdwConteudoNuxt`; para atualizá-la, use o pipeline, sem executar o instalador novamente.
 
 Copiar `tools/production/templates/appsettings.Production.local.json.example` para diretório secreto e preencher todos os REQUIRED manualmente. Usar senhas dedicadas e JWTs fortes distintos. Não versionar segredos nem incluí-los em pipeline, argumentos ou logs. Fonte JSON deve permitir somente Administradores/SYSTEM. O instalador protege a cópia publicada permitindo leitura ao pool API.
 
@@ -107,12 +109,63 @@ O pipeline não observa arquivos do computador local: alterações precisam ser 
 
 Rollback de **código**: manutenção, parar serviço/pool, repor physicalPaths/XML/configuração compatível anteriores e testar. Migrações de banco já confirmadas permanecem aplicadas. Rollback de **banco** é decisão separada: autorização, perda de escritas desde backup explicitamente aceita e restauração coordenada banco+arquivos sem escritores. Não restaurar banco por falha de smoke. Se código anterior não suporta schema atual, manter manutenção e envolver DBA. Preservar releases antigas pela retenção.
 
+### Rotação de credenciais da API
+
+No servidor em produção, a fonte do pipeline é
+`C:\MdwConteudo\secrets\appsettings.Production.local.json`. Durante o deploy,
+o script copia esse arquivo para `api\appsettings.Production.local.json` da
+nova release e restringe sua ACL. Build, commit ou cópia somente no PC não
+atualizam a API em execução. Em rollback, a API volta para o JSON da release
+anterior; uma chave revogada pode deixar de funcionar nessa release.
+
+Para o Cursor, rotacione apenas `Cursor:ApiKey` se a intenção for manter modelo
+e bridge. Use uma chave do Cursor com autorização para executar agentes e teste
+uma conversão com dados fictícios, não apenas a autenticação. Isso é independente
+de `RealtimeVoice:ApiKey`/`XAI_API_KEY`, usados pela voz em tempo real.
+Não registre chaves em Git, artefatos, logs ou mensagens.
+
+### Falha de inicialização do Nuxt
+
+Não repita o deploy nem execute `iisreset` sem verificar o estado da release
+ativa. Consulte `sc.exe qc MdwConteudoNuxt`, o `ObjectName` no Registro,
+`Application`, `AppDirectory` e `AppParameters` em `Parameters`, e os
+eventos System/Application no horário da falha. Compare com a última release
+funcional e valide os caminhos dos executáveis. Uma vez iniciado, confirme
+`http://127.0.0.1:3000/login` e o acesso público. Não exponha o ambiente do
+serviço em um dump compartilhado.
+
+O rollback restaura caminhos e estados anteriores, mas não desfaz mudanças
+manuais no ambiente ou na identidade do NSSM. Se apenas o deploy falhou, uma
+nova tentativa do job reutiliza o pacote original; o pipeline usa
+`build-<BuildId>-tentativa<JobAttempt>` para não sobrescrever a release.
+Para publicar um commit posterior, inicie uma nova execução do pipeline.
+
 ## Exceção do chat piloto da Curadoria no Teams
 
 O Teams pode informar `meeting.id` no diálogo do chat **Desenvolvimento | Demandas**, já verificado pelo responsável como `ChatType=group`. A exceção não libera reuniões em geral: exige correspondência exata com `NUXT_CURADORIA_PILOT_CHAT_SHA256=sha256:<64 caracteres hexadecimais minúsculos>`, configurada **somente no ambiente do serviço Nuxt** (neste servidor, `MdwConteudoNuxt`). Não é uma chave do JSON da API .NET e não deve ser versionada ou colocada em configuração pública.
 
 Na máquina e na mesma janela PowerShell que já possui a sessão Graph delegada autorizada, executar `& '.\tools\production\Get-CuradoriaPilotFingerprint.ps1'` a partir da raiz do repositório. No pacote, o helper está em `deployment/Get-CuradoriaPilotFingerprint.ps1`. Ele consulta metadados, exige um único chat `group` com o nome do piloto e devolve apenas a linha de ambiente, sem exibir o ID. Não instala módulos, não conecta nem solicita consentimento.
 
-Na aba **Environment** do NSSM para esse serviço, acrescentar a linha gerada preservando todas as outras variáveis. Não usar um comando `set AppEnvironmentExtra` que substitua a lista inteira. Não configurar no ambiente global da máquina. Carregar o valor com reinício **apenas do serviço Nuxt**, em janela autorizada; o deploy normal também reinicia esse componente e preserva o ambiente existente.
+No servidor, com PowerShell elevado e sem deploy em andamento, atualize somente o valor `AppEnvironmentExtra` do serviço. Evite salvar pela interface do NSSM. No incidente de 13/11/2026, a conta estava gravada com nome localizado e o serviço retornava 1068; voltou a iniciar após restabelecer `NT AUTHORITY\LocalService`. Também foram encontrados caminhos truncados. Não há evidência de que o pin tenha causado a falha.
+
+```powershell
+$chaveNuxt = 'HKLM:\SYSTEM\CurrentControlSet\Services\MdwConteudoNuxt\Parameters'
+$linhaPiloto = (Read-Host 'Cole a linha completa gerada pelo helper').Trim()
+if ($linhaPiloto -cnotmatch '^NUXT_CURADORIA_PILOT_CHAT_SHA256=sha256:[a-f0-9]{64}$') {
+    throw 'Formato invalido. Nenhuma alteracao realizada.'
+}
+if ((Get-Item -LiteralPath $chaveNuxt -ErrorAction Stop).GetValueKind('AppEnvironmentExtra') -ne [Microsoft.Win32.RegistryValueKind]::MultiString) {
+    throw 'Tipo inesperado. Nenhuma alteracao realizada.'
+}
+$ambienteAntes = [string[]](Get-ItemPropertyValue -LiteralPath $chaveNuxt -Name AppEnvironmentExtra -ErrorAction Stop)
+$ambienteDepois = [string[]]@(
+    $ambienteAntes | Where-Object { $_ -notmatch '^NUXT_CURADORIA_PILOT_CHAT_SHA256=' }
+    $linhaPiloto
+)
+Set-ItemProperty -LiteralPath $chaveNuxt -Name AppEnvironmentExtra -Value $ambienteDepois -ErrorAction Stop
+@((Get-ItemPropertyValue -LiteralPath $chaveNuxt -Name AppEnvironmentExtra -ErrorAction Stop) | Where-Object { $_ -ceq $linhaPiloto }).Count
+```
+
+No prompt, cole a linha inteira **sem aspas**. A contagem final deve ser `1`; não imprima a lista de variáveis. A alteração não muda a conta, os caminhos ou o IIS. O deploy normal preserva esse valor e reinicia o Nuxt; se a release correta já estiver ativa, carregue o valor reiniciando somente `MdwConteudoNuxt` em janela autorizada. Não faça os dois reinícios.
 
 O template público inclui uma regra exata para `/api/curadoria/teams/piloto` antes da regra da API .NET, encaminhando-a ao Nuxt. Não é necessário alterar ARR, bindings ou regras globais. Sem pin válido, com pin diferente ou em falha de rede, a exceção continua bloqueada sem impedir o restante do sistema. O diálogo informa somente o resultado da conferência; a confirmação humana e a revalidação antes de salvar permanecem obrigatórias. Esta checagem de apresentação não autentica usuários nem concede acesso Graph/RSC. A validação no Teams real deve ocorrer após o deploy autorizado.
