@@ -6,6 +6,7 @@ import test from 'node:test'
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8')
 const importTs = async relative => import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(await read(relative))).toString('base64')}`)
 const { isPublicCuradoriaPath } = await importTs('../utils/curadoriaPublicRoutes.ts')
+const { isPublicChatfastPath } = await importTs('../utils/chatfastPublicRoutes.ts')
 const { contentRouteDomain } = await importTs('../utils/contentNavigation.ts')
 const { curadoriaPrivacy, curadoriaTerms } = await importTs('../content/curadoriaDocuments.ts')
 const middlewareSource = await read('../middleware/auth.global.ts')
@@ -19,6 +20,7 @@ function middleware(auth) {
   return loadDefinition(middlewareSource, 'defineNuxtRouteMiddleware', {
     useAuthStore: () => auth,
     isPublicCuradoriaPath,
+    isPublicChatfastPath,
     contentRouteDomain,
     navigateTo: target => ({ redirect: target }),
     createError: error => error,
@@ -41,7 +43,7 @@ test('documents bypass auth initialization and the client auth plugin without st
   for (const path of publicCuradoriaPaths) {
     assert.equal(middleware(forbidden)(route(path)), undefined)
     const plugin = loadDefinition(pluginSource, 'defineNuxtPlugin', {
-      isPublicCuradoriaPath, useRoute: () => route(path), useAuthStore() { throw new Error('Public document accessed auth plugin') }
+      isPublicCuradoriaPath, isPublicChatfastPath, useRoute: () => route(path), useAuthStore() { throw new Error('Public document accessed auth plugin') }
     })
     assert.equal(plugin(), undefined)
   }
@@ -62,10 +64,44 @@ test('module permission denial and normal client session initialization remain a
   assert.equal(middleware(auth)(route('/biblioteca/orcamentos')).denied.statusCode, 403)
   let loaded = false
   const plugin = loadDefinition(pluginSource, 'defineNuxtPlugin', {
-    isPublicCuradoriaPath, useRoute: () => route('/login'), useAuthStore: () => ({ loadFromStorage() { loaded = true } })
+    isPublicCuradoriaPath, isPublicChatfastPath, useRoute: () => route('/login'), useAuthStore: () => ({ loadFromStorage() { loaded = true } })
   })
   plugin()
   assert.equal(loaded, true)
+})
+
+const publicChatfastPaths = ['/automacoes/chatfast/diario', '/automacoes/chatfast/diario/', '/automacoes/chatfast/semanal', '/automacoes/chatfast/semanal/']
+const protectedChatfastPaths = ['/automacoes', '/automacoes/chatfast/gestao', '/automacoes/chatfast/diario/admin', '/automacoes/chatfast/semanal/editar', '/automacoes/chatfast/diario-extra', '/automacoes/chatfast/diario%2fgestao', '/Automacoes/chatfast/diario', '/automacoes/chatfast/DIARIO', '/automacoes/chatfast//diario', '/api/web/automacoes/chatfast/relatorios']
+
+test('exact ChatFast dashboard routes bypass auth initialization without opening other automation paths', () => {
+  const forbidden = new Proxy({}, { get() { throw new Error('Public ChatFast page accessed auth state') } })
+  for (const path of publicChatfastPaths) {
+    assert.equal(isPublicChatfastPath(path), true, path)
+    assert.equal(middleware(forbidden)(route(path)), undefined, path)
+    const plugin = loadDefinition(pluginSource, 'defineNuxtPlugin', {
+      isPublicCuradoriaPath, isPublicChatfastPath, useRoute: () => route(path),
+      useAuthStore() { throw new Error('Public ChatFast page accessed auth plugin') }
+    })
+    assert.equal(plugin(), undefined, path)
+  }
+})
+
+test('ChatFast private routes and variants still require sessions and normal plugin initialization', () => {
+  for (const path of protectedChatfastPaths) {
+    assert.equal(isPublicChatfastPath(path), false, path)
+    assert.deepEqual(middleware(anonymous())(route(path)), { redirect: { path: '/login', query: { redirect: path } } }, path)
+    let loaded = 0
+    const plugin = loadDefinition(pluginSource, 'defineNuxtPlugin', {
+      isPublicCuradoriaPath, isPublicChatfastPath, useRoute: () => route(path),
+      useAuthStore: () => ({ loadFromStorage() { loaded++ } })
+    })
+    plugin()
+    assert.equal(loaded, 1, path)
+  }
+  const user = { ...anonymous(), isAuthenticated: true, isAdmin: false }
+  assert.equal(middleware(user)(route('/automacoes/chatfast/gestao')).denied.statusCode, 403)
+  assert.equal(middleware(user)(route('/automacoes/chatfast/diario/admin')).denied.statusCode, 403)
+  assert.equal(middleware({ ...user, isAdmin: true })(route('/automacoes/chatfast/gestao')), undefined)
 })
 
 test('editorial content retains all sections, pilot limitations and the confirmed contact', () => {
