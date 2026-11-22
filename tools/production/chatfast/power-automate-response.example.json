@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "1.0",
+  "flowId": "@workflow()['name']",
+  "runId": "@workflow()['run']['name']",
+  "response": "@body('Postar_cartão_adaptável_e_aguardar_uma_resposta')"
+}

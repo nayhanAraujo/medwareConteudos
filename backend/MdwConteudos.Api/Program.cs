@@ -30,10 +30,11 @@ using MdwConteudos.Api.Services;
 using ConversorHtml.Application;
 using MdwConteudos.Api.Modules.RealtimeVoice;
 using MdwConteudos.Api.Modules.StudioDrafts;
+using MdwConteudos.Api.Modules.Automacoes;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-database" && arg != "--migrate-permissions" && arg != "--migrate-package-icons" && arg != "--migrate-report-module-icons" && arg != "--migrate-evaluations" && arg != "--migrate-assistente-universal-code").ToArray());
+var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--migrate-chatfast" && arg != "--migrate-database" && arg != "--migrate-permissions" && arg != "--migrate-package-icons" && arg != "--migrate-report-module-icons" && arg != "--migrate-evaluations" && arg != "--migrate-assistente-universal-code").ToArray());
 // Override local por máquina (appsettings.*.local.json está no .gitignore)
 builder.Configuration.AddJsonFile(
     $"appsettings.{builder.Environment.EnvironmentName}.local.json",
@@ -100,6 +101,14 @@ builder.Services.Configure<LegacyPathsOptions>(builder.Configuration.GetSection(
 builder.Services.AddSingleton<IFirebirdConnectionFactory, FirebirdConnectionFactory>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AuditReader>();
+builder.Services.Configure<ChatfastOptions>(builder.Configuration.GetSection("AutomacoesChatfast"));
+builder.Services.AddScoped<ChatfastService>();
+builder.Services.AddScoped<ChatfastErrors>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("chatfast", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter("chatfast-write", _ => new() { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.AddPolicy("chatfast-public", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new() { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 builder.Services.AddScoped<AuditWriter>();
 builder.Services.AddScoped<ActiveAuditAdminFilter>();
 builder.Services.AddScoped<AvaliacaoService>();
@@ -287,6 +296,13 @@ if (args.Contains("--migrate-assistente-universal-code", StringComparer.Ordinal)
         scope.ServiceProvider.GetRequiredService<IAssistantFirebirdConnectionFactory>(),
         app.Configuration["PublicacaoAssistente:SourceKey"] ?? "");
     app.Logger.LogInformation("[Migration] Codigos universais preenchidos no Assistente: {Count}", filled);
+    return;
+}
+if (args.Contains("--migrate-chatfast", StringComparer.Ordinal))
+{
+    using var migrationScope = app.Services.CreateScope();
+    await ChatfastSchema.MigrateAsync(migrationScope.ServiceProvider.GetRequiredService<IFirebirdConnectionFactory>());
+    app.Logger.LogInformation("Schema ChatFast preparado. Nenhum fluxo externo foi ativado.");
     return;
 }
 if (args.Contains("--migrate-database", StringComparer.Ordinal))

@@ -1,9 +1,10 @@
 import { contentRouteDomain } from '~/utils/contentNavigation'
 import { isPublicCuradoriaPath } from '~/utils/curadoriaPublicRoutes'
+import { isPublicChatfastPath } from '~/utils/chatfastPublicRoutes'
 
 export default defineNuxtRouteMiddleware((to) => {
   // Public documents must not depend on a session, storage or module permissions.
-  if (isPublicCuradoriaPath(to.path)) return
+  if (isPublicCuradoriaPath(to.path) || isPublicChatfastPath(to.path)) return
 
   const auth = useAuthStore()
   auth.loadFromStorage()
@@ -19,6 +20,10 @@ export default defineNuxtRouteMiddleware((to) => {
 
   if (!auth.isAuthenticated) {
     return navigateTo({ path: '/login', query: { redirect: to.fullPath } })
+  }
+
+  if ((to.path === '/automacoes' || to.path.startsWith('/automacoes/')) && !auth.isAdmin) {
+    return abortNavigation(createError({ statusCode: 403, statusMessage: 'Área restrita aos administradores.' }))
   }
 
   const contentDomain = contentRouteDomain(to.path)

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.1",
+  "batchId": "exemplo-ficticio-semanal-20261119-v1",
+  "type": "semanal",
+  "periodStart": "2026-11-16T00:00:00-03:00",
+  "periodEnd": "2026-11-19T17:10:00-03:00",
+  "generatedAt": "2026-11-19T18:52:00-03:00",
+  "complete": true,
+  "metrics": { "analyzed": null, "waiting": null, "deviations": null, "critical": null, "treated": null },
+  "summary": {
+    "statistics": [
+      { "code": "handledConversations", "value": 100, "previousValue": null },
+      { "code": "deduplicatedDeviations", "value": 12, "previousValue": null },
+      { "code": "deviationsPer100", "value": 12, "previousValue": 14 },
+      { "code": "medianFirstReplyMinutes", "value": 8.5, "previousValue": null }
+    ],
+    "dailyVolume": [ { "date": "2026-11-16", "events": 10 }, { "date": "2026-11-17", "events": 15 } ],
+    "trend": [ { "start": "2026-11-09", "end": "2026-11-13", "deviationsPer100": 14 }, { "start": "2026-11-16", "end": "2026-11-19", "deviationsPer100": 12 } ],
+    "methodCodes": [ "businessHours08001800", "uniqueTechnicianConversation", "criticalSelectionsNotUniqueCases" ],
+    "limitationCodes": [ "snapshotNotLive", "unequalBusinessDays" ]
+  },
+  "details": {
+    "tables": [ { "title": "Exemplo privado fictício", "columns": [ "Técnico", "Conversas" ], "rows": [ [ "Pessoa de teste", "100" ] ] } ],
+    "cases": [],
+    "recommendations": [ "Recomendação fictícia para teste de apresentação." ],
+    "positiveExamples": [],
+    "sources": [],
+    "tracker": null
+  }
+}

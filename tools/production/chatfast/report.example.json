@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "batchId": "exemplo-diario-2026-11-18-revisao-1",
+  "type": "diario",
+  "periodStart": "2026-11-18T00:00:00-03:00",
+  "periodEnd": "2026-11-19T00:00:00-03:00",
+  "generatedAt": "2026-11-19T08:00:00-03:00",
+  "complete": true,
+  "metrics": {
+    "analyzed": 10,
+    "waiting": null,
+    "deviations": 2,
+    "critical": 1,
+    "treated": 1
+  },
+  "details": null
+}

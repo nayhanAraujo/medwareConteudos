@@ -35,7 +35,7 @@ function Is-SourceAllowed([string]$Path) {
     if ($p -match '(^|/)(node_modules|bin[^/]*|obj|\.nuxt|\.output|\.git|\.homologacao|uploads[^/]*|bd|TestResults)(/|$)') { return $false }
     if ($p -match '(^|/)(\.env[^/]*|appsettings\..*local\.json|appsettings\.(Development|Homologacao)\.json|secrets\.json|launchSettings\.json)$') { return $false }
     if ($p -match '\.(fdb|gdb|fbk|bak|pfx|key|pem|db|sqlite\d*)$') { return $false }
-    if ($p -match '^docs/' -and $p -notmatch '(AGENTE-LAUDO-POR-VOZ|AGENTE-MODELOS-MODO-TEXTO|PRODUCAO_IIS)\.md$' -and $p -ne 'docs/sql/scripts/add-studio-rascunhos.sql') { return $false }
+    if ($p -match '^docs/' -and $p -notmatch '(AGENTE-LAUDO-POR-VOZ|AGENTE-MODELOS-MODO-TEXTO|PRODUCAO_IIS|AUTOMACOES_CHATFAST)\.md$' -and $p -notin @('docs/sql/scripts/add-studio-rascunhos.sql','docs/sql/scripts/add-chatfast-20261120.sql')) { return $false }
     return $true
 }
 if ($WorkingTree) {
@@ -79,6 +79,7 @@ try {
     Invoke-Checked npm.cmd @('run','test:auditoria')
     Invoke-Checked npm.cmd @('run','test:orcamentos')
     Invoke-Checked npm.cmd @('run','test:curadoria')
+    Invoke-Checked npm.cmd @('run','test:automacoes')
     Invoke-Checked npm.cmd @('run','build')
     Copy-Item -LiteralPath '.output' -Destination "$output/nuxt" -Recurse
 } finally {
@@ -99,6 +100,8 @@ if (Test-Path "$source/static") { Copy-Item -LiteralPath "$source/static" -Desti
 Copy-Item -LiteralPath "$source/tools/production" -Destination "$output/deployment" -Recurse
 Copy-Item "$source/tools/production/templates/api.web.config" "$output/api/web.config" -Force
 Copy-Item -LiteralPath "$source/docs/PRODUCAO_IIS.md" -Destination $output
+Copy-Item -LiteralPath "$source/docs/AUTOMACOES_CHATFAST.md" -Destination $output
+Copy-Item -LiteralPath "$source/docs/sql/scripts/add-chatfast-20261120.sql" -Destination "$output/sql/add-chatfast-20261120.sql"
 foreach ($file in Get-ChildItem $output -Recurse -File) {
     if ($file.FullName -match '[\\/]node_modules[\\/]') { continue }
     if ($file.Name -match '^\.env($|\.)|^appsettings\.(Development|Homologacao).*\.json$|^appsettings\..*local\.json$|\.(fdb|fbk|pfx|bak)$') {

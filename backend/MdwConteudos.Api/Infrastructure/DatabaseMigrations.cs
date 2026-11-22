@@ -19,6 +19,8 @@ public static class DatabaseMigrations
         var steps = new (string Name, Func<Task> Run)[]
         {
             ("permissions", () => permissions.EnsureSchemaAsync(ct)),
+            ("chatfast", () => services.GetService<IConfiguration>()?.GetValue<bool>("AutomacoesChatfast:MigrateWithDatabase") == true
+                ? MdwConteudos.Api.Modules.Automacoes.ChatfastSchema.MigrateAsync(db, ct) : Task.CompletedTask),
             ("password-recovery", () => PasswordRecoverySchema.MigrateAsync(db, ct)),
             ("package-icons", () => PacoteIcone.MigrateAsync(db, ct)),
             ("report-module-icons", () => ModuloRelatorioIcone.MigrateAsync(db, ct)),

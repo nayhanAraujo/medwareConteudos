@@ -11,6 +11,7 @@ export function useAppMenu(): AppMenuItem[] {
     { label: 'Dashboards', path: '/', icon: 'speedometer2', exact: true },
     { label: 'Visualizar Conteúdos', path: '/conteudos', icon: 'boxes' },
     { label: 'Biblioteca', path: '/biblioteca', icon: 'journal-bookmark' },
+    ...(auth.isAdmin ? [{ label: 'Automações', path: '/automacoes', icon: 'diagram-3' }] : []),
     ...(auth.can('avaliacoes', 'visualizar') ? [{ label: 'Central de Avaliações', path: '/avaliacoes', icon: 'chat-square-heart' }] : [])
   ]
 }
