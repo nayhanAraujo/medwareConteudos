@@ -12,7 +12,8 @@ const capabilities=ref({guidedVoice:false,persistentDrafts:false,realtimeVoice:f
 const conventionalOptions=ref(false)
 const loadingCapabilities = ref(true)
 const voiceBlock=ref<RemovalBlock|null>(null)
-const temporaryView=ref<{locate:(block:RemovalBlock)=>void}|null>(null)
+const temporaryView=ref<{locate:(block:RemovalBlock)=>void;receiveChoice:(prompt:any)=>void}|null>(null)
+const measureNotice = ref('')
 onMounted(async () => {
   const api = useApi()
   try {
@@ -127,6 +128,7 @@ const applyTranscript = async (intent: VoiceUtteranceIntent, guided = false) => 
   if (sending.value || generating.value || !voiceStore.sessionId || !editableTranscript.value.trim()) return false
 
   const text = editableTranscript.value.trim()
+  measureNotice.value = ''
   const sessionId = voiceStore.sessionId
   const previousModel = voiceStore.camposScriptJson
   const effectiveIntent: VoiceUtteranceIntent = hasModel.value ? 'edit' : intent
@@ -136,7 +138,9 @@ const applyTranscript = async (intent: VoiceUtteranceIntent, guided = false) => 
   applying.value = true
   startProgress()
   try {
-    const result = await applyUtterance(sessionId, text, effectiveIntent, 'browser')
+    const result = guided
+      ? await applyUtterance(sessionId, text, effectiveIntent, 'browser', true)
+      : await applyUtterance(sessionId, text, effectiveIntent, 'browser')
     if (voiceStore.sessionId !== sessionId) return false
     if (result.revision != null && result.revision < voiceStore.revision) return false
     const model = JSON.parse(result.camposScriptJson)
@@ -194,6 +198,17 @@ const applyTranscript = async (intent: VoiceUtteranceIntent, guided = false) => 
     }
     return hasFields && !isWarning
   } catch (e: unknown) {
+    const failure = e as {code?:string; details?:unknown; message?:string}
+    if (guided && voiceStore.sessionId === sessionId) {
+      if (failure.code === 'measure_choice_required' && failure.details) {
+        temporaryView.value?.receiveChoice(failure.details)
+        return false
+      }
+      if (failure.code === 'measure_not_found' || failure.code === 'measure_destination_required') {
+        measureNotice.value = failure.message || 'Não foi possível localizar a medida.'
+        return false
+      }
+    }
     if (voiceStore.sessionId === sessionId) voiceStore.updateCamposScript(previousModel)
     if((e as {code?:string})?.code==='measure_in_use'){voiceBlock.value=(e as {details:RemovalBlock}).details;return false}
     const msg = e instanceof Error ? e.message : 'Falha ao processar fala'
@@ -355,7 +370,7 @@ const onNewSession = () => {
       </StudioIntegratedEditor>
       <StudioTemporaryVoice v-else ref="temporaryView" :realtime-available="capabilities.realtimeVoice" :busy="sending || generating" :applying="applying"
         :listening="isListening" :speech-supported="isSupported" :speech-error="speechError" v-model:transcript="editableTranscript"
-        :download="guidedDownload" @started="onGuidedStarted" @speak="startSpeech" @stop="stopSpeech"
+        :download="guidedDownload" :measure-notice="measureNotice" @started="onGuidedStarted" @speak="measureNotice = ''; startSpeech()" @stop="stopSpeech"
         @apply="applyTranscript(hasModel ? 'edit' : 'build', true)" @upload="onUploadAudio($event, true)" @blocked="voiceBlock = $event">
         <template #advanced="{ disabled }"><button type="button" :disabled="disabled" class="mt-3 rounded border border-ds-divider p-2" @click="conventionalOptions = true">Abrir edição convencional</button></template>
       </StudioTemporaryVoice>

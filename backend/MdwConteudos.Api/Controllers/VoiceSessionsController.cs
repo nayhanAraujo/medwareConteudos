@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using MdwConteudos.Api.Modules.Permissions;
+using MdwConteudos.Api.Modules.FormulasModelos;
+using MdwConteudos.Api.Modules.StudioDrafts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -162,6 +164,7 @@ public class VoiceSessionsController : ControllerBase
         try
         {
             var intent = ResolveUtteranceIntent(request.Intent, session);
+            var initialRevision = session.ImportedRevision;
             ConversorHtml.Application.Interfaces.VoiceApplyResult result;
             if (session.ImportedDocumentJson is not null)
             {
@@ -170,13 +173,33 @@ public class VoiceSessionsController : ControllerBase
                 var revision = session.ImportedRevision;
                 var plan = await _voiceService.PlanStructureAsync(MdwConteudos.Api.Modules.StudioDrafts.ImportedVoiceEditor.Document(session),
                     catalog.Select(v => new { v.CodVariavel, v.Nome, v.Sigla, v.Unidade, v.Grupo }), request.Transcript.Trim(), cancellationToken);
+                if (plan.MeasureQuery is { } query)
+                {
+                    if (!request.InteractiveChoices) return Conflict(new { message = "A medida precisa de confirmação. Repita com o nome completo ou use a edição guiada." });
+                    return Conflict(StudioMeasureQueries.Review(HttpContext.RequestServices.GetRequiredService<StudioChoices>(), query,
+                        id.ToString(), int.Parse(session.OwnerUserId), revision, catalog, ImportedVoiceEditor.Document(session).Secoes));
+                }
                 result = MdwConteudos.Api.Modules.StudioDrafts.ImportedVoiceEditor.Apply(session, plan, revision, catalog);
             }
-            else result = await _voiceService.ApplyUtteranceAsync(
-                session,
-                request.Transcript.Trim(),
-                intent,
-                cancellationToken);
+            else
+            {
+                if (request.InteractiveChoices && _voiceService is ConversorHtml.Application.Services.CursorVoiceLaudoService)
+                {
+                    var document = System.Text.Json.Nodes.JsonNode.Parse(session.CamposScriptJson)!;
+                    var catalog = await HttpContext.RequestServices.GetRequiredService<IFormulasModelosService>().ListVariaveisAsync(cancellationToken);
+                    var plan = await _voiceService.PlanStructureAsync(document, catalog.Select(v => new { v.CodVariavel, v.Nome, v.Sigla, v.Unidade, v.Grupo }),
+                        request.Transcript.Trim(), cancellationToken);
+                    if (plan.MeasureQuery is { } query)
+                    {
+                        var sections = document["camposScript"]!.AsArray().OfType<System.Text.Json.Nodes.JsonObject>()
+                            .Where(field => StudioJsonImport.Text(field, "tipo") == "etiqueta" && field["id"] is not null)
+                            .Select(field => new StudioSection(field["id"]!.ToString(), StudioJsonImport.Text(field, "descricao"), StudioJsonImport.Number(field, "coluna", 1), [])).ToArray();
+                        return Conflict(StudioMeasureQueries.Review(HttpContext.RequestServices.GetRequiredService<StudioChoices>(), query,
+                            id.ToString(), int.Parse(session.OwnerUserId), initialRevision, catalog, sections));
+                    }
+                }
+                result = await _voiceService.ApplyUtteranceAsync(session, request.Transcript.Trim(), intent, cancellationToken);
+            }
             if (session.ImportedDocumentJson is null)
             {
                 var models = HttpContext.RequestServices?.GetService<MdwConteudos.Api.Modules.FormulasModelos.IFormulasModelosService>();
@@ -196,6 +219,8 @@ public class VoiceSessionsController : ControllerBase
             }
             lock (session.EditGate)
             {
+                if (request.InteractiveChoices && session.ImportedDocumentJson is null && initialRevision != session.ImportedRevision)
+                    return Conflict(new { message = "O modelo mudou durante a gravação. Confira a versão atual e aplique novamente." });
                 if (session.ImportedDocumentJson is null) { session.CamposScriptJson = result.CamposScriptJson; session.ImportedRevision++; }
                 session.TranscriptHistory.Add(new VoiceTranscriptEntry
                 {

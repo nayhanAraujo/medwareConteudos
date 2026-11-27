@@ -26,10 +26,12 @@ export function useVoiceApi() {
     sessionId: string,
     transcript: string,
     intent: VoiceUtteranceIntent = 'build',
-    sttSource: VoiceSttSource = 'browser'
+    sttSource: VoiceSttSource = 'browser',
+    interactiveChoices = false
   ): Promise<VoiceUtteranceResponse> =>
     await api.post<VoiceUtteranceResponse>(`/api/voice/sessions/${sessionId}/utterance`, {
       transcript,
+      interactiveChoices,
       intent: intent === 'edit' ? 'edit' : 'build',
       sttSource: sttSource === 'server' ? 'Server' : 'Browser'
     })

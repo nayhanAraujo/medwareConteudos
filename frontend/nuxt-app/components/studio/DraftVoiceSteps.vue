@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type {StudioDraft} from '~/types/studioDraft'
 const props=defineProps<{draft:StudioDraft;disabled?:boolean}>()
-const emit=defineEmits<{updated:[draft:StudioDraft];blocked:[block:any];active:[active:boolean];editing:[]}>()
+const emit=defineEmits<{updated:[draft:StudioDraft];blocked:[block:any];active:[active:boolean];editing:[];choice:[prompt:any]}>()
 const api=useApi()
 const {transcribeAudio}=useVoiceApi()
 const {isSupported,isListening,transcript,start,stop,error:speechError}=useSpeechRecognition()
@@ -13,7 +13,10 @@ async function apply(){
   stop();busy.value=true;applying.value=true;error.value=''
   attempt.value??={commandId:crypto.randomUUID(),expectedRevision:props.draft.revision,transcript:transcript.value.trim()}
   try{emit('updated',await api.post<StudioDraft>(`/api/voice/rascunhos/${props.draft.id}/utterance`,attempt.value));attempt.value=null;transcript.value='';message.value='Alteração aplicada ao modelo.'}
-  catch(e){if((e as any)?.code==='measure_in_use'){emit('blocked',(e as any).details);attempt.value=null;message.value='A estrutura foi mantida.'}else{if([400,404,409].includes((e as any)?.status))attempt.value=null;error.value=e instanceof Error?e.message:'Não foi possível aplicar a fala.'}}
+  catch(e){const failure = e as {code?:string;details?:unknown;status?:number}
+    if(failure.code==='measure_choice_required' && failure.details){attempt.value=null;emit('choice',failure.details)}
+    else if(failure.code==='measure_in_use'){emit('blocked',failure.details);attempt.value=null;message.value='A estrutura foi mantida.'}
+    else {if([400,404,409].includes(failure.status ?? 0))attempt.value=null;error.value=e instanceof Error?e.message:'Não foi possível aplicar a fala.'}}
   finally{applying.value=false;busy.value=false}
 }
 async function discard(){if(busy.value)return;busy.value=true;try{emit('updated',await api.get<StudioDraft>(`/api/voice/rascunhos/${props.draft.id}`));attempt.value=null;error.value='';message.value='Estado atual conferido. Você pode gravar novamente.'}catch(e){error.value=e instanceof Error?e.message:'Falha ao conferir o modelo.'}finally{busy.value=false}}

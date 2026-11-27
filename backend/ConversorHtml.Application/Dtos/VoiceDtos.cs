@@ -35,6 +35,7 @@ public class VoiceUtteranceRequestDto
     public string Transcript { get; set; } = string.Empty;
     public VoiceSttSource SttSource { get; set; } = VoiceSttSource.Browser;
     public VoiceUtteranceIntent Intent { get; set; } = VoiceUtteranceIntent.Build;
+    public bool InteractiveChoices { get; set; }
 }
 
 public class VoiceUtteranceResponseDto

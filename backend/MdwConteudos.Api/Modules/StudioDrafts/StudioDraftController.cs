@@ -58,6 +58,8 @@ public sealed class StudioDraftController(StudioDraftService drafts, IFormulasMo
         if(realtime?.IsActive(id)==true)throw new StudioException(409,"Encerre a conversação contínua antes de aplicar a gravação por etapas.");
         var catalog=await models.ListVariaveisAsync(ct);
         var plan=await planner.PlanStructureAsync(current.Document,catalog.Select(v=>new {v.CodVariavel,v.Nome,v.Sigla,v.Unidade,v.Grupo}),request.Transcript,ct);
+        if (plan.MeasureQuery is { } query)
+            return Conflict(StudioMeasureQueries.Review(choices, query, id.ToString(), Owner, current.Revision, catalog, current.Document.Secoes));
         if(plan.Commands is null || plan.Commands.Count is <1 or >20)throw new StudioException(400,"Não foi possível identificar uma alteração estrutural. O modelo foi preservado.");
         var commands=plan.Commands.Select(call=>{var(type,payload)=StudioRealtimeAdapter.Map(call.Name,call.Arguments);return new DraftCommand(Guid.NewGuid().ToString(),current.Revision,type,System.Text.Json.JsonSerializer.SerializeToElement(payload));}).ToArray();
         if(commands.Length>1&&commands.Any(c=>c.Type is "undo" or "redo"))throw new StudioException(400,"Solicite desfazer ou refazer separadamente.");

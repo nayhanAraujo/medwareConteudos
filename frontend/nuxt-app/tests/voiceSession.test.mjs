@@ -9,7 +9,7 @@ const script = source.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1]
 const code = stripTypeScriptTypes(script.replace(/^import .*$/gm, ''))
 const initialModel = JSON.stringify({ camposScript: [{ nome: 'ALTURA' }, { nome: 'PESO' }] })
 
-function harness({ response, exportFails = false, applyFails = false, format = 'modoTexto', generated, imported = false } = {}) {
+function harness({ response, exportFails = false, applyFails = false, applyError, format = 'modoTexto', generated, imported = false } = {}) {
   const calls = []
   const exports = []
   const messages = []
@@ -28,6 +28,7 @@ function harness({ response, exportFails = false, applyFails = false, format = '
     useVoiceApi: () => ({
       async applyUtterance(...args) {
         calls.push(args)
+        if (applyError) throw applyError
         if (applyFails) throw new Error('Falha no agente')
         return response ?? { camposScriptJson: initialModel, summary: 'Alterações aplicadas.', warnings: [] }
       },
@@ -42,11 +43,32 @@ function harness({ response, exportFails = false, applyFails = false, format = '
     useSpeechRecognition: () => ({ isListening: ref(false), transcript: ref('troque a ordem do peso e altura'), error: ref(null), stop() {} }),
     resolveConversionContent: () => generated ?? ({ format: 'modoTexto', text: 'TXT atualizado', html: '' })
   }
-  const setup = new Function(...Object.keys(dependencies), `${code}\nreturn { applyTranscript, generatedText, onStopSpeech, onGenerate, outputFormat, editableTranscript };`)
+  const setup = new Function(...Object.keys(dependencies), `${code}\nreturn { applyTranscript, generatedText, onStopSpeech, onGenerate, outputFormat, editableTranscript, temporaryView, measureNotice };`)
   const page = setup(...Object.values(dependencies))
   page.generatedText.value = 'TXT anterior'
   return { ...page, store, calls, exports, messages }
 }
+
+test('guided ambiguous measure opens suggestions without changing the model or recording history', async () => {
+  const details = { token: 'signed-token', candidates: [{ codVariavel: 1, nome: 'Peso' }] }
+  const page = harness({ applyError: Object.assign(new Error('Confirme a medida'), { code: 'measure_choice_required', details }) })
+  const received = []
+  page.temporaryView.value = { receiveChoice: prompt => received.push(prompt) }
+  assert.equal(await page.applyTranscript('edit', true), false)
+  assert.deepEqual(received, [details])
+  assert.equal(page.calls[0][4], true)
+  assert.equal(page.store.camposScriptJson, initialModel)
+  assert.deepEqual(page.store.transcriptHistory, [])
+  assert.ok(page.editableTranscript.value)
+})
+
+test('guided unknown measure keeps the instruction and shows an inline notice', async () => {
+  const page = harness({ applyError: Object.assign(new Error('Não encontrei essa medida no catálogo.'), { code: 'measure_not_found' }) })
+  assert.equal(await page.applyTranscript('edit', true), false)
+  assert.match(page.measureNotice.value, /Não encontrei/)
+  assert.equal(page.store.camposScriptJson, initialModel)
+  assert.ok(page.editableTranscript.value)
+})
 
 test('guided apply updates the model without an automatic download or generation', async () => {
   const updated = '{"camposScript":[{"nome":"PESO"},{"nome":"ALTURA"}]}'

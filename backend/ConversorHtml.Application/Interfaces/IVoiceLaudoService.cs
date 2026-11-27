@@ -6,7 +6,8 @@ public record VoiceApplyResult(string CamposScriptJson, string Summary, IReadOnl
 
 public record VoiceExportResult(string Content, ConversionOutputFormat Format);
 public sealed record VoiceStructureCall(string Name, System.Text.Json.JsonElement Arguments);
-public sealed record VoiceStructurePlan(IReadOnlyList<VoiceStructureCall> Commands, string Summary, IReadOnlyList<string> Warnings);
+public sealed record VoiceMeasureQuery(string Term, string? SectionId = null);
+public sealed record VoiceStructurePlan(IReadOnlyList<VoiceStructureCall> Commands, string Summary, IReadOnlyList<string> Warnings, VoiceMeasureQuery? MeasureQuery = null);
 
 public interface IVoiceLaudoService
 {

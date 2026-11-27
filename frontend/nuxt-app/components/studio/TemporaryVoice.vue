@@ -3,7 +3,7 @@ import { describeVoiceChange, type VoiceChangeSection } from '~/utils/voiceChang
 import type {VoiceSessionResponse} from '~/types/voice'
 import type {RemovalBlock} from '~/utils/studioDependencies'
 import type {StudioSection,StudioVariable} from '~/types/studioDraft'
-const props=defineProps<{realtimeAvailable:boolean;busy:boolean;applying?:boolean;listening:boolean;speechSupported:boolean;speechError:string|null;transcript:string;download:()=>Promise<boolean>}>()
+const props=defineProps<{realtimeAvailable:boolean;busy:boolean;applying?:boolean;listening:boolean;speechSupported:boolean;speechError:string|null;transcript:string;download:()=>Promise<boolean>;measureNotice?:string}>()
 const emit=defineEmits<{started:[response:VoiceSessionResponse];speak:[];stop:[];apply:[];upload:[file:File];blocked:[block:RemovalBlock];'update:transcript':[text:string]}>()
 const store=useVoiceSessionStore(),api=useApi(),voiceApi=useVoiceApi()
 const source=ref<'new'|'open'|'json'|'image'>('new'),sourceOpen=ref(false),creating=ref(false),error=ref(''),mode=ref('steps')
@@ -106,7 +106,7 @@ async function manual(sourceId:string|null,operation='remove',target?:{sectionId
   finally{creating.value=false}
 }
 function locate(block:RemovalBlock){const target=block.dependents[0]?.measure;if(!target)return;const fields=store.camposScript.camposScript;const field=fields.find(f=>String(f.id)===target.sourceId||String(f.id)===target.itemId);if(field?.coluna)column.value=Number(field.coluna);if(target.preserved){document.querySelector('[data-temporary-components]')?.parentElement?.setAttribute('open','');document.querySelector('[data-temporary-components]')?.setAttribute('open','');document.querySelector('[data-temporary-components]')?.scrollIntoView({behavior:'smooth'});return}nextTick(()=>{const element=[...document.querySelectorAll<HTMLElement>('[data-source-id]')].find(e=>e.dataset.sourceId===(target.sourceId??target.itemId));element?.classList.add('ring-2','ring-amber-500');element?.scrollIntoView({behavior:'smooth',block:'center'});element?.focus()})}
-defineExpose({locate})
+defineExpose({locate, receiveChoice})
 </script>
 <template>
   <div class="space-y-5">
@@ -143,9 +143,10 @@ defineExpose({locate})
           @choice="receiveChoice" @active="value => { active = value; if (value) editing() }" @blocked="emit('blocked', $event)" @fallback="switchMode('steps')" />
         <StudioDsCard v-else title="Assistente de voz">
           <StudioVoiceStepControls :model-value="transcript" :listening="listening" :supported="speechSupported" :busy="busy" :applying="applying"
-            :disabled="creating || !!pendingManual" @speak="editing(); emit('speak')" @stop="emit('stop')" @apply="emit('apply')"
+            :disabled="creating || !!pendingManual || !!choice" @speak="editing(); emit('speak')" @stop="emit('stop')" @apply="emit('apply')"
             @update:model-value="value => { editing(); emit('update:transcript', value) }" />
           <p v-if="speechError" role="alert" class="mt-2 text-ds-danger">{{ speechError }}</p>
+          <p v-if="measureNotice" role="alert" class="mt-2 rounded border border-amber-500 p-3 text-sm">{{ measureNotice }}</p>
         </StudioDsCard>
           <StudioMeasureChoice v-if="choice" :token="choice.token" :candidates="choice.candidates" :sections="choice.sections" :section="choiceSection" :busy="choiceBusy" :error="choiceError" :stale="choiceStale" :retry-code="choiceRequest?.codVariavel??null" @section="choiceSection=$event" @choose="includeChoice" @cancel="cancelChoice" />
           <p v-if="lastBlocked" role="status" class="text-sm text-amber-500">{{ lastBlocked }}</p>

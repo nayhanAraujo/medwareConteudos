@@ -10,6 +10,7 @@ export function useRealtimeVoice(options?: { interactiveChoices?: boolean; draft
   const starting = ref(false)
   const saving = ref(false)
   const error = ref('')
+  const measureNotice = ref('')
   const speaking = ref(false)
   const processing = ref(false)
   const activeTools = new Set<string>()
@@ -102,7 +103,7 @@ export function useRealtimeVoice(options?: { interactiveChoices?: boolean; draft
 
   async function start(modeloId: number | null = null) {
     if (starting.value || connected.value || (!store.sessionId && !options?.draftId?.())) return
-    starting.value = true; error.value = ''; activity.value = []; proposal.value = null
+    starting.value = true; error.value = ''; measureNotice.value = ''; activity.value = []; proposal.value = null
     activeTools.clear();processing.value=false
     sequence = 0; revision.value = 0; sessionId = options?.draftId?.() ? crypto.randomUUID() : store.sessionId
     const base = String(config.public.apiBase || '').replace(/\/$/, '')
@@ -126,10 +127,10 @@ export function useRealtimeVoice(options?: { interactiveChoices?: boolean; draft
       store.revision = e.revision
     })
     hub.on('SpeechState', e => { if (belongs(e)) speaking.value = e.speaking })
-    hub.on('ChoiceRequested', e => { if (belongs(e)) { if (e.draft) options?.onDraft?.(e.draft); options?.onChoice?.(e) } })
+    hub.on('ChoiceRequested', e => { if (belongs(e)) { measureNotice.value = ''; if (e.draft) options?.onDraft?.(e.draft); options?.onChoice?.(e) } })
     hub.on('Transcript', e => { if (belongs(e)) store.addHistory({ at: new Date().toISOString(), transcript: e.text, sttSource: 'server', summary: 'Fala recebida em tempo real' }) })
     hub.on('ToolStarted', e => { if (belongs(e)) {activeTools.add(e.callId);processing.value=true;note(`Aplicando: ${actionName(e.name)}`)} })
-    hub.on('ToolCompleted', e => { if (belongs(e)) {activeTools.delete(e.callId);processing.value=activeTools.size>0;note(options?.summarize?.(e.name,e.result) || e.result?.message || `Concluído: ${actionName(e.name)}`)} })
+    hub.on('ToolCompleted', e => { if (belongs(e)) {activeTools.delete(e.callId);processing.value=activeTools.size>0;if(e.name==='buscar_medidas')measureNotice.value=e.result?.status==='measure_not_found'?(e.result.message || 'Não encontrei essa medida no catálogo.'):'';note(options?.summarize?.(e.name,e.result) || e.result?.message || `Concluído: ${actionName(e.name)}`)} })
     hub.on('ToolFailed', e => { if (belongs(e)) {activeTools.delete(e.callId);processing.value=activeTools.size>0;if(e.result?.code==='measure_in_use')options?.onBlocked?.(e.result.details);note(e.result?.message || 'Não foi possível aplicar a ação; o rascunho foi preservado.')} })
     hub.on('SaveProposed', e => { if (belongs(e) && e.revision === revision.value) proposal.value = e })
     hub.on('SaveCompleted', e => { if (belongs(e)) { saving.value = false; proposal.value = null; note('Modelo salvo no banco.') } })
@@ -174,5 +175,5 @@ export function useRealtimeVoice(options?: { interactiveChoices?: boolean; draft
     if (hub) { try { if(hub.state === 'Connected') await hub.invoke('StopSession') } catch { /* Disconnected sessions are also stopped server-side. */ } finally { await hub.stop() } }
   }
   onBeforeUnmount(() => { disposed = true; void stop() })
-  return { connected, listening, starting, saving, speaking, processing, error, activity, proposal, revision, start, pause, listen, stop, confirmSave, setContext }
+  return { connected, listening, starting, saving, speaking, processing, error, measureNotice, activity, proposal, revision, start, pause, listen, stop, confirmSave, setContext }
 }

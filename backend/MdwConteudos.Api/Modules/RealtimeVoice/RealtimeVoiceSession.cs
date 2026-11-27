@@ -401,7 +401,9 @@ public sealed class RealtimeVoiceSession
                         Interlocked.Exchange(ref _persistentRevision, updated.GetProperty("revision").GetInt64());
                         await _emit("DraftUpdated", new { sessionId = Id, revision = _persistentRevision, draft = updated, commandId, callId = call.Id });
                     }
-                    if (payload.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 1)
+                    if (payload.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() == 0)
+                        result = new { status = "measure_not_found", message = StudioMeasureQueries.NotFoundMessage };
+                    else if (candidates.ValueKind == JsonValueKind.Array && candidates.GetArrayLength() > 1)
                     {
                         var current = await commands.Get(persistent.ToString(), int.Parse(_stored.OwnerUserId), call.Token);
                         var token = scope.ServiceProvider.GetRequiredService<StudioChoices>().Issue(persistent.ToString(), int.Parse(_stored.OwnerUserId), current.Revision, candidates.EnumerateArray().Select(x => x.GetProperty("codVariavel").GetInt32()));
@@ -437,7 +439,9 @@ public sealed class RealtimeVoiceSession
                     var matches = catalog.Where(v => System.Globalization.CultureInfo.GetCultureInfo("pt-BR").CompareInfo.IndexOf($"{v.Nome} {v.Sigla} {v.Grupo}", search,
                             System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.IgnoreNonSpace) >= 0)
                         .Take(30).ToArray();
-                    result = new { status = "completed", medidas = matches };
+                    result = matches.Length == 0
+                        ? new { status = "measure_not_found", message = StudioMeasureQueries.NotFoundMessage }
+                        : (object)new { status = "completed", medidas = matches };
                     if (_interactiveChoices && matches.Length > 1)
                     {
                         var token = scope.ServiceProvider.GetRequiredService<StudioChoices>().Issue(Id.ToString(), int.Parse(_stored.OwnerUserId), _stored.ImportedRevision, matches.Select(v=>v.CodVariavel));

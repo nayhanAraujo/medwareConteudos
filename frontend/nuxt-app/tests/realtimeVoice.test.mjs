@@ -27,6 +27,15 @@ function fixture(options) {
   return { client: create(options), events, calls, store }
 }
 
+test('an empty realtime catalog result shows a notice that clears on a later matching search', async () => {
+  const f = fixture(); await f.client.start()
+  const complete = f.events.get('ToolCompleted')
+  complete({ sessionId: 'draft-1', callId: 'search', name: 'buscar_medidas', result: { status: 'measure_not_found', message: 'Não encontrei essa medida no catálogo.' } })
+  assert.match(f.client.measureNotice.value, /Não encontrei/)
+  complete({ sessionId: 'draft-1', callId: 'retry', name: 'buscar_medidas', result: { status: 'completed' } })
+  assert.equal(f.client.measureNotice.value, '')
+})
+
 test('choice events synchronize their draft snapshot before opening suggestions', async () => {
   const received=[]
   const f=fixture({onDraft:value=>received.push(['draft',value.revision]),onChoice:value=>received.push(['choice',value.revision])})

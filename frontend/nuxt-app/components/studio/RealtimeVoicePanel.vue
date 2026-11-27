@@ -3,7 +3,7 @@ import {studioActionSummary} from '~/utils/studioActionSummary'
 import type {StudioVariable} from '~/types/studioDraft'
 const props = defineProps<{ friendly?: boolean; awaitingChoice?: boolean; sectionName?: string; catalog?: StudioVariable[]; draftId?: string; context?: { revision: number; sectionId: string | null; itemId: string | null } }>()
 const emit = defineEmits<{ active: [value: boolean]; updated: [draft: any]; choice: [choice: any]; blocked: [block:any]; fallback: [] }>()
-const { connected, listening, starting, saving, speaking, processing, error, activity, proposal, start, pause, listen, stop, confirmSave, setContext } = useRealtimeVoice({ interactiveChoices: props.friendly, draftId: () => props.draftId, onDraft: draft => emit('updated', draft), onChoice: choice => emit('choice', choice), onBlocked: block=>emit('blocked',block), summarize: (name,result)=>props.friendly ? studioActionSummary(name,result,props.catalog) : '' })
+const { connected, listening, starting, saving, speaking, processing, error, measureNotice, activity, proposal, start, pause, listen, stop, confirmSave, setContext } = useRealtimeVoice({ interactiveChoices: props.friendly, draftId: () => props.draftId, onDraft: draft => emit('updated', draft), onChoice: choice => emit('choice', choice), onBlocked: block=>emit('blocked',block), summarize: (name,result)=>props.friendly ? studioActionSummary(name,result,props.catalog) : '' })
 const status = computed(()=>starting.value?'Conectando':error.value&&!connected.value?'Falha de conexão':props.awaitingChoice?'Aguardando sua escolha':processing.value?'Aplicando alteração':connected.value&&listening.value?'Ouvindo':connected.value?'Microfone pausado':'Pronto para ouvir')
 async function fallback(){await stop();emit('fallback')}
 defineExpose({stop})
@@ -46,6 +46,7 @@ onMounted(async () => {
     </div>
     </div>
     <p v-if="connected && !friendly" role="status" class="mt-3 text-sm text-ds-text">{{ speaking ? 'Ouvindo sua fala…' : listening ? 'Microfone aberto — aguardando fala' : 'Microfone pausado' }}</p>
+    <p v-if="measureNotice && !awaitingChoice" role="alert" class="mt-3 rounded border border-amber-500 p-3 text-sm">{{ measureNotice }}</p>
     <StudioVoiceTips />
     <p v-if="error" role="alert" class="mt-3 text-sm text-ds-danger">{{ error }}</p>
     <button v-if="friendly && error" class="mt-3 rounded border border-ds-divider p-2" @click="fallback">Usar gravação por etapas</button>
