@@ -9,7 +9,7 @@ function fixture(){
   const calls=[],events=[];let failure=false
   const store={sessionId:'work',revision:3,documentHash:'hash',camposScript:{camposScript:[]},applySession(value){this.revision=value.revision}}
   const api={async post(path,payload){calls.push({path,payload:JSON.parse(JSON.stringify(payload))});if(failure)throw new Error('Rede indisponível');store.revision=4;return {revision:4}},async get(){return {data:[]}}}
-  const deps={ref,computed,watch:()=>{},defineProps:()=>({realtimeAvailable:true,busy:false}),defineEmits:()=>(...event)=>events.push(event),useVoiceSessionStore:()=>store,useApi:()=>api,useVoiceApi:()=>({async getSession(){return {revision:store.revision,documentHash:'hash',dependencies:[{sourceId:'2',itemId:'uuid-peso'}]}}}),onMounted(){},defineExpose(){}}
+  const deps={ref,computed,useVoiceFeedback:()=>({highlighted:ref([]),message:ref(''),clear(){},show(){}}),watch:()=>{},defineProps:()=>({realtimeAvailable:true,busy:false}),defineEmits:()=>(...event)=>events.push(event),useVoiceSessionStore:()=>store,useApi:()=>api,useVoiceApi:()=>({async getSession(){return {revision:store.revision,documentHash:'hash',dependencies:[{sourceId:'2',itemId:'uuid-peso'}]}}}),onMounted(){},defineExpose(){}}
   const component=new Function(...Object.keys(deps),`${code};return {receiveChoice,includeChoice,cancelChoice,choice,choiceSection,choiceRequest,choiceStale,choiceError,pane,moveMeasure,manual,pendingManual}`)(...Object.values(deps))
   const prompt={sessionId:'work',token:'signed-question',revision:3,candidates:[{codVariavel:1,nome:'Peso'}],sections:[{id:'section',nome:'Paciente'}]}
   return {...component,calls,events,store,prompt,fail(){failure=true},recover(){failure=false}}

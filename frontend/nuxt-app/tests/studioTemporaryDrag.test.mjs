@@ -13,8 +13,8 @@ function fixture() {
     {id:3,tipo:'numero',nome:'ALTURA',etiquetaPai:'A',ordem:'1'}
   ]}
   const events=[]
-  const setup=new Function('defineProps','defineEmits','ref','computed',`${code};return {startDrag,drop,move,grouped}`)
-  const view=setup(()=>props,()=>(...event)=>events.push(event),ref,computed)
+  const setup=new Function('defineProps','defineEmits','ref','computed','onMounted','onBeforeUnmount',`${code};return {startDrag,drop,move,grouped}`)
+  const view=setup(()=>props,()=>(...event)=>events.push(event),ref,computed,()=>{},()=>{})
   const data=new Map()
   const event={dataTransfer:{setData:(key,value)=>data.set(key,value),getData:key=>data.get(key)},preventDefault(){}}
   return {...view,props,events,event,data}

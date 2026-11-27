@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { describeVoiceChange, type VoiceChangeSection } from '~/utils/voiceChange'
 import type {VoiceSessionResponse} from '~/types/voice'
 import type {RemovalBlock} from '~/utils/studioDependencies'
 import type {StudioSection,StudioVariable} from '~/types/studioDraft'
@@ -17,7 +18,17 @@ const choiceRequest=ref<{token:string;codVariavel:number;sectionId:string;comman
 const choiceStale=computed(()=>!!choice.value&&choice.value.revision!==store.revision)
 const phase = ref<'edit' | 'review'>('edit')
 const workspaceHeader = ref<{ reset: () => void; focus: () => void } | null>(null)
-const highlights = ref<string[]>([])
+const feedback = useVoiceFeedback()
+const highlights = feedback.highlighted
+const lastChange = feedback.message
+function snapshot(fields: typeof store.camposScript.camposScript): VoiceChangeSection[] {
+  return fields.filter(field => field.tipo === 'etiqueta').map(section => ({
+    id: String(section.id), name: section.descricao || section.nome || 'Seção', column: Number(section.coluna ?? 1),
+    items: fields.filter(field => field.tipo === 'numero' && field.etiquetaPai === section.nome)
+      .sort((a, b) => Number(a.ordem ?? 0) - Number(b.ordem ?? 0))
+      .map(field => ({ id: String(field.id), name: field.descricao || field.nome || 'Medida' }))
+  }))
+}
 const cannotLeave = computed(() => creating.value || active.value || props.busy || props.listening || !!pendingManual.value || !!choice.value)
 const destinations = computed(() => store.camposScript.camposScript
   .filter(field => field.tipo === 'etiqueta' && field.id != null && [1, 2].includes(Number(field.coluna ?? 1)))
@@ -29,12 +40,12 @@ watch(() => [store.sessionId, store.camposScript.camposScript] as const, ([id, f
   if (id !== previousId) {
     column.value = 1
     mode.value = 'steps'
-    highlights.value = []
+    feedback.clear()
     editing()
     if (id) void nextTick(() => workspaceHeader.value?.focus())
   } else if (id && JSON.stringify(fields) !== JSON.stringify(oldFields)) {
-    const previous = new Map(oldFields.map(field => [field.id, JSON.stringify(field)]))
-    highlights.value = fields.filter(field => field.id != null && previous.get(field.id) !== JSON.stringify(field)).map(field => String(field.id))
+    const change = describeVoiceChange(snapshot(oldFields), snapshot(fields))
+    feedback.show(change.ids, change.message)
     phase.value = 'review'
     workspaceHeader.value?.reset()
   }
@@ -114,6 +125,11 @@ defineExpose({locate})
         :disabled="cannotLeave || !store.camposScript.camposScript.length" @open="sourceOpen = true" />
       <section class="voice-workspace-model space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3" aria-label="Seu modelo">
         <h2 class="text-lg font-semibold">Seu modelo</h2>
+        <div v-if="lastChange" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ds-divider p-3">
+          <p role="status" class="text-sm">{{ lastChange }}</p>
+          <button v-if="store.isImported" type="button" class="rounded border border-ds-divider px-3 py-2 text-sm"
+            :disabled="cannotLeave" @click="manual(null, 'undo')">Desfazer última alteração</button>
+        </div>
         <div class="flex gap-2 lg:hidden"><button v-for="col in [1,2]" :key="col" class="rounded border border-ds-divider p-2" :aria-pressed="column === col" @click="column = col">{{ col === 1 ? 'Coluna esquerda' : 'Coluna direita' }}</button></div>
         <div class="grid items-start gap-4 lg:grid-cols-2">
           <StudioVoiceModelPreview v-for="col in [1,2]" :key="col" friendly removable :title="col === 1 ? 'Coluna esquerda' : 'Coluna direita'"

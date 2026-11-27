@@ -13,6 +13,7 @@ defineEmits<{ speak: []; stop: []; apply: [] }>()
 
 <template>
   <div class="voice-mic-controls">
+    <p class="mb-2 text-sm font-semibold">Falar → conferir → aplicar</p>
     <p role="status" class="mb-2 flex items-center gap-2 text-sm font-semibold">
       <i class="bi bi-circle-fill text-ds-primary-accent" aria-hidden="true" />
       {{ applying ? 'Aplicando alteração' : busy ? 'Processando áudio' : listening ? 'Ouvindo' : instruction.trim() ? 'Confira sua instrução' : 'Microfone pausado' }}
@@ -22,6 +23,7 @@ defineEmits<{ speak: []; stop: []; apply: [] }>()
       {{ listening ? 'Parar gravação' : 'Falar alteração' }}
     </StudioDsButton>
   </div>
+  <StudioVoiceTips />
   <p v-if="!supported" class="my-2 text-sm">Microfone indisponível neste navegador. Escreva a instrução ou envie um áudio.</p>
   <label class="my-3 block text-sm">
     Sua instrução

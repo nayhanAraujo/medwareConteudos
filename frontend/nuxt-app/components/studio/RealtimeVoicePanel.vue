@@ -25,6 +25,7 @@ onMounted(async () => {
   <StudioDsCard :title="friendly ? 'Assistente de voz' : 'Voz em tempo real · xAI'">
     <p class="mb-3 text-sm text-ds-muted">{{ friendly ? 'Fale a alteração desejada, com pausas naturais, e confira o resultado no modelo.' : 'Fale com pausas naturais. O agente organiza o rascunho enquanto continua ouvindo. Salvar no banco exige sua confirmação.' }}</p>
     <div :class="{ 'voice-mic-controls': friendly }">
+    <p v-if="friendly" class="mb-2 text-sm font-semibold">Alterações durante a fala</p>
     <p v-if="friendly" role="status" aria-live="polite" class="mb-3 rounded-lg border border-ds-divider p-3 font-semibold">{{ status }}</p>
     <p v-if="friendly && sectionName" class="mb-3 text-sm">Seção selecionada: <strong>{{ sectionName }}</strong></p>
     <details v-if="friendly && !draftId && !voiceStore.isImported" class="mb-2 text-sm"><summary>Destino para salvar</summary><select v-model="target" aria-label="Modelo de destino" :disabled="connected || starting" class="mt-1 w-full rounded border border-ds-divider bg-ds-surface p-2"><option :value="null">Somente trabalho atual</option><option v-for="model in models" :key="model.codModelo" :value="model.codModelo">{{ model.nome }}</option></select></details>
@@ -45,6 +46,7 @@ onMounted(async () => {
     </div>
     </div>
     <p v-if="connected && !friendly" role="status" class="mt-3 text-sm text-ds-text">{{ speaking ? 'Ouvindo sua fala…' : listening ? 'Microfone aberto — aguardando fala' : 'Microfone pausado' }}</p>
+    <StudioVoiceTips />
     <p v-if="error" role="alert" class="mt-3 text-sm text-ds-danger">{{ error }}</p>
     <button v-if="friendly && error" class="mt-3 rounded border border-ds-divider p-2" @click="fallback">Usar gravação por etapas</button>
     <details v-if="friendly" class="mt-3 text-sm"><summary>Exemplos do que dizer</summary><ul class="mt-2 space-y-2"><li>“Crie uma seção chamada Valvas.”</li><li>“Adicione Altura em Dados do paciente.”</li><li>“Mova Peso para Dados do paciente.”</li></ul><p class="mt-2">Para remover medidas, use o botão Remover no modelo.</p></details>

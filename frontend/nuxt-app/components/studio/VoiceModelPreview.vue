@@ -14,6 +14,10 @@ const props = defineProps<{
 }>()
 const emit=defineEmits<{remove:[sourceId:string];move:[value:{sourceId:string;sectionId:string;beforeItemId:string|null}]}>()
 const dragging = ref<string | null>(null)
+const dropTarget = ref<string | null>(null)
+function clearDrag() { dragging.value = null; dropTarget.value = null }
+onMounted(() => document.addEventListener('dragend', clearDrag, true))
+onBeforeUnmount(() => document.removeEventListener('dragend', clearDrag, true))
 const destination = ref<Record<string, string>>({})
 const dragType = 'application/x-studio-measure'
 
@@ -23,10 +27,11 @@ function startDrag(event: DragEvent, field: CampoScript) {
   event.dataTransfer.effectAllowed = 'move'
   event.dataTransfer.setData(dragType, JSON.stringify({ sourceId: dragging.value, context: props.dragContext }))
 }
-function allowDrop(event: DragEvent) {
+function allowDrop(event: DragEvent, sectionId?: string | null, beforeItemId: string | null = null) {
   if (props.movable && !props.disabled && event.dataTransfer?.types.includes(dragType)) {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
+    dropTarget.value = sectionId ? sectionId + ':' + (beforeItemId ?? 'end') : null
   }
 }
 function move(sourceId: string, sectionId: string | null, beforeItemId: string | null) {
@@ -39,7 +44,7 @@ function drop(event: DragEvent, sectionId: string | null, beforeItemId: string |
     const payload = JSON.parse(event.dataTransfer.getData(dragType))
     if (payload.context === props.dragContext && typeof payload.sourceId === 'string') move(payload.sourceId, sectionId, beforeItemId)
   } catch { /* Other drag sources do not modify the model. */ }
-  dragging.value = null
+  clearDrag()
 }
 
 const grouped = computed(() => {
@@ -87,11 +92,11 @@ const grouped = computed(() => {
             :data-source-id="field.id" tabindex="-1"
             :draggable="movable && !disabled && field.id != null"
             @dragstart="startDrag($event, field)" @dragend="dragging = null"
-            @dragover="allowDrop" @drop.stop.prevent="drop($event, section.id, String(field.id))"
-            :class="{ 'rounded ring-1 ring-ds-primary-accent': highlighted?.includes(String(field.id)), 'opacity-50': dragging === String(field.id) }"
+            @dragover="allowDrop($event, section.id, String(field.id))" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop($event, section.id, String(field.id))"
+            :class="{ 'rounded ring-1 ring-ds-primary-accent': highlighted?.includes(String(field.id)), 'opacity-50': dragging === String(field.id), 'studio-drop-before': dropTarget === section.id + ':' + field.id }"
             class="flex flex-wrap items-center gap-2 text-sm text-ds-text-secondary"
           >
-            <span class="text-ds-text">{{ field.descricao }}</span>
+            <span class="flex-1 text-ds-text">{{ field.descricao }}</span>
             <i v-if="movable" class="bi bi-grip-vertical" aria-hidden="true" title="Arraste para mover" />
             <span v-if="field.nome&&!friendly" class="rounded bg-ds-surface-elevated px-1.5 py-0.5 text-xs font-mono">{{ field.nome }}</span>
             <span v-if="field.tipo&&!friendly" class="text-xs text-ds-muted">({{ field.tipo }})</span>
@@ -103,6 +108,8 @@ const grouped = computed(() => {
             >
               {{ ref.sexo }}: {{ ref.valorMin }}–{{ ref.valorMax }}
             </span>
+            <StudioActionMenu v-if="removable || movable" :label="`Ações de ${field.descricao || field.nome || 'medida'}`" :disabled="disabled">
+              <details><summary>Detalhes da medida</summary><pre class="max-h-48 overflow-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(field, null, 2) }}</pre></details>
             <button v-if="removable&&field.id!=null" type="button" :disabled="disabled" :aria-label="`Remover ${field.descricao || field.nome || 'medida'}`" class="ml-auto rounded border border-ds-divider px-2 py-1 text-xs disabled:opacity-50" @click="emit('remove',String(field.id))">Remover</button>
             <details v-if="movable && field.id != null" class="w-full text-xs" @dragstart.stop.prevent>
               <summary>Mover {{ field.descricao || 'medida' }}</summary>
@@ -118,10 +125,11 @@ const grouped = computed(() => {
                   @click="move(String(field.id), destination[String(field.id)] || null, null)">Mover para o fim</button>
               </div>
             </details>
+            </StudioActionMenu>
           </li>
         </ul>
         <div v-if="movable && section.id" class="mt-2 rounded border border-dashed border-ds-divider p-3 text-sm"
-          @dragover="allowDrop" @drop.stop.prevent="drop($event, section.id)">Solte aqui para mover ao fim de {{ section.title }}</div>
+          :class="{ 'studio-drop-end': dropTarget === section.id + ':end' }" @dragover="allowDrop($event, section.id)" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop($event, section.id)">Solte aqui para mover ao fim de {{ section.title }}</div>
       </div>
     </div>
 
