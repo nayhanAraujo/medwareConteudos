@@ -118,6 +118,7 @@ defineExpose({locate, receiveChoice})
       <details class="mt-4 text-sm"><summary>Opções avançadas</summary><slot name="advanced" :disabled="cannotLeave" /></details>
     </StudioVoiceStart>
     <p v-if="error" role="alert" class="text-ds-danger">{{ error }}</p>
+    <StudioMeasureChoice v-if="choice" :token="choice.token" :candidates="choice.candidates" :sections="choice.sections" :section="choiceSection" :busy="choiceBusy" :error="choiceError" :stale="choiceStale" :retry-code="choiceRequest?.codVariavel??null" @section="choiceSection=$event" @choose="includeChoice" @cancel="cancelChoice" />
     <div v-if="store.sessionId" v-show="!sourceOpen" class="voice-workspace">
       <StudioVoiceWorkspaceHeader :key="store.sessionId" ref="workspaceHeader"
         :title="store.sourceFileName || 'Seu modelo'" temporary :imported="store.isImported" :phase="phase"
@@ -148,7 +149,6 @@ defineExpose({locate, receiveChoice})
           <p v-if="speechError" role="alert" class="mt-2 text-ds-danger">{{ speechError }}</p>
           <p v-if="measureNotice" role="alert" class="mt-2 rounded border border-amber-500 p-3 text-sm">{{ measureNotice }}</p>
         </StudioDsCard>
-          <StudioMeasureChoice v-if="choice" :token="choice.token" :candidates="choice.candidates" :sections="choice.sections" :section="choiceSection" :busy="choiceBusy" :error="choiceError" :stale="choiceStale" :retry-code="choiceRequest?.codVariavel??null" @section="choiceSection=$event" @choose="includeChoice" @cancel="cancelChoice" />
           <p v-if="lastBlocked" role="status" class="text-sm text-amber-500">{{ lastBlocked }}</p>
           <p v-if="manualMessage" role="status" class="text-sm">{{ manualMessage }}</p>
           <div v-if="pendingManual" class="rounded border border-amber-500 p-3 text-sm"><p>A confirmação desta ação ainda não chegou. Tentar novamente usa a mesma operação.</p><button class="mt-2 rounded border border-ds-divider p-2" :disabled="creating" @click="manual(null)">Tentar novamente</button></div>
