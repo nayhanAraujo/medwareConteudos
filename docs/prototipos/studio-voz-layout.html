@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Protótipo — Studio Modo voz (layout proposto)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <style>
+    :root {
+      --page: #202020;
+      --surface: #2b2b2b;
+      --surface-2: #252525;
+      --elevated: #323232;
+      --divider: #404040;
+      --text: #f3f3f3;
+      --text-2: #c8c8c8;
+      --muted: #9a9a9a;
+      --primary: #0f6cbd;
+      --accent: #60cdff;
+      --success: #3ecf8e;
+      --danger: #e85d5d;
+      --warning: #e8b84a;
+      --radius: 12px;
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+      --font: "Manrope", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--font);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(15, 108, 189, 0.22), transparent 55%),
+        radial-gradient(900px 420px at 90% 0%, rgba(96, 205, 255, 0.08), transparent 50%),
+        var(--page);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    button, summary { font-family: inherit; }
+
+    .shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1.5rem;
+      border-bottom: 1px solid var(--divider);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .brand i { color: var(--accent); font-size: 1.15rem; }
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 1rem;
+      font-size: 0.875rem;
+      color: var(--text-2);
+    }
+    .nav-links .active { color: var(--accent); font-weight: 600; }
+
+    .page { width: min(1680px, 100%); margin: 0 auto; padding: 1.25rem 1.5rem 3rem; flex: 1; }
+
+    .proto-banner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+      padding: 0.85rem 1rem;
+      border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--divider));
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--primary) 18%, var(--surface));
+      font-size: 0.875rem;
+      color: var(--text-2);
+    }
+    .proto-banner strong { color: var(--accent); }
+    .view-switch {
+      display: inline-flex;
+      gap: 0.35rem;
+      padding: 0.25rem;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--divider);
+    }
+    .view-switch button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 0.45rem 0.9rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .view-switch button[aria-pressed="true"] {
+      background: var(--elevated);
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px var(--divider);
+    }
+
+    .view { display: none; animation: fadeIn 0.35s ease; }
+    .view.is-active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .hero-intro {
+      max-width: 42rem;
+      margin-bottom: 1.75rem;
+    }
+    .hero-intro h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(1.6rem, 2.4vw, 2rem);
+      letter-spacing: -0.02em;
+    }
+    .hero-intro p {
+      margin: 0;
+      color: var(--text-2);
+      font-size: 1rem;
+    }
+
+    .steps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1.5rem;
+      padding: 0;
+      list-style: none;
+    }
+    .steps li {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--divider);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .steps li.done { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, var(--divider)); }
+    .steps li.current {
+      color: var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 50%, var(--divider));
+      background: color-mix(in srgb, var(--primary) 22%, var(--surface));
+    }
+    .steps .dot {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .start-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    @media (max-width: 1100px) {
+      .start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .start-grid { grid-template-columns: 1fr; }
+    }
+
+    .origin-card {
+      text-align: left;
+      border: 1px solid var(--divider);
+      border-radius: var(--radius);
+      background: linear-gradient(165deg, var(--elevated), var(--surface));
+      padding: 1.15rem 1.1rem 1.2rem;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      min-height: 10.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .origin-card:hover,
+    .origin-card:focus-visible {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+      outline: none;
+    }
+    .origin-card.is-selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+    .origin-card .icon {
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: color-mix(in srgb, var(--primary) 35%, var(--surface));
+      color: var(--accent);
+      font-size: 1.15rem;
+    }
+    .origin-card h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+    .origin-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      flex: 1;
+    }
+    .origin-card .cta {
+      margin-top: 0.35rem;
+      align-self: flex-start;
+      border: 0;
+      border-radius: 8px;
+      padding: 0.55rem 0.9rem;
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .origin-card .cta:hover { background: #1a86d9; }
+
+    .resume-block {
+      margin-top: 1.75rem;
+      border: 1px solid var(--divider);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 1rem 1.15rem;
+    }
+    .resume-block h3 {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+    }
+    .resume-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.7rem 0;
+      border-top: 1px solid var(--divider);
+    }
+    .resume-row:first-of-type { border-top: 0; padding-top: 0; }
+    .ghost-btn, .primary-btn, .danger-btn, .soft-btn {
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .ghost-btn {
+      background: transparent;
+      border-color: var(--divider);
+      color: var(--text-2);
+    }
+    .ghost-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .primary-btn {
+      background: var(--primary);
+      color: #fff;
+    }
+    .primary-btn:hover { background: #1a86d9; }
+    .soft-btn {
+      background: color-mix(in srgb, var(--primary) 25%, var(--surface));
+      color: var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 30%, var(--divider));
+    }
+    .danger-btn {
+      background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+      color: #ffb4b4;
+      border-color: color-mix(in srgb, var(--danger) 40%, var(--divider));
+    }
+
+    .workspace-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding: 1rem 1.15rem;
+      border: 1px solid var(--divider);
+      border-radius: var(--radius);
+      background: var(--elevated);
+    }
+    .workspace-header h1 {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.45rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+      color: #f0d58a;
+      border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--divider));
+    }
+    .header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+    .workspace {
+      display: grid;
+      gap: 1.25rem;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+      align-items: start;
+    }
+    @media (max-width: 1100px) {
+      .workspace { grid-template-columns: 1fr; }
+      .assistant { order: -1; position: sticky; top: 4.2rem; z-index: 30; max-height: 46vh; overflow: auto; }
+    }
+
+    .panel {
+      border: 1px solid var(--divider);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 1rem;
+    }
+    .panel h2 {
+      margin: 0 0 0.85rem;
+      font-size: 1rem;
+    }
+
+    .cols {
+      display: grid;
+      gap: 0.85rem;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media (max-width: 720px) {
+      .cols { grid-template-columns: 1fr; }
+      .col-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+    }
+    .col-tabs { display: none; }
+    .col {
+      border: 1px solid var(--divider);
+      border-radius: 10px;
+      background: var(--surface-2);
+      padding: 0.75rem;
+      min-height: 18rem;
+    }
+    .col h3 {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .section-title {
+      margin: 0.85rem 0 0.45rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .section-title:first-child { margin-top: 0; }
+    .measure {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.55rem 0.65rem;
+      margin-bottom: 0.35rem;
+      border-radius: 8px;
+      background: var(--elevated);
+      border: 1px solid transparent;
+      font-size: 0.875rem;
+      transition: border-color 0.25s ease, background 0.25s ease;
+    }
+    .measure.flash {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--primary) 28%, var(--elevated));
+    }
+    .measure small { color: var(--muted); }
+    .measure button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0.15rem;
+    }
+    .measure button:hover { color: var(--danger); }
+
+    .assistant {
+      position: sticky;
+      top: 4.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-2);
+    }
+    .status-pill .pulse {
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .assistant[data-state="listening"] .status-pill { color: var(--danger); }
+    .assistant[data-state="listening"] .pulse {
+      background: var(--danger);
+      animation: pulse 1s ease infinite;
+    }
+    .assistant[data-state="applying"] .status-pill { color: var(--accent); }
+    .assistant[data-state="applying"] .pulse {
+      background: var(--accent);
+      animation: pulse 0.8s ease infinite;
+    }
+    .assistant[data-state="done"] .status-pill { color: var(--success); }
+    .assistant[data-state="done"] .pulse { background: var(--success); }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.55; }
+    }
+
+    .mic-btn {
+      width: 100%;
+      min-height: 3.6rem;
+      border: 0;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), #1a86d9 55%, color-mix(in srgb, var(--accent) 55%, var(--primary)));
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      box-shadow: 0 10px 28px rgba(15, 108, 189, 0.35);
+      transition: transform 0.15s ease, filter 0.15s ease;
+    }
+    .mic-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .assistant[data-state="listening"] .mic-btn {
+      background: linear-gradient(135deg, #a33636, var(--danger));
+      box-shadow: 0 10px 28px rgba(232, 93, 93, 0.28);
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    label.field {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    textarea {
+      width: 100%;
+      margin-top: 0.4rem;
+      min-height: 5.5rem;
+      resize: vertical;
+      border-radius: 10px;
+      border: 1px solid var(--divider);
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 0.7rem 0.8rem;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+    textarea:focus {
+      outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      border-color: var(--accent);
+    }
+
+    .history {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .history article {
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--divider);
+      font-size: 0.82rem;
+    }
+    .history article strong { display: block; margin-bottom: 0.2rem; color: var(--text); }
+    .history article span { color: var(--muted); }
+
+    details.advanced {
+      border: 1px solid var(--divider);
+      border-radius: 10px;
+      background: var(--surface-2);
+      padding: 0.65rem 0.85rem;
+      font-size: 0.85rem;
+      color: var(--text-2);
+    }
+    details.advanced summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    details.advanced .stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.75rem;
+    }
+
+    .toast {
+      position: fixed;
+      right: 1.25rem;
+      bottom: 1.25rem;
+      z-index: 50;
+      min-width: 16rem;
+      max-width: min(24rem, calc(100vw - 2rem));
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      background: var(--elevated);
+      border: 1px solid color-mix(in srgb, var(--success) 45%, var(--divider));
+      color: var(--text);
+      box-shadow: var(--shadow);
+      transform: translateY(120%);
+      opacity: 0;
+      transition: transform 0.28s ease, opacity 0.28s ease;
+      font-size: 0.875rem;
+    }
+    .toast.is-visible {
+      transform: none;
+      opacity: 1;
+    }
+
+    .compare {
+      margin-top: 2rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--divider);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .compare h3 { color: var(--text-2); margin: 0 0 0.5rem; font-size: 0.95rem; }
+    .compare ul { margin: 0; padding-left: 1.1rem; }
+    .compare li { margin: 0.35rem 0; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav" aria-label="Studio">
+      <div class="brand"><i class="bi bi-file-earmark-code"></i> Conversor LaudosUX</div>
+      <div class="nav-links">
+        <span>Início</span>
+        <span>Converter</span>
+        <span>Modelos</span>
+        <span class="active">Modo voz</span>
+        <span>Editor</span>
+      </div>
+    </nav>
+
+    <div class="page">
+      <div class="proto-banner">
+        <p><strong>Protótipo de layout</strong> — proposta para `/studio/voz`. Sem API; só a experiência visual e o fluxo sugerido.</p>
+        <div class="view-switch" role="group" aria-label="Alternar tela do protótipo">
+          <button type="button" id="btn-start" aria-pressed="true">1. Início</button>
+          <button type="button" id="btn-work" aria-pressed="false">2. Workspace</button>
+        </div>
+      </div>
+
+      <!-- TELA 1: INÍCIO -->
+      <section id="view-start" class="view is-active" aria-label="Como deseja começar">
+        <div class="hero-intro">
+          <h1><i class="bi bi-mic" style="color:var(--accent);margin-right:0.35rem"></i>Modo voz</h1>
+          <p>Monte ou ajuste o laudo falando em português. Escolha como começar — o modelo fica visível enquanto você dita as alterações.</p>
+        </div>
+
+        <ol class="steps" aria-label="Etapas">
+          <li class="current"><span class="dot"></span>Começar</li>
+          <li><span class="dot"></span>Editar por voz</li>
+          <li><span class="dot"></span>Revisar</li>
+          <li><span class="dot"></span>Baixar</li>
+        </ol>
+
+        <div class="start-grid">
+          <button type="button" class="origin-card is-selected" data-origin="new">
+            <span class="icon"><i class="bi bi-plus-lg"></i></span>
+            <h2>Novo modelo</h2>
+            <p>Comece vazio e monte seções e medidas falando.</p>
+            <span class="cta">Começar</span>
+          </button>
+          <button type="button" class="origin-card" data-origin="open">
+            <span class="icon"><i class="bi bi-folder2-open"></i></span>
+            <h2>Abrir modelo</h2>
+            <p>Use um modelo já cadastrado como base do trabalho.</p>
+            <span class="cta">Abrir</span>
+          </button>
+          <button type="button" class="origin-card" data-origin="json">
+            <span class="icon"><i class="bi bi-filetype-json"></i></span>
+            <h2>Importar arquivo</h2>
+            <p>Traga um JSON existente e preserve fórmulas e configurações.</p>
+            <span class="cta">Importar</span>
+          </button>
+          <button type="button" class="origin-card" data-origin="image">
+            <span class="icon"><i class="bi bi-image"></i></span>
+            <h2>Usar imagem</h2>
+            <p>Parta de um layout escaneado e refine por voz.</p>
+            <span class="cta">Continuar</span>
+          </button>
+        </div>
+
+        <div class="resume-block">
+          <h3>Continuar de onde parou</h3>
+          <div class="resume-row">
+            <div>
+              <strong>Eco Doppler — rascunho</strong>
+              <div style="color:var(--muted);font-size:0.8rem">Salvo automaticamente · há 2 horas</div>
+            </div>
+            <button type="button" class="soft-btn" id="resume-draft">Retomar</button>
+          </div>
+          <div class="resume-row">
+            <div>
+              <strong>Stress Eco — trabalho temporário</strong>
+              <div style="color:var(--muted);font-size:0.8rem">Baixe antes de sair · não há salvamento automático</div>
+            </div>
+            <button type="button" class="ghost-btn" id="resume-temp">Abrir</button>
+          </div>
+        </div>
+
+        <div class="compare">
+          <h3>O que muda em relação à tela atual</h3>
+          <ul>
+            <li>Uma escolha clara de origem, sem misturar “sessão”, checkbox de editor integrado e fluxo legado no primeiro viewport.</li>
+            <li>Stepper mostra a jornada completa antes de qualquer microfone abrir.</li>
+            <li>Trabalhos anteriores separados do “começar do zero”.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- TELA 2: WORKSPACE -->
+      <section id="view-work" class="view" aria-label="Workspace de edição por voz">
+        <header class="workspace-header">
+          <div>
+            <h1>Eco Doppler</h1>
+            <span class="badge"><i class="bi bi-exclamation-triangle"></i> Trabalho temporário — baixe antes de sair</span>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="ghost-btn" id="open-other">Abrir outro</button>
+            <button type="button" class="primary-btn"><i class="bi bi-download"></i> Baixar modelo</button>
+          </div>
+        </header>
+
+        <ol class="steps" aria-label="Etapas">
+          <li class="done"><span class="dot"></span>Começar</li>
+          <li class="current" id="step-edit"><span class="dot"></span>Editar por voz</li>
+          <li id="step-review"><span class="dot"></span>Revisar</li>
+          <li id="step-download"><span class="dot"></span>Baixar</li>
+        </ol>
+
+        <div class="workspace">
+          <main class="panel" aria-label="Seu modelo">
+            <h2>Seu modelo</h2>
+            <div class="col-tabs">
+              <button type="button" class="soft-btn">Coluna 1</button>
+              <button type="button" class="ghost-btn">Coluna 2</button>
+            </div>
+            <div class="cols">
+              <div class="col">
+                <h3>Coluna esquerda</h3>
+                <p class="section-title">Dados do paciente</p>
+                <div class="measure" data-id="altura"><span>Altura <small>cm</small></span><button type="button" aria-label="Remover Altura"><i class="bi bi-x"></i></button></div>
+                <div class="measure" data-id="peso"><span>Peso <small>kg</small></span><button type="button" aria-label="Remover Peso"><i class="bi bi-x"></i></button></div>
+                <div class="measure" data-id="sc"><span>Superfície corporal <small>m²</small></span><button type="button" aria-label="Remover SC"><i class="bi bi-x"></i></button></div>
+                <p class="section-title">Câmaras esquerdas</p>
+                <div class="measure" data-id="vsvd"><span>Via de saída do VE <small>mm</small></span><button type="button" aria-label="Remover"><i class="bi bi-x"></i></button></div>
+                <div class="measure flash" id="new-measure" data-id="anel"><span>Anel aórtico <small>mm</small></span><button type="button" aria-label="Remover"><i class="bi bi-x"></i></button></div>
+              </div>
+              <div class="col">
+                <h3>Coluna direita</h3>
+                <p class="section-title">Valvas</p>
+                <div class="measure"><span>Gradiente aórtico <small>mmHg</small></span><button type="button" aria-label="Remover"><i class="bi bi-x"></i></button></div>
+                <div class="measure"><span>Área valvar <small>cm²</small></span><button type="button" aria-label="Remover"><i class="bi bi-x"></i></button></div>
+                <p class="hint" style="margin-top:1rem">Dica: peça “adicione anel aórtico em milímetros na seção câmaras” — a medida aparece aqui após aplicar.</p>
+              </div>
+            </div>
+          </main>
+
+          <aside class="assistant panel" id="assistant" data-state="idle" aria-label="Assistente de voz">
+            <h2>Assistente de voz</h2>
+            <p class="status-pill" role="status"><span class="pulse" aria-hidden="true"></span><span id="status-text">Microfone pausado</span></p>
+            <p class="hint">Fale a alteração, pare a gravação e confira a frase antes de aplicar. O modelo permanece visível.</p>
+
+            <button type="button" class="mic-btn" id="mic-btn">
+              <i class="bi bi-mic-fill" id="mic-icon"></i>
+              <span id="mic-label">Falar alteração</span>
+            </button>
+
+            <label class="field">Sua instrução
+              <textarea id="transcript" placeholder="Ex.: Adicione anel aórtico em milímetros na seção câmaras esquerdas">Adicione anel aórtico em milímetros na seção câmaras esquerdas</textarea>
+            </label>
+
+            <button type="button" class="soft-btn" id="apply-btn" style="width:100%">Aplicar alteração</button>
+
+            <div>
+              <h2 style="font-size:0.9rem;margin-bottom:0.55rem">Últimas alterações</h2>
+              <div class="history" id="history">
+                <article>
+                  <strong>Criei a seção Dados do paciente com altura, peso e SC.</strong>
+                  <span>há 3 min</span>
+                </article>
+                <article>
+                  <strong>Incluí Via de saída do VE em Câmaras esquerdas.</strong>
+                  <span>há 1 min</span>
+                </article>
+              </div>
+            </div>
+
+            <details class="advanced">
+              <summary>Opções avançadas</summary>
+              <div class="stack">
+                <button type="button" class="ghost-btn">Conversação contínua</button>
+                <button type="button" class="ghost-btn">Enviar áudio</button>
+                <button type="button" class="ghost-btn">Ver JSON preservado</button>
+                <button type="button" class="ghost-btn">Fluxo convencional</button>
+              </div>
+            </details>
+          </aside>
+        </div>
+
+        <div class="compare">
+          <h3>Hierarquia proposta no workspace</h3>
+          <ul>
+            <li><strong>Primário:</strong> microfone + aplicar (único caminho de edição por voz).</li>
+            <li><strong>Secundário:</strong> preview do modelo em duas colunas (resultado imediato).</li>
+            <li><strong>Terciário:</strong> histórico resumido e opções avançadas recolhidas.</li>
+            <li>Sem ID de sessão, sem “Gerar modelo e TXT” vs “Editar modelo com voz” competindo na mesma faixa.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status">Alteração aplicada — anel aórtico incluído.</div>
+
+  <script>
+    const viewStart = document.getElementById("view-start");
+    const viewWork = document.getElementById("view-work");
+    const btnStart = document.getElementById("btn-start");
+    const btnWork = document.getElementById("btn-work");
+    const assistant = document.getElementById("assistant");
+    const micBtn = document.getElementById("mic-btn");
+    const micLabel = document.getElementById("mic-label");
+    const micIcon = document.getElementById("mic-icon");
+    const statusText = document.getElementById("status-text");
+    const applyBtn = document.getElementById("apply-btn");
+    const toast = document.getElementById("toast");
+    const newMeasure = document.getElementById("new-measure");
+    const history = document.getElementById("history");
+    const stepEdit = document.getElementById("step-edit");
+    const stepReview = document.getElementById("step-review");
+
+    function showView(name) {
+      const isStart = name === "start";
+      viewStart.classList.toggle("is-active", isStart);
+      viewWork.classList.toggle("is-active", !isStart);
+      btnStart.setAttribute("aria-pressed", String(isStart));
+      btnWork.setAttribute("aria-pressed", String(!isStart));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    btnStart.addEventListener("click", () => showView("start"));
+    btnWork.addEventListener("click", () => showView("work"));
+    document.getElementById("resume-draft").addEventListener("click", () => showView("work"));
+    document.getElementById("resume-temp").addEventListener("click", () => showView("work"));
+    document.getElementById("open-other").addEventListener("click", () => showView("start"));
+
+    document.querySelectorAll(".origin-card").forEach((card) => {
+      card.addEventListener("click", (event) => {
+        document.querySelectorAll(".origin-card").forEach((c) => c.classList.remove("is-selected"));
+        card.classList.add("is-selected");
+        if (event.target.closest(".cta") || event.currentTarget === card) {
+          showView("work");
+        }
+      });
+    });
+
+    let listening = false;
+
+    function setState(state) {
+      assistant.dataset.state = state;
+      if (state === "idle") {
+        statusText.textContent = "Microfone pausado";
+        micLabel.textContent = "Falar alteração";
+        micIcon.className = "bi bi-mic-fill";
+      } else if (state === "listening") {
+        statusText.textContent = "Ouvindo…";
+        micLabel.textContent = "Parar gravação";
+        micIcon.className = "bi bi-stop-fill";
+      } else if (state === "applying") {
+        statusText.textContent = "Aplicando alteração…";
+      } else if (state === "done") {
+        statusText.textContent = "Pronto — revise o modelo";
+      }
+    }
+
+    micBtn.addEventListener("click", () => {
+      listening = !listening;
+      setState(listening ? "listening" : "idle");
+    });
+
+    applyBtn.addEventListener("click", () => {
+      if (listening) {
+        listening = false;
+      }
+      setState("applying");
+      applyBtn.disabled = true;
+      setTimeout(() => {
+        setState("done");
+        applyBtn.disabled = false;
+        newMeasure.classList.remove("flash");
+        void newMeasure.offsetWidth;
+        newMeasure.classList.add("flash");
+        stepEdit.classList.remove("current");
+        stepEdit.classList.add("done");
+        stepReview.classList.add("current");
+        const article = document.createElement("article");
+        article.innerHTML = "<strong>Incluí Anel aórtico em Câmaras esquerdas.</strong><span>agora</span>";
+        history.prepend(article);
+        toast.classList.add("is-visible");
+        setTimeout(() => toast.classList.remove("is-visible"), 2800);
+      }, 900);
+    });
+  </script>
+</body>
+</html>
