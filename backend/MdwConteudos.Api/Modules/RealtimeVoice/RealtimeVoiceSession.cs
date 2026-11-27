@@ -60,6 +60,9 @@ public sealed class RealtimeVoiceSession
     private int _resourcesDisposed;
     private int _configurationWritten;
     private int _configurationAccepted;
+    private const int ToolWorkerCount = 3;
+    private int _toolWorkersStarted;
+    private int _saveWorkerStarted;
     private bool _responseActive;
     private Proposal? _proposal;
     private string? _savedProposal;
@@ -159,13 +162,19 @@ public sealed class RealtimeVoiceSession
 
     private void TryReady()
     {
-        if (Volatile.Read(ref _configurationWritten) == 1 && Volatile.Read(ref _configurationAccepted) == 1 && !IsStopped)
+        if (Volatile.Read(ref _toolWorkersStarted) == ToolWorkerCount && Volatile.Read(ref _saveWorkerStarted) == 1
+            && Volatile.Read(ref _configurationWritten) == 1 && Volatile.Read(ref _configurationAccepted) == 1 && !IsStopped)
             _ready.TrySetResult();
     }
 
     private async Task RunAsync()
     {
-        var tasks = new[] { ReadAsync(), WriteAsync(), WorkerAsync(), WorkerAsync(), WorkerAsync(), SaveWorkerAsync() };
+        // Register consumers before provider I/O can publish readiness or enqueue work.
+        // Each async consumer reaches its channel wait before returning this task.
+        var workers = Enumerable.Range(0, ToolWorkerCount).Select(_ => StartToolWorker()).ToArray();
+        var saveWorker = SaveWorkerAsync();
+        if (!saveWorker.IsCompleted) Interlocked.Exchange(ref _saveWorkerStarted, 1);
+        var tasks = workers.Concat(new[] { saveWorker, WriteAsync(), ReadAsync() }).ToArray();
         Exception? failure = null;
         try
         {
@@ -299,6 +308,7 @@ public sealed class RealtimeVoiceSession
         if (!_ready.Task.IsCompletedSuccessfully) throw new InvalidOperationException("Tool before session ready.");
         var id = e.GetProperty("call_id").GetString()!;
         var response = e.GetProperty("response_id").GetString()!;
+        TraceDispatch(id, "received");
         if (!_calls.TryAdd(id, 0)) return;
         if (_calls.Count > 1000) throw new InvalidOperationException("Session tool limit exceeded.");
         var arguments = e.GetProperty("arguments").GetString()!;
@@ -319,6 +329,8 @@ public sealed class RealtimeVoiceSession
             batch.Pending++;
             var name = e.GetProperty("name").GetString()!;
             var choiceEpoch = _choiceGate.Queue(id, name);
+            // Log before publishing: a consumer may run as soon as TryWrite succeeds.
+            TraceDispatch(id, "enqueueing");
             if (!_tools.Writer.TryWrite(new Call(id, response, name, arguments, group, generation, cts.Token, Interlocked.Read(ref _persistentRevision), _persistentId.HasValue ? _responseGroups.GetValueOrDefault(response, _turnGroup) : group, choiceEpoch)))
             {
                 _choiceGate.EndSearch(id);
@@ -337,6 +349,20 @@ public sealed class RealtimeVoiceSession
         if (!_choiceGate.HasPending && ready.Any(b => !b.Cancelled && !b.AwaitingChoice)) { _responseActive = true; Send(new { type = "response.create" }); }
     }
 
+    private Task StartToolWorker()
+    {
+        var task = WorkerAsync();
+        // No provider I/O has started: an incomplete task has reached the empty
+        // channel's asynchronous wait. A failed/completed consumer cannot count as ready.
+        if (!task.IsCompleted)
+        {
+            var workers = Interlocked.Increment(ref _toolWorkersStarted);
+            _log.LogDebug("Realtime dispatch consumers session={SessionId} workers={WorkerCount}", Id, workers);
+            TryReady();
+        }
+        return task;
+    }
+
     private async Task WorkerAsync()
     {
         await foreach (var call in _tools.Reader.ReadAllAsync(_sessionToken))
@@ -346,11 +372,13 @@ public sealed class RealtimeVoiceSession
             try
             {
                 call.Token.ThrowIfCancellationRequested();
+                TraceDispatch(call.Id, "started");
                 await _emit("ToolStarted", new { sessionId = Id, callId = call.Id, responseId = call.Response, name = call.Name });
                 using var parsed = JsonDocument.Parse(call.Arguments);
                 if (!_persistentId.HasValue && _stored.ImportedDocumentJson is null) RealtimeTools.Validate(call.Name, parsed.RootElement);
                 await using var scope = _scopes.CreateAsyncScope();
                 await RealtimeVoiceManager.AuthorizeAsync(scope.ServiceProvider, _user, false, call.Token);
+                TraceDispatch(call.Id, "authorized");
                 var service = scope.ServiceProvider.GetRequiredService<IFormulasModelosService>();
                 if (_persistentId is { } persistent)
                 {
@@ -475,6 +503,9 @@ public sealed class RealtimeVoiceSession
             }
         }
     }
+
+    private void TraceDispatch(string callId, string stage)
+        => _log.LogDebug("Realtime dispatch session={SessionId} call={CallId} stage={Stage}", Id, callId, stage);
 
     public void CompleteChoice(string token, long? revision = null)
     {

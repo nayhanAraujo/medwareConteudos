@@ -8,6 +8,7 @@ using ConversorHtml.Application.Services;
 using ConversorHtml.Domain.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MdwConteudos.Api.Modules.FormulasModelos;
 using MdwConteudos.Api.Modules.Permissions;
@@ -195,11 +196,76 @@ public class RealtimeVoiceProtocolTests
         };
         await fixture.Start();
         fixture.Call("slow", "buscar_medidas", "{\"busca\":\"peso\"}");
-        var token = await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var token = await fixture.WaitForToolEntry("slow", entered.Task);
+        Assert.Equal(3, fixture.WorkersAtReady);
+        Assert.Equal(new[] { "received", "enqueueing", "started", "authorized" }, fixture.Log.StagesFor("slow"));
         await fixture.Session.StopAsync().WaitAsync(TimeSpan.FromSeconds(3));
         Assert.True(token.IsCancellationRequested);
         Assert.Throws<ObjectDisposedException>(() => { _ = token.WaitHandle; });
         Assert.Equal(1, fixture.Wire.Disposals);
+        Assert.Equal(1, fixture.EndedCount);
+    }
+
+    [Fact]
+    public async Task AllToolConsumersAreWaitingBeforeReadyAndCanRunConcurrentCallsImmediately()
+    {
+        await using var fixture = new Fixture();
+        var entries = Channel.CreateUnbounded<CancellationToken>();
+        fixture.Service.Query = async token =>
+        {
+            entries.Writer.TryWrite(token);
+            await Task.Delay(Timeout.Infinite, token);
+            return [];
+        };
+        // Queue the calls from the readiness callback itself, with no scheduling delay.
+        fixture.OnReady = () =>
+        {
+            Assert.Equal(3, fixture.WorkersAtReady);
+            foreach (var id in new[] { "first", "second", "third" })
+                fixture.Call(id, "buscar_medidas", "{\"busca\":\"peso\"}");
+        };
+        await fixture.Start();
+        var tokens = new List<CancellationToken>();
+        for (var i = 0; i < 3; i++) tokens.Add(await entries.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)));
+        fixture.Session.Append(new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920])));
+        await fixture.Wire.AudioWritten.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await fixture.Session.StopAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        foreach (var token in tokens)
+        {
+            Assert.True(token.IsCancellationRequested);
+            Assert.Throws<ObjectDisposedException>(() => { _ = token.WaitHandle; });
+        }
+        Assert.Equal(1, fixture.Wire.Disposals);
+        Assert.Equal(1, fixture.EndedCount);
+    }
+
+    [Fact]
+    public async Task ToolEntryWaitReportsPermissionFailureInsteadOfTimingOut()
+    {
+        await using var fixture = new Fixture();
+        var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Service.Query = token => { entered.TrySetResult(token); return Task.FromResult<IReadOnlyList<VariavelOpcao>>([]); };
+        await fixture.Start();
+        fixture.Permissions.Allowed = false;
+        fixture.Call("denied", "buscar_medidas", "{\"busca\":\"peso\"}");
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.WaitForToolEntry("denied", entered.Task));
+        Assert.Contains("ToolFailed", error.Message);
+        Assert.Contains("started", error.Message);
+        Assert.DoesNotContain("authorized", fixture.Log.StagesFor("denied"));
+        Assert.False(entered.Task.IsCompleted);
+    }
+
+    [Fact]
+    public async Task ToolEntryWaitReportsSessionClosureInsteadOfTimingOut()
+    {
+        await using var fixture = new Fixture();
+        var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await fixture.Start();
+        var waiting = fixture.WaitForToolEntry("not-received", entered.Task);
+        await fixture.Session.StopAsync();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => waiting);
+        Assert.Contains("SessionClosed", error.Message);
+        Assert.False(entered.Task.IsCompleted);
     }
 
     [Fact]
@@ -335,6 +401,7 @@ public class RealtimeVoiceProtocolTests
         public readonly TaskCompletionSource SessionUpdateWritten = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource SessionUpdatedProcessed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource AudioWriteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource AudioWritten = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Outputs => Sent.Count(e => e.GetProperty("type").GetString() == "conversation.item.create");
         public int Continuations => Sent.Count(e => e.GetProperty("type").GetString() == "response.create");
         public void Push(object e) => _incoming.Writer.TryWrite(JsonSerializer.Serialize(e));
@@ -351,6 +418,7 @@ public class RealtimeVoiceProtocolTests
             if (BlockAudio && type == "input_audio_buffer.append")
             { AudioWriteStarted.TrySetResult(); await Task.Delay(Timeout.Infinite, ct); }
             Sent.Enqueue(message);
+            if (type == "input_audio_buffer.append") AudioWritten.TrySetResult();
             // A provider can acknowledge configuration only after the writer sends it.
             // Prequeuing this reply lets Start return before the writer has started.
             if (type == "session.update")
@@ -377,6 +445,23 @@ public class RealtimeVoiceProtocolTests
         public void Abort() { }
         public void Dispose() { Interlocked.Increment(ref Disposals); if (ThrowOnDispose) throw new InvalidOperationException("Simulated dispose failure"); }
     }
+    private sealed class DispatchLog : ILogger
+    {
+        private readonly ConcurrentQueue<(string Call, string Stage)> _stages = new();
+        public int Workers;
+        public string[] StagesFor(string call) => _stages.Where(s => s.Call == call).Select(s => s.Stage).ToArray();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel level) => true;
+        public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (state is not IEnumerable<KeyValuePair<string, object?>> values) return;
+            var fields = values.ToDictionary(v => v.Key, v => v.Value);
+            if (fields.TryGetValue("WorkerCount", out var workers) && workers is int count) Interlocked.Exchange(ref Workers, count);
+            if (fields.TryGetValue("CallId", out var call) && fields.TryGetValue("Stage", out var stage))
+                _stages.Enqueue((call!.ToString()!, stage!.ToString()!));
+        }
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         public readonly Wire Wire = new();
@@ -387,6 +472,11 @@ public class RealtimeVoiceProtocolTests
         public readonly ClaimsPrincipal User = new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "Bearer"));
         public readonly VoiceSession Stored;
         public int EndedCount;
+        public readonly DispatchLog Log = new();
+        public int WorkersAtReady;
+        public Action? OnReady;
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _terminals = new();
+        private readonly TaskCompletionSource<string> _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly ServiceProvider _provider;
         public IServiceScopeFactory Scopes => _provider.GetRequiredService<IServiceScopeFactory>();
         public Fixture()
@@ -399,8 +489,39 @@ public class RealtimeVoiceProtocolTests
             Stored = store.Create(new VoiceSession { Id = Guid.NewGuid(), OwnerUserId = "1", ExpiresAt = DateTime.UtcNow.AddHours(1),
                 CamposScriptJson = """{"camposScript":[{"id":1,"tipo":"etiqueta","nome":"DADOS","descricao":"Dados","coluna":1,"ordem":0},{"id":2,"tipo":"numero","nome":"PESO","codVariavel":1,"etiquetaPai":"DADOS","ordem":0}]}""" });
             Session = new RealtimeVoiceSession("connection", User, Stored, 1, "test-only", new RealtimeVoiceOptions(), store,
-                _provider.GetRequiredService<IServiceScopeFactory>(), (name, payload) => { Events.Enqueue((name, JsonSerializer.SerializeToElement(payload))); return Task.CompletedTask; },
-                default, NullLogger.Instance, Wire, _ => Interlocked.Increment(ref EndedCount));
+                _provider.GetRequiredService<IServiceScopeFactory>(), Emit,
+                default, Log, Wire, _ => Interlocked.Increment(ref EndedCount));
+        }
+        private Task Emit(string name, object payload)
+        {
+            var json = JsonSerializer.SerializeToElement(payload);
+            Events.Enqueue((name, json));
+            if (name == "SessionReady")
+            {
+                WorkersAtReady = Volatile.Read(ref Log.Workers);
+                OnReady?.Invoke();
+            }
+            if (name is "ToolFailed" or "ToolCompleted") Terminal(json.GetProperty("callId").GetString()!).TrySetResult(name);
+            if (name == "SessionClosed") _closed.TrySetResult(name);
+            return Task.CompletedTask;
+        }
+        private TaskCompletionSource<string> Terminal(string call)
+            => _terminals.GetOrAdd(call, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
+
+        public async Task<CancellationToken> WaitForToolEntry(string call, Task<CancellationToken> entry)
+        {
+            var terminal = Terminal(call).Task;
+            try
+            {
+                var finished = await Task.WhenAny(entry, terminal, _closed.Task).WaitAsync(TimeSpan.FromSeconds(3));
+                if (entry.IsCompleted) return await entry;
+                var outcome = finished == terminal ? await terminal : await _closed.Task;
+                throw new InvalidOperationException($"Tool {call}: {outcome} before service entry; stages=[{string.Join(",", Log.StagesFor(call))}].");
+            }
+            catch (TimeoutException ex)
+            {
+                throw new TimeoutException($"Tool {call}: service entry was not signalled; stages=[{string.Join(",", Log.StagesFor(call))}]; workersAtReady={WorkersAtReady}.", ex);
+            }
         }
         public Task Start()
         {

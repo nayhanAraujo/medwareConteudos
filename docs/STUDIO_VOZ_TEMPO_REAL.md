@@ -147,9 +147,11 @@ Não é necessária migração de banco de dados.
 
 ### Inicialização e regressões de sincronização
 
-A sessão somente libera áudio quando o envio de `session.update` terminou com
-sucesso **e** o leitor validou `session.updated`. As duas condições são sinalizadas
+A sessão somente libera áudio quando os três consumidores de ferramentas e o
+consumidor de confirmações iniciaram, o envio de `session.update` terminou com
+sucesso **e** o leitor validou `session.updated`. As condições são sinalizadas
 independentemente, pois leitura e escrita podem avançar em ordens diferentes.
+Os consumidores alcançam a espera nas filas antes de iniciar os loops do provedor.
 Os loops pertencem à sessão e executam fora do contexto de sincronização do
 chamador; a tarefa principal continua sendo aguardada no encerramento, inclusive
 quando o cancelamento acontece antes de ela começar a executar.
@@ -168,3 +170,32 @@ sem processamento. O transporte informa que a confirmação foi processada somen
 na leitura seguinte, evitando uma corrida entre a retirada da mensagem e as
 asserções. Validar os testes novos na compilação manual ou no próximo pipeline;
 executar `--no-build` antes disso avalia somente os binários anteriores.
+
+### Diagnóstico de despacho de ferramentas
+
+O teste `StopDuringToolCancelsAndDisposesItsToken` aguarda a entrada no serviço
+antes de solicitar a parada. Um timeout nessa espera não demonstra falha no
+cancelamento: a chamada pode não ter sido recebida, pode ter sido rejeitada ou a
+sessão pode ter encerrado antes da consulta. A fixture utiliza opções em memória,
+sem carregar `appsettings.json`.
+
+Os registros de nível Debug `Realtime dispatch` correlacionam sessão/chamada e
+as etapas `received`, `enqueueing`, `started` e `authorized`. `enqueueing` indica
+a tentativa de publicação na fila, não a execução da ferramenta. Nenhum desses
+registros contém busca, argumentos, transcrição ou resultado clínico.
+
+O teste agora observa a entrada no serviço juntamente com `ToolFailed`,
+`ToolCompleted` e `SessionClosed`. Uma rejeição ou encerramento produz diagnóstico
+imediato; um timeout mantém os mesmos três segundos e informa as etapas observadas
+e a quantidade de consumidores registrada no `SessionReady`.
+
+Regressões adicionais enfileiram três chamadas no próprio callback de prontidão,
+mantêm as consultas bloqueadas por cancelamento e verificam envio de áudio,
+descarte dos tokens e encerramento único. Também cobrem permissão negada sem
+acesso ao catálogo e sessão encerrada antes da entrada no serviço. Não há mudança
+de configuração, contratos HTTP/SignalR ou esquema de banco nesta correção.
+
+Após a compilação manual, executar repetidamente os testes de protocolo e depois
+a suíte completa com o paralelismo habitual do pipeline. A janela de inicialização
+foi identificada no código; o log do incidente não basta para atribuir sua causa
+com certeza a essa janela ou ao escalonamento do CI.
