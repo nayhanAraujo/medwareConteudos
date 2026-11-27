@@ -68,6 +68,7 @@ public sealed class RealtimeVoiceSession
     private string? _savedProposal;
     public Guid Id => _stored.Id;
     public bool IsStopped => _sessionToken.IsCancellationRequested;
+    public string? StartupFailureReason { get; private set; }
     private sealed record Call(string Id, string Response, string Name, string Arguments, string Group, long Generation, CancellationToken Token, long Revision, string OperationGroup, long ChoiceEpoch);
     private sealed class Batch { public int Pending; public bool Closed; public bool Continued; public bool Cancelled; public bool AwaitingChoice; }
     private sealed record Proposal(string Id, long Revision, SalvarComposicaoRequest Composition);
@@ -239,7 +240,6 @@ public sealed class RealtimeVoiceSession
                 configured = true;
                 Send(new { type = "session.update", session = new
                 {
-                    modalities = new[] { "text" },
                     instructions = "Você monta laudos em português brasileiro por ferramentas. Sempre consulte o rascunho para obter IDs. Preserve campos não mencionados. Use somente medidas do catálogo e esclareça ambiguidades. Reutilize grupoOperacao e substituirOperacao=true para corrigir a mesma intenção. Uma nova fala pode adicionar outra intenção; não desfaça tudo. Nunca confirme um salvamento: apenas prepare a proposta e aguarde o botão na interface. Não invente dados clínicos. Seja silencioso e conciso.",
                     turn_detection = new { type = "server_vad", silence_duration_ms = _config.SilenceDurationMs },
                     audio = new { input = new { format = new { type = "audio/pcm", rate = 24000 }, transcription = new { language_hint = "pt-BR", keyterms = _keyterms } } },
@@ -250,9 +250,11 @@ public sealed class RealtimeVoiceSession
             {
                 if (!configured) throw new InvalidOperationException("Unexpected session configuration acknowledgement.");
                 try { ValidateCapabilities(e.GetProperty("session"), _config.SilenceDurationMs); }
-                catch
+                catch (InvalidOperationException ex)
                 {
-                    _log.LogWarning("xAI capability validation rejected session={SessionId}; expected text-only and server_vad intervalMs={SilenceMs}. Run the capability probe before enabling this feature.", Id, _config.SilenceDurationMs);
+                    // ValidateCapabilities uses fixed messages, never provider text.
+                    StartupFailureReason = ex.Message;
+                    _log.LogWarning("xAI capability validation rejected session={SessionId}; expected server_vad intervalMs={SilenceMs}. Run the capability probe before enabling this feature.", Id, _config.SilenceDurationMs);
                     throw;
                 }
                 Interlocked.Exchange(ref _configurationAccepted, 1);
@@ -290,17 +292,21 @@ public sealed class RealtimeVoiceSession
                 }
             }
             else if (type is "response.output_audio.delta" or "response.audio.delta")
-                throw new InvalidOperationException("Provider emitted audio despite required text-only mode.");
+            {
+                // Output audio may be generated and billed by xAI. Discard it here,
+                // without decoding, storing, logging or forwarding it to SignalR.
+                continue;
+            }
         }
     }
 
     public static void ValidateCapabilities(JsonElement session, int silenceMs)
     {
-        if (!session.TryGetProperty("modalities", out var modes) || modes.ValueKind != JsonValueKind.Array
-            || modes.GetArrayLength() != 1 || modes[0].GetString() != "text"
-            || !session.TryGetProperty("turn_detection", out var vad) || vad.GetProperty("type").GetString() != "server_vad"
-            || !vad.TryGetProperty("silence_duration_ms", out var silence) || silence.GetInt32() != silenceMs)
-            throw new InvalidOperationException("xAI did not acknowledge text-only mode and the requested VAD interval. Keep feature disabled until capability validation.");
+        if (session.ValueKind != JsonValueKind.Object || !session.TryGetProperty("turn_detection", out var vad) || vad.ValueKind != JsonValueKind.Object
+            || !vad.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String || type.GetString() != "server_vad"
+            || !vad.TryGetProperty("silence_duration_ms", out var silence) || silence.ValueKind != JsonValueKind.Number
+            || !silence.TryGetInt32(out var interval) || interval != silenceMs)
+            throw new InvalidOperationException("A xAI não confirmou a detecção de pausas configurada para a conversação contínua.");
     }
 
     private void QueueCall(JsonElement e)

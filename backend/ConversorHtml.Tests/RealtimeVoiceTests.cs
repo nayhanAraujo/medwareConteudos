@@ -70,14 +70,20 @@ public class RealtimeVoiceTests
     }
 
     [Theory]
-    [InlineData("{\"modalities\":[\"audio\"],\"turn_detection\":{\"type\":\"server_vad\",\"silence_duration_ms\":400}}")]
+    [InlineData("{\"turn_detection\":{\"type\":\"server_vad\",\"silence_duration_ms\":500}}")]
+    [InlineData("{\"turn_detection\":{\"type\":\"manual\",\"silence_duration_ms\":400}}")]
+    [InlineData("{\"turn_detection\":null}")]
+    [InlineData("{}")]
     [InlineData("{\"modalities\":[\"text\"],\"turn_detection\":{\"type\":\"server_vad\"}}")]
     public void UnacknowledgedCapabilitiesBlockAudio(string json)
         => Assert.Throws<InvalidOperationException>(() => RealtimeVoiceSession.ValidateCapabilities(Args(json), 400));
 
-    [Fact]
-    public void AcknowledgedCapabilitiesAllowSession()
-        => RealtimeVoiceSession.ValidateCapabilities(Args("""{"modalities":["text"],"turn_detection":{"type":"server_vad","silence_duration_ms":400}}"""), 400);
+    [Theory]
+    [InlineData("{\"turn_detection\":{\"type\":\"server_vad\",\"silence_duration_ms\":400}}")]
+    [InlineData("{\"modalities\":[\"audio\",\"text\"],\"turn_detection\":{\"type\":\"server_vad\",\"silence_duration_ms\":400}}")]
+    [InlineData("{\"modalities\":[\"text\"],\"turn_detection\":{\"type\":\"server_vad\",\"silence_duration_ms\":400}}")]
+    public void AcknowledgedCapabilitiesAllowSession(string json)
+        => RealtimeVoiceSession.ValidateCapabilities(Args(json), 400);
 
     [Fact]
     public void ModelCannotCallConfirmationOrSendArbitraryState()

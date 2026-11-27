@@ -33,14 +33,19 @@ powershell.exe -NoProfile -File tools/production/tests/Test-XaiRealtimeCapabilit
 ```
 
 Esse teste **acessa o serviço externo** e pode gerar cobrança. Não envia áudio
-nem executa Tools comerciais. Ele verifica o reconhecimento explícito de
-`modalities: ["text"]` e `silence_duration_ms: 400` em `session.updated`.
-Falha ou ausência desses campos impede a ativação: não há fallback que apenas
-silencie áudio e alegue que a geração de áudio foi desativada. Cada sessão real
-repete essa validação antes de liberar o microfone.
+nem executa Tools comerciais. Ele verifica o reconhecimento de `server_vad` e
+`silence_duration_ms: 400` em `session.updated`. Cada sessão real repete essa
+validação antes de liberar o microfone.
+
+A resposta real da xAI pode omitir `modalities`. O Studio aceita esse contrato
+e descarta os eventos `response.output_audio.delta` e `response.audio.delta` no
+backend, sem decodificar, armazenar, registrar ou encaminhar o áudio ao navegador.
+Essa decisão foi autorizada pelo usuário. A xAI pode gerar e cobrar áudio de
+saída mesmo sem reprodução no Studio. O aplicativo não envia `modalities` e não
+afirma que a geração de áudio foi desativada no provedor.
 
 O probe não substitui o teste de fala real: conferir pausas naturais, ruído,
-termos médicos, ausência de áudio de saída e latência no ambiente final.
+termos médicos, ausência de reprodução no Studio e latência no ambiente final.
 Nenhuma credencial disponível significa que a compatibilidade real ainda
 está pendente; testes simulados não a comprovam.
 

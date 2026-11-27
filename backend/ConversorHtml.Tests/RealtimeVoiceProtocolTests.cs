@@ -19,6 +19,49 @@ namespace ConversorHtml.Tests;
 public class RealtimeVoiceProtocolTests
 {
     [Fact]
+    public async Task InvalidVadAcknowledgementReportsSafeReasonAndKeepsAudioBlocked()
+    {
+        var fixture = new Fixture();
+        try
+        {
+            fixture.Wire.AutoAcknowledge = false;
+            var starting = fixture.Start();
+            await fixture.Wire.SessionUpdateWritten.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            fixture.Wire.Push(new { type = "session.updated", session = new { turn_detection = new { type = "server_vad", silence_duration_ms = 500 } } });
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => starting.WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.Equal(fixture.Session.StartupFailureReason, error.Message);
+            Assert.Contains("detecção de pausas", error.Message);
+            Assert.DoesNotContain(fixture.Events, entry => entry.Name == "SessionReady");
+            Assert.Throws<Microsoft.AspNetCore.SignalR.HubException>(() => fixture.Session.Append(
+                new RealtimeAudio(fixture.Stored.Id, 0, Convert.ToBase64String(new byte[1920]))));
+            Assert.Equal(1, fixture.Wire.Disposals);
+        }
+        finally { await fixture.DisposeProviderAsync(); }
+    }
+
+    [Theory]
+    [InlineData("response.output_audio.delta")]
+    [InlineData("response.audio.delta")]
+    public async Task ProviderAudioIsDiscardedAndFollowingToolsStillRun(string audioEvent)
+    {
+        await using var fixture = new Fixture();
+        fixture.Wire.AutoAcknowledge = false;
+        var starting = fixture.Start();
+        await fixture.Wire.SessionUpdateWritten.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        fixture.Wire.Push(new { type = "session.updated", session = new { turn_detection = new { type = "server_vad", silence_duration_ms = 400 } } });
+        await starting.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Null(fixture.Session.StartupFailureReason);
+        Assert.Single(fixture.Events, entry => entry.Name == "SessionReady");
+        Assert.DoesNotContain(fixture.Wire.Sent, message => message.GetProperty("type").GetString() == "session.update" && message.GetProperty("session").TryGetProperty("modalities", out _));
+        fixture.Wire.Push(new { type = audioEvent, delta = "output-audio-must-not-reach-browser" });
+        fixture.Call("after-audio", "buscar_medidas", "{\"busca\":\"peso\"}");
+        await fixture.Wait(() => fixture.Wire.Outputs == 1);
+        Assert.Contains(fixture.Events, entry => entry.Name == "ToolCompleted");
+        Assert.DoesNotContain(fixture.Events, entry => entry.Name == "SessionClosed" || entry.Name.Contains("Audio", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(fixture.Events, entry => entry.Payload.GetRawText().Contains("output-audio-must-not-reach-browser"));
+    }
+
+    [Fact]
     public async Task StopWhileWaitingForAudioControlAndToolsIsNormalAndIdempotent()
     {
         await using var fixture = new Fixture();

@@ -66,7 +66,13 @@ public sealed class RealtimeVoiceManager(
         }
         finally { _startGate.Release(); }
         try { await session.StartAsync(); }
-        catch { await StopAsync(connection); throw new HubException("Não foi possível iniciar a sessão xAI. Consulte o código de sessão nos logs."); }
+        catch
+        {
+            try { await StopAsync(connection); }
+            catch (Exception ex) { logs.CreateLogger<RealtimeVoiceManager>().LogWarning("Realtime startup cleanup failed session={SessionId} type={ErrorType}", session.Id, ex.GetType().Name); }
+            var reason = session.StartupFailureReason ?? "Não foi possível iniciar a sessão xAI. Consulte os logs da API.";
+            throw new HubException($"{reason} Código de sessão: {session.Id}");
+        }
     }
 
     public Task AppendAsync(string connection, RealtimeAudio request)
