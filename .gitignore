@@ -20,6 +20,7 @@ bd_assistente/
 !.env.example
 web.config
 # Caminhos locais de BD / segredos por máquina — NÃO versionar
+/backend/MdwConteudos.Api/appsettings.json
 appsettings.*.local.json
 **/appsettings.Local.json
 secrets.json
