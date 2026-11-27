@@ -105,14 +105,15 @@ public sealed partial class OrcamentoService(IFirebirdConnectionFactory db, IHtt
     public async Task<List<object>> Clients(CancellationToken ct)
     {
         await using var c = await db.OpenConnectionAsync(ct);
-        return (await c.QueryAsync<ClientRow>(new CommandDefinition("SELECT CODCLIENTE AS Id,NOME AS Name FROM CLIENTES ORDER BY NOME", cancellationToken: ct))).Select(r => (object)new { r.Id, r.Name }).ToList();
+        return (await c.QueryAsync<ClientRow>(new CommandDefinition("SELECT CODCLIENTE AS Id,NOME AS Name FROM CLIENTES WHERE STATUS=1 ORDER BY NOME", cancellationToken: ct))).Select(r => (object)new { r.Id, r.Name }).ToList();
     }
-    private sealed class ClientRow { public int Id { get; set; } public string Name { get; set; } = ""; }
-    private static async Task<QuoteClient> Client(DbConnection c, int id, DbTransaction? tx, CancellationToken ct)
+    private sealed class ClientRow { public int Id { get; set; } public string Name { get; set; } = ""; public int? Status { get; set; } }
+    private static async Task<QuoteClient> Client(DbConnection c, int id, DbTransaction? tx, CancellationToken ct, bool requireActive = false)
     {
-        var name = await c.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT NOME FROM CLIENTES WHERE CODCLIENTE=@id", new { id }, tx, cancellationToken: ct)) ?? throw new OrcamentoException(404, "Cliente não encontrado.");
+        var client = await c.QuerySingleOrDefaultAsync<ClientRow>(new CommandDefinition("SELECT NOME AS Name,STATUS AS Status FROM CLIENTES WHERE CODCLIENTE=@id", new { id }, tx, cancellationToken: ct)) ?? throw new OrcamentoException(404, "Cliente não encontrado.");
+        if (requireActive && client.Status != 1) throw new OrcamentoException(422, "Cliente inativo. Selecione um cliente ativo para criar o orçamento.");
         var document = await c.QuerySingleOrDefaultAsync<string>(new CommandDefinition("SELECT DOCUMENTO FROM CLIENTECOMERCIAL WHERE CODCLIENTE=@id", new { id }, tx, cancellationToken: ct));
-        return new(id, name, document is null ? new() : OrcamentoJson.Read<CommercialClient>(document));
+        return new(id, client.Name, document is null ? new() : OrcamentoJson.Read<CommercialClient>(document));
     }
     private static async Task<(string Version, QuotePolicy Policy)> Policy(DbConnection c, DbTransaction? tx, CancellationToken ct)
     {
@@ -155,7 +156,7 @@ public sealed partial class OrcamentoService(IFirebirdConnectionFactory db, IHtt
     }
     private async Task<long> CreateCore(DbConnection c, DbTransaction tx, CreateQuoteRequest request, (int Id, string Name) actor, CancellationToken ct)
     {
-        var client = await Client(c, request.ClientId, tx, ct); var policy = await Policy(c, tx, ct);
+        var client = await Client(c, request.ClientId, tx, ct, requireActive: true); var policy = await Policy(c, tx, ct);
         var draft = QuoteTechnicalEditing.Prepare(request.Draft, null, actor.Id, Now);
         draft = draft with { PaymentTerms = string.IsNullOrWhiteSpace(draft.PaymentTerms) ? policy.Policy.PaymentTerms : draft.PaymentTerms,
             ValidUntil = draft.ValidUntil ?? (policy.Policy.ValidityDays.HasValue ? DateOnly.FromDateTime(Now).AddDays(policy.Policy.ValidityDays.Value) : null) };

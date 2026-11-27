@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { newQuoteDraft, newQuoteItem, quoteCommands, quotePayload, quoteApproved, quoteEditable, quoteMoney } from '../utils/orcamentos.ts'
-import { quoteSteps, initialQuoteStep, quoteStageActions, quoteStepBlock, type QuoteStepState } from '../utils/orcamentoSteps.ts'
+import { quoteSteps, initialQuoteStep, quoteStageActions, quoteStepBlock, quoteAnalysisNavigation, quotePrimaryCommand, type QuoteStepState } from '../utils/orcamentoSteps.ts'
 import {quoteCanEmail,pendingQuoteEmailAuthorization} from '../utils/orcamentoEmail.ts'
 import {canImportAdminClient,adminClientImportPayload,type AdminClientPreviewData} from '../utils/adminClients.ts'
 
@@ -37,6 +37,25 @@ test('email is available only for authorized current approved proposals before a
 })
 
 const readyNavigation:QuoteStepState={status:'rascunho',dirty:false,hasScope:true,hasTitle:true,itemCount:1,calculationComplete:true,issues:[],analysisLoading:false,analysisDirty:false,processing:false,awaitingClassification:false,awaitingApplication:false}
+test('manual flow uses the server gate when the AI panel is unavailable and never assumes an unknown gate is clear',()=>{
+ const gate={processing:false,awaitingClassification:false,awaitingApplication:false}
+ const unavailable={...gate,loading:true,dirty:false}
+ assert.equal(quoteStepBlock(2,3,{...readyNavigation,...quoteAnalysisNavigation(gate,unavailable)}),null)
+ for(const key of ['processing','awaitingClassification','awaitingApplication'] as const)
+   assert.equal(quoteStepBlock(2,3,{...readyNavigation,...quoteAnalysisNavigation({...gate,[key]:true},unavailable)})?.step,2)
+ assert.equal(quoteStepBlock(2,3,{...readyNavigation,...quoteAnalysisNavigation(undefined,unavailable)})?.step,2)
+ assert.equal(quoteStepBlock(2,3,{...readyNavigation,...quoteAnalysisNavigation(gate,{...unavailable,dirty:true})})?.step,2)
+ assert.equal(quoteStepBlock(2,3,{...readyNavigation,...quoteAnalysisNavigation({...gate,processing:true},{...unavailable,loading:false},true)})?.step,2)
+})
+test('primary stage action preserves authorized transitions and does not compete with email',()=>{
+ assert.equal(quotePrimaryCommand(3,['aprovar']),undefined)
+ assert.equal(quotePrimaryCommand(4,['devolver','aprovar']),'aprovar')
+ assert.equal(quotePrimaryCommand(4,['solicitar_aprovacao']),'solicitar_aprovacao')
+ assert.equal(quotePrimaryCommand(4,['devolver']),undefined)
+ assert.equal(quotePrimaryCommand(5,['enviar'],true),undefined)
+ assert.equal(quotePrimaryCommand(5,['enviar']),'enviar')
+ assert.equal(quotePrimaryCommand(5,['recusar','aceitar']),'aceitar')
+})
 test('forward steps require saved data but returning is always allowed',()=>{
  assert.match(quoteStepBlock(1,2,{...readyNavigation,dirty:true})!.reason,/Salve/)
  assert.equal(quoteStepBlock(3,2,{...readyNavigation,dirty:true}),null)

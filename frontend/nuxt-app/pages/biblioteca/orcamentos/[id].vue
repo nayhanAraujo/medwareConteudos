@@ -17,7 +17,7 @@
             </li>
           </ol>
         </nav>
-        <div class="flex flex-wrap justify-between items-center gap-3 mt-5 border-t border-gray-200 pt-4"><p class="text-xs text-gray-500 m-0">Salve cada etapa e resolva seus impedimentos antes de avançar. Aprovação e envio continuam explícitos.</p><DsButton v-if="editable" size="sm" icon="save" :loading="busy || store.saving" @click="save()">Salvar alterações</DsButton></div>
+        <div class="flex flex-wrap justify-between items-center gap-3 mt-5 border-t border-gray-200 pt-4"><p class="text-xs text-gray-500 m-0">Salve cada etapa e resolva seus impedimentos antes de avançar. Aprovação e envio continuam explícitos.</p><DsButton v-if="editable && dirty" size="sm" variant="secondary" icon="save" :loading="busy || store.saving" @click="save()">Salvar alterações</DsButton></div>
       </section>
       <DsAlert v-if="dirty" variant="warning" class="my-4">Há alterações não salvas. Você pode voltar para revisar, mas precisa salvar antes de avançar.</DsAlert>
       <div class="mt-5 mb-4" :id="`quote-stage-${step}`"><p class="text-xs uppercase tracking-wide text-gray-500">Etapa {{ step }} de 5</p><h2 ref="stageHeading" tabindex="-1" class="quote-stage-title text-xl font-semibold mt-1">{{ quoteSteps[step - 1]!.title }}</h2><p class="text-sm text-gray-500 mt-2">{{ quoteSteps[step - 1]!.description }}</p></div>
@@ -32,7 +32,7 @@
       <DsPageShell v-show="step === 2">
         <h3 class="text-base font-semibold">Como deseja elaborar o escopo?</h3>
         <p class="text-sm text-gray-500 mt-2">Use o Composer abaixo para obter sugestões ou siga com elaboração manual na próxima etapa. A IA é opcional.</p>
-        <DsButton variant="secondary" class="mt-3" :disabled="busy" @click="chooseManual">Elaborar itens manualmente</DsButton>
+
         <p v-if="!can('usar_ia')" class="text-sm text-gray-500 mt-3">Seu perfil não possui permissão de análise por IA. A elaboração manual continua disponível quando não houver análises pendentes de outro operador.</p>
         <DsButton v-if="current && commands.includes('analise')" variant="secondary" class="mt-3" :disabled="busy || dirty" @click="openCommand('analise')">Registrar início da análise</DsButton>
       </DsPageShell>
@@ -40,7 +40,7 @@
       <QuoteIssuesPanel v-show="step === 3 || step === 4" :issues="visibleIssues" :dirty="dirty" :busy="busy" @navigate="focusIssue" />
       <div v-show="step === 3">
       <section class="space-y-4 mt-4"><QuoteItemEditor v-for="(item,index) in draft.items" :key="index" :item="item" :index="index" :readonly="!editable || busy" :policy="snapshot.policy" :total="snapshot.calculation.items[index]" @remove="draft.items.splice(index,1)" /></section>
-      <div v-if="editable" class="flex flex-wrap gap-3 my-4"><DsButton variant="secondary" id="quote-add-item" icon="plus" :disabled="busy || draft.items.length >= 100" @click="draft.items.push(newQuoteItem())">Adicionar item</DsButton><DsButton icon="save" :loading="busy || store.saving" @click="save()">Salvar e recalcular</DsButton><DsButton id="quote-refresh-policy" variant="secondary" :disabled="busy" @click="save(true,false)">Atualizar política e recalcular</DsButton><DsButton id="quote-refresh-client" variant="secondary" :disabled="busy" @click="save(false,true)">Atualizar dados do cliente</DsButton></div>
+      <div v-if="editable" class="flex flex-wrap gap-3 my-4"><DsButton variant="secondary" id="quote-add-item" icon="plus" :disabled="busy || draft.items.length >= 100" @click="draft.items.push(newQuoteItem())">Adicionar item</DsButton><DsButton id="quote-refresh-policy" variant="secondary" :disabled="busy" @click="save(true,false)">Atualizar política e recalcular</DsButton><DsButton id="quote-refresh-client" variant="secondary" :disabled="busy" @click="save(false,true)">Atualizar dados do cliente</DsButton></div>
 
         <DsPageShell class="mt-4">
           <h3 class="text-base font-semibold mb-4">Condições da proposta</h3>
@@ -68,10 +68,10 @@
         <h2 class="text-lg font-semibold">Consolidado da revisão salva</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4"><div>Horas estimadas<strong class="block text-lg">{{ snapshot.calculation.hours }}</strong></div><div>Referência<strong class="block text-lg">{{ quoteMoney(snapshot.calculation.gross) }}</strong></div><div>Descontos<strong class="block text-lg">{{ quoteMoney(snapshot.calculation.discount) }}</strong></div><div>Valor final<strong class="block text-xl text-blue-800">{{ quoteMoney(snapshot.calculation.net) }}</strong></div></div><p v-if="!snapshot.calculation.complete" class="text-sm text-amber-800 mt-3">A revisão tem valores ou enquadramentos pendentes. Não está pronta para aprovação.</p>
         <details v-if="snapshot.calculation.internalCost != null" class="text-xs text-gray-500 mt-3"><summary>Custo interno estimado (não integra a proposta)</summary>{{ quoteMoney(snapshot.calculation.internalCost) }}</details>
         <p v-if="isEditor && viewStatus === 'em_aprovacao'" class="text-sm text-amber-800 mt-4">Você elaborou ou editou esta revisão. Outro usuário autorizado deverá aprová-la, mesmo que você seja administrador.</p>
-        <div v-if="current" class="flex flex-wrap gap-2 mt-4"><DsButton v-for="action in stageCommands" :key="action" :variant="['cancelar','recusar'].includes(action) ? 'danger' : 'secondary'" :disabled="busy || dirty" @click="openCommand(action)">{{ quoteActions[action] }}</DsButton></div>
+        <div v-if="current" class="flex flex-wrap gap-2 mt-4"><DsButton v-for="action in stageCommands.filter(a=>a!==primaryCommand)" :key="action" :variant="['cancelar','recusar'].includes(action) ? 'danger' : 'secondary'" :disabled="busy || dirty" @click="openCommand(action)">{{ emailIsPrimary && action==='enviar' ? 'Registrar envio já realizado' : quoteActions[action] }}</DsButton></div>
         <div v-if="step === 5 && quoteApproved(viewStatus)" class="flex flex-wrap gap-2 mt-4"><DsButton variant="secondary" icon="clipboard" :disabled="busy || dirty" @click="proposal">Texto do e-mail</DsButton><DsButton variant="secondary" icon="file-earmark-pdf" :disabled="busy || dirty" @click="downloadPdf">Baixar proposta PDF</DsButton></div>
         <div v-if="step === 5 && email" class="mt-4"><label for="quote-email" class="text-sm">Texto comercial gerado pelo servidor</label><textarea id="quote-email" :value="email" rows="14" readonly class="quote-area" /><DsButton variant="secondary" size="sm" class="mt-2" @click="copyEmail">Copiar texto</DsButton></div>
-        <QuoteEmailPanel v-if="step === 5 && quoteCanEmail(viewStatus,current,store.detail.header.archived,can('registrar_marcos')) && (!store.detail.emailSource || store.detail.emailSource.confirmed)" :id="id" :revision="Number(selectedRevision)" :version="store.detail.header.version" :client-email="store.detail.emailSource?.confirmation?.recipient || snapshot.client.commercial.email" :fixed-recipient="!!store.detail.emailSource" :disabled="busy || dirty" @busy="busy=$event" @updated="applyDetail($event,viewEpoch)" />
+        <QuoteEmailPanel v-if="step === 5 && canOfferEmail && !emailPending" :primary="emailIsPrimary" :id="id" :revision="Number(selectedRevision)" :version="store.detail.header.version" :client-email="store.detail.emailSource?.confirmation?.recipient || snapshot.client.commercial.email" :fixed-recipient="!!store.detail.emailSource" :disabled="busy || dirty" @busy="busy=$event" @updated="applyDetail($event,viewEpoch)" />
         <QuoteEmailAuthorizationPanel v-if="step === 5 && current && !store.detail.header.archived && ['aprovado','enviado'].includes(viewStatus) && store.detail.emailSource?.confirmed && can('confirmar_email') && can('registrar_marcos')" :id="id" :revision="Number(selectedRevision)" :version="store.detail.header.version" :recipient="store.detail.emailSource.confirmation!.recipient" :events="store.detail.events" :disabled="busy || dirty" @busy="busy=$event" @updated="applyDetail($event,viewEpoch)" />
       </DsPageShell>
 
@@ -81,7 +81,14 @@
         <ul class="mt-4 space-y-2"><li v-for="file in store.detail.attachments" :key="file.id" class="border-b py-2 flex flex-wrap justify-between gap-3 text-sm"><div>{{ file.name }} <span class="text-gray-500">· r{{ file.revision }} · {{ file.kind }} · {{ Math.ceil(file.size/1024) }} KB</span><details class="text-xs text-gray-500"><summary>Integridade</summary><code class="break-all">{{ file.sha256 }}</code></details></div><DsButton variant="ghost" size="sm" icon="download" @click="downloadAttachment(file.id,file.name)">Baixar</DsButton></li></ul>
       </DsPageShell>
 
-      <p v-if="forwardBlock" class="mt-4 text-sm text-amber-800" role="status">{{ forwardBlock.reason }}</p><div class="quote-step-footer"><DsButton variant="secondary" :disabled="step === 1 || busy" @click="goStep(step - 1)">Etapa anterior</DsButton><span class="text-xs text-gray-500">Etapa {{ step }} de 5</span><DsButton v-if="step < 5" :disabled="busy || !!forwardBlock" @click="goStep(step + 1)">Continuar</DsButton><DsButton v-else variant="secondary" :disabled="busy" @click="goStep(4)">Revisar orçamento</DsButton></div>
+      <p v-if="nextHint" class="mt-4 text-sm text-amber-800" role="status">{{ nextHint }}</p>
+      <div class="quote-step-footer">
+        <DsButton variant="secondary" :disabled="step === 1 || busy" @click="goStep(step - 1)">Etapa anterior</DsButton>
+        <span class="text-xs text-gray-500">Etapa {{ step }} de 5</span>
+        <DsButton v-if="primaryCommand" :disabled="busy || dirty || (step===4 && !!approvalBlock)" @click="openCommand(primaryCommand)">{{ quoteActions[primaryCommand] }}</DsButton>
+        <DsButton v-else-if="step===2 && editable" :loading="busy" :disabled="busy || dirty" @click="chooseManual">Elaborar itens manualmente</DsButton>
+        <DsButton v-else-if="step<4 || (step===4 && !forwardBlock)" :disabled="busy || (!!forwardBlock && !(editable && dirty && (step===1 || step===3)))" :loading="busy || store.saving" @click="continueStep">{{ editable && dirty && (step===1 || step===3) ? 'Salvar e continuar' : ['Revisar escopo','Ir para itens e valores','Conferir orçamento','Ver proposta'][step-1] }}</DsButton>
+      </div>
       <div v-if="current && secondaryCommands.length" class="mt-4"><details><summary class="text-sm text-gray-500 cursor-pointer">Outras ações do orçamento</summary><div class="flex flex-wrap gap-2 mt-3"><DsButton v-for="action in secondaryCommands" :key="action" variant="secondary" size="sm" :disabled="busy || dirty" @click="openCommand(action)">{{ quoteActions[action] }}</DsButton></div></details></div>
       <DsPageShell class="mt-4"><details><summary class="font-semibold cursor-pointer">Histórico de decisões · {{ store.detail.events.length }} registros</summary><ol class="mt-4 space-y-4"><li v-for="event in store.detail.events" :key="event.id" class="border-l-2 border-blue-200 pl-4 text-sm"><p class="font-medium">{{ quoteActions[event.action] || event.action }} · r{{ event.revision }} · {{ event.actorName }}</p><p class="text-gray-500 text-xs">{{ quoteDate(event.createdAtUtc) }} · {{ quoteStatuses[event.fromStatus] || 'Novo' }} → {{ quoteStatuses[event.toStatus] }}</p><p v-if="event.reason" class="mt-1 whitespace-pre-wrap break-words">{{ event.reason }}</p><p v-if="event.reference" class="text-gray-500 break-words">Referência: {{ event.reference }}</p><p v-if="event.destination" class="text-gray-500 break-words">Destino: {{ event.destination }}</p></li></ol></details></DsPageShell>
     </template>
@@ -94,10 +101,10 @@ import QuoteAiPanel from '~/components/orcamentos/QuoteAiPanel.vue'
 import QuoteEmailPanel from '~/components/orcamentos/QuoteEmailPanel.vue'
 import QuoteEmailSourcePanel from '~/components/orcamentos/QuoteEmailSourcePanel.vue'
 import QuoteEmailAuthorizationPanel from '~/components/orcamentos/QuoteEmailAuthorizationPanel.vue'
-import {quoteCanEmail} from '~/utils/orcamentoEmail'
+import {quoteCanEmail,pendingQuoteEmailAuthorization} from '~/utils/orcamentoEmail'
 import QuoteIssuesPanel from '~/components/orcamentos/QuoteIssuesPanel.vue'
 import type {QuoteIssue} from '~/utils/orcamentoTechnical'
-import { quoteSteps, initialQuoteStep, quoteStageActions, quoteStepBlock, type QuoteStepState, type QuoteAiProgress } from '~/utils/orcamentoSteps'
+import { quoteSteps, initialQuoteStep, quoteStageActions, quoteStepBlock, quoteAnalysisNavigation, quotePrimaryCommand, type QuoteAnalysisGate, type QuoteStepState, type QuoteAiProgress } from '~/utils/orcamentoSteps'
 import { useOrcamentosStore } from '~/stores/orcamentos'
 import { newQuoteItem, quoteEditable, quoteApproved, quoteCommands, quotePayload, quoteStatuses, quoteActions, quoteMoney, quoteDate, type QuoteDraft, type QuoteDetail } from '~/utils/orcamentos'
 definePageMeta({ layout: 'default', compactWorkspace: true })
@@ -115,6 +122,17 @@ const step = ref(1), stageHeading = ref<HTMLElement | null>(null)
 const navigationError=ref(''),aiProgress=ref<QuoteAiProgress|null>(null),aiPanel=ref<{discardDraft:()=>void}|null>(null)
 let stepInitialized = false
 const stageCommands = computed(() => quoteStageActions(step.value, commands.value))
+const emailPending = computed(() => !!pendingQuoteEmailAuthorization(store.detail?.events || [], Number(selectedRevision.value)))
+const canOfferEmail = computed(() => !!store.detail && quoteCanEmail(viewStatus.value,current.value,store.detail.header.archived,can('registrar_marcos')) && (!store.detail.emailSource || store.detail.emailSource.confirmed))
+const emailIsPrimary = computed(() => step.value===5 && viewStatus.value==='aprovado' && canOfferEmail.value && !emailPending.value && !store.detail?.events.some(e=>e.revision===Number(selectedRevision.value) && ['email_iniciado','email_enviado','email_incerto'].includes(e.action)))
+const primaryCommand = computed(() => current.value ? quotePrimaryCommand(step.value,commands.value,emailIsPrimary.value || (viewStatus.value==='aprovado' && emailPending.value)) : undefined)
+const approvalBlock = computed(() => editable.value ? quoteStepBlock(3,4,navigationState.value) : null)
+const nextHint = computed(() => {
+  if(step.value===4 && !primaryCommand.value && viewStatus.value==='em_aprovacao') return 'Aguardando decisão de outro usuário autorizado.'
+  if(step.value===4 && primaryCommand.value) return approvalBlock.value?.reason || ''
+  if(step.value===5 && emailPending.value) return 'Envio pelo bot autorizado. Aguarde a tentativa ou revogue a autorização para enviar manualmente.'
+  return forwardBlock.value?.reason || ''
+})
 const secondaryCommands = computed(() => commands.value.filter(action => ['cancelar','arquivar','nova_revisao'].includes(action)))
 const stepHints = computed(() => [draft.value?.title.trim() ? 'Cliente e título definidos' : 'Defina a solicitação', 'IA opcional ou análise manual', snapshot.value.calculation.complete && !dirty.value ? 'Valores calculados' : 'Confira itens e pendências', quoteStatuses[viewStatus.value], quoteApproved(viewStatus.value) ? 'Proposta disponível' : 'Aguarda aprovação'])
 const reviewChecks = computed(() => {
@@ -129,14 +147,39 @@ const reviewChecks = computed(() => {
     {label:'Alterações salvas',ok:!dirty.value}
   ]
 })
-async function goStep(next:number) { if(busy.value || next<1 || next>quoteSteps.length)return false;const block=stepBlock(next);if(block){navigationError.value=block.reason;return false}navigationError.value='';step.value=next;if(next===5 && can('registrar_marcos'))fileKind.value='evidencia';else if(next===1 && editable.value)fileKind.value='escopo';await nextTick();stageHeading.value?.focus({preventScroll:true});stageHeading.value?.scrollIntoView({block:'nearest'});return true }
+async function goStep(next:number,confirmedGate?:QuoteAnalysisGate) { if(busy.value || next<1 || next>quoteSteps.length)return false;const block=confirmedGate ? quoteStepBlock(step.value,next,{...navigationState.value,...quoteAnalysisNavigation(confirmedGate,aiProgress.value,true)}) : stepBlock(next);if(block){navigationError.value=block.reason;return false}navigationError.value='';step.value=next;if(next===5 && can('registrar_marcos'))fileKind.value='evidencia';else if(next===1 && editable.value)fileKind.value='escopo';await nextTick();stageHeading.value?.focus({preventScroll:true});stageHeading.value?.scrollIntoView({block:'nearest'});return true }
 const dirty = computed(() => draft.value != null && JSON.stringify(draft.value) !== baseline.value)
 const dirtyStep=ref<number|null>(null)
 watch(dirty,value=>{if(!value)dirtyStep.value=null;else if(dirtyStep.value==null)dirtyStep.value=step.value},{flush:'sync'})
-const navigationState=computed<QuoteStepState>(()=>({status:viewStatus.value,dirty:dirty.value,editStep:dirtyStep.value,hasTitle:!!draft.value?.title.trim(),hasScope:!!draft.value?.request.trim()||!!draft.value?.items.some(i=>i.description.trim())||!!store.detail?.attachments.some(a=>a.revision===Number(selectedRevision.value)&&a.kind==='escopo'),itemCount:draft.value?.items.length||0,calculationComplete:snapshot.value.calculation.complete,issues:visibleIssues.value,analysisLoading:can('usar_ia')?(aiProgress.value?.loading??true):false,analysisDirty:aiProgress.value?.dirty??false,processing:aiProgress.value?.processing??store.detail?.analysisGate?.processing??false,awaitingClassification:aiProgress.value?.awaitingClassification??store.detail?.analysisGate?.awaitingClassification??false,awaitingApplication:aiProgress.value?.awaitingApplication??store.detail?.analysisGate?.awaitingApplication??false}))
+const navigationState=computed<QuoteStepState>(()=>({status:viewStatus.value,dirty:dirty.value,editStep:dirtyStep.value,hasTitle:!!draft.value?.title.trim(),hasScope:!!draft.value?.request.trim()||!!draft.value?.items.some(i=>i.description.trim())||!!store.detail?.attachments.some(a=>a.revision===Number(selectedRevision.value)&&a.kind==='escopo'),itemCount:draft.value?.items.length||0,calculationComplete:snapshot.value.calculation.complete,issues:visibleIssues.value,...quoteAnalysisNavigation(current.value ? store.detail?.analysisGate : {processing:false,awaitingClassification:false,awaitingApplication:false},can('usar_ia') ? aiProgress.value : null)}))
 const forwardBlock=computed(()=>step.value<5?quoteStepBlock(step.value,step.value+1,navigationState.value):null)
 function stepBlock(next:number){return quoteStepBlock(step.value,next,navigationState.value)}
-async function chooseManual(){if(busy.value)return;const state=navigationState.value;if(state.processing||state.awaitingClassification||state.awaitingApplication){navigationError.value=quoteStepBlock(2,3,state)?.reason||'Conclua ou descarte a análise antes de continuar.';return}if(state.analysisDirty){if(!(await swal.confirm('Descartar o briefing e as escolhas de análise ainda não enviados e seguir manualmente?')).isConfirmed)return;aiPanel.value?.discardDraft();await nextTick()}await goStep(3)}
+async function chooseManual(){
+  if(busy.value||dirty.value||!editable.value||!store.detail)return
+  const epoch=viewEpoch, version=store.detail.header.version
+  if(navigationState.value.analysisDirty){
+    if(!(await swal.confirm('Descartar o briefing e as escolhas de análise ainda não enviados e seguir manualmente?')).isConfirmed || epoch!==viewEpoch)return
+    aiPanel.value?.discardDraft();await nextTick()
+  }
+  busy.value=true
+  let confirmedGate:QuoteAnalysisGate|undefined
+  try{
+    const {data}=await api.get<{data:QuoteDetail}>(`/api/web/orcamentos/${id.value}`)
+    if(epoch!==viewEpoch||!alive)return
+    if(!store.detail || data.header.version!==version || store.detail.header.version!==version || data.header.revision!==store.detail.header.revision){
+      navigationError.value='O orçamento mudou. Clique em Atualizar e confira o estado antes de continuar.';return
+    }
+    confirmedGate=data.analysisGate
+    if(!confirmedGate)navigationError.value='Não foi possível confirmar se há análise pendente. Atualize o orçamento e tente novamente.'
+  }catch{if(epoch===viewEpoch)navigationError.value='Não foi possível verificar se há análise pendente. Tente novamente.'}
+  finally{if(epoch===viewEpoch)busy.value=false}
+  if(confirmedGate && epoch===viewEpoch)await goStep(3,confirmedGate)
+}
+async function continueStep(){
+  if(busy.value)return
+  if(editable.value && dirty.value && (step.value===1 || step.value===3) && !await save())return
+  await goStep(step.value+1)
+}
 watch([dirty,step,()=>aiProgress.value],()=>{navigationError.value=''})
 const visibleIssues = computed<QuoteIssue[]>(()=>current.value ? store.detail?.issues || [] : snapshot.value.calculation.items.flatMap(i=>(i as typeof i & {issues?:QuoteIssue[]}).issues || []))
 async function focusIssue(issue:QuoteIssue){if(!(await goStep(issue.step)))return;await nextTick();let target:HTMLElement|null=null;if(issue.itemIndex!=null){const n=issue.itemIndex;const fields:Record<string,string>={pending:`#q-${n}-pending textarea`,checklist:`#q-${n}-checklist select`,description:`[aria-label="Descrição pública do item ${n+1}"]`,complexityReason:`#q-${n}-complexity-reason`,unitPrice:`#q-${n}-unit`,manualValue:`#q-${n}-manual`,ruleId:`#q-${n}-rule`,mode:`#q-${n}-mode`,justification:`#q-${n}-justification`,discountReason:`#q-${n}-discount-reason`};if(fields[issue.field])target=document.querySelector<HTMLElement>(fields[issue.field]!)}const globals:Record<string,string>={title:'#quote-title',validUntil:'#quote-validity',paymentTerms:'#quote-payment-terms',deadline:'#quote-deadline',policy:'#quote-refresh-policy',client:'#quote-refresh-client',items:'#quote-add-item'};target ||=document.querySelector<HTMLElement>(globals[issue.field]||'.quote-stage-title');if(target?.matches(':disabled'))target=target.closest<HTMLElement>('article')||stageHeading.value;if(target){let parent=target.parentElement;while(parent){if(parent.tagName==='DETAILS')(parent as HTMLDetailsElement).open=true;parent=parent.parentElement}target.focus({preventScroll:true});target.scrollIntoView({block:'center',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})}}
@@ -145,7 +188,7 @@ function applyDetail(data:QuoteDetail,epoch:number) { if(alive && epoch===viewEp
 function sync() { if(!store.detail) return; selectedRevision.value = store.detail.header.revision; draft.value = JSON.parse(JSON.stringify(store.detail.snapshot.draft)); baseline.value = JSON.stringify(draft.value); email.value = ''; fileKind.value = editable.value ? 'escopo' : 'evidencia';navigationError.value='';if(!stepInitialized){step.value=initialQuoteStep(store.detail.header.status);stepInitialized=true} }
 watch(selectedRevision, () => { if(store.detail && revision.value) { draft.value = JSON.parse(JSON.stringify(revision.value.snapshot.draft)); baseline.value = JSON.stringify(draft.value); email.value = '' } })
 async function load() { const epoch=viewEpoch;error.value = ''; await store.load(api,id.value); if(alive && epoch===viewEpoch)sync() }
-async function save(refreshPolicy = false,refreshClient = false) { if(!draft.value || !store.detail) return; busy.value = true; error.value = ''; try { await store.save(api,id.value,store.detail.header.version,quotePayload(draft.value),refreshPolicy === true,refreshClient === true); sync(); await swal.toast('Orçamento salvo e recalculado') } catch(e) { error.value = e instanceof Error ? e.message : 'Não foi possível salvar.' } finally {busy.value = false} }
+async function save(refreshPolicy = false,refreshClient = false) { if(!draft.value || !store.detail) return; busy.value = true; error.value = ''; try { await store.save(api,id.value,store.detail.header.version,quotePayload(draft.value),refreshPolicy === true,refreshClient === true); sync(); void swal.toast('Orçamento salvo e recalculado').catch(()=>{}); return true } catch(e) { error.value = e instanceof Error ? e.message : 'Não foi possível salvar.' } finally {busy.value = false} }
 function openCommand(action:string) { selectedAction.value = action; reason.value = ''; reference.value = ''; destination.value = ''; commandDialog.value?.showModal() }
 function closeCommand() { if(!busy.value) commandDialog.value?.close() }
 async function executeCommand() { if(!store.detail) return; const epoch=viewEpoch;busy.value = true; error.value = ''; try { const result = await api.post<{data:QuoteDetail}>(`/api/web/orcamentos/${id.value}/transicoes`,{version:store.detail.header.version,action:selectedAction.value,reason:reason.value,reference:reference.value,destination:destination.value}); applyDetail(result.data,epoch); commandDialog.value?.close() } catch(e) { if(epoch===viewEpoch)error.value = e instanceof Error ? e.message : 'Não foi possível registrar a decisão.'; commandDialog.value?.close() } finally {if(epoch===viewEpoch)busy.value = false} }

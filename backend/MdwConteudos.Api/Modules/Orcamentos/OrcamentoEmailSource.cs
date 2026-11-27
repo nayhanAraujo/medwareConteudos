@@ -104,7 +104,7 @@ public sealed partial class OrcamentoService
         if(!OrcamentoWorkflow.Editable(h.Status))throw new OrcamentoException(409,"Confirme ou altere a origem apenas em uma revisão editável.");
         var source=await ReadEmailSource(c,id,tx,ct)??throw new OrcamentoException(404,"Orçamento sem origem por e-mail.");
         // Different permission from import; bot accounts must not receive confirmar_email.
-        var client=await Client(c,request.ClientId,tx,ct);await Bump(c,tx,h,request.Version,Now,ct);
+        var client=await Client(c,request.ClientId,tx,ct,requireActive:request.ClientId!=h.ClientId);await Bump(c,tx,h,request.Version,Now,ct);
         var previous=h.Snapshot;var snapshot=previous with {Client=client,Calculation=QuoteCalculator.Calculate(previous.Draft,previous.Policy,client.Commercial)};
         await c.ExecuteAsync(new CommandDefinition("UPDATE ORCAMENTO SET CODCLIENTE=@client WHERE CODORCAMENTO=@id",new{id,client=client.Id},tx,cancellationToken:ct));
         await c.ExecuteAsync(new CommandDefinition("UPDATE ORCAMENTOREVISAO SET DOCUMENTO=@json WHERE CODORCAMENTO=@id AND NUMERO=@revision",new{id,revision=h.Revision,json=QuoteTextBlob.Json(snapshot)},tx,cancellationToken:ct));

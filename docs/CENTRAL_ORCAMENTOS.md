@@ -20,6 +20,10 @@ A tela está organizada em cinco etapas: Solicitação; Análise do escopo (IA o
 
 O checklist da revisão é informativo e não substitui a validação do servidor. Histórico e ações de manutenção ficam recolhíveis e disponíveis independentemente da etapa. Orçamentos em aprovação abrem na revisão; orçamentos aprovados/comerciais abrem no acompanhamento. Os controles por permissão e a leitura de revisões anteriores permanecem iguais.
 
+A ação principal acompanha a etapa e a permissão do usuário. **Salvar e continuar** grava antes de avançar; falha no salvamento ou impedimento mantém o usuário na etapa. **Elaborar itens manualmente** consulta o estado da análise pelo detalhe do orçamento, mesmo que o painel de IA esteja indisponível. Se o servidor não puder confirmar o estado ou houver análise em andamento ou pendente de decisão, o avanço permanece bloqueado.
+
+Somente clientes com cadastro ativo aparecem na seleção de novos orçamentos. O servidor aplica a mesma regra na criação manual e na importação de e-mail, sem impedir leitura ou manutenção de orçamentos existentes de clientes posteriormente inativados. Ao corrigir o cliente de uma origem de e-mail, o novo cliente também precisa estar ativo. Não há migração para esses ajustes.
+
 1. Configure preços e condições comerciais nas configurações do módulo. Valor-hora, custo interno, validade e pagamento não são inventados pelo sistema.
 2. Crie um rascunho para um cliente existente e inclua itens de categorias distintas.
 3. Salve para recalcular no servidor. Campos pendentes produzem total indefinido, nunca um orçamento aparentemente gratuito.

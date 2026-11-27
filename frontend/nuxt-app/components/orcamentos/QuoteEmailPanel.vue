@@ -1,6 +1,6 @@
 <template>
   <div class="mt-4">
-    <DsButton variant="secondary" icon="envelope" aria-label="Enviar proposta por e-mail" :loading="busy" :disabled="disabled || busy" @click="preview">Enviar proposta por e-mail</DsButton>
+    <DsButton :variant="primary ? 'primary' : 'secondary'" icon="envelope" aria-label="Enviar proposta por e-mail" :loading="busy" :disabled="disabled || busy" @click="preview">Enviar proposta por e-mail</DsButton>
     <DsAlert v-if="notice" variant="success" class="mt-3" role="status" aria-live="polite">{{ notice }}</DsAlert>
     <p v-if="error" role="alert" class="text-sm text-red-700 mt-2">{{ error }}</p>
     <dialog ref="dialog" class="email-dialog" aria-labelledby="proposal-email-title" @cancel.prevent="close">
@@ -25,7 +25,7 @@
 </template>
 <script setup lang="ts">
 import type {QuoteDetail} from '~/utils/orcamentos'
-const props=defineProps<{id:string;revision:number;version:string;clientEmail:string;disabled:boolean;fixedRecipient?:boolean}>()
+const props=defineProps<{id:string;revision:number;version:string;clientEmail:string;disabled:boolean;fixedRecipient?:boolean;primary?:boolean}>()
 const emit=defineEmits<{updated:[data:QuoteDetail];busy:[value:boolean]}>()
 const api=useApi(),swal=useSwal(),dialog=ref<HTMLDialogElement|null>(null),busy=ref(false),error=ref(''),notice=ref(''),body=ref(''),target=ref('client'),otherEmail=ref(''),confirmed=ref(false),attempted=ref(false)
 let requestId='',sendVersion='',epoch=0

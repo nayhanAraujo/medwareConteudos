@@ -22,7 +22,24 @@ export interface QuoteStepState {
   issues:{severity:string;step:number;message:string}[]
   analysisLoading:boolean; analysisDirty:boolean; processing:boolean; awaitingClassification:boolean; awaitingApplication:boolean
 }
-export interface QuoteAiProgress { loading:boolean;dirty:boolean;processing:boolean;awaitingClassification:boolean;awaitingApplication:boolean }
+export interface QuoteAnalysisGate { processing:boolean;awaitingClassification:boolean;awaitingApplication:boolean }
+export interface QuoteAiProgress extends QuoteAnalysisGate { loading:boolean;dirty:boolean }
+export function quoteAnalysisNavigation(server:QuoteAnalysisGate|undefined, panel:QuoteAiProgress|null, preferServer=false) {
+  const gate = !preferServer && panel && !panel.loading ? panel : server
+  return {
+    analysisLoading: !gate,
+    analysisDirty: panel?.dirty ?? false,
+    processing: gate?.processing ?? false,
+    awaitingClassification: gate?.awaitingClassification ?? false,
+    awaitingApplication: gate?.awaitingApplication ?? false
+  }
+}
+
+export function quotePrimaryCommand(step:number, authorizedActions:string[], emailIsPrimary=false) {
+  const actions = quoteStageActions(step, authorizedActions)
+  const priorities = step === 4 ? ['aprovar','solicitar_aprovacao'] : step === 5 && !emailIsPrimary ? ['enviar','aceitar','confirmar_pagamento','encaminhar'] : []
+  return priorities.find(action => actions.includes(action))
+}
 export function quoteStepBlock(current:number,next:number,state:QuoteStepState):{step:number;reason:string}|null {
   if(next<=current)return null
   if(state.dirty && next===state.editStep)return null // Return to an already-open editor to fix unsaved data.
@@ -34,7 +51,7 @@ export function quoteStepBlock(current:number,next:number,state:QuoteStepState):
   if(requestIssue)return {step:1,reason:requestIssue.message}
   if(!state.hasTitle || !state.hasScope)return {step:1,reason:'Conclua e salve a solicitação: informe o título e descreva o escopo ou anexe material de escopo.'}
   if(next>=3){
-    if(state.analysisLoading)return {step:2,reason:'Aguarde a conferência do estado da análise por IA.'}
+    if(state.analysisLoading)return {step:2,reason:'Não foi possível confirmar o estado da análise. Atualize o orçamento e tente novamente.'}
     if(state.processing)return {step:2,reason:'A análise por IA está em processamento. Aguarde sua conclusão ou cancele-a antes de continuar.'}
     if(state.awaitingClassification)return {step:2,reason:'Confirme a classificação e conclua a análise, ou descarte a classificação para seguir manualmente.'}
     if(state.awaitingApplication)return {step:2,reason:'Revise e aplique as sugestões da IA, ou descarte-as explicitamente para seguir manualmente.'}

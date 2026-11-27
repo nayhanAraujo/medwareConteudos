@@ -42,6 +42,25 @@ public sealed partial class OrcamentoFirebirdTests
     }
     private static ImportQuoteEmailRequest EmailImport()=>new(1,"Solicitação do Outlook","Incluir somente os campos indicados pelo cliente.",new("triagem@example.com","immutable-1","<request-1@example.com>","conversation-1","forwarder@example.com","client@example.com","Solicitação de orçamento",new DateTimeOffset(2026,10,26,12,0,0,TimeSpan.Zero)));
     [FirebirdPublicationFact]
+    public async Task InactiveClientsAreHiddenAndCannotCreateNewQuotesButHistoryRemainsReadable()
+    {
+        var existing = await Service.Create(new(1, OrcamentoTests.Draft(OrcamentoTests.Item())), default);
+        await using var c = await factory.OpenConnectionAsync();
+        await c.ExecuteAsync("UPDATE CLIENTES SET STATUS=0 WHERE CODCLIENTE=1");
+        await c.ExecuteAsync("INSERT INTO CLIENTES VALUES(2,'Ativo para seleção',1)");
+        var listed = JsonSerializer.SerializeToElement(await Service.Clients(default), OrcamentoJson.Options);
+        var active = Assert.Single(listed.EnumerateArray());
+        Assert.Equal(2, active.GetProperty("id").GetInt32());
+        Assert.Equal("Ativo para seleção", active.GetProperty("name").GetString());
+        var manual = await Assert.ThrowsAsync<OrcamentoException>(() => Service.Create(new(1, OrcamentoTests.Draft(OrcamentoTests.Item())), default));
+        Assert.Equal(422, manual.Status);
+        var imported = await Assert.ThrowsAsync<OrcamentoException>(() => Service.ImportEmail(EmailImport(), default));
+        Assert.Equal(422, imported.Status);
+        Assert.Equal(1, (await Service.Get(existing, default)).Header.ClientId);
+        Assert.Equal(1, await c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ORCAMENTO"));
+        Assert.Equal(0, await c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ORCAMENTOEMAIL"));
+    }
+    [FirebirdPublicationFact]
     public async Task OutlookDraftWithEmptySubjectUnicodeAndUtcImportsTransactionally()
     {
         await using var c=await factory.OpenConnectionAsync();
