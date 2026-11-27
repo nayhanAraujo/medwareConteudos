@@ -10,9 +10,18 @@ const integrated = ref(false)
 const integratedAvailable = ref(false)
 const capabilities=ref({guidedVoice:false,persistentDrafts:false,realtimeVoice:false,conventionalVoice:true})
 const conventionalOptions=ref(false)
+const loadingCapabilities = ref(true)
 const voiceBlock=ref<RemovalBlock|null>(null)
 const temporaryView=ref<{locate:(block:RemovalBlock)=>void}|null>(null)
-onMounted(async () => { try { capabilities.value=await useApi().get<typeof capabilities.value>('/api/voice/capabilities');integratedAvailable.value=capabilities.value.persistentDrafts } catch {try{integratedAvailable.value=(await useApi().get<{enabled:boolean}>('/api/voice/rascunhos/status')).enabled}catch{}} })
+onMounted(async () => {
+  const api = useApi()
+  try {
+    capabilities.value = await api.get<typeof capabilities.value>('/api/voice/capabilities')
+    integratedAvailable.value = capabilities.value.persistentDrafts
+  } catch {
+    try { integratedAvailable.value = (await api.get<{ enabled: boolean }>('/api/voice/rascunhos/status')).enabled } catch {}
+  } finally { loadingCapabilities.value = false }
+})
 
 const voiceStore = useVoiceSessionStore()
 const conversionStore = useConversionStore()
@@ -37,6 +46,7 @@ const realtimeEnabled = ref(false)
 const realtimeActive = ref(false)
 const hasModel = computed(() => voiceStore.camposScript.camposScript.length > 0)
 const sending = ref(false)
+const applying = ref(false)
 const generating = ref(false)
 const elapsedMs = ref(0)
 const EXPECTED_SECONDS = 45
@@ -99,6 +109,12 @@ const onStartSession = async (mode: 'fromScratch' | 'fromImage', image?: File) =
   }
 }
 
+function onGuidedStarted(session: VoiceSessionResponse) {
+  outputFormat.value = null; generatedHtml.value = ''; generatedText.value = ''; validation.value = null
+  resetSpeech()
+  toast(session.isImported ? 'Modelo importado.' : 'Modelo aberto.', 'success')
+}
+
 const onJsonImported = (result: {session?: VoiceSessionResponse}) => {
   if (!result.session) return
   voiceStore.applySession(result.session)
@@ -107,7 +123,7 @@ const onJsonImported = (result: {session?: VoiceSessionResponse}) => {
   toast('Modelo JSON importado. As configurações originais foram preservadas.', 'success')
 }
 
-const applyTranscript = async (intent: VoiceUtteranceIntent) => {
+const applyTranscript = async (intent: VoiceUtteranceIntent, guided = false) => {
   if (sending.value || generating.value || !voiceStore.sessionId || !editableTranscript.value.trim()) return false
 
   const text = editableTranscript.value.trim()
@@ -117,6 +133,7 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
   if (isListening.value) stopSpeech()
 
   sending.value = true
+  applying.value = true
   startProgress()
   try {
     const result = await applyUtterance(sessionId, text, effectiveIntent, 'browser')
@@ -140,7 +157,12 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
       || result.summary.toLowerCase().includes('não foi possível')
       || result.summary.toLowerCase().includes('nenhuma alteração')
 
-    if (voiceStore.isImported) {
+    if (guided && previousModel === result.camposScriptJson && isWarning) {
+      toast(result.summary, 'warning')
+      return false
+    }
+
+    if (voiceStore.isImported || guided) {
       generatedHtml.value = ''; generatedText.value = ''; outputFormat.value = null; validation.value = null
       toast(result.summary, isWarning ? 'warning' : 'success')
       if (result.warnings.length) toast(result.warnings.join(' '), 'warning')
@@ -178,6 +200,7 @@ const applyTranscript = async (intent: VoiceUtteranceIntent) => {
     toast(msg, 'error')
     return false
   } finally {
+    applying.value = false
     sending.value = false
     if (!generating.value) stopProgress()
   }
@@ -230,7 +253,7 @@ const onEditModel = () => {
   applyTranscript('edit')
 }
 
-const onUploadAudio = async (file: File) => {
+const onUploadAudio = async (file: File, guided = false) => {
   if (sending.value || generating.value) return
   if (!voiceStore.sessionId) {
     toast('Inicie uma sessão primeiro', 'warning')
@@ -240,7 +263,7 @@ const onUploadAudio = async (file: File) => {
   try {
     const text = await transcribeAudio(file, file.name)
     editableTranscript.value = text
-    toast(voiceStore.isImported ? 'Áudio transcrito — revise e aplique a edição à estrutura.' : 'Áudio transcrito — clique em Gerar modelo e TXT ou pare após revisar', 'success')
+    toast(guided ? 'Áudio transcrito. Confira a instrução antes de aplicar.' : voiceStore.isImported ? 'Áudio transcrito — revise e aplique a edição à estrutura.' : 'Áudio transcrito — clique em Gerar modelo e TXT ou pare após revisar', 'success')
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Falha na transcrição'
     toast(msg, 'error')
@@ -251,14 +274,20 @@ const onUploadAudio = async (file: File) => {
 
 const onGenerate = async () => {
   if (sending.value || generating.value || !voiceStore.sessionId) return
+  const sessionId = voiceStore.sessionId
+  const model = voiceStore.camposScriptJson
   const format = voiceStore.isImported ? 'jsonStudio' : await chooseConversionFormat()
-  if (!format) return
+  if (!format || sending.value || generating.value || voiceStore.sessionId !== sessionId || voiceStore.camposScriptJson !== model) return
 
   generating.value = true
   startProgress()
 
   try {
-    const result = await generateLaudo(voiceStore.sessionId, format)
+    const result = await generateLaudo(sessionId, format)
+    if (voiceStore.sessionId !== sessionId || voiceStore.camposScriptJson !== model) {
+      toast('O modelo mudou durante a exportação. Confira o resultado e tente baixar novamente.', 'warning')
+      return false
+    }
     const resolved = resolveConversionContent(format, result)
     if (resolved.apiMismatch || (format === 'jsonStudio' && !resolved.text)) {
       throw new Error('A API não retornou o formato solicitado. Verifique se a versão atualizada da API foi publicada.')
@@ -294,7 +323,14 @@ const onGenerate = async () => {
 const onOpenEditor = () => {
   router.push('/studio/editor')
 }
-async function guidedDownload(){if(!await onGenerate())return;if(outputFormat.value==='jsonStudio')downloadJson(generatedText.value,'modelo.json');else if(outputFormat.value==='modoTexto')downloadText(generatedText.value,'modelo.txt');else if(outputFormat.value==='html')downloadHtml(generatedHtml.value,'modelo.html')}
+async function guidedDownload() {
+  if (!await onGenerate()) return false
+  if (outputFormat.value === 'jsonStudio') downloadJson(generatedText.value, 'modelo.json')
+  else if (outputFormat.value === 'modoTexto') downloadText(generatedText.value, 'modelo.txt')
+  else if (outputFormat.value === 'html') downloadHtml(generatedHtml.value, 'modelo.html')
+  else return false
+  return true
+}
 function locateVoiceDependents(block:RemovalBlock){if(temporaryView.value){temporaryView.value.locate(block);return}const target=block.dependents[0]?.measure;if(!target)return;nextTick(()=>[...document.querySelectorAll<HTMLElement>('[data-source-id]')].find(e=>e.dataset.sourceId===(target.sourceId??target.itemId))?.scrollIntoView({behavior:'smooth',block:'center'}))}
 
 const onNewSession = () => {
@@ -312,13 +348,19 @@ const onNewSession = () => {
 <template>
   <div>
     <StudioDependencyNotice :block="voiceBlock" @close="voiceBlock=null" @locate="locateVoiceDependents" />
-    <div v-if="capabilities.guidedVoice&&!conventionalOptions" class="mx-auto max-w-[1680px] px-4 py-6 sm:px-6">
-      <p class="mb-4 text-sm text-ds-text-secondary">Abra um modelo, fale a alteração e confira o resultado antes de salvar ou baixar.</p>
-      <StudioIntegratedEditor v-if="capabilities.persistentDrafts" guided :realtime-available="capabilities.realtimeVoice" />
-      <StudioTemporaryVoice v-else ref="temporaryView" :realtime-available="capabilities.realtimeVoice" :busy="showProgress" :listening="isListening" :speech-supported="isSupported" :speech-error="speechError" v-model:transcript="editableTranscript" @started="session=>onJsonImported({session})" @speak="startSpeech" @stop="stopSpeech" @apply="onBuildModel" @download="guidedDownload" @blocked="voiceBlock=$event" />
-      <details class="mt-6 rounded border border-ds-divider p-4 text-sm"><summary>Outras opções de edição</summary><button class="mt-3 rounded border border-ds-divider p-2" @click="conventionalOptions=true">Abrir fluxo convencional</button></details>
+    <p v-if="loadingCapabilities" role="status" class="mx-auto max-w-7xl px-4 py-8">Carregando edição por voz…</p>
+    <div v-if="!loadingCapabilities && capabilities.guidedVoice" v-show="!conventionalOptions" class="mx-auto max-w-[1680px] px-4 py-6 sm:px-6">
+      <StudioIntegratedEditor v-if="capabilities.persistentDrafts" guided :realtime-available="capabilities.realtimeVoice">
+        <template #advanced="{ disabled }"><button type="button" :disabled="disabled" class="mt-3 rounded border border-ds-divider p-2" @click="conventionalOptions = true">Abrir edição convencional</button></template>
+      </StudioIntegratedEditor>
+      <StudioTemporaryVoice v-else ref="temporaryView" :realtime-available="capabilities.realtimeVoice" :busy="sending || generating" :applying="applying"
+        :listening="isListening" :speech-supported="isSupported" :speech-error="speechError" v-model:transcript="editableTranscript"
+        :download="guidedDownload" @started="onGuidedStarted" @speak="startSpeech" @stop="stopSpeech"
+        @apply="applyTranscript(hasModel ? 'edit' : 'build', true)" @upload="onUploadAudio($event, true)" @blocked="voiceBlock = $event">
+        <template #advanced="{ disabled }"><button type="button" :disabled="disabled" class="mt-3 rounded border border-ds-divider p-2" @click="conventionalOptions = true">Abrir edição convencional</button></template>
+      </StudioTemporaryVoice>
     </div>
-    <template v-else>
+    <template v-if="!loadingCapabilities && (!capabilities.guidedVoice || conventionalOptions)">
     <button v-if="capabilities.guidedVoice" class="m-4 rounded border border-ds-divider p-2" :disabled="realtimeActive||isListening||showProgress" @click="conventionalOptions=false">Voltar à edição guiada</button>
     <label v-if="integratedAvailable" class="mb-4 flex items-center gap-2 text-sm"><input v-model="integrated" type="checkbox" :disabled="realtimeActive"> Usar editor integrado com rascunhos e versões</label>
     <StudioIntegratedEditor v-if="integrated" />

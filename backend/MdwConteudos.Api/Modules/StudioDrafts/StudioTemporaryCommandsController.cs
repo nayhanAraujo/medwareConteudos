@@ -17,15 +17,19 @@ namespace MdwConteudos.Api.Modules.StudioDrafts;
 [EnableRateLimiting("studio")]
 public sealed class StudioTemporaryCommandsController(IVoiceSessionStore store,IFormulasModelosService models,RealtimeVoiceManager realtime,StudioChoices choices) : ControllerBase
 {
-    public sealed record ManualEdit(string CommandId,string ExpectedHash,string Operation,string[] ItemIds);
+    public sealed record ManualEdit(string CommandId,string ExpectedHash,string Operation,string[] ItemIds,
+        string? SectionId = null, string? BeforeItemId = null);
     [HttpPost,RequestSizeLimit(65536)]
     public async Task<IActionResult> Apply(Guid id,ManualEdit request,CancellationToken ct)
     {
         var owner=User.FindFirstValue(ClaimTypes.NameIdentifier);
         var session=store.Get(id);
         if(session is null||session.OwnerUserId!=owner)return NotFound(new {message="Trabalho não encontrado ou expirado."});
-        if(!Guid.TryParse(request.CommandId,out _)||request.Operation is not ("remove" or "undo" or "redo")||request.ItemIds is null||request.ItemIds.Length>500||request.ItemIds.Any(i=>string.IsNullOrEmpty(i)||i.Length>120)||request.Operation=="remove"&&request.ItemIds.Length==0)
+        if(!Guid.TryParse(request.CommandId,out _)||request.Operation is not ("remove" or "undo" or "redo" or "move")||request.ItemIds is null||request.ItemIds.Length>500||request.ItemIds.Any(i=>string.IsNullOrEmpty(i)||i.Length>120)||request.Operation=="remove"&&request.ItemIds.Length==0)
             throw new StudioException(400,"Operação manual inválida.");
+        if(request.Operation == "move" && (request.ItemIds.Length != 1 || string.IsNullOrWhiteSpace(request.SectionId)
+            || request.SectionId.Length > 120 || request.BeforeItemId?.Length > 120))
+            throw new StudioException(400,"Informe uma medida e uma seção de destino válidas.");
         if(realtime.IsActive(id))throw new StudioException(409,"Pause e encerre a conexão de voz antes da edição manual.");
         var catalog=await models.ListVariaveisAsync(ct);
         var sha=StudioDraftService.Hash(request);
@@ -36,8 +40,12 @@ public sealed class StudioTemporaryCommandsController(IVoiceSessionStore store,I
             else
             {
                 if(session.ManualCommandHashes.Count>=4096)throw new StudioException(429,"Limite de operações desta sessão atingido. Baixe o modelo e abra um novo trabalho.");
-                if(request.ExpectedHash!=StudioDraftService.Hash(session.ImportedDocumentJson??session.CamposScriptJson))throw new StudioException(409,"O modelo mudou. Confira a versão atual antes de remover.");
-                if(request.Operation is "undo" or "redo")
+                if(request.ExpectedHash!=StudioDraftService.Hash(session.ImportedDocumentJson??session.CamposScriptJson))throw new StudioException(409,"O modelo mudou. Confira a versão atual antes de editar.");
+                if(request.Operation == "move")
+                {
+                    Move(session, request, catalog);
+                }
+                else if(request.Operation is "undo" or "redo")
                 {
                     if(session.ImportedDocumentJson is null)throw new StudioException(400,"Este trabalho temporário não possui histórico estruturado.");
                     ImportedVoiceEditor.Apply(session,new([new(request.Operation=="undo"?"desfazer_alteracao":"refazer_alteracao",JsonSerializer.SerializeToElement(new {}))],"Alteração revertida.",[]),session.ImportedRevision,catalog);
@@ -66,6 +74,37 @@ public sealed class StudioTemporaryCommandsController(IVoiceSessionStore store,I
             return Ok(new VoiceSessionResponseDto {Id=session.Id,Mode=session.Mode,IsImported=session.ImportedDocumentJson is not null,Revision=session.ImportedRevision,
                 DocumentHash=StudioDraftService.Hash(session.ImportedDocumentJson??session.CamposScriptJson),Dependencies=dependencies,CamposScriptJson=session.CamposScriptJson,
                 SourceFileName=session.SourceFileName,CreatedAt=session.CreatedAt,UpdatedAt=session.UpdatedAt});
+        }
+    }
+
+    private static void Move(ConversorHtml.Domain.Models.VoiceSession session, ManualEdit request, IReadOnlyList<VariavelOpcao> catalog)
+    {
+        var imported = session.ImportedDocumentJson is not null;
+        var document = imported ? ImportedVoiceEditor.Document(session)
+            : StudioJsonImport.Parse(System.Text.Encoding.UTF8.GetBytes(session.CamposScriptJson), "modelo.json", catalog);
+        bool Matches(StudioImportedElement? element, string id) => element?.Properties["id"]?.ToString() == id;
+        var item = document.Secoes.SelectMany(section => section.Itens)
+            .SingleOrDefault(item => item.Id == request.ItemIds[0] || Matches(item.Imported, request.ItemIds[0]))
+            ?? throw new StudioException(400, "Medida não encontrada.");
+        var target = document.Secoes.SingleOrDefault(section => section.Id == request.SectionId || Matches(section.Imported, request.SectionId!))
+            ?? throw new StudioException(400, "Seção de destino não encontrada.");
+        var remaining = target.Itens.Where(candidate => candidate.Id != item.Id).ToList();
+        var position = request.BeforeItemId is null ? remaining.Count
+            : remaining.FindIndex(candidate => candidate.Id == request.BeforeItemId || Matches(candidate.Imported, request.BeforeItemId));
+        if(position < 0) throw new StudioException(409, "A posição de destino mudou. Confira o modelo e tente novamente.");
+        if(imported)
+        {
+            ImportedVoiceEditor.Apply(session, new([new("mover_medida", JsonSerializer.SerializeToElement(new {
+                itemId = item.Id, secaoId = target.Id, posicao = position }))], "Medida movida.", []), session.ImportedRevision, catalog);
+        }
+        else
+        {
+            var after = StudioDocumentEditor.Apply(document, new(request.CommandId, session.ImportedRevision, "moveItem",
+                JsonSerializer.SerializeToElement(new { itemId = item.Id, sectionId = target.Id, position })), catalog);
+            var json = StudioJsonImport.Export(after);
+            StudioDependencyGuard.EnsureVoice(session.CamposScriptJson, json, catalog);
+            session.CamposScriptJson = json;
+            session.ImportedRevision++;
         }
     }
 

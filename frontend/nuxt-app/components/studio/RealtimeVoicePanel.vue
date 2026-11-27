@@ -24,9 +24,11 @@ onMounted(async () => {
 <template>
   <StudioDsCard :title="friendly ? 'Assistente de voz' : 'Voz em tempo real · xAI'">
     <p class="mb-3 text-sm text-ds-muted">{{ friendly ? 'Fale a alteração desejada, com pausas naturais, e confira o resultado no modelo.' : 'Fale com pausas naturais. O agente organiza o rascunho enquanto continua ouvindo. Salvar no banco exige sua confirmação.' }}</p>
+    <div :class="{ 'voice-mic-controls': friendly }">
     <p v-if="friendly" role="status" aria-live="polite" class="mb-3 rounded-lg border border-ds-divider p-3 font-semibold">{{ status }}</p>
     <p v-if="friendly && sectionName" class="mb-3 text-sm">Seção selecionada: <strong>{{ sectionName }}</strong></p>
-    <label v-if="!draftId && !voiceStore.isImported" class="block text-sm text-ds-text-secondary">Modelo de destino para salvamento (opcional)
+    <details v-if="friendly && !draftId && !voiceStore.isImported" class="mb-2 text-sm"><summary>Destino para salvar</summary><select v-model="target" aria-label="Modelo de destino" :disabled="connected || starting" class="mt-1 w-full rounded border border-ds-divider bg-ds-surface p-2"><option :value="null">Somente trabalho atual</option><option v-for="model in models" :key="model.codModelo" :value="model.codModelo">{{ model.nome }}</option></select></details>
+    <label v-if="!friendly && !draftId && !voiceStore.isImported" class="block text-sm text-ds-text-secondary">Modelo de destino para salvamento (opcional)
       <select v-model="target" :disabled="connected || starting" class="mt-1 mb-3 w-full rounded border border-ds-divider bg-ds-surface p-2">
         <option :value="null">Somente rascunho</option>
         <option v-for="model in models" :key="model.codModelo" :value="model.codModelo">{{ model.nome }}</option>
@@ -41,7 +43,8 @@ onMounted(async () => {
         <StudioDsButton variant="ghost" @click="stop">Encerrar e cancelar pendências</StudioDsButton>
       </template>
     </div>
-    <p v-if="connected" role="status" class="mt-3 text-sm text-ds-text">{{ speaking ? 'Ouvindo sua fala…' : listening ? 'Microfone aberto — aguardando fala' : 'Microfone pausado' }}</p>
+    </div>
+    <p v-if="connected && !friendly" role="status" class="mt-3 text-sm text-ds-text">{{ speaking ? 'Ouvindo sua fala…' : listening ? 'Microfone aberto — aguardando fala' : 'Microfone pausado' }}</p>
     <p v-if="error" role="alert" class="mt-3 text-sm text-ds-danger">{{ error }}</p>
     <button v-if="friendly && error" class="mt-3 rounded border border-ds-divider p-2" @click="fallback">Usar gravação por etapas</button>
     <details v-if="friendly" class="mt-3 text-sm"><summary>Exemplos do que dizer</summary><ul class="mt-2 space-y-2"><li>“Crie uma seção chamada Valvas.”</li><li>“Adicione Altura em Dados do paciente.”</li><li>“Mova Peso para Dados do paciente.”</li></ul><p class="mt-2">Para remover medidas, use o botão Remover no modelo.</p></details>
@@ -50,6 +53,7 @@ onMounted(async () => {
       <StudioDsButton class="mt-2" :loading="saving" @click="confirmSave">Confirmar salvamento no banco</StudioDsButton>
       <StudioDsButton variant="ghost" :disabled="saving" @click="proposal = null">Não salvar</StudioDsButton>
     </div>
-    <ul aria-live="polite" class="mt-3 space-y-1 text-sm text-ds-muted"><li v-for="(item, i) in activity.slice(0,friendly?4:15)" :key="i">{{ item }}</li></ul>
+    <h3 v-if="friendly && activity.length" class="mt-3 text-sm font-semibold">Últimas alterações</h3>
+    <ul aria-live="polite" class="mt-3 space-y-1 text-sm text-ds-muted"><li v-for="(item, i) in activity.filter(item => !friendly || !item.startsWith('Aplicando:')).slice(0,friendly?3:15)" :key="i">{{ item }}</li></ul>
   </StudioDsCard>
 </template>

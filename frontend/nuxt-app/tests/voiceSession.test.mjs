@@ -11,6 +11,7 @@ const initialModel = JSON.stringify({ camposScript: [{ nome: 'ALTURA' }, { nome:
 
 function harness({ response, exportFails = false, applyFails = false, format = 'modoTexto', generated, imported = false } = {}) {
   const calls = []
+  const exports = []
   const messages = []
   const store = {
     isImported: imported,
@@ -30,7 +31,8 @@ function harness({ response, exportFails = false, applyFails = false, format = '
         if (applyFails) throw new Error('Falha no agente')
         return response ?? { camposScriptJson: initialModel, summary: 'Alterações aplicadas.', warnings: [] }
       },
-      async generateLaudo() {
+      async generateLaudo(...args) {
+        exports.push(args)
         if (exportFails) throw new Error('Falha na exportação')
         return { validation: { isValid: true }, convertedAt: '', provider: 'test' }
       }
@@ -40,11 +42,29 @@ function harness({ response, exportFails = false, applyFails = false, format = '
     useSpeechRecognition: () => ({ isListening: ref(false), transcript: ref('troque a ordem do peso e altura'), error: ref(null), stop() {} }),
     resolveConversionContent: () => generated ?? ({ format: 'modoTexto', text: 'TXT atualizado', html: '' })
   }
-  const setup = new Function(...Object.keys(dependencies), `${code}\nreturn { applyTranscript, generatedText, onStopSpeech, onGenerate, outputFormat };`)
+  const setup = new Function(...Object.keys(dependencies), `${code}\nreturn { applyTranscript, generatedText, onStopSpeech, onGenerate, outputFormat, editableTranscript };`)
   const page = setup(...Object.values(dependencies))
   page.generatedText.value = 'TXT anterior'
-  return { ...page, store, calls, messages }
+  return { ...page, store, calls, exports, messages }
 }
+
+test('guided apply updates the model without an automatic download or generation', async () => {
+  const updated = '{"camposScript":[{"nome":"PESO"},{"nome":"ALTURA"}]}'
+  const page = harness({ response: { camposScriptJson: updated, summary: 'Ordem alterada.', warnings: [] } })
+  assert.equal(await page.applyTranscript('edit', true), true)
+  assert.equal(page.store.camposScriptJson, updated)
+  assert.equal(page.editableTranscript.value, '')
+  assert.deepEqual(page.exports, [])
+})
+
+test('failed guided apply preserves the model and the instruction', async () => {
+  const page = harness({ applyFails: true })
+  const instruction = page.editableTranscript.value
+  assert.equal(await page.applyTranscript('edit', true), false)
+  assert.equal(page.store.camposScriptJson, initialModel)
+  assert.equal(page.editableTranscript.value, instruction)
+  assert.deepEqual(page.exports, [])
+})
 
 test('existing voice model sends edit even when build was requested', async () => {
   const page = harness()

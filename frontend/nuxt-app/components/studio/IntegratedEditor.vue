@@ -3,7 +3,7 @@ import type { StudioDraft, StudioSection, StudioItem, StudioVariable } from '~/t
 import type {RemovalBlock} from '~/utils/studioDependencies'
 const props=defineProps<{guided?:boolean;realtimeAvailable?:boolean}>()
 const { api, draft, entries, history, catalog, problems, busy, error, blocked, sync, pending, selectedSection, selectedItem, preview, outdated, accept, refreshDetails, list, open, create, send, reconcile, discardPending, generate } = useStudioDraft()
-const { confirm, toast } = useStudioSwal()
+const { confirm, toast, chooseConversionFormat } = useStudioSwal()
 const { downloadText, downloadJson, downloadHtml } = useHtmlPreview()
 const voiceSession = useVoiceSessionStore()
 const voiceActive = ref(false)
@@ -29,16 +29,42 @@ const bankPosition = reactive({x: 20, y: 100})
 const drag = ref<{sectionId?: string; itemId?: string; ids?: number[]} | null>(null)
 const highlight = ref<string[]>([])
 const source=ref<'new'|'open'|'json'|'image'>('new'),sourceOpen=ref(false)
-const voiceMode=ref<'continuous'|'steps'>(props.realtimeAvailable===false?'steps':'continuous')
+const voiceMode=ref<'continuous'|'steps'>('steps')
 const voicePanel=ref<{stop:()=>Promise<void>}|null>(null),stepPanel=ref<{stop:()=>void;hasPending:boolean}|null>(null)
-const mobileColumn=ref(1),downloadFormat=ref('txt'),preservedOpen=ref(false),reviewOpen=ref(false),lastBlocked=ref('')
+const mobileColumn=ref(1),preservedOpen=ref(false),reviewOpen=ref(false),lastBlocked=ref('')
 const sectionLabel=computed(()=>draft.value?.document.secoes.find(s=>s.id===selectedSection.value)?.nome)
-watch(()=>draft.value?.id,()=>{sourceOpen.value=false})
+const phase = ref<'edit' | 'review'>('edit')
+const workspaceHeader = ref<{ reset: () => void; focus: () => void } | null>(null)
+const recent = computed(() => history.value.filter(item => item.revision > 0 && item.revision <= (draft.value?.revision ?? 0)).slice(-3).reverse())
+function returnToModel() { sourceOpen.value = false; void nextTick(() => workspaceHeader.value?.focus()) }
+function editing() { phase.value = 'edit'; workspaceHeader.value?.reset() }
+watch(() => [draft.value?.id, draft.value?.revision] as const, ([id, revision], [previousId, previousRevision]) => {
+  if (id !== previousId) { sourceOpen.value = false; mobileColumn.value = 1; voiceMode.value = 'steps'; editing(); if (props.guided && id) void nextTick(() => workspaceHeader.value?.focus()) }
+  else if (id && revision !== previousRevision) { phase.value = 'review'; workspaceHeader.value?.reset() }
+})
 watch(()=>draft.value?.document,doc=>{if(props.guided&&!selectedSection.value&&doc?.secoes.length)selectedSection.value=doc.secoes[0]!.id})
 watch(blocked,block=>{if(block)lastBlocked.value='Alteração bloqueada: as medidas necessárias aos cálculos foram mantidas.'})
-async function switchVoice(mode:'continuous'|'steps'){if(stepPanel.value?.hasPending){toast('Confira a tentativa pendente antes de trocar de modo.','warning');return}await voicePanel.value?.stop();stepPanel.value?.stop();voiceActive.value=false;voiceMode.value=mode}
+async function switchVoice(mode: 'continuous' | 'steps') {
+  if (mode === voiceMode.value) return
+  if (choices.value || pending.value || stepPanel.value?.hasPending) {
+    toast('Resolva a operação pendente antes de trocar de modo.', 'warning')
+    return
+  }
+  await voicePanel.value?.stop()
+  stepPanel.value?.stop()
+  voiceActive.value = false
+  voiceMode.value = mode
+  editing()
+}
 function locateDependents(block:RemovalBlock){highlight.value=block.dependents.map(d=>d.measure.itemId);const target=block.dependents[0]?.measure;if(!target)return;if(target.preserved){reviewOpen.value=true;preservedOpen.value=true;nextTick(()=>document.querySelector('[data-preserved-components]')?.scrollIntoView({behavior:'smooth',block:'center'}));return}const section=draft.value?.document.secoes.find(s=>s.id===target.sectionId);if(section)mobileColumn.value=section.coluna;nextTick(()=>{const element=[...document.querySelectorAll<HTMLElement>('[data-studio-id]')].find(e=>e.dataset.studioId===target.itemId);element?.scrollIntoView({behavior:'smooth',block:'center'});element?.focus()})}
-async function downloadModel(){const format=draft.value?.document.importedJson?'json':downloadFormat.value;if(await generate(format))await downloadPreview()}
+async function downloadModel() {
+  const current = draft.value
+  if (!current) return false
+  const selection = current.document.importedJson ? 'jsonStudio' : await chooseConversionFormat()
+  if (!selection || draft.value?.id !== current.id || draft.value.revision !== current.revision) return false
+  const format = { jsonStudio: 'json', modoTexto: 'txt', html: 'html' }[selection]
+  return await generate(format) && await downloadPreview()
+}
 async function startImage(event:Event){const input=event.target as HTMLInputElement,file=input.files?.[0];input.value='';if(!file)return;await create(newName.value);const data=new FormData();data.append('image',file);imageReview.value=await api.postForm(`/api/voice/rascunhos/${draft.value!.id}/imagem`,data)}
 const byId = computed(() => new Map(catalog.value.map(v => [v.codVariavel, v])))
 const groups = computed(() => [...new Set(catalog.value.map(v => v.grupo || 'Sem grupo'))].sort())
@@ -86,6 +112,10 @@ async function add(ids: number[], sectionId = selectedSection.value) {
   }
   await send('addMeasures', {sectionId, ids: unique}); selectedMeasures.value = []
 }
+async function removeItem(item: StudioItem) {
+  if (props.guided && !(await confirm('Remover medida?', 'A medida será removida deste modelo.')).isConfirmed) return
+  await send('deleteItem', { itemId: item.id })
+}
 async function drop(section: StudioSection, position: number) {
   const payload = drag.value; drag.value = null
   if (!payload) return
@@ -111,11 +141,12 @@ async function publish() {
   finally { publishing.value = false }
 }
 async function downloadPreview() {
-  if (!(await refreshDetails()) || outdated.value || !preview.value) { toast('Confira a revisão e gere novamente o preview antes de baixar.', 'warning'); return }
+  if (!(await refreshDetails()) || outdated.value || !preview.value) { toast('Confira a revisão e gere novamente o preview antes de baixar.', 'warning'); return false }
   const value = preview.value
   if (value.format === 'txt') downloadText(value.content, 'laudo.txt')
   else if (value.format === 'json') downloadJson(value.content, 'laudo.json')
   else downloadHtml(value.content, 'laudo.html')
+  return true
 }
 async function importImage(event: Event) {
   const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = ''
@@ -156,14 +187,54 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
 <template>
   <div class="space-y-4" :class="{'guided-editor':guided}">
     <StudioDependencyNotice :block="blocked" @close="blocked=null" @locate="locateDependents" />
-    <StudioDsCard v-if="!guided||!draft||sourceOpen" :title="guided?'Como deseja começar?':'Studio integrado · rascunhos privados'">
-      <div v-if="guided" class="mb-4 grid gap-3 sm:grid-cols-4"><button v-for="option in [{id:'new',label:'Novo modelo'},{id:'open',label:'Abrir modelo'},{id:'json',label:'Importar JSON'},{id:'image',label:'Usar imagem'}]" :key="option.id" class="rounded-xl border p-4 text-left font-semibold" :class="source===option.id?'border-blue-500 bg-ds-surface':'border-ds-divider'" :disabled="voiceActive||busy||!!pending" @click="source=option.id as typeof source">{{ option.label }}</button></div>
-      <StudioJsonImport v-if="!guided||source==='json'" destination="integrated" :disabled="voiceActive || busy || !!pending" @confirmed="result => { if (result.draft) {accept(result.draft); list()} }" />
-      <label v-if="guided&&source==='image'" class="my-3 block rounded-lg border border-ds-divider p-4">Selecione uma imagem do modelo<input type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy||voiceActive||!!pending" @change="guarded(()=>startImage($event))"></label>
-      <div v-if="!guided||source==='new'||source==='open'" class="flex flex-wrap gap-2">
+    <StudioVoiceStart v-if="guided && (!draft || sourceOpen)" v-model="source" :disabled="voiceActive || busy || !!pending"
+      :can-cancel="!!draft" @cancel="returnToModel">
+      <StudioJsonImport v-if="source === 'json'" destination="integrated" :disabled="voiceActive || busy || !!pending"
+        @confirmed="result => { if (result.draft) { accept(result.draft); list() } }" />
+      <label v-else-if="source === 'image'" class="block text-sm">
+        Selecione uma imagem do modelo
+        <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy || voiceActive || !!pending" @change="guarded(() => startImage($event))">
+      </label>
+      <div v-else class="flex flex-wrap items-end gap-3">
+        <label v-if="source === 'new'" class="text-sm">Nome do modelo<input v-model="newName" class="field mt-1 block" maxlength="120"></label>
+        <label v-else class="text-sm">Modelo cadastrado<select v-model="modelId" class="field mt-1 block"><option :value="null">Selecione um modelo</option><option v-for="m in models" :key="m.codModelo" :value="m.codModelo">{{ m.nome }}</option></select></label>
+        <StudioDsButton :disabled="voiceActive || busy || !!pending || (source === 'open' && !modelId)"
+          @click="guarded(() => create(source === 'new' ? newName : (models.find(model => model.codModelo === modelId)?.nome || newName), source === 'open' ? modelId : null))">{{ source === 'new' ? 'Começar' : 'Abrir' }}</StudioDsButton>
+      </div>
+      <template #resume>
+        <section v-if="entries.length && !archived" class="mt-6 border-t border-ds-divider pt-4">
+          <h2 class="mb-2 font-semibold">Continuar de onde parou</h2>
+          <ul class="space-y-2">
+            <li v-for="entry in entries" :key="entry.id" class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ds-divider px-3 py-2">
+              <div><span class="block font-medium">{{ entry.document.nome }}</span><time :datetime="entry.updatedAt" class="text-xs text-ds-text-secondary">{{ new Date(entry.updatedAt).toLocaleString('pt-BR') }}</time></div>
+              <StudioDsButton variant="secondary" :disabled="voiceActive || busy || !!pending" :aria-label="`Retomar ${entry.document.nome}`"
+                @click="guarded(async () => { await open(entry.id); if (draft?.id === entry.id) returnToModel() })">Retomar</StudioDsButton>
+            </li>
+          </ul>
+        </section>
+        <details class="mt-4 text-sm">
+          <summary>Opções avançadas</summary>
+          <label class="mt-2 block"><input v-model="archived" type="checkbox" @change="guarded(() => list(archived))"> Mostrar arquivados</label>
+          <select v-if="archived && entries.length" class="field mt-2" aria-label="Trabalho arquivado" :disabled="voiceActive || busy || !!pending"
+            @change="guarded(() => open(($event.target as HTMLSelectElement).value))"><option value="" disabled selected>Selecione um trabalho arquivado</option><option v-for="entry in entries" :key="entry.id" :value="entry.id">{{ entry.document.nome }}</option></select>
+          <StudioDsButton v-if="voiceSession.sessionId" variant="secondary" :disabled="voiceActive || busy || !!pending"
+            @click="guarded(() => create(newName, null, voiceSession.sessionId!))">Importar sessão de voz aberta</StudioDsButton>
+          <div v-if="publicationHistory.length" class="mt-2 flex flex-wrap gap-2">
+            <select v-model="publicationId" class="field" aria-label="Publicação preservada"><option value="">Selecione uma publicação</option><option v-for="publication in publicationHistory" :key="publication.id" :value="publication.id">{{ publication.nome }}</option></select>
+            <StudioDsButton variant="secondary" :disabled="!publicationId || voiceActive || busy || !!pending"
+              @click="guarded(async () => { accept(await api.post('/api/voice/rascunhos', { nome: newName, publicacaoId: publicationId })); await list() })">Abrir publicação</StudioDsButton>
+          </div>
+          <slot name="advanced" :disabled="voiceActive || busy || !!pending" />
+        </details>
+      </template>
+    </StudioVoiceStart>
+    <StudioDsCard v-if="!guided" title="Studio integrado · rascunhos privados">
+      <StudioJsonImport destination="integrated" :disabled="voiceActive || busy || !!pending"
+        @confirmed="result => { if (result.draft) { accept(result.draft); list() } }" />
+      <div class="flex flex-wrap gap-2">
         <input v-model="newName" aria-label="Nome do novo rascunho" class="field" maxlength="120">
-        <select v-if="!guided||source==='open'" v-model="modelId" class="field" aria-label="Modelo de origem"><option :value="null">Selecione um modelo</option><option v-for="m in models" :key="m.codModelo" :value="m.codModelo">{{ m.nome }}</option></select>
-        <StudioDsButton :disabled="voiceActive || busy || !!pending || (guided&&source==='open'&&!modelId)" @click="guarded(() => create(newName, guided&&source==='new'?null:modelId))">{{ guided?(source==='open'?'Abrir como novo trabalho':'Começar modelo'):'Criar rascunho' }}</StudioDsButton>
+        <select v-model="modelId" class="field" aria-label="Modelo de origem"><option :value="null">Selecione um modelo</option><option v-for="m in models" :key="m.codModelo" :value="m.codModelo">{{ m.nome }}</option></select>
+        <StudioDsButton :disabled="voiceActive || busy || !!pending" @click="guarded(() => create(newName, modelId))">Criar rascunho</StudioDsButton>
         <StudioDsButton v-if="voiceSession.sessionId" variant="secondary" :disabled="voiceActive || busy || !!pending" @click="guarded(() => create(newName, null, voiceSession.sessionId!))">Importar sessão de voz aberta</StudioDsButton>
       </div>
       <label class="mt-4 block font-semibold">Continuar um trabalho</label>
@@ -180,8 +251,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
       <button class="action" :disabled="busy" @click="reconcile(true)">Consultar resultado e tentar novamente</button>
       <button class="action" :disabled="busy" @click="discardPending">Conferir estado e descartar tentativa</button>
     </div>
-    <div v-if="draft" :class="guided?'guided-workspace':'space-y-4'">
-      <header v-if="guided" class="guided-header rounded-xl border border-ds-divider bg-ds-surface-elevated p-4"><div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="text-2xl font-semibold">{{ draft.document.nome }}</h1><p role="status" class="mt-1 text-sm">{{ sync }}</p></div><div class="flex flex-wrap gap-2"><button class="action" :disabled="voiceActive||busy||!!pending" @click="sourceOpen=!sourceOpen">Abrir outro modelo</button><button v-if="!draft.document.importedJson" class="action" :disabled="busy||!!pending||problems.length>0" @click="guarded(()=>prepare(!draft!.document.modeloOrigem))">Salvar modelo</button><select v-if="!draft.document.importedJson" v-model="downloadFormat" aria-label="Formato para baixar o modelo" class="field"><option value="txt">Modo texto</option><option value="json">JSON Studio</option><option value="html">HTML</option></select><button class="action" :disabled="busy||!!pending||(!draft.document.importedJson&&problems.length>0)" @click="guarded(downloadModel)">Baixar modelo</button></div></div><p v-if="draft.document.importedJson" class="mt-2 text-sm">Modelo importado: o download JSON preserva todos os componentes e configurações.</p></header>
+    <div v-if="draft" v-show="!guided || !sourceOpen" :class="guided ? 'voice-workspace' : 'space-y-4'">
+      <StudioVoiceWorkspaceHeader v-if="guided" :key="draft.id" ref="workspaceHeader" :title="draft.document.nome"
+        :storage-status="sync" :imported="!!draft.document.importedJson" :phase="phase"
+        :open-disabled="voiceActive || busy || !!pending || !!choices"
+        :disabled="voiceActive || busy || !!pending || !!choices || (!draft.document.importedJson && problems.length > 0)"
+        :download="downloadModel" @open="sourceOpen = true">
+        <template #actions>
+          <StudioDsButton v-if="!draft.document.importedJson" variant="secondary"
+            :disabled="voiceActive || busy || !!pending || !!choices || problems.length > 0"
+            @click="guarded(() => prepare(!draft!.document.modeloOrigem))">Salvar modelo</StudioDsButton>
+        </template>
+      </StudioVoiceWorkspaceHeader>
       <StudioDsCard v-if="!guided" :title="draft.document.nome">
         <p role="status" class="mb-3 text-sm">{{ sync }} · revisão {{ draft.revision }}</p>
         <div class="flex flex-wrap gap-2">
@@ -195,20 +276,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
         <label class="mt-3 block text-sm"><input v-model="enableVoice" type="checkbox" :disabled="voiceActive"> Editar este rascunho por voz</label>
         <StudioRealtimeVoicePanel v-if="enableVoice" :key="draft.id" :draft-id="draft.id" :context="context" @active="voiceActive = $event" @updated="accept($event)" @choice="receiveChoice" @blocked="blocked=$event" />
       </StudioDsCard>
-      <aside v-if="guided" class="guided-assistant space-y-4">
-        <StudioRealtimeVoicePanel v-if="voiceMode==='continuous'" ref="voicePanel" :key="draft.id" friendly :draft-id="draft.id" :context="context" :catalog="catalog" :section-name="sectionLabel" :awaiting-choice="!!choices" @active="voiceActive=$event" @updated="accept($event)" @choice="receiveChoice" @blocked="blocked=$event" @fallback="switchVoice('steps')" />
-        <StudioDraftVoiceSteps v-else ref="stepPanel" :key="draft.id" :draft="draft" @updated="accept($event)" @blocked="blocked=$event" @active="voiceActive=$event" />
+      <aside v-if="guided" class="voice-workspace-assistant space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3" aria-label="Assistente de voz">
+        <StudioRealtimeVoicePanel v-if="voiceMode==='continuous'" ref="voicePanel" :key="draft.id" friendly :draft-id="draft.id" :context="context" :catalog="catalog" :section-name="sectionLabel" :awaiting-choice="!!choices" @active="value => { voiceActive = value; if (value) editing() }" @updated="accept($event)" @choice="receiveChoice" @blocked="blocked=$event" @fallback="switchVoice('steps')" />
+        <StudioDraftVoiceSteps v-else ref="stepPanel" :key="draft.id" :draft="draft" :disabled="busy || !!pending || draft.archived" @editing="editing" @updated="accept($event)" @blocked="blocked=$event" @active="voiceActive=$event" />
         <StudioMeasureChoice v-if="choices" :token="choices.token" :candidates="choices.candidates" :sections="draft.document.secoes" :section="choiceSection" :busy="choiceBusy" :error="choiceError" :stale="choiceStale" :retry-code="choiceCode" @section="choiceSection=$event" @choose="resolveChoice" @cancel="cancelChoice" />
         <div class="rounded-xl border border-ds-divider p-4 text-sm"><p>Seção selecionada: <strong>{{ sectionLabel||'selecione uma seção no modelo' }}</strong></p><div class="mt-2 flex flex-wrap gap-2"><button class="action" :disabled="busy||!!pending||!!choices" @click="send('undo',{})">Desfazer</button><button class="action" :disabled="busy||!!pending||!!choices" @click="send('redo',{})">Refazer</button></div><p v-if="lastBlocked" role="status" class="mt-2 text-amber-500">{{ lastBlocked }}</p></div>
-        <details class="rounded-xl border border-ds-divider p-4 text-sm"><summary>Opções de edição</summary><div class="mt-3 space-y-2"><button v-if="realtimeAvailable!==false" class="action" :aria-pressed="voiceMode==='continuous'" @click="switchVoice('continuous')">Conversação contínua</button><button class="action" :aria-pressed="voiceMode==='steps'" @click="switchVoice('steps')">Gravação por etapas</button><label class="block">Nome do modelo<input :value="draft.document.nome" class="field w-full" :disabled="busy||!!pending" @change="send('rename',{name:($event.target as HTMLInputElement).value})"></label><button v-if="!draft.document.importedJson&&draft.document.modeloOrigem" class="action" :disabled="busy||!!pending||problems.length>0" @click="guarded(()=>prepare(true))">Salvar como cópia</button><button class="action" :disabled="voiceActive||busy||!!pending" @click="send(draft!.archived?'unarchive':'archive',{}).then(()=>list(archived))">{{ draft.archived?'Desarquivar':'Arquivar' }}</button><button class="action" :disabled="voiceActive||busy||!!pending" @click="guarded(deleteDraft)">Excluir trabalho e histórico</button></div></details>
+        <details class="rounded-xl border border-ds-divider p-4 text-sm"><summary>Opções avançadas</summary><p v-if="realtimeAvailable" class="mt-2">Na conversação contínua, as alterações são aplicadas durante a fala. Sugestões ainda exigem sua confirmação.</p><div class="mt-3 space-y-2"><button v-if="realtimeAvailable!==false" class="action" :aria-pressed="voiceMode==='continuous'" @click="switchVoice('continuous')">Conversação contínua</button><button class="action" :aria-pressed="voiceMode==='steps'" @click="switchVoice('steps')">Gravação por etapas</button><label class="block">Nome do modelo<input :value="draft.document.nome" class="field w-full" :disabled="busy||!!pending" @change="send('rename',{name:($event.target as HTMLInputElement).value})"></label><button v-if="!draft.document.importedJson&&draft.document.modeloOrigem" class="action" :disabled="busy||!!pending||problems.length>0" @click="guarded(()=>prepare(true))">Salvar como cópia</button><button class="action" :disabled="voiceActive||busy||!!pending" @click="send(draft!.archived?'unarchive':'archive',{}).then(()=>list(archived))">{{ draft.archived?'Desarquivar':'Arquivar' }}</button><button class="action" :disabled="voiceActive||busy||!!pending" @click="guarded(deleteDraft)">Excluir trabalho e histórico</button></div><slot name="advanced" :disabled="voiceActive || busy || !!pending || !!choices" /></details>
+        <section v-if="recent.length && voiceMode !== 'continuous'" class="rounded-xl border border-ds-divider p-3 text-sm" aria-label="Últimas alterações">
+          <h2 class="mb-2 font-semibold">Últimas alterações</h2>
+          <ul class="space-y-2"><li v-for="entry in recent" :key="entry.revision">{{ entry.description }}</li></ul>
+        </section>
         <details class="rounded-xl border border-ds-divider p-4 text-sm"><summary>Transcrição completa</summary><p v-for="(entry,n) in voiceSession.transcriptHistory" :key="n" class="mt-2">{{ entry.transcript }}</p><p v-if="!voiceSession.transcriptHistory.length" class="mt-2">Nenhuma fala registrada nesta sessão.</p></details>
       </aside>
-      <div :class="guided?'guided-model space-y-4':'space-y-4'">
+      <div :class="guided?'voice-workspace-model space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3':'space-y-4'">
       <div v-if="guided" class="flex flex-wrap items-center justify-between gap-2"><h2 class="text-lg font-semibold">Seu modelo</h2><button class="action" @click="bank=!bank">Adicionar medida</button></div>
       <div class="flex flex-wrap gap-2"><input v-model="sectionName" class="field" aria-label="Nome da nova seção"><button v-for="col in [1,2]" :key="col" class="action" :disabled="busy || !!pending || draft.archived" @click="send('createSection', {name: sectionName, column: col})">Criar seção na coluna {{ col }}</button></div>
       <div v-if="guided" class="flex gap-2 lg:hidden"><button v-for="col in [1,2]" :key="col" class="action" :aria-pressed="mobileColumn===col" @click="mobileColumn=col">Coluna {{ col }}</button></div>
       <div class="grid gap-4 lg:grid-cols-2">
-        <div v-for="column in [1,2]" :key="column" class="min-h-32 rounded border border-ds-divider p-3" :class="{'guided-hidden-column':guided&&mobileColumn!==column}" @dragover.prevent @drop.prevent="drag?.sectionId && send('editSection', {sectionId: drag.sectionId, name: draft.document.secoes.find(s => s.id === drag?.sectionId)?.nome, column, position: draft.document.secoes.length}).then(() => drag = null)">
+        <div v-for="column in [1,2]" :key="column" class="min-h-32 rounded border border-ds-divider p-3" :class="{'voice-hidden-column':guided&&mobileColumn!==column}" @dragover.prevent @drop.prevent="drag?.sectionId && send('editSection', {sectionId: drag.sectionId, name: draft.document.secoes.find(s => s.id === drag?.sectionId)?.nome, column, position: draft.document.secoes.length}).then(() => drag = null)">
           <h3 class="mb-3">{{ column === 1 ? 'Coluna esquerda' : 'Coluna direita' }}</h3>
           <section v-for="section in draft.document.secoes.filter(s => s.coluna === column)" :key="section.id" :data-studio-id="section.id" tabindex="0" :aria-label="`Seção ${section.nome}`" @keydown.enter.self="selectedSection=section.id" class="mb-3 rounded border p-3" :class="selectedSection === section.id ? 'border-blue-500' : 'border-ds-divider'" @click="selectedSection = section.id">
             <header draggable="true" class="mb-2 flex flex-wrap items-center gap-2" @dragstart.stop="drag = {sectionId: section.id}">
@@ -221,22 +306,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
               <small v-if="item.imported&&!guided" class="ml-2">{{ item.imported.properties.funcao || item.imported.properties.formula ? 'ƒ' : '' }} Configuração do arquivo {{ item.exibirGrafico ? 'Gráfico' : '' }}</small>
               <small v-else-if="!guided" class="ml-2">{{ byId.get(item.codVariavel || 0)?.formula ? 'ƒ' : '' }} {{ item.normalidadeOverride != null ? 'Normalidade personalizada' : byId.get(item.codVariavel || 0)?.normalidade ? 'Normalidade do banco' : '' }} {{ item.exibirGrafico ? 'Gráfico' : '' }}</small>
               <button class="action" @click.stop="editingItem = JSON.parse(JSON.stringify(item))">Detalhes / editar / mover</button>
-              <button class="action" :disabled="busy || !!pending" @click.stop="send('deleteItem', {itemId: item.id})">Remover</button>
+              <button class="action" :disabled="busy || !!pending" :aria-label="`Remover ${label(item)}`" @click.stop="removeItem(item)">Remover</button>
             </div>
             <div class="rounded border border-dashed border-ds-divider p-3 text-sm" @dragover.stop.prevent @drop.stop.prevent="drop(section, section.itens.length)">Solte medidas aqui ou selecione esta seção e use o banco de medidas.</div>
           </section>
         </div>
       </div>
       </div>
-      <details :open="!guided||reviewOpen" :class="{'guided-review':guided}"><summary v-if="guided" class="cursor-pointer rounded border border-ds-divider p-3">Revisão, prévia e detalhes do modelo</summary>
+      <details :open="!guided||reviewOpen" :class="{'voice-workspace-review':guided}"><summary v-if="guided" class="cursor-pointer rounded border border-ds-divider p-3">Revisão, prévia e detalhes do modelo</summary>
       <StudioDsCard title="Revisão e exportação">
         <p v-if="draft.document.importedJson" class="mb-3 text-sm">JSON importado: somente download JSON completo e rascunho. Publicação, TXT, HTML e mesclagem por imagem estão desabilitados para preservar todos os componentes.</p>
         <details v-if="draft.document.importedJson" :open="preservedOpen" data-preserved-components class="my-3"><summary>Componentes preservados (somente leitura)</summary><pre class="max-h-64 overflow-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(draft.document.importedJson.components, null, 2) }}</pre></details>
         <ul><li v-for="(problem, n) in problems" :key="n"><button class="text-amber-500" @click="scrollToItem(problem.itemId)">{{ problem.message }}</button></li></ul>
         <div class="mt-3 flex flex-wrap gap-2">
-          <button v-for="format in draft.document.importedJson ? ['json'] : ['txt','json','html']" :key="format" class="action" :disabled="busy || !!pending || (!draft.document.importedJson && problems.length > 0)" @click="generate(format)">Gerar {{ format.toUpperCase() }}</button>
-          <button v-if="!draft.document.importedJson" class="action" :disabled="busy || !!pending || problems.length > 0" @click="guarded(() => prepare(true))">Salvar como novo modelo</button>
-          <button v-if="!draft.document.importedJson&&draft.document.modeloOrigem" class="action" :disabled="busy || !!pending || problems.length > 0" @click="guarded(() => prepare(false))">Atualizar modelo original</button>
+          <button v-for="format in guided ? [] : draft.document.importedJson ? ['json'] : ['txt','json','html']" :key="format" class="action" :disabled="busy || !!pending || (!draft.document.importedJson && problems.length > 0)" @click="generate(format)">Gerar {{ format.toUpperCase() }}</button>
+          <button v-if="!guided && !draft.document.importedJson" class="action" :disabled="busy || !!pending || problems.length > 0" @click="guarded(() => prepare(true))">Salvar como novo modelo</button>
+          <button v-if="!guided && !draft.document.importedJson&&draft.document.modeloOrigem" class="action" :disabled="busy || !!pending || problems.length > 0" @click="guarded(() => prepare(false))">Atualizar modelo original</button>
           <label v-if="!draft.document.importedJson" class="action">Importar imagem <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy || !!pending" @change="guarded(() => importImage($event))"></label>
         </div>
         <div v-if="preview" class="mt-3"><p>Revisão {{ preview.revision }} <span v-if="outdated" class="text-amber-500">— Preview desatualizado: gere novamente</span></p><StudioModoTextoPreview v-if="preview.format === 'txt'" :text="preview.content"/><StudioHtmlPreviewFrame v-else-if="preview.format === 'html'" :html="preview.content"/><pre v-else class="max-h-64 overflow-auto text-xs">{{ preview.content }}</pre>
@@ -244,7 +329,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
         </div>
       </StudioDsCard>
       </details>
-      <details :open="!guided" :class="{'guided-history':guided}"><summary v-if="guided" class="cursor-pointer rounded border border-ds-divider p-3">Histórico e versões anteriores</summary>
+      <details :open="!guided" :class="{'voice-workspace-history':guided}"><summary v-if="guided" class="cursor-pointer rounded border border-ds-divider p-3">Histórico e versões anteriores</summary>
       <StudioDsCard title="Histórico de ações e versões">
         <select v-model="selectedVersion" class="field"><option :value="null">Comparar uma versão</option><option v-for="h in history" :key="h.revision" :value="h.revision">{{ h.revision }} · {{ h.description }} · {{ h.source }}</option></select>
         <div v-if="compared" class="mt-2"><p>{{ compared.document.secoes.length }} seções na revisão {{ compared.revision }}; {{ draft.document.secoes.length }} na atual. Metadados são consultados no banco atual.</p><div class="grid gap-3 lg:grid-cols-2"><pre class="max-h-64 overflow-auto text-xs">{{ JSON.stringify(compared.document, null, 2) }}</pre><pre class="max-h-64 overflow-auto text-xs">{{ JSON.stringify(draft.document, null, 2) }}</pre></div><button class="action" :disabled="busy || !!pending" @click="confirm('Restaurar esta versão?', 'A restauração cria outra revisão e preserva o histórico.').then(r => r.isConfirmed && send('restore', {revision: compared!.revision}))">Restaurar como nova revisão</button></div>
@@ -289,8 +374,4 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
 .action { border:1px solid var(--color-ds-divider); border-radius:6px; padding:6px 10px; font-size:.8rem; margin:3px; }
 .action:hover:not(:disabled) { background:var(--color-ds-surface-elevated); }
 .action:disabled { opacity:.45; cursor:not-allowed; }
-.guided-workspace{display:grid;gap:1rem;grid-template-areas:'header' 'assistant' 'model' 'review' 'history';grid-template-columns:minmax(0,1fr)}
-.guided-header{grid-area:header}.guided-model{grid-area:model;min-width:0}.guided-assistant{grid-area:assistant;min-width:0;align-self:start}.guided-review{grid-area:review;min-width:0}.guided-history{grid-area:history;min-width:0}
-@media(min-width:1280px){.guided-workspace{grid-template-columns:minmax(0,1fr) minmax(320px,380px);grid-template-areas:'header header' 'model assistant' 'review assistant' 'history assistant';align-items:start}.guided-assistant{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto}}
-@media(max-width:1023px){.guided-assistant{position:sticky;top:0;z-index:20;max-height:45vh;overflow:auto;background:var(--color-ds-surface)}.guided-hidden-column{display:none}.guided-assistant :deep(button.bi-mic),.guided-assistant :deep(.min-h-14){position:sticky;top:.5rem;z-index:10}}
 </style>
