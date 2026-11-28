@@ -1,5 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath } from 'node:url'
 
 const applicationVersion = '1.0.0'
 const releaseBuild = process.env.NUXT_PUBLIC_RELEASE_BUILD?.trim()
@@ -44,10 +45,15 @@ export default defineNuxtConfig({
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api-dotnet',
       applicationVersion,
+      studioGestures: false,
       releaseBuild: releaseBuild || null
     }
   },
   nitro: {
+    publicAssets: [{
+      dir: fileURLToPath(new URL('./node_modules/@mediapipe/tasks-vision', import.meta.url)),
+      baseURL: '/studio-gesture-runtime/0.10.32'
+    }],
     // /static é servido em runtime pela API (proxy IIS em produção).
     // Não empacotar anexos dos usuários como assets públicos do build.
     devProxy: {

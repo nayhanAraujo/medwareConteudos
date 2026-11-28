@@ -23,6 +23,7 @@ function harness({ response, exportFails = false, applyFails = false, applyError
   }
   const dependencies = {
     computed, ref, definePageMeta() {}, onMounted() {}, onUnmounted() {}, nextTick: async () => {},
+    useRuntimeConfig: () => ({ public: { studioGestures: false } }),
     useVoiceSessionStore: () => store,
     useConversionStore: () => ({ setCurrent() {} }),
     useVoiceApi: () => ({

@@ -90,6 +90,9 @@ const grouped = computed(() => {
             v-for="(field, fi) in section.fields"
             :key="`${field.nome}-${fi}`"
             :data-source-id="field.id" tabindex="-1"
+            :data-gesture-section="movable && field.id != null ? section.id : null"
+            :data-gesture-item="movable && section.id ? field.id : null"
+            :data-gesture-next="section.fields[fi + 1]?.id"
             :draggable="movable && !disabled && field.id != null"
             @dragstart="startDrag($event, field)" @dragend="dragging = null"
             @dragover="allowDrop($event, section.id, String(field.id))" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop($event, section.id, String(field.id))"
@@ -128,7 +131,7 @@ const grouped = computed(() => {
             </StudioActionMenu>
           </li>
         </ul>
-        <div v-if="movable && section.id" class="mt-2 rounded border border-dashed border-ds-divider p-3 text-sm"
+        <div v-if="movable && section.id" :data-gesture-section="section.id" class="mt-2 rounded border border-dashed border-ds-divider p-3 text-sm"
           :class="{ 'studio-drop-end': dropTarget === section.id + ':end' }" @dragover="allowDrop($event, section.id)" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop($event, section.id)">Solte aqui para mover ao fim de {{ section.title }}</div>
       </div>
     </div>

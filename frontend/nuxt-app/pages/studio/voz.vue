@@ -10,6 +10,8 @@ const integrated = ref(false)
 const integratedAvailable = ref(false)
 const capabilities=ref({guidedVoice:false,persistentDrafts:false,realtimeVoice:false,conventionalVoice:true})
 const conventionalOptions=ref(false)
+const config = useRuntimeConfig()
+const gesturesEnabled = computed(() => String(config.public.studioGestures) === 'true' && !conventionalOptions.value)
 const loadingCapabilities = ref(true)
 const voiceBlock=ref<RemovalBlock|null>(null)
 const temporaryView=ref<{locate:(block:RemovalBlock)=>void;receiveChoice:(prompt:any)=>void}|null>(null)
@@ -365,10 +367,10 @@ const onNewSession = () => {
     <StudioDependencyNotice :block="voiceBlock" @close="voiceBlock=null" @locate="locateVoiceDependents" />
     <p v-if="loadingCapabilities" role="status" class="mx-auto max-w-7xl px-4 py-8">Carregando edição por voz…</p>
     <div v-if="!loadingCapabilities && capabilities.guidedVoice" v-show="!conventionalOptions" class="mx-auto max-w-[1680px] px-4 py-6 sm:px-6">
-      <StudioIntegratedEditor v-if="capabilities.persistentDrafts" guided :realtime-available="capabilities.realtimeVoice">
+      <StudioIntegratedEditor v-if="capabilities.persistentDrafts" guided :realtime-available="capabilities.realtimeVoice" :gestures-enabled="gesturesEnabled">
         <template #advanced="{ disabled }"><button type="button" :disabled="disabled" class="mt-3 rounded border border-ds-divider p-2" @click="conventionalOptions = true">Abrir edição convencional</button></template>
       </StudioIntegratedEditor>
-      <StudioTemporaryVoice v-else ref="temporaryView" :realtime-available="capabilities.realtimeVoice" :busy="sending || generating" :applying="applying"
+      <StudioTemporaryVoice v-else ref="temporaryView" :realtime-available="capabilities.realtimeVoice" :busy="sending || generating" :applying="applying" :gestures-enabled="gesturesEnabled"
         :listening="isListening" :speech-supported="isSupported" :speech-error="speechError" v-model:transcript="editableTranscript"
         :download="guidedDownload" :measure-notice="measureNotice" @started="onGuidedStarted" @speak="measureNotice = ''; startSpeech()" @stop="stopSpeech"
         @apply="applyTranscript(hasModel ? 'edit' : 'build', true)" @upload="onUploadAudio($event, true)" @blocked="voiceBlock = $event">

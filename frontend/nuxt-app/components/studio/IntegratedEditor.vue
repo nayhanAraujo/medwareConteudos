@@ -2,7 +2,8 @@
 import type { StudioDraft, StudioSection, StudioItem, StudioVariable } from '~/types/studioDraft'
 import { describeVoiceChange, type VoiceChangeSection } from '~/utils/voiceChange'
 import type {RemovalBlock} from '~/utils/studioDependencies'
-const props=defineProps<{guided?:boolean;realtimeAvailable?:boolean}>()
+import { resolveMeasureMove, type MeasureMove } from '~/utils/studioGesture'
+const props=defineProps<{guided?:boolean;realtimeAvailable?:boolean;gesturesEnabled?:boolean}>()
 const { api, draft, entries, history, catalog, problems, busy, error, blocked, sync, pending, selectedSection, selectedItem, preview, outdated, accept, refreshDetails, list, open, create, send, reconcile, discardPending, generate } = useStudioDraft()
 const { confirm, toast, chooseConversionFormat } = useStudioSwal()
 const { downloadText, downloadJson, downloadHtml } = useHtmlPreview()
@@ -32,6 +33,14 @@ const feedback = useVoiceFeedback()
 const highlight = feedback.highlighted
 const lastChange = feedback.message
 const dropTarget = ref<string | null>(null)
+const gestureModel = ref<HTMLElement | null>(null)
+const gesturesSuspended = computed(() => {
+  if (voiceActive.value) return 'Gestos pausados enquanto a edição por voz está ativa.'
+  if (draft.value?.archived) return 'Reabra o trabalho arquivado para editar com gestos.'
+  if (busy.value || pending.value || stepPanel.value?.hasPending || choices.value || editingSection.value || editingItem.value || proposal.value || imageReview.value || blocked.value || bank.value) {
+    return 'Gestos pausados até concluir a ação em andamento.'
+  }
+})
 function markDrop(sectionId: string, position: number) {
   if (!drag.value || (!drag.value.itemId && !drag.value.ids) || busy.value || pending.value) return
   dropTarget.value = sectionId + ':' + position
@@ -136,14 +145,14 @@ async function removeItem(item: StudioItem) {
 async function drop(section: StudioSection, position: number) {
   const payload = drag.value; endDrag()
   if (!payload) return
-  if (payload.itemId) {
-    const source = draft.value?.document.secoes.find(candidate => candidate.itens.some(item => item.id === payload.itemId))
-    const previous = source?.itens.findIndex(item => item.id === payload.itemId) ?? -1
-    const destination = source?.id === section.id && previous < position ? position - 1 : position
-    if (source?.id === section.id && previous === destination) return
-    await send('moveItem', {itemId: payload.itemId, sectionId: section.id, position: destination})
-  }
+  if (payload.itemId) await moveMeasure({ sourceId: payload.itemId, sectionId: section.id, beforeItemId: section.itens[position]?.id ?? null })
   else if (payload.ids) await add(payload.ids, section.id)
+}
+async function moveMeasure(move: MeasureMove) {
+  if (!draft.value || busy.value || pending.value || draft.value.archived) return
+  const sections = draft.value.document.secoes.map(section => ({ id: section.id, items: section.itens.map(item => item.id) }))
+  const position = resolveMeasureMove(sections, move)
+  if (position !== null) await send('moveItem', { itemId: move.sourceId, sectionId: move.sectionId, position })
 }
 async function deleteDraft() {
   if (!draft.value) return
@@ -301,6 +310,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
         <StudioRealtimeVoicePanel v-if="enableVoice" :key="draft.id" :draft-id="draft.id" :context="context" @active="voiceActive = $event" @updated="accept($event)" @choice="receiveChoice" @blocked="blocked=$event" />
       </StudioDsCard>
       <aside v-if="guided" class="voice-workspace-assistant space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3" aria-label="Assistente de voz">
+        <StudioGestureControls v-if="gesturesEnabled && !sourceOpen" :key="draft.id" :model="gestureModel" :revision="draft.revision" :suspended="gesturesSuspended" @move="moveMeasure" />
         <StudioRealtimeVoicePanel v-if="voiceMode==='continuous'" ref="voicePanel" :key="draft.id" friendly :draft-id="draft.id" :context="context" :catalog="catalog" :section-name="sectionLabel" :awaiting-choice="!!choices" @active="value => { voiceActive = value; if (value) editing() }" @updated="accept($event)" @choice="receiveChoice" @blocked="blocked=$event" @fallback="switchVoice('steps')" />
         <StudioDraftVoiceSteps v-else ref="stepPanel" :key="draft.id" :draft="draft" :disabled="busy || !!pending || !!choices || draft.archived" @choice="receiveChoice" @editing="editing" @updated="accept($event)" @blocked="blocked=$event" @active="voiceActive=$event" />
         <div class="rounded-xl border border-ds-divider p-4 text-sm"><p>Seção selecionada: <strong>{{ sectionLabel||'selecione uma seção no modelo' }}</strong></p><div class="mt-2 flex flex-wrap gap-2"><button class="action" :disabled="busy||!!pending||!!choices" @click="send('undo',{})">Desfazer</button><button class="action" :disabled="busy||!!pending||!!choices" @click="send('redo',{})">Refazer</button></div><p v-if="lastBlocked" role="status" class="mt-2 text-amber-500">{{ lastBlocked }}</p></div>
@@ -311,7 +321,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
         </section>
         <details class="rounded-xl border border-ds-divider p-4 text-sm"><summary>Transcrição completa</summary><p v-for="(entry,n) in voiceSession.transcriptHistory" :key="n" class="mt-2">{{ entry.transcript }}</p><p v-if="!voiceSession.transcriptHistory.length" class="mt-2">Nenhuma fala registrada nesta sessão.</p></details>
       </aside>
-      <div :class="guided?'voice-workspace-model space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3':'space-y-4'">
+      <div ref="gestureModel" :class="guided?'voice-workspace-model space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3':'space-y-4'">
       <div v-if="guided" class="flex flex-wrap items-center justify-between gap-2"><h2 class="text-lg font-semibold">Seu modelo</h2><button class="action" @click="bank=!bank">Adicionar medida</button></div>
       <div class="flex flex-wrap gap-2"><input v-model="sectionName" class="field" aria-label="Nome da nova seção"><button v-for="col in [1,2]" :key="col" class="action" :disabled="busy || !!pending || draft.archived" @click="send('createSection', {name: sectionName, column: col})">Criar seção na coluna {{ col }}</button></div>
       <div v-if="guided" class="flex gap-2 lg:hidden"><button v-for="col in [1,2]" :key="col" class="action" :aria-pressed="mobileColumn===col" @click="mobileColumn=col">Coluna {{ col }}</button></div>
@@ -328,14 +338,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keyboard))
               <button class="action" :disabled="busy || !!pending" @click.stop="confirm('Esvaziar seção?', 'As medidas serão removidas apenas do rascunho.').then(r => r.isConfirmed && send('clearSection', {sectionId: section.id}))">Esvaziar</button>
               <button class="action" :disabled="busy || !!pending" @click.stop="confirm('Excluir seção?', 'Os campos desta seção sairão do rascunho.').then(r => r.isConfirmed && send('deleteSection', {sectionId: section.id}))">Excluir</button></StudioActionMenu>
             </header>
-            <div v-for="(item, index) in section.itens" :key="item.id" :data-studio-id="item.id" tabindex="-1" :draggable="!busy && !pending && !draft.archived" @dragend="endDrag" class="mb-2 flex flex-wrap items-center gap-2 rounded bg-ds-surface px-3 py-2 text-sm" :class="{'ring-1 ring-blue-500': highlight.includes(item.id), 'studio-drop-before': dropTarget === section.id + ':' + index, 'border border-amber-500': !item.codVariavel}" @dragstart.stop="drag = {itemId: item.id}" @dragover.stop.prevent="markDrop(section.id, index)" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop(section, index)" @click.stop="selectedSection = section.id; selectedItem = item.id">
+            <div v-for="(item, index) in section.itens" :key="item.id" :data-studio-id="item.id" :data-gesture-item="item.id" :data-gesture-section="section.id" :data-gesture-next="section.itens[index + 1]?.id" tabindex="-1" :draggable="!busy && !pending && !draft.archived" @dragend="endDrag" class="mb-2 flex flex-wrap items-center gap-2 rounded bg-ds-surface px-3 py-2 text-sm" :class="{'ring-1 ring-blue-500': highlight.includes(item.id), 'studio-drop-before': dropTarget === section.id + ':' + index, 'border border-amber-500': !item.codVariavel}" @dragstart.stop="drag = {itemId: item.id}" @dragover.stop.prevent="markDrop(section.id, index)" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop(section, index)" @click.stop="selectedSection = section.id; selectedItem = item.id">
               <i class="bi bi-grip-vertical text-ds-muted" aria-hidden="true" /><span class="flex-1">{{ label(item) }}</span><small class="ml-2"><span v-if="!guided">{{ item.imported?.properties.nome ?? byId.get(item.codVariavel || 0)?.sigla }} </span>{{ item.imported?.properties.medida ?? byId.get(item.codVariavel || 0)?.unidade }}</small>
               <small v-if="item.imported&&!guided" class="ml-2">{{ item.imported.properties.funcao || item.imported.properties.formula ? 'ƒ' : '' }} Configuração do arquivo {{ item.exibirGrafico ? 'Gráfico' : '' }}</small>
               <small v-else-if="!guided" class="ml-2">{{ byId.get(item.codVariavel || 0)?.formula ? 'ƒ' : '' }} {{ item.normalidadeOverride != null ? 'Normalidade personalizada' : byId.get(item.codVariavel || 0)?.normalidade ? 'Normalidade do banco' : '' }} {{ item.exibirGrafico ? 'Gráfico' : '' }}</small>
               <StudioActionMenu :label="`Ações de ${label(item)}`" :disabled="busy || !!pending || draft.archived"><button class="action" @click.stop="editingItem = JSON.parse(JSON.stringify(item))">Detalhes, ajustes e movimento</button>
               <button class="action" :disabled="busy || !!pending" :aria-label="`Remover ${label(item)}`" @click.stop="removeItem(item)">Remover</button></StudioActionMenu>
             </div>
-            <div class="rounded border border-dashed border-ds-divider p-3 text-sm" :class="{ 'studio-drop-end': dropTarget === section.id + ':' + section.itens.length }" @dragover.stop.prevent="markDrop(section.id, section.itens.length)" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop(section, section.itens.length)">Solte medidas aqui ou selecione esta seção e use o banco de medidas.</div>
+            <div :data-gesture-section="section.id" class="rounded border border-dashed border-ds-divider p-3 text-sm" :class="{ 'studio-drop-end': dropTarget === section.id + ':' + section.itens.length }" @dragover.stop.prevent="markDrop(section.id, section.itens.length)" @dragleave.self="dropTarget = null" @drop.stop.prevent="drop(section, section.itens.length)">Solte medidas aqui ou selecione esta seção e use o banco de medidas.</div>
           </section>
         </div>
       </div>

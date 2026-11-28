@@ -75,6 +75,33 @@ O movimento usa o sincronizador JSON existente e o histórico de importados.
 No modelo temporário convencional, o JSON é adaptado para o comando estrutural
 durante a operação e continua armazenado na sessão temporária.
 
+## Piloto de edição com gestos
+
+No ambiente do **frontend Nuxt**, defina `NUXT_PUBLIC_STUDIO_GESTURES=true` e
+reinicie o processo. A edição guiada deve estar habilitada na API. O piloto
+aparece no desktop nos editores guiados integrado e temporário. A câmera só
+é solicitada ao clicar em **Ativar câmera**. Seu vídeo é analisado no navegador
+com o modelo MediaPipe Hand Landmarker Float16 v1, servido pelo Studio junto com
+o WASM. [Modelo oficial](https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker?tab=Web)
+
+1. Abra `/studio/voz` no Chrome ou Edge em localhost ou HTTPS. Abra um modelo com
+   Peso e Altura na mesma seção e uma seção na outra coluna.
+2. Ative a câmera e aponte para Peso. Junte o polegar e o indicador, leve a
+   medida até aparecer a linha depois de Altura e abra os dedos. Repita para
+   mover Peso à área tracejada de uma seção na outra coluna, inclusive vazia.
+3. Faça outra pinça e pressione **Esc**, tire a mão de cena ou solte fora da
+   área do modelo. A ordem deve permanecer como estava. Abra um modal ou
+   inicie uma gravação durante um gesto e confira que o movimento é cancelado.
+4. Repita em um trabalho temporário e em um modelo importado. Baixe o JSON
+   importado e confira os IDs, tokens, fórmulas e componentes auxiliares.
+   Use **Desfazer** nos fluxos com histórico.
+5. Troque de aba, saia do editor ou clique em **Desativar câmera** e confira
+   que o Studio libera a webcam. Repita bloqueando a permissão. O aviso deve
+   aparecer e os controles de mouse e teclado devem continuar disponíveis.
+
+Os testes do gesto podem ser executados em `frontend/nuxt-app` com
+`node --test tests/studioGesture.test.mjs tests/studioTemporaryDrag.test.mjs tests/studioTemporaryVoice.test.mjs tests/studioDraft.test.mjs`.
+
 ## Contrato de remoção
 
 A regra compartilhada compara a operação completa com o documento que permanecerá.

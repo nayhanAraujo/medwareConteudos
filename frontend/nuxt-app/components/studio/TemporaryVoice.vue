@@ -3,7 +3,8 @@ import { describeVoiceChange, type VoiceChangeSection } from '~/utils/voiceChang
 import type {VoiceSessionResponse} from '~/types/voice'
 import type {RemovalBlock} from '~/utils/studioDependencies'
 import type {StudioSection,StudioVariable} from '~/types/studioDraft'
-const props=defineProps<{realtimeAvailable:boolean;busy:boolean;applying?:boolean;listening:boolean;speechSupported:boolean;speechError:string|null;transcript:string;download:()=>Promise<boolean>;measureNotice?:string}>()
+import type { MeasureMove } from '~/utils/studioGesture'
+const props=defineProps<{realtimeAvailable:boolean;busy:boolean;applying?:boolean;listening:boolean;speechSupported:boolean;speechError:string|null;transcript:string;download:()=>Promise<boolean>;measureNotice?:string;gesturesEnabled?:boolean}>()
 const emit=defineEmits<{started:[response:VoiceSessionResponse];speak:[];stop:[];apply:[];upload:[file:File];blocked:[block:RemovalBlock];'update:transcript':[text:string]}>()
 const store=useVoiceSessionStore(),api=useApi(),voiceApi=useVoiceApi()
 const source=ref<'new'|'open'|'json'|'image'>('new'),sourceOpen=ref(false),creating=ref(false),error=ref(''),mode=ref('steps')
@@ -30,6 +31,11 @@ function snapshot(fields: typeof store.camposScript.camposScript): VoiceChangeSe
   }))
 }
 const cannotLeave = computed(() => creating.value || active.value || props.busy || props.listening || !!pendingManual.value || !!choice.value)
+const gestureModel = ref<HTMLElement | null>(null)
+const gesturesSuspended = computed(() => {
+  if (active.value || props.listening) return 'Gestos pausados enquanto a edição por voz está ativa.'
+  if (cannotLeave.value || props.applying) return 'Gestos pausados até concluir a ação em andamento.'
+})
 const destinations = computed(() => store.camposScript.camposScript
   .filter(field => field.tipo === 'etiqueta' && field.id != null && [1, 2].includes(Number(field.coluna ?? 1)))
   .map(field => ({ id: String(field.id), title: field.descricao || field.nome || 'Seção' })))
@@ -75,7 +81,7 @@ async function remove(sourceId: string) {
   const result = await useStudioSwal().confirm('Remover medida?', 'A medida será removida deste modelo.')
   if (result.isConfirmed) await manual(sourceId)
 }
-async function moveMeasure(value: {sourceId: string;sectionId: string;beforeItemId: string|null}) {
+async function moveMeasure(value: MeasureMove) {
   if (cannotLeave.value) return
   await manual(value.sourceId, 'move', value)
 }
@@ -124,7 +130,7 @@ defineExpose({locate, receiveChoice})
         :title="store.sourceFileName || 'Seu modelo'" temporary :imported="store.isImported" :phase="phase"
         storage-status="Trabalho temporário — baixe antes de sair" :download="download" :open-disabled="cannotLeave"
         :disabled="cannotLeave || !store.camposScript.camposScript.length" @open="sourceOpen = true" />
-      <section class="voice-workspace-model space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3" aria-label="Seu modelo">
+      <section ref="gestureModel" class="voice-workspace-model space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3" aria-label="Seu modelo">
         <h2 class="text-lg font-semibold">Seu modelo</h2>
         <div v-if="lastChange" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ds-divider p-3">
           <p role="status" class="text-sm">{{ lastChange }}</p>
@@ -140,6 +146,7 @@ defineExpose({locate, receiveChoice})
         </div>
       </section>
       <aside class="voice-workspace-assistant space-y-4 rounded-xl border border-ds-divider bg-ds-surface-elevated p-3" aria-label="Assistente de voz">
+        <StudioGestureControls v-if="gesturesEnabled && !sourceOpen" :key="store.sessionId" :model="gestureModel" :revision="store.camposScriptJson" :suspended="gesturesSuspended" @move="moveMeasure" />
         <StudioRealtimeVoicePanel v-if="mode === 'continuous'" :key="store.sessionId" ref="pane" friendly :awaiting-choice="!!choice"
           @choice="receiveChoice" @active="value => { active = value; if (value) editing() }" @blocked="emit('blocked', $event)" @fallback="switchMode('steps')" />
         <StudioDsCard v-else title="Assistente de voz">
